@@ -1,0 +1,18 @@
+// src/app/settings/layout.tsx
+import { redirect } from 'next/navigation'
+import { getUser } from '@/lib/auth'
+import Sidebar from '@/components/layout/Sidebar'
+import { LanguageProvider } from '@/context/LanguageContext'
+
+export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
+  const user = await getUser()
+  if (!user) redirect('/')
+  return (
+    <LanguageProvider>
+      <div style={{ display: 'flex' }}>
+        <Sidebar userName={user.name as string} />
+        <div className="main-content" style={{ flex: 1 }}>{children}</div>
+      </div>
+    </LanguageProvider>
+  )
+}

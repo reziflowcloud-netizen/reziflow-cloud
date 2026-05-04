@@ -1,0 +1,244 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("employee")
+  createdAt DateTime @default(now())
+  cases     Case[]
+  tasks     Task[]
+}
+
+model Client {
+  id                String    @id @default(cuid())
+  firstName         String
+  lastName          String
+  phone             String?
+  email             String?
+  city              String?
+  pesel             String?
+  passportSeries    String?
+  passportNumber    String?
+  passportIssuedBy  String?
+  passportIssuedAt  DateTime?
+  passportExpiresAt DateTime?
+  addressInPoland   String?
+  stayBasis         String?
+  motherMaidenName  String?
+  dependents        String?
+  height            String?
+  eyeColor          String?
+  specialSigns      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  cases             Case[]
+  previousFirstName  String?
+  previousLastName   String?
+  maidenName         String?
+  birthDate          DateTime?
+  birthPlace         String?
+  citizenship        String?
+  nationality        String?
+  maritalStatus      String?
+  education          String?
+  statusUKR          Boolean @default(false)
+  fatherName         String?
+  motherName         String?
+  branch             String?
+  legalTitle         String?
+  rentalEndDate      DateTime?
+  lastEntryDate      DateTime?
+  firstResidenceCard Boolean @default(false)
+  residenceCardExpiry DateTime?
+  finesInPoland      Boolean @default(false)
+  finesDescription   String?
+  travelHistory      TravelHistory[]
+}
+
+model Case {
+  id                 String          @id @default(cuid())
+  caseNumber         String?         @unique
+  clientId           String
+  client             Client          @relation(fields: [clientId], references: [id])
+  assignedToId       Int?
+  assignedTo         User?           @relation(fields: [assignedToId], references: [id])
+  status             String          @default("Новый")
+  stayPurpose        String?
+  stayType           String?
+  contractType       String?
+  contractDate       DateTime?
+  contractNumber     String?
+  contractSigned     Boolean         @default(false)
+  contractValue      Float           @default(0)
+  mosNumber          String?
+  mosSentAt          DateTime?
+  mosSentByPost      Boolean         @default(false)
+  filingDate         DateTime?
+  personalAppearDate DateTime?
+  legalStayDeadline  DateTime?
+  totalValue         Float           @default(0)
+  totalPaid          Float           @default(0)
+  notes              String?
+  serviceId          Int?
+  service            Service?        @relation(fields: [serviceId], references: [id])
+  // Новые поля
+  trustee            String?
+  employeeId         Int?
+  employee           Employee?       @relation(fields: [employeeId], references: [id])
+  workContractType   String?
+  workContractNumber String?
+  workContractDate   DateTime?
+  workContractSigned Boolean         @default(false)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  payments           Payment[]
+  documents          Document[]      // старая модель — оставляем
+  caseDocuments      CaseDocument[]  // новая модель для Cloudinary — переименовано!
+  comments           Comment[]
+  statusHistory      StatusHistory[]
+  customDates        CaseCustomDate[]
+  docUpdates         DocUpdate[]
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id])
+  amount    Float
+  date      DateTime @default(now())
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id])
+  name      String
+  url       String?
+  createdAt DateTime @default(now())
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id])
+  text      String
+  author    String
+  createdAt DateTime @default(now())
+}
+
+model StatusHistory {
+  id         String   @id @default(cuid())
+  caseId     String
+  case       Case     @relation(fields: [caseId], references: [id])
+  fromStatus String?
+  toStatus   String
+  changedBy  String
+  changedAt  DateTime @default(now())
+}
+
+model Task {
+  id           String    @id @default(cuid())
+  title        String
+  description  String?
+  priority     String    @default("Нормально")
+  status       String    @default("todo")
+  dueDate      DateTime?
+  assignedToId Int?
+  assignedTo   User?     @relation(fields: [assignedToId], references: [id])
+  clientName   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model CaseStatus {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  color     String   @default("#3b82f6")
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model TaskPriority {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  color     String   @default("#6b7280")
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Service {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  price       Float?   @default(0)
+  color       String   @default("#3b82f6")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  cases       Case[]
+}
+
+model CaseOption {
+  id        Int      @id @default(autoincrement())
+  type      String
+  value     String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Employee {
+  id        Int      @id @default(autoincrement())
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  cases     Case[]
+}
+
+model CaseCustomDate {
+  id     Int      @id @default(autoincrement())
+  caseId String
+  label  String
+  date   DateTime
+  case   Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model DocUpdate {
+  id          Int      @id @default(autoincrement())
+  caseId      String
+  date        DateTime
+  description String
+  createdAt   DateTime @default(now())
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model CaseDocument {
+  id        Int      @id @default(autoincrement())
+  caseId    String
+  url       String
+  publicId  String
+  name      String
+  fileType  String   @default("image")
+  createdAt DateTime @default(now())
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model TravelHistory {
+  id        Int       @id @default(autoincrement())
+  clientId  String
+  entryDate DateTime?
+  exitDate  DateTime?
+  country   String
+  createdAt DateTime  @default(now())
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
