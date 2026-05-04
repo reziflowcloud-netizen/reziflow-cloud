@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUser } from '@/lib/auth'
+import { getOrganizationId, getUser } from '@/lib/auth'
+import { findScopedCase } from '@/lib/apiScope'
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string; docId: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
+  const scopedCase = await findScopedCase(params.id, organizationId, { id: true })
+  if (!scopedCase) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   try {
     const doc = await (prisma as any).caseDocument.findUnique({ where: { id: parseInt(params.docId) } })
+    if (doc && doc.caseId !== params.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     if (doc) {
       // Удалить из Cloudinary
       const cloudName = process.env.CLOUDINARY_CLOUD_NAME

@@ -1,15 +1,17 @@
 // src/app/api/clients/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUser } from '@/lib/auth'
+import { getOrganizationId, getUser } from '@/lib/auth'
 
 export async function GET() {
   try {
     const user = await getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const organizationId = getOrganizationId(user)
 
     // Загружаем клиентов — сначала без связей
     const clients = await prisma.client.findMany({
+      where: { organizationId },
       orderBy: { createdAt: 'desc' },
     })
 
@@ -17,6 +19,7 @@ export async function GET() {
     let casesMap: Record<string, any[]> = {}
     try {
       const allCases = await prisma.case.findMany({
+        where: { organizationId },
         select: {
           id: true, caseNumber: true, status: true,
           totalValue: true, totalPaid: true, createdAt: true,
@@ -25,7 +28,7 @@ export async function GET() {
         orderBy: { createdAt: 'desc' },
       })
       // Загружаем сервисы отдельно
-      const services = await prisma.service.findMany()
+      const services = await prisma.service.findMany({ where: { organizationId } })
       const serviceMap: Record<number, any> = {}
       services.forEach(s => { serviceMap[s.id] = s })
 
@@ -44,7 +47,7 @@ export async function GET() {
     let tasks: any[] = []
     try {
       tasks = await prisma.task.findMany({
-        where: { status: { not: 'done' } },
+        where: { organizationId, status: { not: 'done' } },
         orderBy: { dueDate: 'asc' },
       })
     } catch (e) {
@@ -81,9 +84,11 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const organizationId = getOrganizationId(user)
     const body = await request.json()
     const client = await prisma.client.create({
       data: {
+        organizationId,
         firstName: body.firstName,
         lastName: body.lastName,
         phone: body.phone || null,

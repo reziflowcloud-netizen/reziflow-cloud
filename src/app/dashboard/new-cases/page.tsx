@@ -6,6 +6,7 @@ import {
   formatMoney,
   selectedMonth,
 } from '@/lib/dashboardAnalytics'
+import { getOrganizationId, getUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,11 +15,14 @@ export default async function NewCasesPage({
 }: {
   searchParams: { month?: string | string[] }
 }) {
+  const user = await getUser()
+  const organizationId = getOrganizationId(user)
   const allCases = await prisma.case.findMany({
+    where: { organizationId },
     select: { createdAt: true },
     orderBy: { createdAt: 'desc' },
   })
-  const statuses = await prisma.caseStatus.findMany()
+  const statuses = await prisma.caseStatus.findMany({ where: { organizationId } })
   const statusColors = new Map(statuses.map((status) => [status.name, status.color]))
   const months = buildMonthOptions(allCases.map((item) => item.createdAt))
   const monthKey = selectedMonth(searchParams.month, months)
@@ -26,7 +30,7 @@ export default async function NewCasesPage({
 
   const cases = month
     ? await prisma.case.findMany({
-        where: { createdAt: { gte: month.start, lt: month.end } },
+        where: { organizationId, createdAt: { gte: month.start, lt: month.end } },
         include: { client: true, service: true },
         orderBy: { createdAt: 'desc' },
       })
@@ -35,7 +39,7 @@ export default async function NewCasesPage({
   const monthTotals = await Promise.all(
     months.map(async (item) => ({
       ...item,
-      count: await prisma.case.count({ where: { createdAt: { gte: item.start, lt: item.end } } }),
+      count: await prisma.case.count({ where: { organizationId, createdAt: { gte: item.start, lt: item.end } } }),
     }))
   )
 

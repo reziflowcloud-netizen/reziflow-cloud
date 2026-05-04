@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json()
 
-    const user = await prisma.user.findUnique({ where: { email } })
+    const user = await prisma.user.findUnique({ where: { email }, include: { organization: true } })
     if (!user) {
       return NextResponse.json({ error: 'Неверный email или пароль' }, { status: 401 })
     }
@@ -19,7 +19,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Неверный email или пароль' }, { status: 401 })
     }
 
-    const token = await signToken({ id: user.id, email: user.email, name: user.name, role: user.role })
+    const token = await signToken({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      organizationId: user.organizationId || 'org_default',
+      organizationName: user.organization?.name || 'ReziFlow Cloud',
+    })
 
     const cookieStore = cookies()
     cookieStore.set('auth-token', token, {
@@ -29,7 +36,16 @@ export async function POST(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 7, // 7 days
     })
 
-    return NextResponse.json({ success: true, user: { id: user.id, name: user.name, email: user.email } })
+    return NextResponse.json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        organizationId: user.organizationId || 'org_default',
+        organizationName: user.organization?.name || 'ReziFlow Cloud',
+      },
+    })
   } catch (error) {
     console.error(error)
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })

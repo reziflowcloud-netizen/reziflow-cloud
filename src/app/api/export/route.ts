@@ -1,7 +1,9 @@
 // src/app/api/export/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUser } from '@/lib/auth'
+import { getOrganizationId, getUser } from '@/lib/auth'
+
+export const dynamic = 'force-dynamic'
 
 function esc(val: any): string {
   if (val === null || val === undefined) return ''
@@ -21,21 +23,22 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const organizationId = getOrganizationId(user)
 
     const type = request.nextUrl.searchParams.get('type') || 'all'
 
     if (type === 'all') {
       // Step 1: get all clients
-      const clients = await prisma.client.findMany({ orderBy: { lastName: 'asc' } })
+      const clients = await prisma.client.findMany({ where: { organizationId }, orderBy: { lastName: 'asc' } })
 
       // Step 2: get all cases (simple, no nested includes)
-      const allCases = await prisma.case.findMany({ orderBy: { createdAt: 'desc' } })
+      const allCases = await prisma.case.findMany({ where: { organizationId }, orderBy: { createdAt: 'desc' } })
 
       // Step 3: get all payments
-      const allPayments = await prisma.payment.findMany({ orderBy: { date: 'asc' } })
+      const allPayments = await prisma.payment.findMany({ where: { case: { organizationId } }, orderBy: { date: 'asc' } })
 
       // Step 4: get all users for assignedTo name
-      const allUsers = await prisma.user.findMany({ select: { id: true, name: true } })
+      const allUsers = await prisma.user.findMany({ where: { organizationId }, select: { id: true, name: true } })
       const userMap = Object.fromEntries(allUsers.map(u => [u.id, u.name]))
 
       const headers = [
@@ -114,7 +117,7 @@ export async function GET(request: NextRequest) {
     // --- Отдельные экспорты ---
 
     if (type === 'clients') {
-      const clients = await prisma.client.findMany({ orderBy: { lastName: 'asc' } })
+      const clients = await prisma.client.findMany({ where: { organizationId }, orderBy: { lastName: 'asc' } })
       const headers = ['Фамилия','Имя','Телефон','Email','Город','PESEL','Адрес в Польше','Основание пребывания','Добавлен']
       let csv = '\uFEFF' + headers.join(',') + '\n'
       for (const c of clients) {
@@ -129,8 +132,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === 'cases') {
-      const cases = await prisma.case.findMany({ orderBy: { createdAt: 'desc' } })
-      const clients = await prisma.client.findMany({ select: { id: true, firstName: true, lastName: true, phone: true } })
+      const cases = await prisma.case.findMany({ where: { organizationId }, orderBy: { createdAt: 'desc' } })
+      const clients = await prisma.client.findMany({ where: { organizationId }, select: { id: true, firstName: true, lastName: true, phone: true } })
       const clientMap = Object.fromEntries(clients.map(c => [c.id, c]))
       const headers = ['Номер дела','Клиент','Телефон','Статус','Стоимость','Оплачено','Долг','Создано']
       let csv = '\uFEFF' + headers.join(',') + '\n'
@@ -157,9 +160,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === 'payments') {
-      const payments = await prisma.payment.findMany({ orderBy: { date: 'desc' } })
-      const cases = await prisma.case.findMany({ select: { id: true, caseNumber: true, clientId: true } })
-      const clients = await prisma.client.findMany({ select: { id: true, firstName: true, lastName: true } })
+      const payments = await prisma.payment.findMany({ where: { case: { organizationId } }, orderBy: { date: 'desc' } })
+      const cases = await prisma.case.findMany({ where: { organizationId }, select: { id: true, caseNumber: true, clientId: true } })
+      const clients = await prisma.client.findMany({ where: { organizationId }, select: { id: true, firstName: true, lastName: true } })
       const caseMap = Object.fromEntries(cases.map(c => [c.id, c]))
       const clientMap = Object.fromEntries(clients.map(c => [c.id, c]))
       const headers = ['Дата','Клиент','Номер дела','Сумма (zł)','Заметка']

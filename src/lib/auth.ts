@@ -29,6 +29,10 @@ export async function getUser() {
   return verifyToken(token)
 }
 
+export function getOrganizationId(user: any) {
+  return String(user?.organizationId || 'org_default')
+}
+
 export async function requireAuth() {
   const user = await getUser()
   if (!user) {

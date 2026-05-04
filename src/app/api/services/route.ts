@@ -1,11 +1,14 @@
 // src/app/api/services/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUser } from '@/lib/auth'
+import { getOrganizationId, getUser } from '@/lib/auth'
 
 export async function GET() {
+  const user = await getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
   try {
-    const services = await (prisma as any).service.findMany({ orderBy: { createdAt: 'asc' } })
+    const services = await (prisma as any).service.findMany({ where: { organizationId }, orderBy: { createdAt: 'asc' } })
     return NextResponse.json(services)
   } catch (e) {
     return NextResponse.json([])
@@ -15,10 +18,12 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
   const body = await request.json()
   try {
     const service = await (prisma as any).service.create({
       data: {
+        organizationId,
         name: body.name,
         description: body.description || null,
         price: parseFloat(body.price) || 0,

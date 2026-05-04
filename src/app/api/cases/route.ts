@@ -1,19 +1,22 @@
 // src/app/api/cases/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUser } from '@/lib/auth'
+import { getOrganizationId, getUser } from '@/lib/auth'
 
 export async function GET() {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
   try {
     const cases = await prisma.case.findMany({
+      where: { organizationId },
       include: { client: true, assignedTo: true, service: true },
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json(cases)
   } catch (e: any) {
     const cases = await prisma.case.findMany({
+      where: { organizationId },
       include: { client: true, assignedTo: true },
       orderBy: { createdAt: 'desc' },
     })
@@ -24,6 +27,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
   try {
     const body = await request.json()
 
@@ -31,6 +35,7 @@ export async function POST(request: NextRequest) {
 
     const newCase = await prisma.case.create({
       data: {
+        organizationId,
         caseNumber,
         clientId: body.clientId,
         status: body.status || 'Новый',

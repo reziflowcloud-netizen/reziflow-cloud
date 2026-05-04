@@ -1,12 +1,15 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { formatMoney } from '@/lib/dashboardAnalytics'
+import { getOrganizationId, getUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 export default async function DebtPage() {
+  const user = await getUser()
+  const organizationId = getOrganizationId(user)
   const cases = await prisma.case.findMany({
-    where: { totalValue: { gt: 0 } },
+    where: { organizationId, totalValue: { gt: 0 } },
     include: { client: true, service: true },
     orderBy: { updatedAt: 'desc' },
   })

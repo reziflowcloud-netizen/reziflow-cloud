@@ -1,12 +1,16 @@
 // src/app/api/services/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUser } from '@/lib/auth'
+import { getOrganizationId, getUser } from '@/lib/auth'
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
   const body = await request.json()
+  const existing = await (prisma as any).service.findFirst({ where: { id: parseInt(params.id), organizationId } })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
   const service = await (prisma as any).service.update({
     where: { id: parseInt(params.id) },
     data: {
@@ -23,6 +27,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
+  const existing = await (prisma as any).service.findFirst({ where: { id: parseInt(params.id), organizationId } })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
   await (prisma as any).service.delete({ where: { id: parseInt(params.id) } })
   return NextResponse.json({ success: true })
 }

@@ -1,6 +1,6 @@
 // src/app/dashboard/page.tsx
 import { prisma } from '@/lib/prisma'
-import { getUser } from '@/lib/auth'
+import { getOrganizationId, getUser } from '@/lib/auth'
 import Link from 'next/link'
 import UpcomingEvents from '@/components/UpcomingEvents'
 import Tr from '@/components/Tr'
@@ -18,6 +18,7 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 
 export default async function DashboardPage() {
   const user = await getUser()
+  const organizationId = getOrganizationId(user)
   let totalClients = 0, totalCases = 0, activeCases = 0
   let monthlyIncome = 0, totalDebt = 0, contractsNoPay = 0
   let last6months: { month: string; cases: number; clients: number }[] = []
@@ -28,18 +29,19 @@ export default async function DashboardPage() {
     const startOfMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1))
 
     ;[totalClients, totalCases, activeCases] = await Promise.all([
-      prisma.client.count(),
-      prisma.case.count(),
-      prisma.case.count({ where: { status: { in: ['Новый', 'В работе', 'Ожидание документов'] } } }),
+      prisma.client.count({ where: { organizationId } }),
+      prisma.case.count({ where: { organizationId } }),
+      prisma.case.count({ where: { organizationId, status: { in: ['Новый', 'В работе', 'Ожидание документов'] } } }),
     ])
 
     const payments = await prisma.payment.aggregate({
-      where: { date: { gte: startOfMonth } },
+      where: { date: { gte: startOfMonth }, case: { organizationId } },
       _sum: { amount: true }
     })
     monthlyIncome = payments._sum.amount || 0
 
     const allCases = await prisma.case.findMany({
+      where: { organizationId },
       select: { totalValue: true, totalPaid: true, contractSigned: true }
     })
     totalDebt = allCases.reduce((acc, c) => acc + Math.max(0, c.totalValue - c.totalPaid), 0)
@@ -52,8 +54,8 @@ export default async function DashboardPage() {
       const end = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth() + 1, 1) - 1)
 
       const [cases, clients] = await Promise.all([
-        prisma.case.count({ where: { createdAt: { gte: start, lte: end } } }),
-        prisma.client.count({ where: { createdAt: { gte: start, lte: end } } }),
+        prisma.case.count({ where: { organizationId, createdAt: { gte: start, lte: end } } }),
+        prisma.client.count({ where: { organizationId, createdAt: { gte: start, lte: end } } }),
       ])
 
       last6months.push({
@@ -64,6 +66,7 @@ export default async function DashboardPage() {
     }
 
     recentCases = await prisma.case.findMany({
+      where: { organizationId },
       include: { client: true },
       orderBy: { createdAt: 'desc' },
       take: 6

@@ -1,10 +1,13 @@
 // src/app/employees/page.tsx
 import { prisma } from '@/lib/prisma'
+import { getOrganizationId, getUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 export default async function EmployeesPage() {
-  const employees = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } })
+  const user = await getUser()
+  const organizationId = getOrganizationId(user)
+  const employees = await prisma.user.findMany({ where: { organizationId }, orderBy: { createdAt: 'asc' } })
 
   return (
     <div className="fade-in">

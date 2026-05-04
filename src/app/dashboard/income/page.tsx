@@ -6,6 +6,7 @@ import {
   formatMoney,
   selectedMonth,
 } from '@/lib/dashboardAnalytics'
+import { getOrganizationId, getUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,10 @@ export default async function IncomePage({
 }: {
   searchParams: { month?: string | string[] }
 }) {
+  const user = await getUser()
+  const organizationId = getOrganizationId(user)
   const allPaymentDates = await prisma.payment.findMany({
+    where: { case: { organizationId } },
     select: { date: true },
     orderBy: { date: 'desc' },
   })
@@ -24,7 +28,7 @@ export default async function IncomePage({
 
   const payments = month
     ? await prisma.payment.findMany({
-        where: { date: { gte: month.start, lt: month.end } },
+        where: { date: { gte: month.start, lt: month.end }, case: { organizationId } },
         include: { case: { include: { client: true } } },
         orderBy: { date: 'desc' },
       })
@@ -33,7 +37,7 @@ export default async function IncomePage({
   const monthTotals = await Promise.all(
     months.map(async (item) => {
       const result = await prisma.payment.aggregate({
-        where: { date: { gte: item.start, lt: item.end } },
+        where: { date: { gte: item.start, lt: item.end }, case: { organizationId } },
         _sum: { amount: true },
       })
       return { ...item, total: result._sum.amount || 0 }

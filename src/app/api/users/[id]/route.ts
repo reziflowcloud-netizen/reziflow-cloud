@@ -1,14 +1,18 @@
 // src/app/api/users/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUser } from '@/lib/auth'
+import { getOrganizationId, getUser } from '@/lib/auth'
 import bcrypt from 'bcryptjs'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
   try {
     const body = await req.json()
+    const existing = await prisma.user.findFirst({ where: { id: parseInt(params.id), organizationId } })
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
     const data: any = {}
     if (body.name) data.name = body.name
     if (body.email) data.email = body.email
@@ -28,11 +32,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
   try {
     // Нельзя удалить самого себя
     if ((user as any).id === parseInt(params.id)) {
       return NextResponse.json({ error: 'Нельзя удалить собственный аккаунт' }, { status: 400 })
     }
+    const existing = await prisma.user.findFirst({ where: { id: parseInt(params.id), organizationId } })
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
     await prisma.user.delete({ where: { id: parseInt(params.id) } })
     return NextResponse.json({ ok: true })
   } catch (e: any) {

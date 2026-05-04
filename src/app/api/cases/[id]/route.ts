@@ -1,7 +1,7 @@
 // src/app/api/cases/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUser } from '@/lib/auth'
+import { getOrganizationId, getUser } from '@/lib/auth'
 
 function taskBelongsToCase(
   task: { title: string | null; description: string | null },
@@ -33,9 +33,10 @@ function taskBelongsToCase(
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
   try {
-    const c = await (prisma as any).case.findUnique({
-      where: { id: params.id },
+    const c = await (prisma as any).case.findFirst({
+      where: { id: params.id, organizationId },
       include: {
         client: true, service: true,
         payments: { orderBy: { date: 'desc' } },
@@ -50,8 +51,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json(c)
   } catch (e: any) {
-    const c = await prisma.case.findUnique({
-      where: { id: params.id },
+    const c = await prisma.case.findFirst({
+      where: { id: params.id, organizationId },
       include: {
         client: true, service: true,
         payments: { orderBy: { date: 'desc' } },
@@ -67,10 +68,11 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
 
   try {
     const body = await request.json()
-    const existing = await prisma.case.findUnique({ where: { id: params.id } })
+    const existing = await prisma.case.findFirst({ where: { id: params.id, organizationId } })
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     // Базовые поля — всегда существуют
@@ -143,14 +145,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
 
-  const existing = await prisma.case.findUnique({
-    where: { id: params.id },
+  const existing = await prisma.case.findFirst({
+    where: { id: params.id, organizationId },
     select: { id: true, caseNumber: true },
   })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const tasks = await prisma.task.findMany({
+    where: { organizationId },
     select: { id: true, title: true, description: true },
   })
   const taskIds = tasks

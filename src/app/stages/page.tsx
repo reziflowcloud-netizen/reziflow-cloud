@@ -1,12 +1,16 @@
 import { prisma } from '@/lib/prisma'
+import { getOrganizationId, getUser } from '@/lib/auth'
 import StagesClient from './StagesClient'
 
 export const dynamic = 'force-dynamic'
 
 export default async function StagesPage() {
+  const user = await getUser()
+  const organizationId = getOrganizationId(user)
   const [statuses, clients] = await Promise.all([
-    prisma.caseStatus.findMany({ orderBy: { order: 'asc' } }),
+    prisma.caseStatus.findMany({ where: { organizationId }, orderBy: { order: 'asc' } }),
     prisma.client.findMany({
+      where: { organizationId },
       include: {
         cases: {
           select: {

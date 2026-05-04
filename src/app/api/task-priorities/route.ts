@@ -1,11 +1,14 @@
 // src/app/api/task-priorities/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUser } from '@/lib/auth'
+import { getOrganizationId, getUser } from '@/lib/auth'
 
 export async function GET() {
+  const user = await getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
   try {
-    const priorities = await prisma.taskPriority.findMany({ orderBy: { order: 'asc' } })
+    const priorities = await prisma.taskPriority.findMany({ where: { organizationId }, orderBy: { order: 'asc' } })
     return NextResponse.json(priorities)
   } catch {
     // Return defaults if table doesn't exist yet
@@ -21,9 +24,10 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
   const body = await request.json()
   const priority = await prisma.taskPriority.create({
-    data: { name: body.name, color: body.color || '#6b7280', order: body.order || 99 }
+    data: { organizationId, name: body.name, color: body.color || '#6b7280', order: body.order || 99 }
   })
   return NextResponse.json(priority)
 }

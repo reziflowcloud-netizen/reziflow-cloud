@@ -1,11 +1,15 @@
 // src/app/api/cases/[id]/payments/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUser } from '@/lib/auth'
+import { getOrganizationId, getUser } from '@/lib/auth'
+import { findScopedCase } from '@/lib/apiScope'
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
+  const scopedCase = await findScopedCase(params.id, organizationId, { id: true })
+  if (!scopedCase) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await request.json()
   const amount = parseFloat(body.amount)

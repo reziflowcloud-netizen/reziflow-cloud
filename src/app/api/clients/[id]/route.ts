@@ -1,14 +1,15 @@
 // src/app/api/clients/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUser } from '@/lib/auth'
+import { getOrganizationId, getUser } from '@/lib/auth'
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
   try {
-    const client = await (prisma as any).client.findUnique({
-      where: { id: params.id },
+    const client = await (prisma as any).client.findFirst({
+      where: { id: params.id, organizationId },
       include: {
         cases: { include: { service: true }, orderBy: { createdAt: 'desc' } },
         travelHistory: { orderBy: { entryDate: 'desc' } },
@@ -18,8 +19,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     return NextResponse.json(client)
   } catch (e) {
     // fallback
-    const client = await prisma.client.findUnique({
-      where: { id: params.id },
+    const client = await prisma.client.findFirst({
+      where: { id: params.id, organizationId },
       include: { cases: { orderBy: { createdAt: 'desc' } } }
     })
     if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -30,8 +31,12 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
   try {
     const body = await request.json()
+    const existingClient = await prisma.client.findFirst({ where: { id: params.id, organizationId } })
+    if (!existingClient) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
     const client = await (prisma as any).client.update({
       where: { id: params.id },
       data: {
@@ -87,6 +92,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         // Проверяем не существует ли уже такая задача
         const existingTask = await (prisma as any).task.findFirst({
           where: {
+            organizationId,
             title: taskTitle,
             clientName: clientName,
           }
@@ -94,6 +100,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         if (!existingTask) {
           await (prisma as any).task.create({
             data: {
+              organizationId,
               title: taskTitle,
               priority: 'Срочно',
               status: 'todo',
@@ -131,10 +138,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const organizationId = getOrganizationId(user)
   try {
+    const client = await prisma.client.findFirst({ where: { id: params.id, organizationId } })
+    if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
     // Сначала находим все дела клиента
     const cases = await prisma.case.findMany({
-      where: { clientId: params.id },
+      where: { clientId: params.id, organizationId },
       select: { id: true }
     })
     const caseIds = cases.map(c => c.id)

@@ -7,15 +7,27 @@ const prisma = new PrismaClient()
 async function main() {
   // Create admin user
   const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 10)
+  const organization = await prisma.organization.upsert({
+    where: { slug: process.env.ORGANIZATION_SLUG || 'default' },
+    update: {},
+    create: {
+      id: 'org_default',
+      name: process.env.ORGANIZATION_NAME || 'ReziFlow Cloud',
+      slug: process.env.ORGANIZATION_SLUG || 'default',
+      status: 'active',
+      plan: 'manual',
+    },
+  })
   
   await prisma.user.upsert({
     where: { email: process.env.ADMIN_EMAIL || 'admin@migraflow.pl' },
-    update: {},
+    update: { organizationId: organization.id },
     create: {
       email: process.env.ADMIN_EMAIL || 'admin@migraflow.pl',
       password: hashedPassword,
       name: process.env.ADMIN_NAME || 'Administrator',
       role: 'admin',
+      organizationId: organization.id,
     },
   })
 
@@ -31,9 +43,9 @@ async function main() {
 
   for (const status of statuses) {
     await prisma.caseStatus.upsert({
-      where: { name: status.name },
-      update: {},
-      create: status,
+      where: { organizationId_name: { organizationId: organization.id, name: status.name } },
+      update: { organizationId: organization.id },
+      create: { ...status, organizationId: organization.id },
     })
   }
 

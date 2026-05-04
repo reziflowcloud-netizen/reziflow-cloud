@@ -14,13 +14,38 @@ model User {
   password  String
   name      String
   role      String   @default("employee")
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
   createdAt DateTime @default(now())
   cases     Case[]
   tasks     Task[]
 }
 
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  status    String   @default("active")
+  plan      String   @default("manual")
+  trialEndsAt DateTime?
+  settings  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+  clients   Client[]
+  cases     Case[]
+  tasks     Task[]
+  caseStatuses CaseStatus[]
+  taskPriorities TaskPriority[]
+  services  Service[]
+  caseOptions CaseOption[]
+  employees Employee[]
+}
+
 model Client {
   id                String    @id @default(cuid())
+  organizationId    String?
+  organization      Organization? @relation(fields: [organizationId], references: [id])
   firstName         String
   lastName          String
   phone             String?
@@ -67,7 +92,9 @@ model Client {
 
 model Case {
   id                 String          @id @default(cuid())
-  caseNumber         String?         @unique
+  organizationId     String?
+  organization       Organization?   @relation(fields: [organizationId], references: [id])
+  caseNumber         String?
   clientId           String
   client             Client          @relation(fields: [clientId], references: [id])
   assignedToId       Int?
@@ -108,6 +135,8 @@ model Case {
   statusHistory      StatusHistory[]
   customDates        CaseCustomDate[]
   docUpdates         DocUpdate[]
+
+  @@unique([organizationId, caseNumber])
 }
 
 model Payment {
@@ -150,6 +179,8 @@ model StatusHistory {
 
 model Task {
   id           String    @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
   title        String
   description  String?
   priority     String    @default("Нормально")
@@ -164,33 +195,47 @@ model Task {
 
 model CaseStatus {
   id        Int      @id @default(autoincrement())
-  name      String   @unique
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  name      String
   color     String   @default("#3b82f6")
   order     Int      @default(0)
   createdAt DateTime @default(now())
+
+  @@unique([organizationId, name])
 }
 
 model TaskPriority {
   id        Int      @id @default(autoincrement())
-  name      String   @unique
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  name      String
   color     String   @default("#6b7280")
   order     Int      @default(0)
   createdAt DateTime @default(now())
+
+  @@unique([organizationId, name])
 }
 
 model Service {
   id          Int      @id @default(autoincrement())
-  name        String   @unique
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  name        String
   description String?
   price       Float?   @default(0)
   color       String   @default("#3b82f6")
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   cases       Case[]
+
+  @@unique([organizationId, name])
 }
 
 model CaseOption {
   id        Int      @id @default(autoincrement())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
   type      String
   value     String
   order     Int      @default(0)
@@ -199,6 +244,8 @@ model CaseOption {
 
 model Employee {
   id        Int      @id @default(autoincrement())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
   name      String
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
