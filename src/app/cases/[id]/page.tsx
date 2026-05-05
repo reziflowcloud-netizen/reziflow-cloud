@@ -676,7 +676,7 @@ export default function CaseDetailPage() {
           </div>
         </div>
         <button onClick={save} className="btn btn-primary" disabled={saving}>
-          {saving ? t('saving') : `💾 ${t('save')}`}
+          {saving ? t('saving') : t('save')}
         </button>
       </div>
 
@@ -720,7 +720,7 @@ export default function CaseDetailPage() {
               <div>
                 {/* ── ОСНОВНЫЕ ДАННЫЕ ── */}
                 <div className="card" style={{ borderRadius: '0 0 10px 10px', marginBottom: 16 }}>
-                  <div className="section-title"><span>📋</span>{t('case_basic')}</div>
+                  <div className="section-title"><span>📋</span>{t('case_detail_main')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
                       <label className="label">{t('case_number')}</label>
@@ -1328,11 +1328,17 @@ export default function CaseDetailPage() {
                     style={{ maxWidth: '100%', maxHeight: 'calc(100vh - 120px)', borderRadius: 10, objectFit: 'contain', boxShadow: '0 8px 40px rgba(0,0,0,0.5)' }}
                   />
                 ) : (
-                  <iframe
-                    src={previewDoc.url}
+                  <object
+                    data={`${previewDoc.url}#toolbar=1&navpanes=0`}
+                    type="application/pdf"
                     style={{ width: '100%', maxWidth: 900, height: 'calc(100vh - 120px)', borderRadius: 10, border: 'none', background: 'white' }}
-                    title={previewDoc.name}
-                  />
+                    aria-label={previewDoc.name}
+                  >
+                    <div style={{ width: '100%', maxWidth: 520, background: 'white', borderRadius: 10, padding: 22, textAlign: 'center' }}>
+                      <div style={{ fontWeight: 700, marginBottom: 8 }}>{t('pdf_preview_failed')}</div>
+                      <a href={previewDoc.url} target="_blank" rel="noreferrer" className="btn btn-primary">{t('open_in_new_tab')}</a>
+                    </div>
+                  </object>
                 )}
               </div>
             )}

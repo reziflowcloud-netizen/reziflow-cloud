@@ -1,7 +1,13 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { useLanguage } from '@/context/LanguageContext'
+
+function isArchiveStatusName(name: string) {
+  return ['архив', 'архів', 'archive', 'archiwum'].includes(String(name || '').trim().toLowerCase())
+}
 
 export default function StatusesPage() {
+  const { t } = useLanguage()
   const [statuses, setStatuses] = useState<any[]>([])
   const [name, setName] = useState('')
   const [color, setColor] = useState('#3b82f6')
@@ -55,6 +61,11 @@ export default function StatusesPage() {
   }
 
   async function deleteStatus(id: number) {
+    const status = statuses.find(s => s.id === id)
+    if (status && isArchiveStatusName(status.name)) {
+      setError(t('archive_status_protected'))
+      return
+    }
     if (!confirm('Удалить статус?')) return
     setError('')
     try {
@@ -104,8 +115,8 @@ export default function StatusesPage() {
     <div className="fade-in">
       <div className="page-header">
         <div>
-          <div className="page-title">Статусы дел</div>
-          <div className="page-subtitle">Управление статусами для отслеживания процесса</div>
+          <div className="page-title">{t('statuses_title')}</div>
+          <div className="page-subtitle">{t('statuses_sub')}</div>
         </div>
       </div>
 
@@ -193,8 +204,21 @@ export default function StatusesPage() {
                     </span>
                     <button onClick={() => startEdit(s)}
                       style={{ background: '#f3f4f6', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 13 }}>✏️</button>
-                    <button onClick={() => deleteStatus(s.id)}
-                      style={{ background: '#fef2f2', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 13, color: '#dc2626' }}>🗑</button>
+                    <button
+                      onClick={() => deleteStatus(s.id)}
+                      disabled={isArchiveStatusName(s.name)}
+                      title={isArchiveStatusName(s.name) ? t('archive_status_protected') : undefined}
+                      style={{
+                        background: '#fef2f2',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '5px 10px',
+                        cursor: isArchiveStatusName(s.name) ? 'not-allowed' : 'pointer',
+                        fontSize: 13,
+                        color: '#dc2626',
+                        opacity: isArchiveStatusName(s.name) ? 0.4 : 1,
+                      }}
+                    >🗑</button>
                   </>
                 )}
               </div>

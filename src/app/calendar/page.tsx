@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useLanguage } from '@/context/LanguageContext'
 
 function clientLabel(client: any) {
   return `${client?.firstName || ''} ${client?.lastName || ''}`.trim()
@@ -11,12 +12,14 @@ function ClientCombobox({
   onSelect,
   emptyLabel = 'Без клиента',
   placeholder = 'Начните вводить имя или фамилию',
+  notFoundLabel = 'Клиенты не найдены',
 }: {
   clients: any[]
   value: string
   onSelect: (clientId: string, client?: any) => void
   emptyLabel?: string
   placeholder?: string
+  notFoundLabel?: string
 }) {
   const selectedClient = clients.find((client: any) => client.id === value)
   const [query, setQuery] = useState('')
@@ -58,7 +61,7 @@ function ClientCombobox({
             {emptyLabel}
           </button>
           {results.length === 0 ? (
-            <div style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 13 }}>Клиенты не найдены</div>
+            <div style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 13 }}>{notFoundLabel}</div>
           ) : results.map((client: any) => (
             <button key={client.id} type="button" onMouseDown={e => e.preventDefault()} onClick={() => choose(client.id)} style={{ width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none', borderTop: '1px solid var(--border)', background: client.id === value ? 'var(--bg)' : 'transparent', cursor: 'pointer' }}>
               <div style={{ fontWeight: 600 }}>{client.firstName} {client.lastName}</div>
@@ -73,8 +76,15 @@ function ClientCombobox({
 
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрель','Ноябрь','Декабрь']
 const DAYS_SHORT = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс']
+const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
+const WEEKDAYS: Record<string, string[]> = {
+  ru: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+  uk: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'],
+  pl: ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nd'],
+}
 
 export default function CalendarPage() {
+  const { lang, t } = useLanguage()
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
@@ -265,6 +275,9 @@ export default function CalendarPage() {
   }
 
   const editingTaskCaseId = taskRelatedCaseId(editingTask)
+  const locale = LOCALES[lang] || 'ru-RU'
+  const monthLabel = new Date(year, month, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' })
+  const daysShort = WEEKDAYS[lang] || WEEKDAYS.ru
 
   return (
     <div className="fade-in">
@@ -386,9 +399,9 @@ export default function CalendarPage() {
       {/* Шапка страницы */}
       <div className="page-header">
         <div>
-          <div className="page-title">Календарь</div>
-          <div className="page-subtitle" style={{ display: 'none' }} id="cal-subtitle-desktop">Задачи и напоминания по датам</div>
-          <div className="page-subtitle">Задачи и напоминания</div>
+          <div className="page-title">{t('calendar_title')}</div>
+          <div className="page-subtitle" style={{ display: 'none' }} id="cal-subtitle-desktop">{t('calendar_sub')}</div>
+          <div className="page-subtitle">{t('calendar_sub')}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
@@ -396,26 +409,27 @@ export default function CalendarPage() {
             className="btn btn-primary"
             style={{ fontSize: 13, whiteSpace: 'nowrap' }}
           >
-            + Новая задача
+            {t('new_task')}
           </button>
         </div>
         <div className="cal-header-nav">
           <button onClick={prevMonth} className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: 16 }}>‹</button>
-          <div className="cal-month-label">{MONTHS[month]} {year}</div>
+          <div className="cal-month-label">{monthLabel}</div>
           <button onClick={nextMonth} className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: 16 }}>›</button>
-          <button onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()) }} className="btn btn-ghost" style={{ fontSize: 13 }}>Сегодня</button>
+          <button onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()) }} className="btn btn-ghost" style={{ fontSize: 13 }}>{t('today')}</button>
         </div>
       </div>
 
       <div className="page-body">
         <div className="card" style={{ marginBottom: 14 }}>
-          <div className="section-title"><span>👤</span>Фильтр по клиенту</div>
+          <div className="section-title"><span>👤</span>{t('filter_by_client')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 260px) minmax(220px, 1fr)', gap: 10 }}>
             <ClientCombobox
               clients={clients}
               value={selectedClientId}
-              emptyLabel="Все клиенты"
-              placeholder="Все клиенты или начните вводить имя"
+              emptyLabel={t('all_clients')}
+              placeholder={t('all_clients_placeholder')}
+              notFoundLabel={t('not_found')}
               onSelect={clientId => setSelectedClientId(clientId)}
             />
           </div>
@@ -431,7 +445,7 @@ export default function CalendarPage() {
           ))}
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
             <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#7c3aed' }} />
-            <span style={{ color: 'var(--muted)' }}>Напоминание</span>
+            <span style={{ color: 'var(--muted)' }}>{t('reminder_plain')}</span>
           </div>
         </div>
 
@@ -442,7 +456,7 @@ export default function CalendarPage() {
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             {/* Дни недели */}
             <div className="cal-header-bg" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
-              {DAYS_SHORT.map((d, i) => (
+              {daysShort.map((d, i) => (
                 <div key={d} style={{ padding: '8px 4px', textAlign: 'center', fontSize: 12, fontWeight: 600, color: i >= 5 ? '#dc2626' : 'var(--muted)' }}>{d}</div>
               ))}
             </div>
@@ -535,6 +549,8 @@ export default function CalendarPage() {
               getPriorityColor={getPriorityColor}
               openEdit={openEdit}
               onClose={() => setSelectedCell(null)}
+              translate={t}
+              locale={locale}
             />}
           </div>
         </div>
@@ -550,6 +566,8 @@ export default function CalendarPage() {
               getPriorityColor={getPriorityColor}
               openEdit={openEdit}
               onClose={() => setSelectedCell(null)}
+              translate={t}
+              locale={locale}
             />
           </div>
         )}
@@ -563,27 +581,27 @@ export default function CalendarPage() {
         >
           <div style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, width: '100%', maxWidth: 540, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div style={{ fontWeight: 700, fontSize: 18 }}>➕ Новая задача</div>
+          <div style={{ fontWeight: 700, fontSize: 18 }}>{t('new_task')}</div>
               <button onClick={() => setShowNewTask(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
             </div>
 
             <div className="form-group">
-              <label className="label">Название *</label>
+              <label className="label">{t('task_name')} *</label>
               <input className="input" value={newForm.title} onChange={e => setNF('title', e.target.value)}
-                placeholder="Название задачи"
+                placeholder={t('task_name')}
                 onKeyDown={e => { if (e.key === 'Enter') createTask() }}
                 autoFocus />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group">
-                <label className="label">Приоритет</label>
+                <label className="label">{t('priority')}</label>
                 <select className="select" value={newForm.priority} onChange={e => setNF('priority', e.target.value)}>
                   {priorities.map((p: any) => <option key={p.id} value={p.name}>{p.name}</option>)}
                 </select>
               </div>
               <div className="form-group">
-                <label className="label">Клиент</label>
+                <label className="label">{t('task_client')}</label>
                 <ClientCombobox
                   clients={clients}
                   value={newForm.clientId}
@@ -591,11 +609,11 @@ export default function CalendarPage() {
                 />
               </div>
               <div className="form-group">
-                <label className="label">Срок выполнения</label>
+                <label className="label">{t('deadline')}</label>
                 <input className="input" type="date" value={newForm.dueDate} onChange={e => setNF('dueDate', e.target.value)} />
               </div>
               <div className="form-group">
-                <label className="label">⏰ Напоминание</label>
+                <label className="label">⏰ {t('reminder_plain')}</label>
                 <input className="input" type="datetime-local" value={newForm.reminderAt} onChange={e => setNF('reminderAt', e.target.value)} />
               </div>
             </div>
@@ -606,8 +624,8 @@ export default function CalendarPage() {
             </div>
 
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button onClick={createTask} className="btn btn-primary">Создать задачу</button>
-              <button onClick={() => setShowNewTask(false)} className="btn btn-secondary">Отмена</button>
+              <button onClick={createTask} className="btn btn-primary">{t('create_task')}</button>
+              <button onClick={() => setShowNewTask(false)} className="btn btn-secondary">{t('cancel')}</button>
             </div>
           </div>
         </div>
@@ -621,24 +639,24 @@ export default function CalendarPage() {
         >
           <div style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, width: '100%', maxWidth: 540, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div style={{ fontWeight: 700, fontSize: 18 }}>Редактировать задачу</div>
+              <div style={{ fontWeight: 700, fontSize: 18 }}>{t('edit_task')}</div>
               <button onClick={() => setEditingTask(null)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
             </div>
 
             <div className="form-group">
-              <label className="label">Название</label>
+              <label className="label">{t('task_name')}</label>
               <input className="input" value={editingTask.title} onChange={e => setE('title', e.target.value)} />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group">
-                <label className="label">Приоритет</label>
+                <label className="label">{t('priority')}</label>
                 <select className="select" value={editingTask.priority} onChange={e => setE('priority', e.target.value)}>
                   {priorities.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                 </select>
               </div>
               <div className="form-group">
-                <label className="label">Клиент</label>
+                <label className="label">{t('task_client')}</label>
                 <ClientCombobox
                   clients={clients}
                   value={editingTask.clientId || ''}
@@ -648,34 +666,34 @@ export default function CalendarPage() {
                 />
               </div>
               <div className="form-group">
-                <label className="label">Срок выполнения</label>
+                <label className="label">{t('deadline')}</label>
                 <input className="input" type="date" value={editingTask.dueDate || ''} onChange={e => setE('dueDate', e.target.value)} />
               </div>
               <div className="form-group">
-                <label className="label">⏰ Напоминание</label>
+                <label className="label">⏰ {t('reminder_plain')}</label>
                 <input className="input" type="datetime-local" value={editingTask.reminderAt || ''} onChange={e => setE('reminderAt', e.target.value)} />
               </div>
             </div>
 
             <div className="form-group">
-              <label className="label">Примечание</label>
+              <label className="label">{t('note')}</label>
               <input className="input" value={editingTask.reminderNote || ''} onChange={e => setE('reminderNote', e.target.value)} />
             </div>
 
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button onClick={saveTask} className="btn btn-primary" disabled={saving} style={{ flex: 1 }}>{saving ? 'Сохранение...' : '💾 Сохранить'}</button>
+              <button onClick={saveTask} className="btn btn-primary" disabled={saving} style={{ flex: 1 }}>{saving ? t('saving') : t('save')}</button>
               {editingTaskCaseId && (
                 <button
                   onClick={() => { window.location.href = `/cases/${editingTaskCaseId}` }}
                   className="btn btn-secondary"
                   style={{ whiteSpace: 'nowrap' }}
                 >
-                  Переход к этому делу
+                  {t('go_to_case')}
                 </button>
               )}
-              <button onClick={() => setEditingTask(null)} className="btn btn-secondary">Отмена</button>
+              <button onClick={() => setEditingTask(null)} className="btn btn-secondary">{t('cancel')}</button>
               <button onClick={() => deleteTask(editingTask.id)} className="btn" style={{ marginLeft: 'auto', background: '#fef2f2', color: '#dc2626', border: 'none', cursor: 'pointer' }}>
-                🗑 Удалить
+                {t('delete')}
               </button>
             </div>
           </div>
@@ -686,13 +704,14 @@ export default function CalendarPage() {
 }
 
 // ── Компонент панели дня (переиспользуется для десктопа и мобиля) ──
-function DayPanel({ selectedCell, selectedItems, year, getTasksForDate, getPriorityColor, openEdit, onClose }: any) {
+function DayPanel({ selectedCell, selectedItems, year, getTasksForDate, getPriorityColor, openEdit, onClose, translate, locale }: any) {
   const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']
+  const monthName = new Date(selectedCell.year, selectedCell.month, 1).toLocaleDateString(locale || 'ru-RU', { month: 'long' })
   return (
     <div className="card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ fontWeight: 700, fontSize: 16 }}>
-          {selectedCell.day} {MONTHS[selectedCell.month]} {selectedCell.year !== year ? selectedCell.year : ''}
+          {selectedCell.day} {monthName} {selectedCell.year !== year ? selectedCell.year : ''}
         </div>
         <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 18 }}>✕</button>
       </div>
@@ -700,7 +719,7 @@ function DayPanel({ selectedCell, selectedItems, year, getTasksForDate, getPrior
       {selectedItems.length === 0 ? (
         <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '20px 0', fontSize: 14 }}>
           <div style={{ fontSize: 28, marginBottom: 8 }}>📅</div>
-          Задач на этот день нет
+          {translate('no_events')}
         </div>
       ) : selectedItems.map((t: any) => {
         const isDue = !!getTasksForDate(selectedCell.year, selectedCell.month, selectedCell.day).find((dt: any) => dt.id === t.id)
@@ -717,7 +736,7 @@ function DayPanel({ selectedCell, selectedItems, year, getTasksForDate, getPrior
               {t.clientName && <div style={{ fontSize: 11, color: 'var(--muted)' }}>👤 {t.clientName}</div>}
               <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ fontSize: 10, background: color + '18', color, padding: '2px 7px', borderRadius: 10, fontWeight: 600 }}>
-                  {!isDue ? '⏰ Напоминание' : t.priority}
+                  {!isDue ? `⏰ ${translate('reminder_plain')}` : t.priority}
                 </span>
                 {reminderNote && !isDue && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{reminderNote}</span>}
               </div>

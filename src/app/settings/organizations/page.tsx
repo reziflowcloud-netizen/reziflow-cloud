@@ -1,6 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { useLanguage } from '@/context/LanguageContext'
 
 type OrganizationItem = {
   id: string
@@ -24,25 +25,25 @@ type OrganizationItem = {
   }
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  active: 'Активна',
-  paused: 'Пауза',
-  trial: 'Пробный период',
-}
-
-const PLAN_LABELS: Record<string, string> = {
-  manual: 'Ручной',
-  trial: 'Пробный',
-  basic: 'Basic',
-  pro: 'Pro',
-}
-
-function formatDate(value: string | null) {
+function formatDate(value: string | null, locale: string) {
   if (!value) return '—'
-  return new Date(value).toLocaleDateString('ru')
+  return new Date(value).toLocaleDateString(locale)
 }
 
 export default function OrganizationsPage() {
+  const { lang, t } = useLanguage()
+  const locale = lang === 'pl' ? 'pl-PL' : lang === 'uk' ? 'uk-UA' : 'ru-RU'
+  const statusLabel = (status: string) => ({
+    active: t('org_status_active'),
+    paused: t('org_status_paused'),
+    trial: t('org_status_trial'),
+  }[status] || status)
+  const planLabel = (plan: string) => ({
+    manual: t('org_plan_manual'),
+    trial: t('org_plan_trial'),
+    basic: 'Basic',
+    pro: 'Pro',
+  }[plan] || plan)
   const [organizations, setOrganizations] = useState<OrganizationItem[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -161,12 +162,12 @@ export default function OrganizationsPage() {
     <div className="fade-in">
       <div className="page-header">
         <div>
-          <div className="page-title">Организации</div>
-          <div className="page-subtitle">Фирмы, администраторы и тарифы внутри ReziFlow Cloud</div>
+          <div className="page-title">{t('organizations_title')}</div>
+          <div className="page-subtitle">{t('organizations_sub')}</div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <Link href="/settings" className="btn btn-secondary">Назад</Link>
-          {canManageAll && <button className="btn btn-primary" onClick={() => setShowNew(true)}>+ Новая фирма</button>}
+          <Link href="/settings" className="btn btn-secondary">{t('back')}</Link>
+          {canManageAll && <button className="btn btn-primary" onClick={() => setShowNew(true)}>{t('new_company')}</button>}
         </div>
       </div>
 
@@ -251,15 +252,15 @@ export default function OrganizationsPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Администратор</th>
-                  <th>Фирма</th>
-                  <th>Тариф</th>
-                  <th>Статус</th>
-                  <th>Пробный до</th>
-                  <th>Польз.</th>
-                  <th>Клиенты</th>
-                  <th>Дела</th>
-                  <th>Задачи</th>
+                  <th>{t('administrator')}</th>
+                  <th>{t('organization')}</th>
+                  <th>{t('plan')}</th>
+                  <th>{t('status')}</th>
+                  <th>{t('trial_until')}</th>
+                  <th>{t('users_short')}</th>
+                  <th>{t('clients_title')}</th>
+                  <th>{t('cases_title')}</th>
+                  <th>{t('tasks_title')}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -306,7 +307,7 @@ export default function OrganizationsPage() {
                           <option value="basic">Basic</option>
                           <option value="pro">Pro</option>
                         </select>
-                      ) : PLAN_LABELS[org.plan] || org.plan}
+                      ) : planLabel(org.plan)}
                     </td>
                     <td>
                       {editingId === org.id && canManageAll ? (
@@ -319,13 +320,13 @@ export default function OrganizationsPage() {
                         <span className="badge" style={{
                           background: org.status === 'active' ? '#dcfce7' : org.status === 'trial' ? '#eff6ff' : '#f3f4f6',
                           color: org.status === 'active' ? '#166534' : org.status === 'trial' ? '#1d4ed8' : '#374151',
-                        }}>{STATUS_LABELS[org.status] || org.status}</span>
+                        }}>{statusLabel(org.status)}</span>
                       )}
                     </td>
                     <td>
                       {editingId === org.id && canManageAll ? (
                         <input className="input" type="date" value={editForm.trialEndsAt} onChange={e => setEditForm(p => ({ ...p, trialEndsAt: e.target.value }))} />
-                      ) : formatDate(org.trialEndsAt)}
+                      ) : formatDate(org.trialEndsAt, locale)}
                     </td>
                     <td>{org._count.users}</td>
                     <td>{org._count.clients}</td>

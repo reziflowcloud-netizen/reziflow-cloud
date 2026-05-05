@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useLanguage } from '@/context/LanguageContext'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый':               { bg: '#eff6ff', color: '#1d4ed8' },
@@ -13,19 +14,20 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 }
 
 const ALL_COLUMNS = [
-  { key: 'name',        label: 'Имя и фамилия',   always: true },
-  { key: 'phone',       label: 'Телефон' },
-  { key: 'email',       label: 'E-mail' },
-  { key: 'pesel',       label: 'PESEL' },
-  { key: 'citizenship', label: 'Гражданство' },
-  { key: 'birthDate',   label: 'Дата рождения' },
-  { key: 'cases',       label: 'Дела' },
+  { key: 'name',        labelKey: 'name_and_lastname',   always: true },
+  { key: 'phone',       labelKey: 'phone' },
+  { key: 'email',       labelKey: 'email' },
+  { key: 'pesel',       labelKey: 'pesel' },
+  { key: 'citizenship', labelKey: 'citizenship' },
+  { key: 'birthDate',   labelKey: 'birth_date' },
+  { key: 'cases',       labelKey: 'cases_title' },
 ]
 
 type SortKey = 'name' | 'cases' | 'birthDate' | 'date'
 type SortDir = 'asc' | 'desc'
 
 export default function ClientsPage() {
+  const { lang, t } = useLanguage()
   const router = useRouter()
   const [clients, setClients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -89,17 +91,17 @@ export default function ClientsPage() {
     <div className="fade-in">
       <div className="page-header">
         <div>
-          <div className="page-title">Клиенты</div>
-          <div className="page-subtitle">Всего: {clients.length}</div>
+          <div className="page-title">{t('clients_title')}</div>
+          <div className="page-subtitle">{t('total')}: {clients.length}</div>
         </div>
-        <Link href="/clients/new" className="btn btn-primary">+ Добавить клиента</Link>
+        <Link href="/clients/new" className="btn btn-primary">{t('add_client')}</Link>
       </div>
       <div className="page-body">
         {/* Поиск и колонки */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
           <input
             className="input"
-            placeholder="🔍 Поиск по имени, телефону, PESEL, гражданству..."
+            placeholder={`🔍 ${t('search_clients_full')}`}
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ maxWidth: 460 }}
@@ -112,7 +114,7 @@ export default function ClientsPage() {
               style={{ display: 'flex', alignItems: 'center', gap: 7 }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-              Колонки <span style={{ background: 'var(--brand)', color: 'white', borderRadius: 10, padding: '0 6px', fontSize: 11, fontWeight: 700 }}>{activeColCount}/{totalColCount}</span>
+              {t('columns')} <span style={{ background: 'var(--brand)', color: 'white', borderRadius: 10, padding: '0 6px', fontSize: 11, fontWeight: 700 }}>{activeColCount}/{totalColCount}</span>
             </button>
             {showColMenu && (
               <div style={{
@@ -121,7 +123,7 @@ export default function ClientsPage() {
                 boxShadow: 'var(--shadow-md)', zIndex: 50, minWidth: 200, padding: '8px 0'
               }}>
                 <div style={{ padding: '6px 14px 8px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  Видимые колонки
+                  {t('visible_columns')}
                 </div>
                 {ALL_COLUMNS.map(col => (
                   <div
@@ -144,7 +146,7 @@ export default function ClientsPage() {
                     }}>
                       {visibleCols.includes(col.key) && <span style={{ color: 'white', fontSize: 12, lineHeight: 1 }}>✓</span>}
                     </div>
-                    <span style={{ fontSize: 13 }}>{col.label}</span>
+                    <span style={{ fontSize: 13 }}>{t(col.labelKey)}</span>
                   </div>
                 ))}
               </div>
@@ -160,21 +162,21 @@ export default function ClientsPage() {
                 <tr>
                   {visibleCols.includes('name') && (
                     <th onClick={() => toggleSort('name')} style={{ cursor: 'pointer', userSelect: 'none', minWidth: 180 }}>
-                      Имя и фамилия <SortIcon k="name" />
+                      {t('name_and_lastname')} <SortIcon k="name" />
                     </th>
                   )}
-                  {visibleCols.includes('phone') && <th style={{ minWidth: 130 }}>Телефон</th>}
+                  {visibleCols.includes('phone') && <th style={{ minWidth: 130 }}>{t('phone')}</th>}
                   {visibleCols.includes('email') && <th style={{ minWidth: 180 }}>E-mail</th>}
                   {visibleCols.includes('pesel') && <th style={{ minWidth: 120 }}>PESEL</th>}
-                  {visibleCols.includes('citizenship') && <th style={{ minWidth: 120 }}>Гражданство</th>}
+                  {visibleCols.includes('citizenship') && <th style={{ minWidth: 120 }}>{t('citizenship')}</th>}
                   {visibleCols.includes('birthDate') && (
                     <th onClick={() => toggleSort('birthDate')} style={{ cursor: 'pointer', userSelect: 'none', minWidth: 130 }}>
-                      Дата рождения <SortIcon k="birthDate" />
+                      {t('birth_date')} <SortIcon k="birthDate" />
                     </th>
                   )}
                   {visibleCols.includes('cases') && (
                     <th onClick={() => toggleSort('cases')} style={{ cursor: 'pointer', userSelect: 'none', minWidth: 60 }}>
-                      Дела <SortIcon k="cases" />
+                      {t('cases_title')} <SortIcon k="cases" />
                     </th>
                   )}
                   <th style={{ width: 40 }}></th>
@@ -182,12 +184,12 @@ export default function ClientsPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>Загрузка...</td></tr>
+                  <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>{t('loading')}</td></tr>
                 ) : filtered.length === 0 ? (
                   <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
                     <div style={{ fontSize: 32, marginBottom: 8 }}>👥</div>
-                    <div>{search ? 'Не найдено' : 'Нет клиентов'}</div>
-                    {!search && <Link href="/clients/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>+ Добавить клиента</Link>}
+                    <div>{search ? t('not_found') : t('no_clients')}</div>
+                    {!search && <Link href="/clients/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>{t('add_client')}</Link>}
                   </td></tr>
                 ) : filtered.map(client => {
                   const cases: any[] = client.cases || []
@@ -213,7 +215,7 @@ export default function ClientsPage() {
                       {visibleCols.includes('citizenship') && <td style={{ fontSize: 13 }}>{client.citizenship || '—'}</td>}
                       {visibleCols.includes('birthDate') && (
                         <td style={{ fontSize: 13 }}>
-                          {client.birthDate ? new Date(client.birthDate).toLocaleDateString('ru') : '—'}
+                          {client.birthDate ? new Date(client.birthDate).toLocaleDateString(lang === 'pl' ? 'pl-PL' : lang === 'uk' ? 'uk-UA' : 'ru-RU') : '—'}
                         </td>
                       )}
                       {visibleCols.includes('cases') && (

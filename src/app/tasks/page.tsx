@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { useLanguage } from '@/context/LanguageContext'
 
 interface Task { id: string; title: string; priority: string; dueDate?: string; clientName?: string; description?: string; status?: string }
 interface Priority { id: number; name: string; color: string; order: number }
@@ -13,12 +14,16 @@ function ClientCombobox({
   onSelect,
   placeholder = 'Начните вводить имя или фамилию',
   allowEmpty = true,
+  emptyLabel = 'Без клиента',
+  notFoundLabel = 'Клиенты не найдены',
 }: {
   clients: Client[]
   value: string
   onSelect: (clientId: string) => void
   placeholder?: string
   allowEmpty?: boolean
+  emptyLabel?: string
+  notFoundLabel?: string
 }) {
   const selectedClient = clients.find(client => client.id === value)
   const [query, setQuery] = useState('')
@@ -77,11 +82,11 @@ function ClientCombobox({
               onClick={() => choose('')}
               style={{ width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--muted)' }}
             >
-              Без клиента
+              {emptyLabel}
             </button>
           )}
           {results.length === 0 ? (
-            <div style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 13 }}>Клиенты не найдены</div>
+            <div style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 13 }}>{notFoundLabel}</div>
           ) : results.map(client => (
             <button
               key={client.id}
@@ -113,6 +118,7 @@ function isOverdue(dateStr: string | undefined): boolean {
 }
 
 export default function TasksPage() {
+  const { t } = useLanguage()
   const [tasks, setTasks] = useState<Task[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [cases, setCases] = useState<CaseItem[]>([])
@@ -434,12 +440,12 @@ export default function TasksPage() {
 
       <div className="page-header">
         <div>
-          <div className="page-title">Задачи</div>
-          <div className="page-subtitle">Канбан-доска · Всего задач: {tasks.length}</div>
+          <div className="page-title">{t('tasks_title')}</div>
+          <div className="page-subtitle">{t('kanban')} · {t('total_tasks')}: {tasks.length}</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setShowPriorityManager(v => !v)} className="btn btn-secondary">⚙ Разделы</button>
-          <button onClick={() => setShowForm(v => !v)} className="btn btn-primary">{showForm ? '✕ Закрыть' : '+ Новая задача'}</button>
+          <button onClick={() => setShowPriorityManager(v => !v)} className="btn btn-secondary">{t('sections')}</button>
+          <button onClick={() => setShowForm(v => !v)} className="btn btn-primary">{showForm ? '✕ ' + t('close') : t('new_task')}</button>
         </div>
       </div>
 
@@ -449,13 +455,13 @@ export default function TasksPage() {
             onClick={() => setActiveTab('all')}
             className={activeTab === 'all' ? 'btn btn-primary' : 'btn btn-secondary'}
           >
-            Все задачи
+            {t('all_tasks_tab')}
           </button>
           <button
             onClick={() => setActiveTab('byClient')}
             className={activeTab === 'byClient' ? 'btn btn-primary' : 'btn btn-secondary'}
           >
-            По клиенту
+            {t('by_client')}
           </button>
         </div>
 
@@ -507,37 +513,40 @@ export default function TasksPage() {
         {/* New task form */}
         {showForm && (
           <div className="card" style={{ marginBottom: 20 }}>
-            <div className="section-title"><span>➕</span>Новая задача</div>
+            <div className="section-title"><span>➕</span>{t('new_task')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '2fr 2fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
               <div className="form-group" style={{ margin: 0, gridColumn: isMobile ? '1 / -1' : 'auto' }}>
-                <label className="label">Название *</label>
+                <label className="label">{t('task_name')} *</label>
                 <input className="input" value={form.title}
                   onChange={e => setF('title', e.target.value)}
-                  placeholder="Название задачи"
+                  placeholder={t('task_name')}
                   onKeyDown={e => { if (e.key === 'Enter') createTask() }} />
               </div>
               <div className="form-group" style={{ margin: 0, gridColumn: isMobile ? '1 / -1' : 'auto' }}>
-                <label className="label">Клиент</label>
+                <label className="label">{t('task_client')}</label>
                 <ClientCombobox
                   clients={clients}
                   value={form.clientId}
+                  placeholder={t('all_clients_placeholder')}
+                  emptyLabel={t('no_client')}
+                  notFoundLabel={t('not_found')}
                   onSelect={clientId => setF('clientId', clientId)}
                 />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="label">Приоритет</label>
+                <label className="label">{t('priority')}</label>
                 <select className="select" value={form.priority} onChange={e => setF('priority', e.target.value)}>
                   {priorities.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                 </select>
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="label">Срок</label>
+                <label className="label">{t('deadline')}</label>
                 <input className="input" type="date" value={form.dueDate} onChange={e => setF('dueDate', e.target.value)} />
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={createTask} className="btn btn-primary">Создать задачу</button>
-              <button onClick={() => setShowForm(false)} className="btn btn-secondary">Отмена</button>
+              <button onClick={createTask} className="btn btn-primary">{t('create_task')}</button>
+              <button onClick={() => setShowForm(false)} className="btn btn-secondary">{t('cancel')}</button>
             </div>
           </div>
         )}
@@ -545,9 +554,7 @@ export default function TasksPage() {
         {activeTab === 'all' ? (
           <>
         <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
-          {isMobile
-            ? '👆 Нажмите на карточку · Листайте колонки влево-вправо'
-            : '💡 Перетащите карточку в другой раздел чтобы изменить приоритет'}
+          {t('drag_task_hint')}
         </div>
 
         {/* Kanban columns */}
@@ -597,12 +604,12 @@ export default function TasksPage() {
                     marginBottom: 8,
                     background: prio.color + '08',
                   }}>
-                    Перетащить сюда
+                    {t('drag_here')}
                   </div>
                 )}
 
                 {pTasks.length === 0 && !isDragOver && (
-                  <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '20px 0' }}>Нет задач</div>
+                  <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '20px 0' }}>{t('no_tasks')}</div>
                 )}
 
                 {pTasks.map(task => {
@@ -661,14 +668,17 @@ export default function TasksPage() {
           </>
         ) : (
           <div className="card">
-            <div className="section-title"><span>👤</span>Задачи по клиенту</div>
+            <div className="section-title"><span>👤</span>{t('by_client')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 16 }}>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="label">Клиент</label>
+                <label className="label">{t('task_client')}</label>
                 <ClientCombobox
                   clients={clients}
                   value={selectedClientId}
                   allowEmpty={false}
+                  placeholder={t('all_clients_placeholder')}
+                  emptyLabel={t('no_client')}
+                  notFoundLabel={t('not_found')}
                   onSelect={clientId => {
                     setSelectedClientId(clientId)
                     setSelectedServiceId('')
@@ -676,14 +686,14 @@ export default function TasksPage() {
                 />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="label">Услуга</label>
+                <label className="label">{t('service')}</label>
                 <select
                   className="select"
                   value={selectedServiceId}
                   onChange={e => setSelectedServiceId(e.target.value)}
                   disabled={!selectedClientId}
                 >
-                  <option value="">Все задачи клиента</option>
+                  <option value="">{t('all_client_tasks')}</option>
                   {services.map(service => {
                     const count = clientCases.filter(item => item.serviceId === service.id || item.service?.id === service.id).length
                     return (
@@ -697,7 +707,7 @@ export default function TasksPage() {
             </div>
 
             {!selectedClientId ? (
-              <div style={{ color: 'var(--muted)', fontSize: 13, padding: '18px 0' }}>Выберите клиента, чтобы увидеть его задачи.</div>
+              <div style={{ color: 'var(--muted)', fontSize: 13, padding: '18px 0' }}>{t('select_client_to_see_tasks')}</div>
             ) : selectedService && serviceCases.length === 0 ? (
               <div style={{ color: 'var(--muted)', fontSize: 13, padding: '18px 0' }}>
                 У выбранного клиента пока нет дела по услуге «{selectedService.name}».
@@ -766,20 +776,20 @@ export default function TasksPage() {
             )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 17 }}>Редактировать задачу</div>
+              <div style={{ fontWeight: 700, fontSize: 17 }}>{t('edit_task')}</div>
               <button onClick={() => setSelectedTask(null)}
                 style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
             </div>
 
             <div className="form-group">
-              <label className="label">Название</label>
+              <label className="label">{t('task_name')}</label>
               <input className="input" value={editForm.title} onChange={e => setE('title', e.target.value)} />
             </div>
 
             {/* Priority quick-switch on mobile */}
             {isMobile && (
               <div className="form-group">
-                <label className="label">Приоритет</label>
+                <label className="label">{t('priority')}</label>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {priorities.map(p => (
                     <button key={p.id}
@@ -804,16 +814,19 @@ export default function TasksPage() {
             {!isMobile && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
-                  <label className="label">Приоритет / Раздел</label>
+                  <label className="label">{t('priority')} / {t('section')}</label>
                   <select className="select" value={editForm.priority} onChange={e => setE('priority', e.target.value)}>
                     {priorities.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="label">Клиент</label>
+                  <label className="label">{t('task_client')}</label>
                   <ClientCombobox
                     clients={clients}
                     value={editForm.clientId || ''}
+                    placeholder={t('all_clients_placeholder')}
+                    emptyLabel={t('no_client')}
+                    notFoundLabel={t('not_found')}
                     onSelect={clientId => {
                       const c = clients.find(cl => cl.id === clientId)
                       setEditForm((p: any) => ({ ...p, clientId, clientName: c ? `${c.firstName} ${c.lastName}` : '' }))
@@ -825,32 +838,32 @@ export default function TasksPage() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group">
-                <label className="label">Срок выполнения</label>
+                <label className="label">{t('deadline')}</label>
                 <input className="input" type="date" value={editForm.dueDate || ''} onChange={e => setE('dueDate', e.target.value)} />
               </div>
               <div className="form-group">
-                <label className="label">⏰ Напоминание</label>
+                <label className="label">⏰ {t('reminder_plain')}</label>
                 <input className="input" type="datetime-local" value={editForm.reminderAt || ''} onChange={e => setE('reminderAt', e.target.value)} />
               </div>
             </div>
 
             <div className="form-group">
-              <label className="label">Примечание</label>
-              <input className="input" value={editForm.reminderNote || ''} onChange={e => setE('reminderNote', e.target.value)} placeholder="Что нужно сделать..." />
+              <label className="label">{t('note')}</label>
+              <input className="input" value={editForm.reminderNote || ''} onChange={e => setE('reminderNote', e.target.value)} placeholder={t('task_placeholder')} />
             </div>
 
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button onClick={saveTask} className="btn btn-primary" style={{ flex: 1 }}>💾 Сохранить</button>
+              <button onClick={saveTask} className="btn btn-primary" style={{ flex: 1 }}>{t('save')}</button>
               {editTaskCaseId && (
                 <button
                   onClick={() => { window.location.href = `/cases/${editTaskCaseId}` }}
                   className="btn btn-secondary"
                   style={{ whiteSpace: 'nowrap' }}
                 >
-                  Переход к этому делу
+                  {t('go_to_case')}
                 </button>
               )}
-              <button onClick={() => setSelectedTask(null)} className="btn btn-secondary">Отмена</button>
+              <button onClick={() => setSelectedTask(null)} className="btn btn-secondary">{t('cancel')}</button>
               <button onClick={() => deleteTask(selectedTask.id)}
                 style={{ background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontWeight: 500 }}>
                 🗑
