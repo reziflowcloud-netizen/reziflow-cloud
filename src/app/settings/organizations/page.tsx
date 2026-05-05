@@ -10,6 +10,12 @@ type OrganizationItem = {
   plan: string
   trialEndsAt: string | null
   createdAt: string
+  users?: Array<{
+    id: number
+    name: string
+    email: string
+    role: string
+  }>
   _count: {
     users: number
     clients: number
@@ -44,6 +50,7 @@ export default function OrganizationsPage() {
   const [success, setSuccess] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [canManageAll, setCanManageAll] = useState(false)
   const [form, setForm] = useState({
     name: '',
     slug: '',
@@ -54,7 +61,15 @@ export default function OrganizationsPage() {
     adminEmail: '',
     adminPassword: '',
   })
-  const [editForm, setEditForm] = useState({ name: '', plan: '', status: '', trialEndsAt: '' })
+  const [editForm, setEditForm] = useState({
+    name: '',
+    plan: '',
+    status: '',
+    trialEndsAt: '',
+    adminName: '',
+    adminEmail: '',
+    adminPassword: '',
+  })
 
   useEffect(() => {
     loadOrganizations()
@@ -64,7 +79,15 @@ export default function OrganizationsPage() {
     setLoading(true)
     const res = await fetch('/api/organizations')
     const data = await res.json().catch(() => [])
-    if (res.ok) setOrganizations(data)
+    if (res.ok) {
+      if (Array.isArray(data)) {
+        setOrganizations(data)
+        setCanManageAll(true)
+      } else {
+        setOrganizations(data.organizations || [])
+        setCanManageAll(Boolean(data.canManageAll))
+      }
+    }
     else setError(data.error || 'Не удалось загрузить фирмы')
     setLoading(false)
   }
@@ -101,12 +124,16 @@ export default function OrganizationsPage() {
   }
 
   function startEdit(org: OrganizationItem) {
+    const primaryAdmin = org.users?.[0]
     setEditingId(org.id)
     setEditForm({
       name: org.name,
       plan: org.plan,
       status: org.status,
       trialEndsAt: org.trialEndsAt ? org.trialEndsAt.slice(0, 10) : '',
+      adminName: primaryAdmin?.name || '',
+      adminEmail: primaryAdmin?.email || '',
+      adminPassword: '',
     })
   }
 
@@ -139,7 +166,7 @@ export default function OrganizationsPage() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <Link href="/settings" className="btn btn-secondary">Назад</Link>
-          <button className="btn btn-primary" onClick={() => setShowNew(true)}>+ Новая фирма</button>
+          {canManageAll && <button className="btn btn-primary" onClick={() => setShowNew(true)}>+ Новая фирма</button>}
         </div>
       </div>
 
@@ -155,7 +182,7 @@ export default function OrganizationsPage() {
           </div>
         )}
 
-        {showNew && (
+        {canManageAll && showNew && (
           <div className="card" style={{ marginBottom: 18, borderLeft: '3px solid var(--brand)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ fontWeight: 700, fontSize: 15 }}>Новая фирма</div>
@@ -224,6 +251,7 @@ export default function OrganizationsPage() {
             <table className="table">
               <thead>
                 <tr>
+                  <th>Администратор</th>
                   <th>Фирма</th>
                   <th>Тариф</th>
                   <th>Статус</th>
@@ -237,15 +265,31 @@ export default function OrganizationsPage() {
               </thead>
               <tbody>
                 {loading && (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--muted)' }}>Загрузка...</td></tr>
+                  <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--muted)' }}>Загрузка...</td></tr>
                 )}
                 {!loading && organizations.length === 0 && (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--muted)' }}>Фирм пока нет</td></tr>
+                  <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--muted)' }}>Фирм пока нет</td></tr>
                 )}
-                {organizations.map(org => (
+                {organizations.map(org => {
+                  const primaryAdmin = org.users?.[0]
+                  return (
                   <tr key={org.id}>
                     <td>
-                      {editingId === org.id ? (
+                      {editingId === org.id && canManageAll ? (
+                        <div style={{ display: 'grid', gap: 8, minWidth: 220 }}>
+                          <input className="input" value={editForm.adminName} onChange={e => setEditForm(p => ({ ...p, adminName: e.target.value }))} placeholder="Имя администратора" />
+                          <input className="input" type="email" value={editForm.adminEmail} onChange={e => setEditForm(p => ({ ...p, adminEmail: e.target.value }))} placeholder="Email для входа" />
+                          <input className="input" type="password" value={editForm.adminPassword} onChange={e => setEditForm(p => ({ ...p, adminPassword: e.target.value }))} placeholder="Новый пароль, если нужно" />
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ fontWeight: 700 }}>{primaryAdmin?.name || '—'}</div>
+                          <div style={{ color: 'var(--muted)', fontSize: 12 }}>{primaryAdmin?.email || 'Администратор не задан'}</div>
+                        </>
+                      )}
+                    </td>
+                    <td>
+                      {editingId === org.id && canManageAll ? (
                         <input className="input" value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} />
                       ) : (
                         <>
@@ -255,7 +299,7 @@ export default function OrganizationsPage() {
                       )}
                     </td>
                     <td>
-                      {editingId === org.id ? (
+                      {editingId === org.id && canManageAll ? (
                         <select className="select" value={editForm.plan} onChange={e => setEditForm(p => ({ ...p, plan: e.target.value }))}>
                           <option value="manual">Ручной</option>
                           <option value="trial">Пробный</option>
@@ -265,7 +309,7 @@ export default function OrganizationsPage() {
                       ) : PLAN_LABELS[org.plan] || org.plan}
                     </td>
                     <td>
-                      {editingId === org.id ? (
+                      {editingId === org.id && canManageAll ? (
                         <select className="select" value={editForm.status} onChange={e => setEditForm(p => ({ ...p, status: e.target.value }))}>
                           <option value="active">Активна</option>
                           <option value="trial">Пробный период</option>
@@ -279,7 +323,7 @@ export default function OrganizationsPage() {
                       )}
                     </td>
                     <td>
-                      {editingId === org.id ? (
+                      {editingId === org.id && canManageAll ? (
                         <input className="input" type="date" value={editForm.trialEndsAt} onChange={e => setEditForm(p => ({ ...p, trialEndsAt: e.target.value }))} />
                       ) : formatDate(org.trialEndsAt)}
                     </td>
@@ -293,12 +337,13 @@ export default function OrganizationsPage() {
                           <button className="btn btn-primary" onClick={() => saveOrganization(org.id)} disabled={saving}>Сохранить</button>
                           <button className="btn btn-secondary" onClick={() => setEditingId(null)}>Отмена</button>
                         </div>
-                      ) : (
+                      ) : canManageAll ? (
                         <button className="btn btn-secondary" onClick={() => startEdit(org)}>Редактировать</button>
-                      )}
+                      ) : null}
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

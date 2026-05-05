@@ -29,8 +29,26 @@ function slugify(value: string) {
     .slice(0, 48) || `org-${Date.now()}`
 }
 
-function requireAdmin(user: any) {
-  return user && (user.role === 'admin' || user.role === 'owner')
+function isSystemAdmin(user: any) {
+  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@migraflow.pl').toLowerCase()
+  return user?.role === 'owner' || String(user?.email || '').toLowerCase() === adminEmail
+}
+
+const organizationInclude = {
+  users: {
+    where: { role: 'admin' },
+    select: { id: true, name: true, email: true, role: true },
+    orderBy: { createdAt: 'asc' as const },
+    take: 1,
+  },
+  _count: {
+    select: {
+      users: true,
+      clients: true,
+      cases: true,
+      tasks: true,
+    },
+  },
 }
 
 async function loadSetupTemplate(sourceOrganizationId: string) {
@@ -62,29 +80,22 @@ async function loadSetupTemplate(sourceOrganizationId: string) {
 export async function GET() {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!requireAdmin(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!(user.role === 'admin' || user.role === 'owner')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  const canManageAll = isSystemAdmin(user)
   const organizations = await prisma.organization.findMany({
+    where: canManageAll ? {} : { id: getOrganizationId(user) },
     orderBy: { createdAt: 'asc' },
-    include: {
-      _count: {
-        select: {
-          users: true,
-          clients: true,
-          cases: true,
-          tasks: true,
-        },
-      },
-    },
+    include: organizationInclude,
   })
 
-  return NextResponse.json(organizations)
+  return NextResponse.json({ organizations, canManageAll })
 }
 
 export async function POST(req: NextRequest) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!requireAdmin(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!isSystemAdmin(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   try {
     const body = await req.json()
@@ -148,9 +159,7 @@ export async function POST(req: NextRequest) {
 
     const created = await prisma.organization.findUnique({
       where: { id: organization.id },
-      include: {
-        _count: { select: { users: true, clients: true, cases: true, tasks: true } },
-      },
+      include: organizationInclude,
     })
     return NextResponse.json(created)
   } catch (e: any) {
