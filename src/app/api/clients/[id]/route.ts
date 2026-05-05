@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { deleteCloudinaryResources } from '@/lib/cloudinary'
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
@@ -151,7 +152,14 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     const caseIds = cases.map(c => c.id)
 
     // Удаляем все связанные данные дел
+    let deletedCloudinaryFiles = 0
     if (caseIds.length > 0) {
+      const caseDocuments = await (prisma as any).caseDocument.findMany({
+        where: { caseId: { in: caseIds } },
+        select: { publicId: true },
+      })
+      deletedCloudinaryFiles = await deleteCloudinaryResources(caseDocuments.map((doc: any) => doc.publicId))
+
       await prisma.payment.deleteMany({ where: { caseId: { in: caseIds } } })
       await prisma.comment.deleteMany({ where: { caseId: { in: caseIds } } })
       await prisma.statusHistory.deleteMany({ where: { caseId: { in: caseIds } } })
@@ -173,7 +181,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
 
     // Удаляем клиента
     await prisma.client.delete({ where: { id: params.id } })
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, deletedCloudinaryFiles })
   } catch (e: any) {
     console.error('Delete client error:', e)
     return NextResponse.json({ error: e.message }, { status: 500 })

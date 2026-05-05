@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { deleteCloudinaryResources } from '@/lib/cloudinary'
 
 function taskBelongsToCase(
   task: { title: string | null; description: string | null },
@@ -153,6 +154,11 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  const documents = await (prisma as any).caseDocument.findMany({
+    where: { caseId: params.id },
+    select: { publicId: true },
+  })
+
   const tasks = await prisma.task.findMany({
     where: { organizationId },
     select: { id: true, title: true, description: true },
@@ -161,10 +167,12 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     .filter(task => taskBelongsToCase(task, existing.id, existing.caseNumber))
     .map(task => task.id)
 
+  const deletedCloudinaryFiles = await deleteCloudinaryResources(documents.map((doc: any) => doc.publicId))
+
   await prisma.$transaction([
     prisma.task.deleteMany({ where: { id: { in: taskIds } } }),
     prisma.case.delete({ where: { id: params.id } }),
   ])
 
-  return NextResponse.json({ success: true, deletedTasks: taskIds.length })
+  return NextResponse.json({ success: true, deletedTasks: taskIds.length, deletedCloudinaryFiles })
 }

@@ -37,6 +37,12 @@ export default function SettingsPage() {
       desc: 'Управление доступом к системе',
     },
     {
+      href: '/settings/organizations',
+      icon: '🏢',
+      title: 'Организации',
+      desc: 'Фирмы, тарифы и первый администратор для каждой компании',
+    },
+    {
       href: '/settings/export',
       icon: '📦',
       title: t('export_title'),
