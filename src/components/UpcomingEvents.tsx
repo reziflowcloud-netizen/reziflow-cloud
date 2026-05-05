@@ -19,6 +19,7 @@ export default function UpcomingEvents() {
   const [tasks, setTasks] = useState<any[]>([])
   const [priorities, setPriorities] = useState<any[]>([])
   const [clients, setClients] = useState<any[]>([])
+  const [cases, setCases] = useState<any[]>([])
   const [editingTask, setEditingTask] = useState<any>(null)
   const [saving, setSaving] = useState(false)
   const [items, setItems] = useState<any[]>([])
@@ -28,16 +29,39 @@ export default function UpcomingEvents() {
       fetch('/api/tasks').then(r => r.json()),
       fetch('/api/task-priorities').then(r => r.json()),
       fetch('/api/clients').then(r => r.json()),
-    ]).then(([t, p, c]) => {
+      fetch('/api/cases').then(r => r.json()),
+    ]).then(([t, p, c, cs]) => {
       const taskList = Array.isArray(t) ? t : []
       const prioList = Array.isArray(p) ? p : []
       const clientList = Array.isArray(c) ? c : []
+      const caseList = Array.isArray(cs) ? cs : []
       setTasks(taskList)
       setPriorities(prioList)
       setClients(clientList)
+      setCases(caseList)
       buildItems(taskList)
     })
   }, [])
+
+  function taskMeta(task: any) {
+    try { return JSON.parse(task?.description || '{}') || {} } catch { return {} }
+  }
+
+  function taskRelatedCaseId(task: any) {
+    if (!task) return ''
+    const meta = taskMeta(task)
+    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask]
+    const metaCaseId = refs.find((ref: any) => ref?.caseId)?.caseId
+    if (metaCaseId) return metaCaseId
+
+    return cases.find((item: any) => {
+      const number = String(item.caseNumber || '')
+      return !!number && (
+        String(task.title || '').includes(number) ||
+        String(task.description || '').includes(number)
+      )
+    })?.id || ''
+  }
 
   function buildItems(taskList: any[]) {
     const now = new Date()
@@ -75,8 +99,9 @@ export default function UpcomingEvents() {
 
   function openEdit(item: any) {
     const t = item.task
-    let reminderAt = '', reminderNote = ''
-    try { const d = JSON.parse(t.description || '{}'); reminderAt = d.reminderAt || ''; reminderNote = d.reminderNote || '' } catch {}
+    const meta = taskMeta(t)
+    const reminderAt = meta.reminderAt || ''
+    const reminderNote = meta.reminderNote || ''
     setEditingTask({ ...t, dueDate: t.dueDate?.slice(0, 10) || '', reminderAt: reminderAt ? reminderAt.slice(0, 16) : '', reminderNote })
   }
 
@@ -85,6 +110,7 @@ export default function UpcomingEvents() {
   async function saveTask() {
     if (!editingTask) return
     setSaving(true)
+    const meta = taskMeta(editingTask)
     await fetch(`/api/tasks/${editingTask.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -93,7 +119,7 @@ export default function UpcomingEvents() {
         priority: editingTask.priority,
         dueDate: editingTask.dueDate || null,
         clientName: editingTask.clientName || '',
-        description: JSON.stringify({ reminderAt: editingTask.reminderAt || null, reminderNote: editingTask.reminderNote || '' }),
+        description: JSON.stringify({ ...meta, reminderAt: editingTask.reminderAt || null, reminderNote: editingTask.reminderNote || '' }),
       }),
     })
     const updated = await fetch('/api/tasks').then(r => r.json())
@@ -111,6 +137,8 @@ export default function UpcomingEvents() {
     buildItems(updated)
     setEditingTask(null)
   }
+
+  const editingTaskCaseId = taskRelatedCaseId(editingTask)
 
   if (items.length === 0) return (
     <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '14px 0', fontSize: 13 }}>
@@ -239,6 +267,15 @@ export default function UpcomingEvents() {
 
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <button onClick={saveTask} className="btn btn-primary" disabled={saving}>{saving ? 'Сохранение...' : '💾 Сохранить'}</button>
+              {editingTaskCaseId && (
+                <button
+                  onClick={() => { window.location.href = `/cases/${editingTaskCaseId}` }}
+                  className="btn btn-secondary"
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  Переход к этому делу
+                </button>
+              )}
               <button onClick={() => setEditingTask(null)} className="btn btn-secondary">Отмена</button>
               <button onClick={() => deleteTask(editingTask.id)}
                 className="btn" style={{ marginLeft: 'auto', background: '#fef2f2', color: '#dc2626', border: 'none', cursor: 'pointer' }}>
