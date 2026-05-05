@@ -18,4 +18,18 @@ const result = spawnSync(command, ['migrate', 'deploy'], {
   },
 })
 
-process.exit(result.status ?? 1)
+if (result.status !== 0) {
+  process.exit(result.status ?? 1)
+}
+
+console.log('Seeding default organization and admin user...')
+
+const seedResult = spawnSync('node', ['prisma/seed.js'], {
+  stdio: 'inherit',
+  env: {
+    ...process.env,
+    DATABASE_URL: directUrl,
+  },
+})
+
+process.exit(seedResult.status ?? 1)

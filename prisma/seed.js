@@ -21,7 +21,12 @@ async function main() {
   
   await prisma.user.upsert({
     where: { email: process.env.ADMIN_EMAIL || 'admin@migraflow.pl' },
-    update: { organizationId: organization.id },
+    update: {
+      password: hashedPassword,
+      name: process.env.ADMIN_NAME || 'Administrator',
+      role: 'admin',
+      organizationId: organization.id,
+    },
     create: {
       email: process.env.ADMIN_EMAIL || 'admin@migraflow.pl',
       password: hashedPassword,
