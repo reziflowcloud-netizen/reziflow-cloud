@@ -11,7 +11,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   return (
     <LanguageProvider>
       <div style={{ display: 'flex' }}>
-        <Sidebar userName={user.name as string} />
+        <Sidebar userName={user.name as string} userRole={user.role as string} organizationName={user.organizationName as string} />
         <div className="main-content" style={{ flex: 1 }}>{children}</div>
       </div>
       <MobileNav />

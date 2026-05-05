@@ -3,49 +3,70 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 
-const TRANSLATIONS: Record<string, Record<string, string>> = {
+type Lang = 'ru' | 'uk' | 'pl'
+type Theme = 'light' | 'dark' | 'slate'
+
+const TRANSLATIONS: Record<Lang, Record<string, string>> = {
   ru: {
     menu: 'Меню', system: 'Система',
     dashboard: 'Dashboard', cases: 'Дела', clients: 'Клиенты',
     stages: 'Этапы', tasks: 'Задачи', calendar: 'Календарь', settings: 'Настройки',
-    logout: 'Выйти', theme_light: 'Светлая', theme_dark: 'Тёмная',
+    logout: 'Выйти', light: 'Светлая', dark: 'Тёмная', slate: 'Slate',
+    administrator: 'Администратор', employee: 'Сотрудник', company: 'Фирма',
   },
   uk: {
     menu: 'Меню', system: 'Система',
     dashboard: 'Dashboard', cases: 'Справи', clients: 'Клієнти',
     stages: 'Етапи', tasks: 'Завдання', calendar: 'Календар', settings: 'Налаштування',
-    logout: 'Вийти', theme_light: 'Світла', theme_dark: 'Темна',
+    logout: 'Вийти', light: 'Світла', dark: 'Темна', slate: 'Slate',
+    administrator: 'Адміністратор', employee: 'Співробітник', company: 'Фірма',
   },
   pl: {
     menu: 'Menu', system: 'System',
     dashboard: 'Pulpit', cases: 'Sprawy', clients: 'Klienci',
     stages: 'Etapy', tasks: 'Zadania', calendar: 'Kalendarz', settings: 'Ustawienia',
-    logout: 'Wyloguj', theme_light: 'Jasny', theme_dark: 'Ciemny',
+    logout: 'Wyloguj', light: 'Jasny', dark: 'Ciemny', slate: 'Slate',
+    administrator: 'Administrator', employee: 'Pracownik', company: 'Firma',
   },
 }
 
-export default function Sidebar({ userName }: { userName?: string }) {
+const THEME_OPTIONS: Theme[] = ['light', 'dark', 'slate']
+
+function initials(name?: string) {
+  const parts = String(name || 'U').trim().split(/\s+/).filter(Boolean)
+  return (parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0]?.slice(0, 2) || 'U').toUpperCase()
+}
+
+export default function Sidebar({
+  userName,
+  userRole,
+  organizationName,
+}: {
+  userName?: string
+  userRole?: string
+  organizationName?: string
+}) {
   const pathname = usePathname()
   const router = useRouter()
-  const [theme, setTheme] = useState<'light' | 'dark'>('light')
-  const [lang, setLang] = useState<'ru' | 'uk' | 'pl'>('ru')
+  const [theme, setTheme] = useState<Theme>('light')
+  const [lang, setLang] = useState<Lang>('ru')
 
   useEffect(() => {
-    const savedTheme = (localStorage.getItem('rezi_theme') || 'light') as 'light' | 'dark'
-    const savedLang = (localStorage.getItem('rezi_lang') || 'ru') as 'ru' | 'uk' | 'pl'
+    const savedThemeRaw = localStorage.getItem('rezi_theme') || 'light'
+    const savedTheme = THEME_OPTIONS.includes(savedThemeRaw as Theme) ? savedThemeRaw as Theme : 'light'
+    const savedLang = (localStorage.getItem('rezi_lang') || 'ru') as Lang
     setTheme(savedTheme)
     setLang(savedLang)
     document.documentElement.setAttribute('data-theme', savedTheme)
   }, [])
 
-  function toggleTheme() {
-    const next = theme === 'light' ? 'dark' : 'light'
+  function setThemeChoice(next: Theme) {
     setTheme(next)
     localStorage.setItem('rezi_theme', next)
     document.documentElement.setAttribute('data-theme', next)
   }
 
-  function changeLang(l: 'ru' | 'uk' | 'pl') {
+  function changeLang(l: Lang) {
     setLang(l)
     localStorage.setItem('rezi_lang', l)
     window.dispatchEvent(new CustomEvent('langchange', { detail: l }))
@@ -57,6 +78,7 @@ export default function Sidebar({ userName }: { userName?: string }) {
   }
 
   const t = TRANSLATIONS[lang]
+  const roleLabel = userRole === 'admin' || userRole === 'owner' ? t.administrator : t.employee
 
   const navItems = [
     { href: '/dashboard', key: 'dashboard', icon: (
@@ -81,25 +103,17 @@ export default function Sidebar({ userName }: { userName?: string }) {
     )},
     { href: '/stages', key: 'stages', icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 6h16"/>
-        <path d="M4 12h16"/>
-        <path d="M4 18h16"/>
-        <path d="M8 4v16"/>
-        <path d="M16 4v16"/>
-        <path d="m9.5 12 1.5 1.5 3.5-4"/>
+        <path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/><path d="M8 4v16"/><path d="M16 4v16"/>
       </svg>
     )},
     { href: '/tasks', key: 'tasks', icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="9 11 12 14 22 4"/>
-        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
       </svg>
     )},
     { href: '/calendar', key: 'calendar', icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
-        <line x1="3" y1="10" x2="21" y2="10"/>
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
       </svg>
     )},
   ]
@@ -108,7 +122,6 @@ export default function Sidebar({ userName }: { userName?: string }) {
 
   return (
     <div className="sidebar">
-      {/* Logo */}
       <div className="sidebar-logo">
         <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
           <defs>
@@ -123,12 +136,10 @@ export default function Sidebar({ userName }: { userName?: string }) {
         <span>ReziFlow <em>Cloud</em></span>
       </div>
 
-      {/* Nav */}
       <div style={{ flex: 1 }}>
         <div className="sidebar-label">{t.menu}</div>
         {navItems.map(item => (
-          <Link key={item.href} href={item.href}
-            className={`sidebar-item ${isActive(item.href) ? 'active' : ''}`}>
+          <Link key={item.href} href={item.href} className={`sidebar-item ${isActive(item.href) ? 'active' : ''}`}>
             {item.icon}
             {t[item.key] || item.key}
           </Link>
@@ -144,52 +155,31 @@ export default function Sidebar({ userName }: { userName?: string }) {
         </Link>
       </div>
 
-      {/* Bottom controls */}
-      <div style={{ borderTop: '1px solid var(--sidebar-border)', paddingTop: 12 }}>
-        {/* Language switcher */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 10, padding: '0 12px' }}>
+      <div className="sidebar-bottom">
+        <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
           {(['ru', 'uk', 'pl'] as const).map(l => (
-            <button key={l} onClick={() => changeLang(l)}
-              style={{
-                flex: 1, padding: '4px 0', borderRadius: 6, border: 'none', cursor: 'pointer',
-                fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
-                background: lang === l ? 'var(--brand)' : 'var(--sidebar-btn)',
-                color: lang === l ? 'white' : 'var(--sidebar-muted)',
-                transition: 'all 0.15s',
-              }}>{l}</button>
+            <button key={l} onClick={() => changeLang(l)} className={`sidebar-segment ${lang === l ? 'active' : ''}`}>{l}</button>
           ))}
         </div>
 
-        {/* Theme toggle */}
-        <div style={{ padding: '0 12px', marginBottom: 10 }}>
-          <button onClick={toggleTheme}
-            style={{
-              width: '100%', padding: '7px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
-              background: 'var(--sidebar-btn)', color: 'var(--sidebar-muted)',
-              transition: 'all 0.15s',
-            }}>
-            {theme === 'light' ? (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            ) : (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-            )}
-            {theme === 'light' ? t.theme_dark : t.theme_light}
-          </button>
+        <div className="theme-switcher">
+          {THEME_OPTIONS.map(option => (
+            <button key={option} onClick={() => setThemeChoice(option)} className={`sidebar-segment ${theme === option ? 'active' : ''}`}>
+              {t[option]}
+            </button>
+          ))}
         </div>
 
-        {/* User */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 4 }}>
-          <div className="avatar" style={{ width: 28, height: 28, fontSize: 11 }}>{userName?.[0]?.toUpperCase() || 'U'}</div>
-          <span style={{ fontSize: 13, color: 'var(--sidebar-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{userName}</span>
+        <div className="sidebar-profile">
+          <div className="avatar sidebar-profile-avatar">{initials(userName)}</div>
+          <div className="sidebar-profile-text">
+            <div className="sidebar-profile-name">{userName || 'User'}</div>
+            <div className="sidebar-profile-role">{roleLabel}</div>
+            {organizationName && <div className="sidebar-profile-org">{t.company}: {organizationName}</div>}
+          </div>
         </div>
 
-        <button onClick={handleLogout}
-          style={{
-            width: '100%', padding: '7px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginTop: 2,
-            background: 'transparent', color: 'var(--sidebar-muted)', textAlign: 'left',
-          }}>
+        <button onClick={handleLogout} className="sidebar-logout">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
             <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
