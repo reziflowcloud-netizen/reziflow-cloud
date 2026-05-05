@@ -74,7 +74,7 @@ export default function ExportPage() {
                 Каждая строка = одно дело клиента.
               </div>
             </div>
-            <button onClick={() => doExport('all', 'ReziFlow_baza')}
+            <button onClick={() => doExport('all', 'ReziFlowCloud_baza')}
               className="btn btn-primary" disabled={loading === 'all'}
               style={{ padding: '12px 24px', fontSize: 15, flexShrink: 0 }}>
               {loading === 'all' ? '⏳ Подготовка...' : '⬇️ Скачать всё'}
@@ -86,9 +86,9 @@ export default function ExportPage() {
         <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, fontWeight: 500 }}>Или скачать отдельно:</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           {[
-            { id: 'clients', icon: '👥', title: 'Только клиенты', desc: 'Личные данные', filename: 'ReziFlow_clients', color: '#eff6ff' },
-            { id: 'cases',   icon: '📋', title: 'Только дела',    desc: 'Дела и суммы',  filename: 'ReziFlow_cases',   color: '#fef3c7' },
-            { id: 'payments',icon: '💳', title: 'Только оплаты',  desc: 'История платежей', filename: 'ReziFlow_payments', color: '#dcfce7' },
+            { id: 'clients', icon: '👥', title: 'Только клиенты', desc: 'Личные данные', filename: 'ReziFlowCloud_clients', color: '#eff6ff' },
+            { id: 'cases',   icon: '📋', title: 'Только дела',    desc: 'Дела и суммы',  filename: 'ReziFlowCloud_cases',   color: '#fef3c7' },
+            { id: 'payments',icon: '💳', title: 'Только оплаты',  desc: 'История платежей', filename: 'ReziFlowCloud_payments', color: '#dcfce7' },
           ].map(exp => (
             <div key={exp.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 40, height: 40, borderRadius: 10, background: exp.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{exp.icon}</div>
@@ -109,7 +109,7 @@ export default function ExportPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
             {[
               { icon: '📆', title: 'Раз в неделю', desc: 'Скачивай полную базу каждую пятницу' },
-              { icon: '💾', title: 'Google Drive', desc: 'Создай папку "Бэкапы ReziFlow"' },
+              { icon: '💾', title: 'Google Drive', desc: 'Создай папку "Бэкапы ReziFlow Cloud"' },
               { icon: '🔄', title: 'Перед изменениями', desc: 'Делай экспорт перед обновлениями' },
             ].map(tip => (
               <div key={tip.title} style={{ display: 'flex', gap: 12 }}>

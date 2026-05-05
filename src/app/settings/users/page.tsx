@@ -115,7 +115,7 @@ export default function UsersSettingsPage() {
       <div className="page-header">
         <div>
           <div className="page-title">👥 Пользователи системы</div>
-          <div className="page-subtitle">Управление доступом к ReziFlow</div>
+          <div className="page-subtitle">Управление доступом к ReziFlow Cloud</div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <Link href="/settings" className="btn btn-secondary">← Назад</Link>

@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'ReziFlow — Система управления делами',
-  description: 'CRM для иммиграционных агентств',
+  title: 'ReziFlow Cloud — Система управления делами',
+  description: 'Облачная CRM для иммиграционных агентств',
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',
@@ -19,8 +19,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="ReziFlow" />
-        <meta name="theme-color" content="#e03131" />
+        <meta name="apple-mobile-web-app-title" content="ReziFlow Cloud" />
+        <meta name="theme-color" content="#2563eb" />
       </head>
       <body>{children}</body>
     </html>

@@ -1,11 +1,11 @@
 {
-  "name": "ReziFlow",
-  "short_name": "ReziFlow",
-  "description": "CRM для иммиграционного агентства",
+  "name": "ReziFlow Cloud",
+  "short_name": "ReziCloud",
+  "description": "Облачная CRM для иммиграционных агентств",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#e03131",
+  "theme_color": "#2563eb",
   "orientation": "portrait",
   "icons": [
     {

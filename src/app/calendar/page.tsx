@@ -378,8 +378,8 @@ export default function CalendarPage() {
         /* ─── ТЕМНАЯ ТЕМА ─── */
         [data-theme="dark"] .cal-cell-current { background: var(--surface); }
         [data-theme="dark"] .cal-cell-other { background: var(--bg); }
-        [data-theme="dark"] .cal-cell-selected { background: rgba(239,68,68,0.08) !important; }
-        [data-theme="dark"] .cal-cell-today { background: rgba(239,68,68,0.05) !important; }
+        [data-theme="dark"] .cal-cell-selected { background: rgba(56,189,248,0.10) !important; }
+        [data-theme="dark"] .cal-cell-today { background: rgba(56,189,248,0.07) !important; }
         [data-theme="dark"] .cal-header-bg { background: var(--bg); }
       `}</style>
 

@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="ReziFlow_baza_${new Date().toISOString().slice(0,10)}.csv"`,
+          'Content-Disposition': `attachment; filename="ReziFlowCloud_baza_${new Date().toISOString().slice(0,10)}.csv"`,
         }
       })
     }
@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="ReziFlow_clients_${new Date().toISOString().slice(0,10)}.csv"`,
+          'Content-Disposition': `attachment; filename="ReziFlowCloud_clients_${new Date().toISOString().slice(0,10)}.csv"`,
         }
       })
     }
@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="ReziFlow_cases_${new Date().toISOString().slice(0,10)}.csv"`,
+          'Content-Disposition': `attachment; filename="ReziFlowCloud_cases_${new Date().toISOString().slice(0,10)}.csv"`,
         }
       })
     }
@@ -181,7 +181,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="ReziFlow_payments_${new Date().toISOString().slice(0,10)}.csv"`,
+          'Content-Disposition': `attachment; filename="ReziFlowCloud_payments_${new Date().toISOString().slice(0,10)}.csv"`,
         }
       })
     }

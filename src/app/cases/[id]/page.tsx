@@ -590,12 +590,12 @@ export default function CaseDetailPage() {
         setUploading(false)
         return
       }
-      // Папка: reziflow/Фамилия_Имя/НомерДела
+      // Папка: reziflow-cloud/Фамилия_Имя/НомерДела
       const clientName = c?.client
         ? `${c.client.lastName || 'Клиент'}_${c.client.firstName || ''}`.replace(/[^a-zA-Zа-яА-ЯёЁ0-9_-]/g, '_')
         : 'Без_клиента'
       const caseFolder = (c?.caseNumber || 'DRAFT').replace(/[./\s]/g, '-')
-      const folder = `reziflow/${clientName}/${caseFolder}`
+      const folder = `reziflow-cloud/${clientName}/${caseFolder}`
       const fd = new FormData()
       fd.append('file', file)
       fd.append('upload_preset', uploadPreset)

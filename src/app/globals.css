@@ -5,8 +5,8 @@ a { color: inherit; }
 
 /* ─── Light Theme (default) ─────────────── */
 :root {
-  --brand: #c11414;
-  --brand-hover: #a30f0f;
+  --brand: #2563eb;
+  --brand-hover: #1d4ed8;
   --bg: #f4f5f7;
   --surface: #ffffff;
   --border: #e5e7eb;
@@ -14,12 +14,12 @@ a { color: inherit; }
   --muted: #6b7280;
   --input-bg: #ffffff;
   --input-border: #d1d5db;
-  --sidebar-bg: #0f0f0f;
+  --sidebar-bg: #08111f;
   --sidebar-text: #f9fafb;
   --sidebar-muted: #9ca3af;
-  --sidebar-active: rgba(193,20,20,0.15);
-  --sidebar-active-text: #f87171;
-  --sidebar-border: #1f1f1f;
+  --sidebar-active: rgba(37,99,235,0.18);
+  --sidebar-active-text: #93c5fd;
+  --sidebar-border: #102038;
   --sidebar-btn: rgba(255,255,255,0.07);
   --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
@@ -29,8 +29,8 @@ a { color: inherit; }
 
 /* ─── Dark Theme ─────────────────────────── */
 [data-theme="dark"] {
-  --brand: #ef4444;
-  --brand-hover: #dc2626;
+  --brand: #38bdf8;
+  --brand-hover: #0ea5e9;
   --bg: #111827;
   --surface: #1f2937;
   --border: #374151;
@@ -41,8 +41,8 @@ a { color: inherit; }
   --sidebar-bg: #030712;
   --sidebar-text: #f9fafb;
   --sidebar-muted: #6b7280;
-  --sidebar-active: rgba(239,68,68,0.15);
-  --sidebar-active-text: #f87171;
+  --sidebar-active: rgba(56,189,248,0.16);
+  --sidebar-active-text: #7dd3fc;
   --sidebar-border: #111827;
   --sidebar-btn: rgba(255,255,255,0.06);
   --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
@@ -137,7 +137,7 @@ body { background: var(--bg); color: var(--text); transition: background 0.2s, c
   border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text);
   font-size: 13px; outline: none; transition: border-color 0.15s, background 0.2s; font-family: inherit;
 }
-.input:focus, .select:focus { border-color: var(--brand); box-shadow: 0 0 0 2px rgba(193,20,20,0.12); }
+.input:focus, .select:focus { border-color: var(--brand); box-shadow: 0 0 0 2px rgba(37,99,235,0.14); }
 textarea.input { resize: vertical; }
 
 /* ─── Buttons ────────────────────────────── */

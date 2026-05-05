@@ -8,7 +8,7 @@ export async function GET() {
   return NextResponse.json({
     cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
     uploadPreset: process.env.CLOUDINARY_UPLOAD_PRESET || '',
-    folder: 'reziflow',
+    folder: 'reziflow-cloud',
   })
 }
 
@@ -18,6 +18,6 @@ export async function POST() {
   return NextResponse.json({
     cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
     uploadPreset: process.env.CLOUDINARY_UPLOAD_PRESET || '',
-    folder: 'reziflow',
+    folder: 'reziflow-cloud',
   })
 }

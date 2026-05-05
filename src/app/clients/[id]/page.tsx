@@ -223,7 +223,7 @@ export default function ClientDetailPage() {
                 <div style={{ gridColumn: '1/-1' }}>
                   <div
                     onClick={() => set('statusUKR', !form.statusUKR)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', border: `1px solid ${form.statusUKR ? 'var(--brand)' : 'var(--border)'}`, borderRadius: 8, cursor: 'pointer', background: form.statusUKR ? 'rgba(193,20,20,0.04)' : 'var(--bg)', transition: 'all 0.15s' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', border: `1px solid ${form.statusUKR ? 'var(--brand)' : 'var(--border)'}`, borderRadius: 8, cursor: 'pointer', background: form.statusUKR ? 'rgba(37,99,235,0.06)' : 'var(--bg)', transition: 'all 0.15s' }}
                   >
                     <input type="checkbox" checked={form.statusUKR} onChange={() => {}} style={{ width: 18, height: 18, accentColor: 'var(--brand)' }} />
                     <div>
@@ -352,7 +352,7 @@ export default function ClientDetailPage() {
                     <div style={{ gridColumn: '1/-1' }}>
                       <div
                         onClick={() => { set('firstResidenceCard', !form.firstResidenceCard); if (!form.firstResidenceCard) set('residenceCardExpiry', '') }}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: `1px solid ${form.firstResidenceCard ? 'var(--brand)' : 'var(--border)'}`, borderRadius: 8, cursor: 'pointer', background: form.firstResidenceCard ? 'rgba(193,20,20,0.04)' : 'var(--bg)' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: `1px solid ${form.firstResidenceCard ? 'var(--brand)' : 'var(--border)'}`, borderRadius: 8, cursor: 'pointer', background: form.firstResidenceCard ? 'rgba(37,99,235,0.06)' : 'var(--bg)' }}
                       >
                         <input type="checkbox" checked={form.firstResidenceCard} onChange={() => {}} style={{ width: 17, height: 17, accentColor: 'var(--brand)' }} />
                         <span style={{ fontSize: 13, fontWeight: 500 }}>Первая карта пребывания (Pierwsza karta pobytu)</span>

@@ -113,14 +113,14 @@ export default function Sidebar({ userName }: { userName?: string }) {
         <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
           <defs>
             <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#c11414"/><stop offset="100%" stopColor="#7f1d1d"/>
+              <stop offset="0%" stopColor="#38bdf8"/><stop offset="100%" stopColor="#2563eb"/>
             </linearGradient>
           </defs>
           <rect width="32" height="32" rx="8" fill="url(#rg)"/>
           <path d="M9 9 L16 16 L9 23" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
           <path d="M16 9 L23 16 L16 23" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.6"/>
         </svg>
-        <span>Rezi<em>Flow</em></span>
+        <span>ReziFlow <em>Cloud</em></span>
       </div>
 
       {/* Nav */}
