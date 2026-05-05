@@ -581,7 +581,7 @@ export default function CaseDetailPage() {
         const docRes = await fetch(`/api/cases/${id}/documents`, { method: 'POST', body: fd })
         if (!docRes.ok) {
           const err = await docRes.json().catch(() => ({}))
-          alert('Ошибка локального сохранения файла: ' + (err.error || docRes.status))
+          alert('Ошибка загрузки документа: ' + (err.error || docRes.status))
           setUploading(false)
           return
         }
