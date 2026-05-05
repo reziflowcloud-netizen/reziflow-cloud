@@ -6,20 +6,20 @@ import { useState, useEffect } from 'react'
 const TRANSLATIONS: Record<string, Record<string, string>> = {
   ru: {
     menu: 'Меню', system: 'Система',
-    dashboard: 'Пульт', cases: 'Дела', clients: 'Клиенты',
-    tasks: 'Задачи', calendar: 'Календарь', settings: 'Настройки',
+    dashboard: 'Dashboard', cases: 'Дела', clients: 'Клиенты',
+    stages: 'Этапы', tasks: 'Задачи', calendar: 'Календарь', settings: 'Настройки',
     logout: 'Выйти', theme_light: 'Светлая', theme_dark: 'Тёмная',
   },
   uk: {
     menu: 'Меню', system: 'Система',
-    dashboard: 'Пульт', cases: 'Справи', clients: 'Клієнти',
-    tasks: 'Завдання', calendar: 'Календар', settings: 'Налаштування',
+    dashboard: 'Dashboard', cases: 'Справи', clients: 'Клієнти',
+    stages: 'Етапи', tasks: 'Завдання', calendar: 'Календар', settings: 'Налаштування',
     logout: 'Вийти', theme_light: 'Світла', theme_dark: 'Темна',
   },
   pl: {
     menu: 'Menu', system: 'System',
     dashboard: 'Pulpit', cases: 'Sprawy', clients: 'Klienci',
-    tasks: 'Zadania', calendar: 'Kalendarz', settings: 'Ustawienia',
+    stages: 'Etapy', tasks: 'Zadania', calendar: 'Kalendarz', settings: 'Ustawienia',
     logout: 'Wyloguj', theme_light: 'Jasny', theme_dark: 'Ciemny',
   },
 }
@@ -79,7 +79,7 @@ export default function Sidebar({ userName }: { userName?: string }) {
         <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
       </svg>
     )},
-    { href: '/stages', key: 'Этапы', icon: (
+    { href: '/stages', key: 'stages', icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M4 6h16"/>
         <path d="M4 12h16"/>

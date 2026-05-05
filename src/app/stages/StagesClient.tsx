@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { useLanguage } from '@/context/LanguageContext'
 
 type StatusItem = {
   id: number
@@ -32,6 +33,7 @@ function clientName(client: ClientItem) {
 }
 
 export default function StagesClient({ statuses, clients }: { statuses: StatusItem[]; clients: ClientItem[] }) {
+  const { t } = useLanguage()
   const [clientQuery, setClientQuery] = useState('')
 
   const columns = useMemo(() => {
@@ -56,22 +58,22 @@ export default function StagesClient({ statuses, clients }: { statuses: StatusIt
     <div className="fade-in">
       <div className="page-header">
         <div>
-          <div className="page-title">Этапы</div>
-          <div className="page-subtitle">Клиенты по вертикали, статусы дел по горизонтали</div>
+          <div className="page-title">{t('stages_title')}</div>
+          <div className="page-subtitle">{t('stages_sub')}</div>
         </div>
         <Link href="/settings/statuses" className="btn btn-secondary">Настроить статусы</Link>
       </div>
 
       <div className="page-body">
         <div className="card" style={{ marginBottom: 16 }}>
-          <div className="section-title">Обзор</div>
+          <div className="section-title">{t('overview')}</div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
-            <span className="badge" style={{ background: '#eef2ff', color: '#3730a3' }}>Клиентов: {filteredClients.length} / {clients.length}</span>
-            <span className="badge" style={{ background: '#ecfdf5', color: '#047857' }}>Статусов: {columns.length}</span>
-            <span className="badge" style={{ background: '#f8fafc', color: '#475569' }}>Галочка означает, что у клиента есть дело на этом этапе</span>
+            <span className="badge" style={{ background: '#eef2ff', color: '#3730a3' }}>{t('clients_count')}: {filteredClients.length} / {clients.length}</span>
+            <span className="badge" style={{ background: '#ecfdf5', color: '#047857' }}>{t('statuses_count')}: {columns.length}</span>
+            <span className="badge" style={{ background: '#f8fafc', color: '#475569' }}>{t('stage_hint')}</span>
           </div>
           <div className="form-group" style={{ margin: 0, maxWidth: 460 }}>
-            <label className="label">Поиск клиента</label>
+            <label className="label">{t('client_search')}</label>
             <input
               className="input"
               value={clientQuery}
@@ -86,7 +88,7 @@ export default function StagesClient({ statuses, clients }: { statuses: StatusIt
             <table className="table stages-table" style={{ minWidth: Math.max(760, 260 + columns.length * 130) }}>
               <thead>
                 <tr>
-                  <th style={{ position: 'sticky', left: 0, zIndex: 2, minWidth: 240 }}>Клиент</th>
+                  <th style={{ position: 'sticky', left: 0, zIndex: 2, minWidth: 240 }}>{t('client')}</th>
                   {columns.map(status => (
                     <th key={status.id} style={{ textAlign: 'center', minWidth: 130 }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, justifyContent: 'center' }}>
@@ -101,7 +103,7 @@ export default function StagesClient({ statuses, clients }: { statuses: StatusIt
                 {filteredClients.length === 0 ? (
                   <tr>
                     <td colSpan={columns.length + 1} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}>
-                      Клиенты не найдены
+                      {t('clients_not_found')}
                     </td>
                   </tr>
                 ) : filteredClients.map(client => {
@@ -130,7 +132,7 @@ export default function StagesClient({ statuses, clients }: { statuses: StatusIt
                             {statusCases.length > 0 ? (
                               <div style={{ display: 'grid', gap: 5, justifyItems: 'center' }}>
                                 <span
-                                  title={statusCases.map(item => item.service?.name || 'Без услуги').join(', ')}
+                                  title={statusCases.map(item => item.service?.name || t('no_service')).join(', ')}
                                   style={{
                                     width: 28,
                                     height: 28,
@@ -165,9 +167,9 @@ export default function StagesClient({ statuses, clients }: { statuses: StatusIt
                                         justifyContent: 'center',
                                         maxWidth: 128,
                                       }}
-                                      title={item.service?.name || 'Без услуги'}
+                                      title={item.service?.name || t('no_service')}
                                     >
-                                      {item.service?.name || 'Без услуги'}
+                                      {item.service?.name || t('no_service')}
                                     </Link>
                                   ))}
                                   {statusCases.length > 2 && <span style={{ fontSize: 11, color: 'var(--muted)' }}>+ еще {statusCases.length - 2}</span>}

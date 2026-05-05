@@ -2,12 +2,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useLanguage } from '@/context/LanguageContext'
 
 const WORK_TYPE = 'Выконывание пацы (Работа)'
 
 export default function CaseDetailPage() {
   const { id } = useParams()
   const router = useRouter()
+  const { t } = useLanguage()
   const [c, setC] = useState<any>(null)
   const [statuses, setStatuses] = useState<any[]>([])
   const [services, setServices] = useState<any[]>([])
@@ -669,12 +671,12 @@ export default function CaseDetailPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={() => router.push('/cases')} className="btn btn-ghost" style={{ padding: '6px 10px' }}>←</button>
           <div>
-            <div className="page-title" style={{ fontFamily: 'monospace', fontSize: 17 }}>{c.caseNumber || 'Номер дела не указан'}</div>
+            <div className="page-title" style={{ fontFamily: 'monospace', fontSize: 17 }}>{c.caseNumber || t('no_case_number')}</div>
             <div className="page-subtitle">{c.client?.firstName} {c.client?.lastName}</div>
           </div>
         </div>
         <button onClick={save} className="btn btn-primary" disabled={saving}>
-          {saving ? 'Сохранение...' : '💾 Сохранить'}
+          {saving ? t('saving') : `💾 ${t('save')}`}
         </button>
       </div>
 
@@ -683,15 +685,15 @@ export default function CaseDetailPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
           <div className="stat-card">
             <div className="stat-icon" style={{ background: '#eff6ff' }}><span style={{ fontSize: 20 }}>💰</span></div>
-            <div><div className="stat-label">Стоимость</div><div className="stat-value">{c.totalValue?.toFixed(2)} zł</div></div>
+            <div><div className="stat-label">{t('cost')}</div><div className="stat-value">{c.totalValue?.toFixed(2)} zł</div></div>
           </div>
           <div className="stat-card">
             <div className="stat-icon" style={{ background: '#dcfce7' }}><span style={{ fontSize: 20 }}>✅</span></div>
-            <div><div className="stat-label">Получено</div><div className="stat-value" style={{ color: '#16a34a' }}>{c.totalPaid?.toFixed(2)} zł</div></div>
+            <div><div className="stat-label">{t('case_received')}</div><div className="stat-value" style={{ color: '#16a34a' }}>{c.totalPaid?.toFixed(2)} zł</div></div>
           </div>
           <div className="stat-card">
             <div className="stat-icon" style={{ background: debt > 0 ? '#fef2f2' : '#dcfce7' }}><span style={{ fontSize: 20 }}>{debt > 0 ? '📉' : '🎉'}</span></div>
-            <div><div className="stat-label">Долг</div><div className="stat-value" style={{ color: debt > 0 ? '#dc2626' : '#16a34a' }}>{debt > 0 ? `${debt.toFixed(2)} zł` : 'Оплачено!'}</div></div>
+            <div><div className="stat-label">{t('case_debt')}</div><div className="stat-value" style={{ color: debt > 0 ? '#dc2626' : '#16a34a' }}>{debt > 0 ? `${debt.toFixed(2)} zł` : t('paid')}</div></div>
           </div>
         </div>
 
@@ -700,10 +702,10 @@ export default function CaseDetailPage() {
             {/* Табы */}
             <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--surface)', borderRadius: '10px 10px 0 0', padding: '0 4px', overflowX: 'auto' }}>
               {[
-                ['details','📋 Детали'],
-                ['payments', `💳 Оплаты (${c.payments?.length||0})`],
-                ['comments', `💬 Комментарии (${c.comments?.length||0})`],
-                ['docs', `📁 Документы (${documents.length})`],
+                ['details', `📋 ${t('details_tab')}`],
+                ['payments', `💳 ${t('payments_tab')} (${c.payments?.length||0})`],
+                ['comments', `💬 ${t('comments_tab')} (${c.comments?.length||0})`],
+                ['docs', `📁 ${t('documents_tab')} (${documents.length})`],
               ].map(([t, label]) => (
                 <button key={t} onClick={() => setTab(t)} style={{
                   padding: '12px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap',
@@ -718,34 +720,34 @@ export default function CaseDetailPage() {
               <div>
                 {/* ── ОСНОВНЫЕ ДАННЫЕ ── */}
                 <div className="card" style={{ borderRadius: '0 0 10px 10px', marginBottom: 16 }}>
-                  <div className="section-title"><span>📋</span>Основные данные</div>
+                  <div className="section-title"><span>📋</span>{t('case_basic')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
-                      <label className="label">Номер дела</label>
+                      <label className="label">{t('case_number')}</label>
                       <input className="input" value={form.caseNumber} onChange={e => set('caseNumber', e.target.value)} style={{ fontFamily: 'monospace' }} />
                     </div>
                     <div className="form-group">
-                      <label className="label">Статус</label>
+                      <label className="label">{t('status')}</label>
                       <select className="select" value={form.status} onChange={e => set('status', e.target.value)}>
                         {statuses.map(s => <option key={s.id}>{s.name}</option>)}
                         {statuses.length === 0 && ['Новый','В работе','Ожидание документов','Решение получено','Архив','Отказ'].map(s => <option key={s}>{s}</option>)}
                       </select>
                     </div>
                     <div className="form-group" style={{ gridColumn: '1/-1' }}>
-                      <label className="label">🛠 Услуга</label>
+                      <label className="label">🛠 {t('service')}</label>
                       <select className="select" value={form.serviceId} onChange={e => set('serviceId', e.target.value)}>
-                        <option value="">— Выберите услугу —</option>
+                        <option value="">{t('choose_service')}</option>
                         {services.map(s => <option key={s.id} value={s.id.toString()}>{s.name}{s.price ? ` · ${s.price.toFixed(0)} zł` : ''}</option>)}
                       </select>
                     </div>
                     <div className="form-group">
-                      <label className="label">Стоимость (zł)</label>
+                      <label className="label">{t('cost')} (zł)</label>
                       <input className="input" type="number" value={form.totalValue} onChange={e => set('totalValue', e.target.value)} />
                     </div>
                     <div className="form-group">
                       <label className="label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>Тип занятости</span>
-                        <a href={`/settings/case-options?returnTo=/cases/${id}`} style={{ fontSize: 11, color: 'var(--brand)' }}>настроить</a>
+                        <span>{t('stay_type')}</span>
+                        <a href={`/settings/case-options?returnTo=/cases/${id}`} style={{ fontSize: 11, color: 'var(--brand)' }}>{t('configure')}</a>
                       </label>
                       <select className="select" value={form.stayType} onChange={e => set('stayType', e.target.value)}>
                         <option value="">—</option>
@@ -754,21 +756,21 @@ export default function CaseDetailPage() {
                     </div>
                     <div className="form-group">
                       <label className="label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>Доверитель (osoba upoważniona)</span>
-                        <a href={`/settings/employees?returnTo=/cases/${id}`} style={{ fontSize: 11, color: 'var(--brand)' }}>настроить</a>
+                        <span>{t('trustee')}</span>
+                        <a href={`/settings/employees?returnTo=/cases/${id}`} style={{ fontSize: 11, color: 'var(--brand)' }}>{t('configure')}</a>
                       </label>
                       <select className="select" value={form.trustee} onChange={e => set('trustee', e.target.value)}>
-                        <option value="">— Не указан —</option>
+                        <option value="">{t('not_specified')}</option>
                         {employees.map(e => <option key={e.id} value={e.name}>{e.name}</option>)}
                       </select>
                     </div>
                     <div className="form-group">
                       <label className="label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>Ответственный сотрудник</span>
-                        <a href={`/settings/employees?returnTo=/cases/${id}`} style={{ fontSize: 11, color: 'var(--brand)' }}>настроить</a>
+                        <span>{t('employee')}</span>
+                        <a href={`/settings/employees?returnTo=/cases/${id}`} style={{ fontSize: 11, color: 'var(--brand)' }}>{t('configure')}</a>
                       </label>
                       <select className="select" value={form.employeeId} onChange={e => set('employeeId', e.target.value)}>
-                        <option value="">— Не назначен —</option>
+                        <option value="">{t('not_assigned')}</option>
                         {employees.map(e => <option key={e.id} value={e.id.toString()}>{e.name}</option>)}
                       </select>
                     </div>
@@ -777,12 +779,12 @@ export default function CaseDetailPage() {
 
                 {/* ── ГЛАВНАЯ ЦЕЛЬ ПРЕБЫВАНИЯ ── */}
                 <div className="card" style={{ marginBottom: 16 }}>
-                  <div className="section-title"><span>🎯</span>Главная цель пребывания</div>
+                  <div className="section-title"><span>🎯</span>{t('main_goal')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group" style={{ gridColumn: form.stayPurpose?.includes('часовый') || form.stayPurpose?.includes('Временный') ? '1' : '1/-1' }}>
                       <label className="label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>Тип пребывания</span>
-                        <a href={`/settings/case-options?returnTo=/cases/${id}`} style={{ fontSize: 11, color: 'var(--brand)' }}>настроить</a>
+                        <span>{t('stay_purpose')}</span>
+                        <a href={`/settings/case-options?returnTo=/cases/${id}`} style={{ fontSize: 11, color: 'var(--brand)' }}>{t('configure')}</a>
                       </label>
                       <select className="select" value={form.stayPurpose} onChange={e => { set('stayPurpose', e.target.value); if (!e.target.value.includes('часовый') && !e.target.value.includes('Временный')) set('staySubPurpose', '') }}>
                         <option value="">—</option>
@@ -791,9 +793,9 @@ export default function CaseDetailPage() {
                     </div>
                     {(form.stayPurpose?.includes('часовый') || form.stayPurpose?.includes('Временный')) && (
                       <div className="form-group">
-                        <label className="label">Основание временного пребывания</label>
+                        <label className="label">{t('stay_basis')}</label>
                         <select className="select" value={form.staySubPurpose} onChange={e => set('staySubPurpose', e.target.value)}>
-                          <option value="">— Выберите основание —</option>
+                          <option value="">{t('choose_basis')}</option>
                           <option>Wykonywanie pracy (Выполнение работы)</option>
                           <option>Wykonywanie pracy w zawodzie wymagającym wysokich kwalifikacji (Высококвалифицированная работа)</option>
                           <option>Mobilność długoterminowa posiadacza Niebieskiej Karty UE (Синяя карта ЕС)</option>
@@ -820,12 +822,12 @@ export default function CaseDetailPage() {
                 {/* ── ТРУДОВОЙ ДОГОВОР (только если тип занятости = Работа) ── */}
                 {isWorkType && (
                   <div className="card" style={{ marginBottom: 16, borderLeft: '3px solid #3b82f6' }}>
-                    <div className="section-title"><span>💼</span>Трудовой договор (умова о праце)</div>
+                    <div className="section-title"><span>💼</span>{t('work_contract')}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                       <div className="form-group">
                         <label className="label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span>Тип договора</span>
-                          <a href={`/settings/case-options?returnTo=/cases/${id}`} style={{ fontSize: 11, color: 'var(--brand)' }}>настроить</a>
+                          <span>{t('contract_type')}</span>
+                          <a href={`/settings/case-options?returnTo=/cases/${id}`} style={{ fontSize: 11, color: 'var(--brand)' }}>{t('configure')}</a>
                         </label>
                         <select className="select" value={form.workContractType} onChange={e => set('workContractType', e.target.value)}>
                           <option value="">—</option>
@@ -833,16 +835,16 @@ export default function CaseDetailPage() {
                         </select>
                       </div>
                       <div className="form-group">
-                        <label className="label">Номер договора</label>
+                        <label className="label">{t('contract_number')}</label>
                         <input className="input" value={form.workContractNumber} onChange={e => set('workContractNumber', e.target.value)} placeholder="№ 001/2026" />
                       </div>
                       <div className="form-group">
-                        <label className="label">Дата договора</label>
+                        <label className="label">{t('contract_date')}</label>
                         <input className="input" type="date" value={form.workContractDate} onChange={e => set('workContractDate', e.target.value)} />
                       </div>
                       <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 22 }}>
                         <input type="checkbox" id="wc_signed" checked={form.workContractSigned} onChange={e => set('workContractSigned', e.target.checked)} style={{ width: 18, height: 18 }} />
-                        <label htmlFor="wc_signed" style={{ cursor: 'pointer', fontWeight: 500 }}>Договор подписан</label>
+                        <label htmlFor="wc_signed" style={{ cursor: 'pointer', fontWeight: 500 }}>{t('contract_signed')}</label>
                       </div>
                     </div>
                   </div>
@@ -850,12 +852,12 @@ export default function CaseDetailPage() {
 
                 {/* ── ДОГОВОР С АГЕНТСТВОМ ── */}
                 <div className="card" style={{ marginBottom: 16 }}>
-                  <div className="section-title"><span>📄</span>Договор с нашим агентством</div>
+                  <div className="section-title"><span>📄</span>{t('agency_contract')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
                       <label className="label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>Тип договора</span>
-                        <a href={`/settings/case-options?returnTo=/cases/${id}`} style={{ fontSize: 11, color: 'var(--brand)' }}>настроить</a>
+                        <span>{t('contract_type')}</span>
+                        <a href={`/settings/case-options?returnTo=/cases/${id}`} style={{ fontSize: 11, color: 'var(--brand)' }}>{t('configure')}</a>
                       </label>
                       <select className="select" value={form.contractType} onChange={e => set('contractType', e.target.value)}>
                         <option value="">—</option>
@@ -863,26 +865,26 @@ export default function CaseDetailPage() {
                       </select>
                     </div>
                     <div className="form-group">
-                      <label className="label">Номер договора</label>
+                      <label className="label">{t('contract_number')}</label>
                       <input className="input" value={form.contractNumber} onChange={e => set('contractNumber', e.target.value)} placeholder="№ 001/2026" />
                     </div>
                     <div className="form-group">
-                      <label className="label">Дата договора</label>
+                      <label className="label">{t('contract_date')}</label>
                       <input className="input" type="date" value={form.contractDate} onChange={e => set('contractDate', e.target.value)} />
                     </div>
                     <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 22 }}>
                       <input type="checkbox" id="signed" checked={form.contractSigned} onChange={e => set('contractSigned', e.target.checked)} style={{ width: 18, height: 18 }} />
-                      <label htmlFor="signed" style={{ cursor: 'pointer', fontWeight: 500 }}>Договор подписан</label>
+                      <label htmlFor="signed" style={{ cursor: 'pointer', fontWeight: 500 }}>{t('contract_signed')}</label>
                     </div>
                   </div>
                 </div>
 
                 {/* ── MOS ── */}
                 <div className="card" style={{ marginBottom: 16 }}>
-                  <div className="section-title"><span>#</span>MOS и корреспонденция</div>
+                  <div className="section-title"><span>#</span>{t('case_mos')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
-                      <label className="label">Номер MOS</label>
+                      <label className="label">{t('mos_number')}</label>
                       <input className="input" value={form.mosNumber} onChange={e => set('mosNumber', e.target.value)} placeholder="MOS-12345" />
                     </div>
                     <div className="form-group">
@@ -890,19 +892,19 @@ export default function CaseDetailPage() {
                       <input className="input" value={mosId} onChange={e => setMosId(e.target.value)} placeholder="ID из MOS / ужонда" />
                     </div>
                     <div className="form-group">
-                      <label className="label">Дата передачи в MOS</label>
+                      <label className="label">{t('mos_sent_date')}</label>
                       <input className="input" type="date" value={form.mosSentAt} onChange={e => set('mosSentAt', e.target.value)} />
                     </div>
                   </div>
 
                   <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, marginTop: 4 }}>
-                    <div className="section-title" style={{ marginBottom: 10 }}>Документы для MOS</div>
+                    <div className="section-title" style={{ marginBottom: 10 }}>{t('mos_documents')}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
                       <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', padding: 12, minHeight: 220 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Уже поданы документы</div>
+                        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>{t('submitted_documents')}</div>
                         {submittedMosDocuments.length === 0 ? (
                           <div style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: '38px 10px' }}>
-                            Нажмите документ справа, когда он подан в MOS
+                            {t('click_doc_when_submitted')}
                           </div>
                         ) : (
                           <div style={{ display: 'grid', gap: 8 }}>
@@ -911,10 +913,10 @@ export default function CaseDetailPage() {
                                 <div>
                                   <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 3 }}>{cleanMosDocTitle(doc.title)}</div>
                                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                                    Подано: {doc.sentAt ? new Date(doc.sentAt).toLocaleDateString('ru') : 'дата не указана'}
+                                    {t('submitted')}: {doc.sentAt ? new Date(doc.sentAt).toLocaleDateString('ru') : t('date_not_set')}
                                   </div>
                                 </div>
-                                <button onClick={() => deleteMosDocument(doc.id)} className="btn" style={{ padding: '6px 10px', background: '#fef2f2', color: '#dc2626' }}>Удалить</button>
+                                <button onClick={() => deleteMosDocument(doc.id)} className="btn" style={{ padding: '6px 10px', background: '#fef2f2', color: '#dc2626' }}>{t('delete')}</button>
                               </div>
                             ))}
                           </div>
@@ -923,16 +925,16 @@ export default function CaseDetailPage() {
 
                       <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', padding: 12, minHeight: 220 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-                          <div style={{ fontWeight: 700, fontSize: 13 }}>Документы, которые нужно отнести</div>
-                          <a href={`/settings/case-options?returnTo=/cases/${id}`} style={{ fontSize: 12, color: 'var(--brand)' }}>Настроить</a>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{t('documents_to_deliver')}</div>
+                          <a href={`/settings/case-options?returnTo=/cases/${id}`} style={{ fontSize: 12, color: 'var(--brand)' }}>{t('configure')}</a>
                         </div>
                         {mosDocumentOptions.length === 0 ? (
                           <div style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: '30px 10px' }}>
-                            Список пока пуст. Добавьте документы в настройках.
+                            {t('empty_mos_documents')}
                           </div>
                         ) : availableMosDocuments.length === 0 ? (
                           <div style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: '38px 10px' }}>
-                            Все настроенные документы уже отмечены как поданные
+                            {t('all_mos_documents_submitted')}
                           </div>
                         ) : (
                           <div style={{ display: 'grid', gap: 8 }}>
@@ -956,7 +958,7 @@ export default function CaseDetailPage() {
                           <div style={{ marginTop: 12, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--card)' }}>
                             <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{pendingMosDocName}</div>
                             <div className="form-group" style={{ marginBottom: 10 }}>
-                              <label className="label">Когда подали документ</label>
+                              <label className="label">{t('when_submitted')}</label>
                               <input className="input" type="date" max={todayDate} value={newMosDocDueDate} onChange={e => setNewMosDocDueDate(e.target.value)} />
                             </div>
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -966,7 +968,7 @@ export default function CaseDetailPage() {
                                 className="btn btn-secondary"
                                 style={{ padding: '7px 12px' }}
                               >
-                                Отмена
+                                {t('cancel')}
                               </button>
                               <button
                                 type="button"
@@ -975,7 +977,7 @@ export default function CaseDetailPage() {
                                 disabled={!newMosDocDueDate || newMosDocDueDate > todayDate}
                                 style={{ padding: '7px 12px' }}
                               >
-                                Сохранить
+                                {t('save')}
                               </button>
                             </div>
                           </div>
@@ -985,9 +987,9 @@ export default function CaseDetailPage() {
                   </div>
 
                   <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, marginTop: 14 }}>
-                    <div className="section-title" style={{ marginBottom: 10 }}>Дополнительное напоминание</div>
+                    <div className="section-title" style={{ marginBottom: 10 }}>{t('additional_reminder')}</div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <input className="input" value={customReminderTitle} onChange={e => setCustomReminderTitle(e.target.value)} placeholder="О чем напомнить" style={{ flex: 1, minWidth: 220 }} />
+                      <input className="input" value={customReminderTitle} onChange={e => setCustomReminderTitle(e.target.value)} placeholder={t('remind_about')} style={{ flex: 1, minWidth: 220 }} />
                       <input className="input" type="date" value={customReminderDate} onChange={e => setCustomReminderDate(e.target.value)} style={{ flex: '0 0 160px' }} />
                       <button
                         type="button"
@@ -995,7 +997,7 @@ export default function CaseDetailPage() {
                         className="btn btn-secondary"
                         disabled={!customReminderTitle.trim() || !customReminderDate || customReminderSaving}
                       >
-                        {customReminderSaving ? 'Добавляю...' : '+ Напомнить'}
+                        {customReminderSaving ? t('reminding') : t('remind')}
                       </button>
                     </div>
                   </div>
@@ -1003,19 +1005,19 @@ export default function CaseDetailPage() {
 
                 {/* ── ВАЖНЫЕ ДАТЫ ── */}
                 <div className="card" style={{ marginBottom: 16 }}>
-                  <div className="section-title"><span>📅</span>Важные даты</div>
+                  <div className="section-title"><span>📅</span>{t('important_dates')}</div>
                   {/* Фиксированные даты */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
                     <div className="form-group">
-                      <label className="label">Дата подачи</label>
+                      <label className="label">{t('filing_date')}</label>
                       <input className="input" type="date" value={form.filingDate} onChange={e => set('filingDate', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label className="label">Личная явка</label>
+                      <label className="label">{t('personal_visit')}</label>
                       <input className="input" type="date" value={form.personalAppearDate} onChange={e => set('personalAppearDate', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label className="label">Срок легального пребывания</label>
+                      <label className="label">{t('legal_stay_deadline')}</label>
                       <input className="input" type="date" value={form.legalStayDeadline} onChange={e => set('legalStayDeadline', e.target.value)} />
                     </div>
                   </div>
@@ -1035,20 +1037,20 @@ export default function CaseDetailPage() {
 
                   {/* Форма добавления новой даты */}
                   <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 12 }}>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>+ Добавить дату</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>{t('add_date')}</div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <input className="input" value={newDateLabel} onChange={e => setNewDateLabel(e.target.value)} placeholder="Название (напр. Решение по делу)" style={{ flex: 2, minWidth: 180 }} />
+                      <input className="input" value={newDateLabel} onChange={e => setNewDateLabel(e.target.value)} placeholder={t('date_name_placeholder')} style={{ flex: 2, minWidth: 180 }} />
                       <input className="input" type="date" value={newDateValue} onChange={e => setNewDateValue(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
-                      <button onClick={addCustomDate} className="btn btn-primary" disabled={!newDateLabel.trim() || !newDateValue}>+ Добавить</button>
+                      <button onClick={addCustomDate} className="btn btn-primary" disabled={!newDateLabel.trim() || !newDateValue}>+ {t('add')}</button>
                     </div>
                   </div>
                 </div>
 
                 {/* ── АКТУАЛИЗАЦИЯ ДОКУМЕНТАЦИИ ── */}
                 <div className="card" style={{ marginBottom: 16 }}>
-                  <div className="section-title"><span>📝</span>Актуализация документации</div>
+                  <div className="section-title"><span>📝</span>{t('documentation_update')}</div>
                   {docUpdates.length === 0 && (
-                    <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>Нет записей об актуализации</div>
+                    <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>{t('no_doc_updates')}</div>
                   )}
                   {docUpdates.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
@@ -1064,16 +1066,16 @@ export default function CaseDetailPage() {
                   <div style={{ borderTop: docUpdates.length > 0 ? '1px dashed var(--border)' : 'none', paddingTop: docUpdates.length > 0 ? 12 : 0 }}>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <input className="input" type="date" value={newDocDate} onChange={e => setNewDocDate(e.target.value)} style={{ flex: '0 0 150px' }} />
-                      <input className="input" value={newDocDesc} onChange={e => setNewDocDesc(e.target.value)} placeholder="Что подавалось в ужонд..." style={{ flex: 1, minWidth: 200 }} onKeyDown={e => e.key === 'Enter' && addDocUpdate()} />
-                      <button onClick={addDocUpdate} className="btn btn-primary" disabled={!newDocDate || !newDocDesc.trim()}>+ Добавить</button>
+                      <input className="input" value={newDocDesc} onChange={e => setNewDocDesc(e.target.value)} placeholder={t('doc_update_placeholder')} style={{ flex: 1, minWidth: 200 }} onKeyDown={e => e.key === 'Enter' && addDocUpdate()} />
+                      <button onClick={addDocUpdate} className="btn btn-primary" disabled={!newDocDate || !newDocDesc.trim()}>+ {t('add')}</button>
                     </div>
                   </div>
                 </div>
 
                 {/* ── ЗАМЕТКИ ── */}
                 <div className="card">
-                  <div className="section-title"><span>📝</span>Заметки</div>
-                  <textarea className="input" value={form.notes} onChange={e => set('notes', e.target.value)} rows={4} placeholder="Дополнительная информация..." />
+                  <div className="section-title"><span>📝</span>{t('notes')}</div>
+                  <textarea className="input" value={form.notes} onChange={e => set('notes', e.target.value)} rows={4} placeholder={t('notes_placeholder')} />
                 </div>
               </div>
             )}
@@ -1081,19 +1083,19 @@ export default function CaseDetailPage() {
             {tab === 'payments' && (
               <div>
                 <div className="card" style={{ borderRadius: '0 0 10px 10px', marginBottom: 16 }}>
-                  <div className="section-title"><span>➕</span>Добавить оплату</div>
+                  <div className="section-title"><span>➕</span>{t('add_payment_section')}</div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <input className="input" type="number" placeholder="Сумма (zł)" value={payAmount} onChange={e => setPayAmount(e.target.value)} step="0.01" style={{ maxWidth: 150 }} />
-                    <input className="input" placeholder="Заметка (опц.)" value={payNote} onChange={e => setPayNote(e.target.value)} />
-                    <button onClick={addPayment} className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>+ Добавить</button>
+                    <input className="input" type="number" placeholder={`${t('amount')} (zł)`} value={payAmount} onChange={e => setPayAmount(e.target.value)} step="0.01" style={{ maxWidth: 150 }} />
+                    <input className="input" placeholder={t('note')} value={payNote} onChange={e => setPayNote(e.target.value)} />
+                    <button onClick={addPayment} className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>+ {t('add')}</button>
                   </div>
                 </div>
                 <div className="card" style={{ marginBottom: 16 }}>
-                  <div className="section-title"><span>📅</span>План платежей</div>
+                  <div className="section-title"><span>📅</span>{t('payment_plan')}</div>
                   <div style={{ display: 'grid', gap: 8 }}>
                     {paymentPlan.map((row, index) => (
                       <div key={index} style={{ display: 'grid', gridTemplateColumns: '160px 180px 40px', gap: 8, alignItems: 'center' }}>
-                        <input className="input" type="number" placeholder="Сумма (zł)" value={row.amount} onChange={e => updatePlanRow(index, 'amount', e.target.value)} step="0.01" />
+                        <input className="input" type="number" placeholder={`${t('amount')} (zł)`} value={row.amount} onChange={e => updatePlanRow(index, 'amount', e.target.value)} step="0.01" />
                         <input className="input" type="date" value={row.dueDate} onChange={e => updatePlanRow(index, 'dueDate', e.target.value)} />
                         <button
                           onClick={() => setPaymentPlan(rows => rows.length === 1 ? rows : rows.filter((_, i) => i !== index))}
@@ -1106,22 +1108,22 @@ export default function CaseDetailPage() {
                     ))}
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                    <button onClick={() => setPaymentPlan(rows => [...rows, { amount: '', dueDate: '' }])} className="btn btn-secondary">+ Платеж</button>
+                    <button onClick={() => setPaymentPlan(rows => [...rows, { amount: '', dueDate: '' }])} className="btn btn-secondary">+ {t('payment')}</button>
                     <button onClick={createPaymentPlanTasks} className="btn btn-primary" disabled={creatingPlan}>
-                      {creatingPlan ? 'Создание...' : 'Добавить в календарь'}
+                      {creatingPlan ? t('creating') : t('add_to_calendar')}
                     </button>
                   </div>
                   <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>
-                    Эти строки создают задачи-напоминания, но не добавляют деньги в фактически полученные оплаты.
+                    {t('payment_plan_hint')}
                   </div>
                 </div>
                 <div className="table-container" style={{ marginBottom: 16 }}>
-                  <div style={{ padding: '14px 16px 0', fontWeight: 600 }}>Запланированные платежи</div>
+                  <div style={{ padding: '14px 16px 0', fontWeight: 600 }}>{t('planned_payments')}</div>
                   <table className="table">
-                    <thead><tr><th>Дата</th><th>Сумма</th><th>Напоминание</th><th></th></tr></thead>
+                    <thead><tr><th>{t('date')}</th><th>{t('amount')}</th><th>{t('reminder')}</th><th></th></tr></thead>
                     <tbody>
                       {plannedPayments.length === 0 ? (
-                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>Запланированных платежей нет</td></tr>
+                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>{t('no_planned_payments')}</td></tr>
                       ) : plannedPayments.map((plan: any) => (
                         <tr key={plan.id}>
                           <td>{plan.dueDate ? new Date(plan.dueDate).toLocaleDateString('ru') : '—'}</td>
@@ -1129,7 +1131,7 @@ export default function CaseDetailPage() {
                           <td>{plan.note || plan.title}</td>
                           <td style={{ textAlign: 'right' }}>
                             <button onClick={() => convertPlannedPayment(plan)} className="btn btn-primary" style={{ padding: '6px 12px' }}>
-                              Перевести в оплаченные
+                              {t('convert_to_paid')}
                             </button>
                           </td>
                         </tr>
@@ -1138,12 +1140,12 @@ export default function CaseDetailPage() {
                   </table>
                 </div>
                 <div className="table-container">
-                  <div style={{ padding: '14px 16px 0', fontWeight: 600 }}>Полученные оплаты</div>
+                  <div style={{ padding: '14px 16px 0', fontWeight: 600 }}>{t('received_payments')}</div>
                   <table className="table">
-                    <thead><tr><th>Дата</th><th>Сумма</th><th>Заметка</th><th></th></tr></thead>
+                    <thead><tr><th>{t('date')}</th><th>{t('amount')}</th><th>{t('note')}</th><th></th></tr></thead>
                     <tbody>
                       {(c.payments||[]).length === 0 ? (
-                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>Оплат пока нет</td></tr>
+                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>{t('no_payments')}</td></tr>
                       ) : (c.payments||[]).map((p: any) => (
                         <tr key={p.id}>
                           {editingPayment?.id === p.id ? (
@@ -1152,8 +1154,8 @@ export default function CaseDetailPage() {
                               <td><input className="input" type="number" value={editingPayment.amount} onChange={e => setEditingPayment((prev: any) => ({ ...prev, amount: e.target.value }))} step="0.01" /></td>
                               <td><input className="input" value={editingPayment.note} onChange={e => setEditingPayment((prev: any) => ({ ...prev, note: e.target.value }))} /></td>
                               <td style={{ whiteSpace: 'nowrap' }}>
-                                <button onClick={savePaymentEdit} className="btn btn-primary" style={{ padding: '6px 10px', marginRight: 6 }}>Сохранить</button>
-                                <button onClick={() => setEditingPayment(null)} className="btn btn-secondary" style={{ padding: '6px 10px' }}>Отмена</button>
+                                <button onClick={savePaymentEdit} className="btn btn-primary" style={{ padding: '6px 10px', marginRight: 6 }}>{t('save')}</button>
+                                <button onClick={() => setEditingPayment(null)} className="btn btn-secondary" style={{ padding: '6px 10px' }}>{t('cancel')}</button>
                               </td>
                             </>
                           ) : (
@@ -1162,8 +1164,8 @@ export default function CaseDetailPage() {
                               <td style={{ color: '#16a34a', fontWeight: 600 }}>+{p.amount.toFixed(2)} zł</td>
                               <td>{p.note || '—'}</td>
                               <td style={{ whiteSpace: 'nowrap' }}>
-                                <button onClick={() => startEditPayment(p)} className="btn btn-ghost" style={{ padding: '6px 10px', marginRight: 6 }}>Редактировать</button>
-                                <button onClick={() => deletePayment(p.id)} className="btn" style={{ padding: '6px 10px', background: '#fef2f2', color: '#dc2626' }}>Удалить</button>
+                                <button onClick={() => startEditPayment(p)} className="btn btn-ghost" style={{ padding: '6px 10px', marginRight: 6 }}>{t('edit')}</button>
+                                <button onClick={() => deletePayment(p.id)} className="btn" style={{ padding: '6px 10px', background: '#fef2f2', color: '#dc2626' }}>{t('delete')}</button>
                               </td>
                             </>
                           )}
@@ -1179,13 +1181,13 @@ export default function CaseDetailPage() {
               <div>
                 <div className="card" style={{ borderRadius: '0 0 10px 10px', marginBottom: 16 }}>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <input className="input" placeholder="Напишите комментарий..." value={comment} onChange={e => setComment(e.target.value)} onKeyDown={e => e.key === 'Enter' && addComment()} />
-                    <button onClick={addComment} className="btn btn-primary">Отправить</button>
+                    <input className="input" placeholder={t('write_comment')} value={comment} onChange={e => setComment(e.target.value)} onKeyDown={e => e.key === 'Enter' && addComment()} />
+                    <button onClick={addComment} className="btn btn-primary">{t('send')}</button>
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(c.comments||[]).length === 0 ? (
-                    <div className="card" style={{ textAlign: 'center', color: 'var(--muted)' }}>Комментариев нет</div>
+                    <div className="card" style={{ textAlign: 'center', color: 'var(--muted)' }}>{t('no_comments')}</div>
                   ) : (c.comments||[]).map((cm: any) => (
                     <div key={cm.id} className="card">
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -1202,20 +1204,20 @@ export default function CaseDetailPage() {
             {tab === 'docs' && (
               <div>
                 <div className="card" style={{ borderRadius: '0 0 10px 10px', marginBottom: 16 }}>
-                  <div className="section-title"><span>📁</span>Документы клиента</div>
+                  <div className="section-title"><span>📁</span>{t('client_documents')}</div>
                   <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
                     <input ref={fileInputRef} type="file" accept="image/*,.pdf" multiple style={{ display: 'none' }}
                       onChange={async e => { for (const f of Array.from(e.target.files || [])) await uploadFile(f); if (fileInputRef.current) fileInputRef.current.value = '' }} />
                     <button onClick={() => fileInputRef.current?.click()} className="btn btn-primary" disabled={uploading}>
-                      {uploading ? '⏳ Загрузка...' : '📎 Загрузить файл'}
+                      {uploading ? `⏳ ${t('uploading_file')}` : `📎 ${t('upload_file')}`}
                     </button>
-                    <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'center' }}>Фото или PDF, несколько файлов сразу</span>
+                    <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'center' }}>{t('file_upload_hint')}</span>
                   </div>
 
                   {documents.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--muted)' }}>
                       <div style={{ fontSize: 36, marginBottom: 8 }}>📂</div>
-                      <div>Нет загруженных документов</div>
+                      <div>{t('no_uploaded_documents')}</div>
                     </div>
                   ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
@@ -1250,11 +1252,11 @@ export default function CaseDetailPage() {
                             <div style={{ display: 'flex', gap: 4 }}>
                               <button onClick={() => setPreviewDoc(doc)}
                                 style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 0', cursor: 'pointer', fontSize: 11, color: 'var(--text)', fontWeight: 500 }}>
-                                👁 Открыть
+                                👁 {t('open_file')}
                               </button>
                               <button onClick={() => downloadFile(doc.url, doc.name)}
                                 style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 0', cursor: 'pointer', fontSize: 11, color: 'var(--text)', fontWeight: 500 }}>
-                                ⬇️ Скачать
+                                ⬇️ {t('download')}
                               </button>
                               <button onClick={() => deleteDocument(doc.id)}
                                 style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '4px 7px', cursor: 'pointer', fontSize: 12, color: '#dc2626' }}>
@@ -1306,11 +1308,11 @@ export default function CaseDetailPage() {
                   </div>
                   <button onClick={() => downloadFile(previewDoc.url, previewDoc.name)}
                     style={{ background: 'var(--brand)', color: 'white', borderRadius: 8, padding: '7px 16px', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    ⬇️ Скачать
+                    ⬇️ {t('download')}
                   </button>
                   <a href={previewDoc.url} target="_blank" rel="noreferrer"
                     style={{ background: 'rgba(255,255,255,0.15)', color: 'white', borderRadius: 8, padding: '7px 16px', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                    🔗 Открыть
+                    🔗 {t('open_file')}
                   </a>
                   <button onClick={() => setPreviewDoc(null)}
                     style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '7px 12px', cursor: 'pointer', color: 'white', fontSize: 18, fontWeight: 700, lineHeight: 1 }}>
@@ -1339,7 +1341,7 @@ export default function CaseDetailPage() {
           {/* Боковая панель */}
           <div>
             <div className="card" style={{ marginBottom: 16 }}>
-              <div className="section-title"><span>👤</span>Клиент</div>
+              <div className="section-title"><span>👤</span>{t('client')}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <div className="avatar">{c.client?.firstName?.[0]}{c.client?.lastName?.[0]}</div>
                 <div>
@@ -1348,28 +1350,28 @@ export default function CaseDetailPage() {
                 </div>
               </div>
               <Link href={`/clients/${c.client?.id}`} className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', fontSize: 13 }}>
-                Карточка клиента →
+                {t('client_card')}
               </Link>
             </div>
 
             <div className="card" style={{ marginBottom: 16 }}>
-              <div className="section-title"><span>✅</span>Быстрая задача</div>
+              <div className="section-title"><span>✅</span>{t('quick_task')}</div>
               <div className="form-group">
-                <label className="label">Что нужно сделать</label>
+                <label className="label">{t('what_to_do')}</label>
                 <input
                   className="input"
                   value={taskTitle}
                   onChange={e => setTaskTitle(e.target.value)}
-                  placeholder="Напр.: позвонить клиенту"
+                  placeholder={t('task_placeholder')}
                   onKeyDown={e => e.key === 'Enter' && createClientTask()}
                 />
               </div>
               <div className="form-group">
-                <label className="label">Дата</label>
+                <label className="label">{t('date')}</label>
                 <input className="input" type="date" value={taskDueDate} onChange={e => setTaskDueDate(e.target.value)} />
               </div>
               <button onClick={createClientTask} className="btn btn-primary" disabled={!taskTitle.trim() || taskSaving} style={{ width: '100%', justifyContent: 'center' }}>
-                {taskSaving ? 'Создание...' : '+ Создать задачу'}
+                {taskSaving ? t('creating') : t('create_task_short')}
               </button>
             </div>
 
@@ -1385,7 +1387,7 @@ export default function CaseDetailPage() {
             )}
 
             <div className="card" style={{ marginBottom: 16 }}>
-              <div className="section-title"><span>🛠</span>Услуга</div>
+              <div className="section-title"><span>🛠</span>{t('service')}</div>
               {currentService ? (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -1393,15 +1395,15 @@ export default function CaseDetailPage() {
                     <div style={{ fontWeight: 600, fontSize: 14 }}>{currentService.name}</div>
                   </div>
                   {currentService.description && <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{currentService.description}</div>}
-                  {currentService.price > 0 && <span className="badge" style={{ background: '#dcfce7', color: '#14532d' }}>Базовая цена: {currentService.price?.toFixed(0)} zł</span>}
+                  {currentService.price > 0 && <span className="badge" style={{ background: '#dcfce7', color: '#14532d' }}>{t('base_price')}: {currentService.price?.toFixed(0)} zł</span>}
                 </div>
-              ) : <div style={{ color: 'var(--muted)', fontSize: 13 }}>Услуга не выбрана</div>}
+              ) : <div style={{ color: 'var(--muted)', fontSize: 13 }}>{t('service_not_selected')}</div>}
             </div>
 
             <div className="card" style={{ marginBottom: 16 }}>
-              <div className="section-title"><span>🔔</span>Задачи и уведомления</div>
+              <div className="section-title"><span>🔔</span>{t('tasks_notifications')}</div>
               {caseTasks.length === 0 ? (
-                <div style={{ color: 'var(--muted)', fontSize: 13 }}>По этому делу пока нет задач</div>
+                <div style={{ color: 'var(--muted)', fontSize: 13 }}>{t('no_case_tasks')}</div>
               ) : (
                 <div style={{ display: 'grid', gap: 10 }}>
                   {caseTasks.map((task: any) => (
@@ -1413,12 +1415,12 @@ export default function CaseDetailPage() {
                           color: task.status === 'done' ? '#166534' : '#92400e',
                           flexShrink: 0,
                         }}>
-                          {task.status === 'done' ? 'Готово' : 'Активно'}
+                          {task.status === 'done' ? t('done') : t('active')}
                         </span>
                       </div>
                       {task.dueDate && (
                         <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                          Дата: {new Date(task.dueDate).toLocaleDateString('ru')}
+                          {t('date')}: {new Date(task.dueDate).toLocaleDateString('ru')}
                         </div>
                       )}
                       {task.note && (
@@ -1433,9 +1435,9 @@ export default function CaseDetailPage() {
             </div>
 
             <div className="card" style={{ marginBottom: 16 }}>
-              <div className="section-title"><span>🕐</span>История статусов</div>
+              <div className="section-title"><span>🕐</span>{t('history')}</div>
               {(c.statusHistory||[]).length === 0 ? (
-                <div style={{ color: 'var(--muted)', fontSize: 13 }}>Нет истории</div>
+                <div style={{ color: 'var(--muted)', fontSize: 13 }}>{t('no_history')}</div>
               ) : (c.statusHistory||[]).map((h: any, i: number) => (
                 <div key={h.id} style={{ fontSize: 12, paddingBottom: 10, marginBottom: 10, borderBottom: i < c.statusHistory.length-1 ? '1px solid var(--border)' : 'none' }}>
                   <div style={{ fontWeight: 500 }}>{h.toStatus}</div>
@@ -1446,14 +1448,14 @@ export default function CaseDetailPage() {
             </div>
 
             <div className="card">
-              <div className="section-title"><span>ℹ️</span>Информация</div>
+              <div className="section-title"><span>ℹ️</span>{t('info')}</div>
               <div style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>Создано</span>
+                  <span style={{ color: 'var(--muted)' }}>{t('created')}</span>
                   <span>{new Date(c.createdAt).toLocaleDateString('ru')}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>Обновлено</span>
+                  <span style={{ color: 'var(--muted)' }}>{t('updated')}</span>
                   <span>{new Date(c.updatedAt).toLocaleDateString('ru')}</span>
                 </div>
               </div>
