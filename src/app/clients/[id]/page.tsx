@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import CollapsibleCardsBehavior from '@/components/CollapsibleCardsBehavior'
 
@@ -30,6 +30,8 @@ const F = ({ label, children, col = false }: any) => (
 export default function ClientDetailPage() {
   const { id } = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const backTo = searchParams.get('backTo') || '/clients'
   const [client, setClient] = useState<any>(null)
   const [form, setForm] = useState<any>({})
   const [saving, setSaving] = useState(false)
@@ -125,7 +127,7 @@ export default function ClientDetailPage() {
     <div className="fade-in">
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={() => router.push('/clients')} className="btn btn-ghost" style={{ padding: '6px 10px' }}>←</button>
+          <button onClick={() => router.push(backTo)} className="btn btn-ghost" style={{ padding: '6px 10px' }}>←</button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div className="avatar" style={{ width: 44, height: 44, fontSize: 16 }}>{client.firstName[0]}{client.lastName[0]}</div>
             <div>

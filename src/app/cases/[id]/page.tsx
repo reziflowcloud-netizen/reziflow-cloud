@@ -1357,7 +1357,7 @@ export default function CaseDetailPage() {
                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>{c.client?.phone}</div>
                 </div>
               </div>
-              <Link href={`/clients/${c.client?.id}`} className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', fontSize: 13 }}>
+              <Link href={`/clients/${c.client?.id}?backTo=${encodeURIComponent(`/cases/${c.id}`)}`} className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', fontSize: 13 }}>
                 {t('client_card')}
               </Link>
             </div>

@@ -29,6 +29,18 @@ export default function CollapsibleCardsBehavior({ scope }: Props) {
       const storageKey = `reziflow:collapsed:${key}`
       let collapsed = localStorage.getItem(storageKey) === '1'
 
+      const originalNodes = Array.from(header.childNodes)
+      const headerLeft = document.createElement('div')
+      headerLeft.dataset.collapseLeft = '1'
+      headerLeft.style.display = 'inline-flex'
+      headerLeft.style.alignItems = 'center'
+      headerLeft.style.gap = '10px'
+      headerLeft.style.minWidth = '0'
+      headerLeft.style.flex = '1'
+
+      originalNodes.forEach(node => headerLeft.appendChild(node))
+      header.appendChild(headerLeft)
+
       header.dataset.collapseReady = '1'
       header.style.display = 'flex'
       header.style.alignItems = 'center'
@@ -66,6 +78,8 @@ export default function CollapsibleCardsBehavior({ scope }: Props) {
       cleanups.push(() => {
         button.removeEventListener('click', onClick)
         button.remove()
+        originalNodes.forEach(node => header.appendChild(node))
+        headerLeft.remove()
         delete header.dataset.collapseReady
       })
     })
