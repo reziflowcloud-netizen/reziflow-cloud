@@ -37,6 +37,12 @@ export default function SettingsPage() {
       desc: 'Управление доступом к системе',
     },
     {
+      href: '/settings/sections',
+      icon: '▦',
+      title: 'Поля и сектора',
+      desc: 'Показывать или скрывать блоки в карточке клиента и деле',
+    },
+    {
       href: '/settings/organizations',
       icon: '🏢',
       title: 'Организации',

@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
 import CollapsibleCardsBehavior from '@/components/CollapsibleCardsBehavior'
+import SectionVisibilityBehavior from '@/components/SectionVisibilityBehavior'
 
 const WORK_TYPE = 'Выконывание пацы (Работа)'
 
@@ -720,8 +721,9 @@ export default function CaseDetailPage() {
             {tab === 'details' && (
               <div data-collapsible-scope="case-details">
                 <CollapsibleCardsBehavior scope="case-details" />
+                <SectionVisibilityBehavior scope="case" />
                 {/* ── ОСНОВНЫЕ ДАННЫЕ ── */}
-                <div className="card" style={{ borderRadius: '0 0 10px 10px', marginBottom: 16 }}>
+                <div className="card" data-collapse-key="case-basic" data-section-scope="case" data-section-key="case-basic" style={{ borderRadius: '0 0 10px 10px', marginBottom: 16 }}>
                   <div className="section-title"><span>📋</span>{t('case_detail_main')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
@@ -780,7 +782,7 @@ export default function CaseDetailPage() {
                 </div>
 
                 {/* ── ГЛАВНАЯ ЦЕЛЬ ПРЕБЫВАНИЯ ── */}
-                <div className="card" style={{ marginBottom: 16 }}>
+                <div className="card" data-collapse-key="case-main-goal" data-section-scope="case" data-section-key="case-main-goal" style={{ marginBottom: 16 }}>
                   <div className="section-title"><span>🎯</span>{t('main_goal')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group" style={{ gridColumn: form.stayPurpose?.includes('часовый') || form.stayPurpose?.includes('Временный') ? '1' : '1/-1' }}>
@@ -823,7 +825,7 @@ export default function CaseDetailPage() {
 
                 {/* ── ТРУДОВОЙ ДОГОВОР (только если тип занятости = Работа) ── */}
                 {isWorkType && (
-                  <div className="card" style={{ marginBottom: 16, borderLeft: '3px solid #3b82f6' }}>
+                  <div className="card" data-collapse-key="case-work-contract" data-section-scope="case" data-section-key="case-work-contract" style={{ marginBottom: 16, borderLeft: '3px solid #3b82f6' }}>
                     <div className="section-title"><span>💼</span>{t('work_contract')}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                       <div className="form-group">
@@ -853,7 +855,7 @@ export default function CaseDetailPage() {
                 )}
 
                 {/* ── ДОГОВОР С АГЕНТСТВОМ ── */}
-                <div className="card" style={{ marginBottom: 16 }}>
+                <div className="card" data-collapse-key="case-agency-contract" data-section-scope="case" data-section-key="case-agency-contract" style={{ marginBottom: 16 }}>
                   <div className="section-title"><span>📄</span>{t('agency_contract')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
@@ -882,7 +884,7 @@ export default function CaseDetailPage() {
                 </div>
 
                 {/* ── MOS ── */}
-                <div className="card" style={{ marginBottom: 16 }}>
+                <div className="card" data-collapse-key="case-mos" data-section-scope="case" data-section-key="case-mos" style={{ marginBottom: 16 }}>
                   <div className="section-title"><span>#</span>{t('case_mos')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
@@ -1006,7 +1008,7 @@ export default function CaseDetailPage() {
                 </div>
 
                 {/* ── ВАЖНЫЕ ДАТЫ ── */}
-                <div className="card" style={{ marginBottom: 16 }}>
+                <div className="card" data-collapse-key="case-important-dates" data-section-scope="case" data-section-key="case-important-dates" style={{ marginBottom: 16 }}>
                   <div className="section-title"><span>📅</span>{t('important_dates')}</div>
                   {/* Фиксированные даты */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
@@ -1049,7 +1051,7 @@ export default function CaseDetailPage() {
                 </div>
 
                 {/* ── АКТУАЛИЗАЦИЯ ДОКУМЕНТАЦИИ ── */}
-                <div className="card" style={{ marginBottom: 16 }}>
+                <div className="card" data-collapse-key="case-doc-updates" data-section-scope="case" data-section-key="case-doc-updates" style={{ marginBottom: 16 }}>
                   <div className="section-title"><span>📝</span>{t('documentation_update')}</div>
                   {docUpdates.length === 0 && (
                     <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>{t('no_doc_updates')}</div>
@@ -1075,7 +1077,7 @@ export default function CaseDetailPage() {
                 </div>
 
                 {/* ── ЗАМЕТКИ ── */}
-                <div className="card">
+                <div className="card" data-collapse-key="case-notes" data-section-scope="case" data-section-key="case-notes">
                   <div className="section-title"><span>📝</span>{t('notes')}</div>
                   <textarea className="input" value={form.notes} onChange={e => set('notes', e.target.value)} rows={4} placeholder={t('notes_placeholder')} />
                 </div>
