@@ -76,17 +76,12 @@ export default async function DashboardPage() {
   const maxCases = Math.max(...last6months.map(m => m.cases), 1)
   const maxClients = Math.max(...last6months.map(m => m.clients), 1)
 
-  function makeChart(metric: 'cases' | 'clients', max: number) {
-    const points = last6months.map((m, i) => {
-      const x = last6months.length <= 1 ? 0 : (i / (last6months.length - 1)) * 320
-      const y = 88 - (m[metric] / max) * 68
-      return { x, y, value: m[metric], month: m.month }
-    })
-    const line = points.map(p => `${p.x},${p.y}`).join(' ')
-    const area = points.length
-      ? `M ${points.map(p => `${p.x} ${p.y}`).join(' L ')} L 320 96 L 0 96 Z`
-      : ''
-    return { points, line, area }
+  function makeBars(metric: 'cases' | 'clients', max: number) {
+    return last6months.map(m => ({
+      value: m[metric],
+      month: m.month,
+      height: Math.max((m[metric] / max) * 76, m[metric] > 0 ? 12 : 2),
+    }))
   }
 
   return (
@@ -96,24 +91,35 @@ export default async function DashboardPage() {
         .dash-stat-link:hover .stat-card { box-shadow: var(--shadow-md); transform: translateY(-1px); }
         .stat-card { transition: box-shadow 0.15s, transform 0.15s; }
         .dash-chart-card { overflow: hidden; }
-        .dash-mini-chart { height: 124px; position: relative; margin-top: 4px; }
-        .dash-mini-chart svg { width: 100%; height: 92px; display: block; overflow: visible; }
-        .dash-chart-labels { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; }
+        .dash-mini-chart {
+          height: 124px; display: flex; align-items: flex-end; justify-content: space-between;
+          gap: 10px; margin-top: 4px; padding: 8px 4px 0;
+        }
+        .dash-chart-bar-wrap {
+          flex: 1; min-width: 0; height: 112px; display: grid;
+          grid-template-rows: 20px 1fr 16px; align-items: end; justify-items: center;
+        }
+        .dash-chart-bar {
+          width: 100%; max-width: 76px; min-height: 2px; border-radius: 8px 8px 3px 3px;
+          transition: transform 0.15s, filter 0.15s;
+        }
+        .dash-chart-bar-wrap:hover .dash-chart-bar { transform: translateY(-2px); filter: brightness(1.08); }
         .dash-chart-label { font-size: 10px; color: var(--muted); white-space: nowrap; }
         .dash-chart-value {
-          position: absolute; transform: translate(-50%, -100%);
           font-size: 10px; font-weight: 700; padding: 2px 5px; border-radius: 999px;
-          background: var(--surface); border: 1px solid var(--border);
+          background: var(--surface); border: 1px solid var(--border); opacity: 0;
         }
+        .dash-chart-value.is-visible { opacity: 1; }
         [data-theme="slate"] .dash-chart-card {
           background: linear-gradient(180deg, rgba(17,24,39,.98), rgba(8,18,30,.98));
           box-shadow: inset 0 1px 0 rgba(224,242,254,.04), var(--shadow);
         }
         [data-theme="slate"] .dash-mini-chart {
-          background: linear-gradient(180deg, rgba(6,182,212,.07), transparent);
-          border-radius: 8px; padding-top: 4px;
+          background: linear-gradient(180deg, rgba(6,182,212,.09), rgba(14,165,233,.02));
+          border: 1px solid rgba(6,182,212,.12);
+          border-radius: 8px;
+          padding: 8px 8px 0;
         }
-        [data-theme="slate"] .dash-chart-line { filter: drop-shadow(0 0 8px rgba(6,182,212,.45)); }
       `}</style>
 
       <div className="page-header">
@@ -186,39 +192,33 @@ export default async function DashboardPage() {
         {/* Графики */}
         <div className="grid-2" style={{ marginBottom: 16 }}>
           {([['new_cases','cases','#06b6d4',maxCases,'/dashboard/new-cases'],['new_clients','clients','#14b8a6',maxClients,'/dashboard/new-clients']] as const).map(([labelKey, key, color, max, href]) => {
-            const chart = makeChart(key as 'cases' | 'clients', max as number)
-            const gradientId = `dash-gradient-${key}`
+            const bars = makeBars(key as 'cases' | 'clients', max as number)
             return (
               <Link key={key} href={href} className="dash-stat-link">
                 <div className="card dash-chart-card" style={{ cursor: 'pointer' }}>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}><Tr k={labelKey} /></div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}><Tr k="last_6months" /></div>
                   <div className="dash-mini-chart">
-                    <svg viewBox="0 0 320 100" preserveAspectRatio="none" aria-hidden="true">
-                      <defs>
-                        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
-                          <stop offset="100%" stopColor={color} stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      <path d={chart.area} fill={`url(#${gradientId})`} />
-                      <polyline className="dash-chart-line" points={chart.line} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-                      {chart.points.map((p, i) => (
-                        <circle key={i} cx={p.x} cy={p.y} r="3.2" fill={p.value > 0 ? color : 'var(--border)'} />
-                      ))}
-                    </svg>
-                    {chart.points.map((p, i) => p.value > 0 ? (
-                      <span key={i} className="dash-chart-value" style={{ left: `${(p.x / 320) * 100}%`, top: `${p.y}px`, color }}>
-                        {p.value}
-                      </span>
-                    ) : null)}
-                    <div className="dash-chart-labels">
-                      {chart.points.map((p, i) => (
-                        <span key={i} className="dash-chart-label" style={{ color: i === chart.points.length - 1 ? color : undefined, fontWeight: i === chart.points.length - 1 ? 700 : 400 }}>
-                          {p.month}
+                    {bars.map((bar, i) => (
+                      <div key={i} className="dash-chart-bar-wrap">
+                        <span className={`dash-chart-value ${bar.value > 0 ? 'is-visible' : ''}`} style={{ color }}>
+                          {bar.value}
                         </span>
-                      ))}
-                    </div>
+                        <div
+                          className="dash-chart-bar"
+                          style={{
+                            height: `${bar.height}px`,
+                            background: bar.value > 0
+                              ? `linear-gradient(180deg, ${color} 0%, ${color}cc 56%, ${color}2b 100%)`
+                              : 'linear-gradient(180deg, var(--border), transparent)',
+                            boxShadow: bar.value > 0 ? `0 10px 24px ${color}30` : 'none',
+                          }}
+                        />
+                        <span className="dash-chart-label" style={{ color: i === bars.length - 1 ? color : undefined, fontWeight: i === bars.length - 1 ? 700 : 400 }}>
+                          {bar.month}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </Link>

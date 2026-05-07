@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
       email: user.email,
       name: user.name,
       role: user.role,
+      avatarUrl: (user as any).avatarUrl || null,
       organizationId: user.organizationId || 'org_default',
       organizationName: organization?.name || 'ReziFlow Cloud',
     })
@@ -92,6 +93,7 @@ export async function POST(request: NextRequest) {
         id: user.id,
         name: user.name,
         email: user.email,
+        avatarUrl: (user as any).avatarUrl || null,
         organizationId: user.organizationId || 'org_default',
         organizationName: organization?.name || 'ReziFlow Cloud',
       },

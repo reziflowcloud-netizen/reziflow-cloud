@@ -1310,7 +1310,7 @@ export default function CaseDetailPage() {
                     style={{ background: 'var(--brand)', color: 'white', borderRadius: 8, padding: '7px 16px', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
                     ⬇️ {t('download')}
                   </button>
-                  <a href={previewDoc.url} target="_blank" rel="noreferrer"
+                  <a href={previewDoc.fileType === 'pdf' ? `/api/documents/${previewDoc.id}/file` : previewDoc.url} target="_blank" rel="noreferrer"
                     style={{ background: 'rgba(255,255,255,0.15)', color: 'white', borderRadius: 8, padding: '7px 16px', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
                     🔗 {t('open_file')}
                   </a>
@@ -1329,14 +1329,14 @@ export default function CaseDetailPage() {
                   />
                 ) : (
                   <object
-                    data={`${previewDoc.url}#toolbar=1&navpanes=0`}
+                    data={`/api/documents/${previewDoc.id}/file#toolbar=1&navpanes=0`}
                     type="application/pdf"
                     style={{ width: '100%', maxWidth: 900, height: 'calc(100vh - 120px)', borderRadius: 10, border: 'none', background: 'white' }}
                     aria-label={previewDoc.name}
                   >
                     <div style={{ width: '100%', maxWidth: 520, background: 'white', borderRadius: 10, padding: 22, textAlign: 'center' }}>
                       <div style={{ fontWeight: 700, marginBottom: 8 }}>{t('pdf_preview_failed')}</div>
-                      <a href={previewDoc.url} target="_blank" rel="noreferrer" className="btn btn-primary">{t('open_in_new_tab')}</a>
+                      <a href={`/api/documents/${previewDoc.id}/file`} target="_blank" rel="noreferrer" className="btn btn-primary">{t('open_in_new_tab')}</a>
                     </div>
                   </object>
                 )}

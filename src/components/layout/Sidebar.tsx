@@ -40,10 +40,12 @@ function initials(name?: string) {
 export default function Sidebar({
   userName,
   userRole,
+  userAvatarUrl,
   organizationName,
 }: {
   userName?: string
   userRole?: string
+  userAvatarUrl?: string
   organizationName?: string
 }) {
   const pathname = usePathname()
@@ -171,7 +173,11 @@ export default function Sidebar({
         </div>
 
         <div className="sidebar-profile">
-          <div className="avatar sidebar-profile-avatar">{initials(userName)}</div>
+          {userAvatarUrl ? (
+            <img src={userAvatarUrl} alt={userName || 'User'} className="avatar sidebar-profile-avatar" style={{ objectFit: 'cover' }} />
+          ) : (
+            <div className="avatar sidebar-profile-avatar">{initials(userName)}</div>
+          )}
           <div className="sidebar-profile-text">
             <div className="sidebar-profile-name">{userName || 'User'}</div>
             <div className="sidebar-profile-role">{roleLabel}</div>

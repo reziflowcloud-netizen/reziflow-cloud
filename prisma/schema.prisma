@@ -14,6 +14,8 @@ model User {
   password  String
   name      String
   role      String   @default("employee")
+  avatarUrl String?
+  avatarPublicId String?
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
   createdAt DateTime @default(now())

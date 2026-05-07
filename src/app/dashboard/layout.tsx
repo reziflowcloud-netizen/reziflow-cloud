@@ -11,7 +11,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <LanguageProvider>
       <div style={{ display: 'flex' }}>
-        <Sidebar userName={user.name as string} userRole={user.role as string} organizationName={user.organizationName as string} />
+        <Sidebar
+          userName={user.name as string}
+          userRole={user.role as string}
+          userAvatarUrl={(user as any).avatarUrl as string}
+          organizationName={user.organizationName as string}
+        />
         <div className="main-content" style={{ flex: 1 }}>
           {children}
         </div>

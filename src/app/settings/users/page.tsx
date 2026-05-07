@@ -8,6 +8,7 @@ interface UserItem {
   name: string
   email: string
   role: string
+  avatarUrl?: string | null
   createdAt: string
 }
 
@@ -27,9 +28,11 @@ export default function UsersSettingsPage() {
   const [success, setSuccess] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [forbidden, setForbidden] = useState(false)
 
   const [newForm, setNewForm] = useState({ name: '', email: '', password: '', role: 'employee' })
   const [editForm, setEditForm] = useState({ name: '', email: '', role: '', password: '' })
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({})
 
@@ -39,6 +42,7 @@ export default function UsersSettingsPage() {
 
   async function loadUsers() {
     const res = await fetch('/api/users')
+    if (res.status === 403) { setForbidden(true); return }
     if (res.ok) setUsers(await res.json())
   }
 
@@ -72,6 +76,7 @@ export default function UsersSettingsPage() {
   function startEdit(u: UserItem) {
     setEditingId(u.id)
     setEditForm({ name: u.name, email: u.email, role: u.role, password: '' })
+    setAvatarFile(null)
     setError('')
   }
 
@@ -93,8 +98,18 @@ export default function UsersSettingsPage() {
     })
     const data = await res.json()
     if (!res.ok) { setError(data.error || 'Ошибка сохранения'); setSaving(false); return }
-    setUsers(p => p.map(u => u.id === id ? data : u))
+    let updatedUser = data
+    if (avatarFile) {
+      const fd = new FormData()
+      fd.append('file', avatarFile)
+      const avatarRes = await fetch(`/api/users/${id}/avatar`, { method: 'POST', body: fd })
+      const avatarData = await avatarRes.json().catch(() => ({}))
+      if (!avatarRes.ok) { setError(avatarData.error || 'Avatar upload error'); setSaving(false); return }
+      updatedUser = avatarData
+    }
+    setUsers(p => p.map(u => u.id === id ? updatedUser : u))
     setEditingId(null)
+    setAvatarFile(null)
     setSuccess('Данные обновлены')
     setSaving(false)
     setTimeout(() => setSuccess(''), 3000)
@@ -108,6 +123,28 @@ export default function UsersSettingsPage() {
     setUsers(p => p.filter(u => u.id !== id))
     setSuccess(`Пользователь "${name}" удалён`)
     setTimeout(() => setSuccess(''), 3000)
+  }
+
+  if (forbidden) {
+    return (
+      <div className="fade-in">
+        <div className="page-header">
+          <div>
+            <div className="page-title">👥 Пользователи системы</div>
+            <div className="page-subtitle">Управление доступом к ReziFlow Cloud</div>
+          </div>
+          <Link href="/settings" className="btn btn-secondary">← Назад</Link>
+        </div>
+        <div className="page-body">
+          <div className="card" style={{ maxWidth: 720 }}>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Доступ только для администратора фирмы</div>
+            <div style={{ color: 'var(--muted)', lineHeight: 1.5 }}>
+              Сотрудник может работать с клиентами, делами, задачами и календарем, но не может добавлять, изменять или удалять пользователей.
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -235,6 +272,24 @@ export default function UsersSettingsPage() {
                           <option value="admin">Администратор</option>
                         </select>
                       </div>
+                      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label className="label">Аватарка</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          {u.avatarUrl ? (
+                            <img src={u.avatarUrl} alt={u.name} className="avatar" style={{ width: 44, height: 44, objectFit: 'cover', flexShrink: 0 }} />
+                          ) : (
+                            <div className="avatar" style={{ width: 44, height: 44, fontSize: 16, flexShrink: 0 }}>
+                              {u.name[0]?.toUpperCase()}
+                            </div>
+                          )}
+                          <div style={{ flex: 1 }}>
+                            <input className="input" type="file" accept="image/*" onChange={e => setAvatarFile(e.target.files?.[0] || null)} />
+                            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
+                              {avatarFile ? avatarFile.name : 'Можно загрузить JPG, PNG или WebP до 5 MB'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => saveEdit(u.id)} className="btn btn-primary" disabled={saving}>
@@ -246,9 +301,13 @@ export default function UsersSettingsPage() {
                 ) : (
                   /* Режим просмотра */
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 0' }}>
-                    <div className="avatar" style={{ width: 40, height: 40, fontSize: 16, flexShrink: 0 }}>
-                      {u.name[0]?.toUpperCase()}
-                    </div>
+                    {u.avatarUrl ? (
+                      <img src={u.avatarUrl} alt={u.name} className="avatar" style={{ width: 40, height: 40, objectFit: 'cover', flexShrink: 0 }} />
+                    ) : (
+                      <div className="avatar" style={{ width: 40, height: 40, fontSize: 16, flexShrink: 0 }}>
+                        {u.name[0]?.toUpperCase()}
+                      </div>
+                    )}
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{u.name}</div>
                       <div style={{ fontSize: 12, color: 'var(--muted)' }}>{u.email}</div>

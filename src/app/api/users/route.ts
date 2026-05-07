@@ -4,14 +4,19 @@ import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import bcrypt from 'bcryptjs'
 
+function canManageUsers(user: any) {
+  return user?.role === 'admin' || user?.role === 'owner'
+}
+
 export async function GET() {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!canManageUsers(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const organizationId = getOrganizationId(user)
   try {
     const users = await prisma.user.findMany({
       where: { organizationId },
-      select: { id: true, name: true, email: true, role: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, avatarUrl: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     })
     return NextResponse.json(users)
@@ -23,6 +28,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!canManageUsers(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const organizationId = getOrganizationId(user)
   try {
     const body = await req.json()
@@ -34,7 +40,7 @@ export async function POST(req: NextRequest) {
     const hashed = await bcrypt.hash(body.password, 10)
     const newUser = await prisma.user.create({
       data: { name: body.name, email: body.email, password: hashed, role: body.role || 'employee', organizationId },
-      select: { id: true, name: true, email: true, role: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, avatarUrl: true, createdAt: true },
     })
     return NextResponse.json(newUser)
   } catch (e: any) {
