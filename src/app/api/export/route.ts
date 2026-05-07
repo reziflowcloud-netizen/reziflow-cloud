@@ -19,6 +19,10 @@ function toDate(val: any): string {
   try { return new Date(val).toLocaleDateString('ru') } catch { return '' }
 }
 
+function customHeader(scopeLabel: string, sectionTitle: string, fieldLabel: string): string {
+  return `${scopeLabel}: ${sectionTitle} / ${fieldLabel}`
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getUser()
@@ -41,6 +45,31 @@ export async function GET(request: NextRequest) {
       const allUsers = await prisma.user.findMany({ where: { organizationId }, select: { id: true, name: true } })
       const userMap = Object.fromEntries(allUsers.map(u => [u.id, u.name]))
 
+      const customSections = await prisma.customSection.findMany({
+        where: { organizationId, active: true },
+        include: {
+          fields: {
+            where: { active: true },
+            orderBy: { sortOrder: 'asc' },
+          },
+        },
+        orderBy: { sortOrder: 'asc' },
+      })
+      const customValues = await prisma.customFieldValue.findMany({
+        where: { organizationId },
+        select: { fieldId: true, recordType: true, recordId: true, value: true },
+      })
+      const customValueMap = new Map(customValues.map(v => [`${v.recordType}:${v.recordId}:${v.fieldId}`, v.value || '']))
+      const clientCustomFields = customSections
+        .filter(section => section.scope === 'client')
+        .flatMap(section => section.fields.map(field => ({ section, field })))
+      const caseCustomFields = customSections
+        .filter(section => section.scope === 'case')
+        .flatMap(section => section.fields.map(field => ({ section, field })))
+      const readCustomValues = (recordType: string, recordId: string, fields: any[]) => (
+        fields.map(({ field }) => customValueMap.get(`${recordType}:${recordId}:${field.id}`) || '')
+      )
+
       const headers = [
         'Фамилия', 'Имя', 'Телефон', 'Email', 'Город', 'PESEL',
         'Серия паспорта', 'Номер паспорта', 'Паспорт выдан', 'Дата выдачи', 'Действителен до',
@@ -55,6 +84,8 @@ export async function GET(request: NextRequest) {
         'Оплата 3 (дата)', 'Оплата 3 (zł)',
         'Оплата 4 (дата)', 'Оплата 4 (zł)',
         'Оплата 5 (дата)', 'Оплата 5 (zł)',
+        ...clientCustomFields.map(({ section, field }) => customHeader('Client custom field', section.title, field.label)),
+        ...caseCustomFields.map(({ section, field }) => customHeader('Case custom field', section.title, field.label)),
         'Клиент добавлен', 'Дело создано',
       ]
 
@@ -72,6 +103,8 @@ export async function GET(request: NextRequest) {
             '', '', '', '', '', '', '', '',
             '', '', '', '', '', '',
             '', '', '', '', '', '', '', '', '', '',
+            ...readCustomValues('client', client.id, clientCustomFields),
+            ...caseCustomFields.map(() => ''),
             toDate(client.createdAt), '',
           ].map(esc).join(',')
           csv += row + '\n'
@@ -99,6 +132,8 @@ export async function GET(request: NextRequest) {
               toDate(c.filingDate), toDate(c.personalAppearDate), toDate(c.legalStayDeadline),
               assignedName,
               ...payFields,
+              ...readCustomValues('client', client.id, clientCustomFields),
+              ...readCustomValues('case', c.id, caseCustomFields),
               toDate(client.createdAt), toDate(c.createdAt),
             ].map(esc).join(',')
             csv += row + '\n'

@@ -1046,7 +1046,7 @@ export default function CaseDetailPage() {
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <input className="input" value={newDateLabel} onChange={e => setNewDateLabel(e.target.value)} placeholder={t('date_name_placeholder')} style={{ flex: 2, minWidth: 180 }} />
                       <input className="input" type="date" value={newDateValue} onChange={e => setNewDateValue(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
-                      <button onClick={addCustomDate} className="btn btn-primary" disabled={!newDateLabel.trim() || !newDateValue}>+ {t('add')}</button>
+                      <button onClick={addCustomDate} className="btn btn-primary" disabled={!newDateLabel.trim() || !newDateValue}>{t('add')}</button>
                     </div>
                   </div>
                 </div>
@@ -1072,7 +1072,7 @@ export default function CaseDetailPage() {
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <input className="input" type="date" value={newDocDate} onChange={e => setNewDocDate(e.target.value)} style={{ flex: '0 0 150px' }} />
                       <input className="input" value={newDocDesc} onChange={e => setNewDocDesc(e.target.value)} placeholder={t('doc_update_placeholder')} style={{ flex: 1, minWidth: 200 }} onKeyDown={e => e.key === 'Enter' && addDocUpdate()} />
-                      <button onClick={addDocUpdate} className="btn btn-primary" disabled={!newDocDate || !newDocDesc.trim()}>+ {t('add')}</button>
+                      <button onClick={addDocUpdate} className="btn btn-primary" disabled={!newDocDate || !newDocDesc.trim()}>{t('add')}</button>
                     </div>
                   </div>
                 </div>

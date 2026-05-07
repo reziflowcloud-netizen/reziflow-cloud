@@ -482,6 +482,8 @@ export default function ClientDetailPage() {
               )}
             </div>
 
+            <CustomSectionsRenderer scope="client" recordId={String(id)} />
+
           </div>
 
           {/* ── БОКОВАЯ ПАНЕЛЬ ── */}
@@ -548,8 +550,6 @@ export default function ClientDetailPage() {
                 ))}
               </div>
             </div>
-
-            <CustomSectionsRenderer scope="client" recordId={String(id)} />
           </div>
         </div>
       </div>
