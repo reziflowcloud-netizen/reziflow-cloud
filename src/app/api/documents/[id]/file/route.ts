@@ -14,8 +14,23 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   })
   if (!doc?.url) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const response = await fetch(doc.url)
-  if (!response.ok) return NextResponse.json({ error: 'File unavailable' }, { status: 502 })
+  const urls = [doc.url]
+  if (doc.fileType === 'pdf') {
+    const rawUrl = doc.url
+      .replace('/image/upload/', '/raw/upload/')
+      .replace('/auto/upload/', '/raw/upload/')
+    if (rawUrl !== doc.url) urls.push(rawUrl)
+  }
+
+  let response: Response | null = null
+  for (const url of urls) {
+    const attempt = await fetch(url)
+    if (attempt.ok) {
+      response = attempt
+      break
+    }
+  }
+  if (!response) return NextResponse.json({ error: 'File unavailable' }, { status: 502 })
 
   const contentType = doc.fileType === 'pdf'
     ? 'application/pdf'

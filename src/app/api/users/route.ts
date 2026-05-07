@@ -11,15 +11,16 @@ function canManageUsers(user: any) {
 export async function GET() {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!canManageUsers(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const organizationId = getOrganizationId(user)
   try {
     const users = await prisma.user.findMany({
-      where: { organizationId },
+      where: canManageUsers(user) ? { organizationId } : { id: Number(user.id), organizationId },
       select: { id: true, name: true, email: true, role: true, avatarUrl: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     })
-    return NextResponse.json(users)
+    return NextResponse.json(users, {
+      headers: { 'X-Can-Manage-Users': canManageUsers(user) ? 'true' : 'false' },
+    })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

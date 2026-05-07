@@ -30,6 +30,8 @@ async function uploadFileToCloudinary(file: File, caseId: string) {
 
   const bytes = Buffer.from(await file.arrayBuffer())
   const mimeType = file.type || 'application/octet-stream'
+  const isPdf = mimeType === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+  const resourceType = isPdf ? 'raw' : 'image'
   const dataUri = `data:${mimeType};base64,${bytes.toString('base64')}`
   const formData = new FormData()
   formData.append('file', dataUri)
@@ -38,7 +40,7 @@ async function uploadFileToCloudinary(file: File, caseId: string) {
   formData.append('api_key', apiKey)
   formData.append('signature', signature)
 
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
     method: 'POST',
     body: formData,
   })
@@ -81,13 +83,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
       const uploaded = await uploadFileToCloudinary(file, params.id)
       const isImage = file.type.startsWith('image/')
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
       const doc = await (prisma as any).caseDocument.create({
         data: {
           caseId: params.id,
           url: uploaded.secure_url,
           publicId: uploaded.public_id,
           name: safeFileName(file.name),
-          fileType: isImage ? 'image' : 'pdf',
+          fileType: isImage ? 'image' : isPdf ? 'pdf' : 'file',
         },
       })
       return NextResponse.json(doc)

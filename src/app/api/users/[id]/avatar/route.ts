@@ -1,11 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getOrganizationId, getUser } from '@/lib/auth'
+import { getOrganizationId, getUser, signToken } from '@/lib/auth'
 import { deleteCloudinaryResource } from '@/lib/cloudinary'
 import crypto from 'crypto'
+import { cookies } from 'next/headers'
 
 function canManageUsers(user: any) {
   return user?.role === 'admin' || user?.role === 'owner'
+}
+
+async function refreshUserCookie(updatedUser: any, currentUser: any) {
+  const token = await signToken({
+    id: updatedUser.id,
+    email: updatedUser.email,
+    name: updatedUser.name,
+    role: updatedUser.role,
+    avatarUrl: updatedUser.avatarUrl || null,
+    organizationId: currentUser.organizationId || 'org_default',
+    organizationName: currentUser.organizationName || 'ReziFlow Cloud',
+  })
+  cookies().set('auth-token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 7,
+  })
 }
 
 async function uploadAvatarToCloudinary(file: File, organizationId: string, userId: string) {
@@ -48,10 +67,12 @@ async function uploadAvatarToCloudinary(file: File, organizationId: string, user
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!canManageUsers(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const organizationId = getOrganizationId(user)
   const targetId = parseInt(params.id)
+  const isSelf = Number(user.id) === targetId
+  if (!canManageUsers(user) && !isSelf) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   const target = await prisma.user.findFirst({ where: { id: targetId, organizationId } })
   if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -71,5 +92,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     data: { avatarUrl: uploaded.secure_url, avatarPublicId: uploaded.public_id } as any,
     select: { id: true, name: true, email: true, role: true, avatarUrl: true, createdAt: true },
   })
+  if (isSelf) await refreshUserCookie(updated, user)
   return NextResponse.json(updated)
 }

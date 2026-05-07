@@ -2,6 +2,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 interface UserItem {
   id: number
@@ -23,12 +24,13 @@ const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
 }
 
 export default function UsersSettingsPage() {
+  const router = useRouter()
   const [users, setUsers] = useState<UserItem[]>([])
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [forbidden, setForbidden] = useState(false)
+  const [canManageUsers, setCanManageUsers] = useState(true)
 
   const [newForm, setNewForm] = useState({ name: '', email: '', password: '', role: 'employee' })
   const [editForm, setEditForm] = useState({ name: '', email: '', role: '', password: '' })
@@ -42,8 +44,10 @@ export default function UsersSettingsPage() {
 
   async function loadUsers() {
     const res = await fetch('/api/users')
-    if (res.status === 403) { setForbidden(true); return }
-    if (res.ok) setUsers(await res.json())
+    if (res.ok) {
+      setCanManageUsers(res.headers.get('X-Can-Manage-Users') !== 'false')
+      setUsers(await res.json())
+    }
   }
 
   function setN(k: string, v: string) { setNewForm(p => ({ ...p, [k]: v })) }
@@ -85,12 +89,14 @@ export default function UsersSettingsPage() {
     if (!editForm.name.trim() || !editForm.email.trim()) {
       setError('Имя и email обязательны'); return
     }
-    if (editForm.password && editForm.password.length < 6) {
+    if (canManageUsers && editForm.password && editForm.password.length < 6) {
       setError('Пароль должен быть не менее 6 символов'); return
     }
     setSaving(true)
-    const body: any = { name: editForm.name, email: editForm.email, role: editForm.role }
-    if (editForm.password) body.password = editForm.password
+    const body: any = canManageUsers
+      ? { name: editForm.name, email: editForm.email, role: editForm.role }
+      : { name: editForm.name }
+    if (canManageUsers && editForm.password) body.password = editForm.password
     const res = await fetch(`/api/users/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -111,6 +117,7 @@ export default function UsersSettingsPage() {
     setEditingId(null)
     setAvatarFile(null)
     setSuccess('Данные обновлены')
+    router.refresh()
     setSaving(false)
     setTimeout(() => setSuccess(''), 3000)
   }
@@ -125,28 +132,6 @@ export default function UsersSettingsPage() {
     setTimeout(() => setSuccess(''), 3000)
   }
 
-  if (forbidden) {
-    return (
-      <div className="fade-in">
-        <div className="page-header">
-          <div>
-            <div className="page-title">👥 Пользователи системы</div>
-            <div className="page-subtitle">Управление доступом к ReziFlow Cloud</div>
-          </div>
-          <Link href="/settings" className="btn btn-secondary">← Назад</Link>
-        </div>
-        <div className="page-body">
-          <div className="card" style={{ maxWidth: 720 }}>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Доступ только для администратора фирмы</div>
-            <div style={{ color: 'var(--muted)', lineHeight: 1.5 }}>
-              Сотрудник может работать с клиентами, делами, задачами и календарем, но не может добавлять, изменять или удалять пользователей.
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="fade-in">
       <div className="page-header">
@@ -156,7 +141,7 @@ export default function UsersSettingsPage() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <Link href="/settings" className="btn btn-secondary">← Назад</Link>
-          <button onClick={() => { setShowNew(true); setEditingId(null); setError('') }} className="btn btn-primary">
+          <button onClick={() => { setShowNew(true); setEditingId(null); setError('') }} className="btn btn-primary" style={{ display: canManageUsers ? undefined : 'none' }}>
             + Добавить пользователя
           </button>
         </div>
@@ -178,7 +163,7 @@ export default function UsersSettingsPage() {
         )}
 
         {/* Форма создания нового пользователя */}
-        {showNew && (
+        {showNew && canManageUsers && (
           <div className="card" style={{ marginBottom: 20, borderLeft: '3px solid var(--brand)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ fontWeight: 700, fontSize: 15 }}>Новый пользователь</div>
@@ -246,9 +231,9 @@ export default function UsersSettingsPage() {
                       </div>
                       <div className="form-group">
                         <label className="label">Email</label>
-                        <input className="input" type="email" value={editForm.email} onChange={e => setE('email', e.target.value)} />
+                        <input className="input" type="email" value={editForm.email} onChange={e => setE('email', e.target.value)} disabled={!canManageUsers} />
                       </div>
-                      <div className="form-group">
+                      <div className="form-group" style={{ display: canManageUsers ? undefined : 'none' }}>
                         <label className="label">Новый пароль (оставьте пустым чтобы не менять)</label>
                         <div style={{ position: 'relative' }}>
                           <input
@@ -265,7 +250,7 @@ export default function UsersSettingsPage() {
                           >{showPasswords[u.id] ? '🙈' : '👁'}</button>
                         </div>
                       </div>
-                      <div className="form-group">
+                      <div className="form-group" style={{ display: canManageUsers ? undefined : 'none' }}>
                         <label className="label">Роль</label>
                         <select className="select" value={editForm.role} onChange={e => setE('role', e.target.value)}>
                           <option value="employee">Сотрудник</option>
@@ -324,7 +309,7 @@ export default function UsersSettingsPage() {
                         ✏️ Изменить
                       </button>
                       <button onClick={() => deleteUser(u.id, u.name)}
-                        style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7, padding: '6px 10px', cursor: 'pointer', fontSize: 13, color: '#dc2626' }}>
+                        style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7, padding: '6px 10px', cursor: 'pointer', fontSize: 13, color: '#dc2626', display: canManageUsers ? undefined : 'none' }}>
                         🗑
                       </button>
                     </div>
