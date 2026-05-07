@@ -24,6 +24,10 @@ export default function CollapsibleCardsBehavior({ scope }: Props) {
 
       const body = Array.from(card.children).filter(child => child !== header) as HTMLElement[]
       if (body.length === 0) return
+      const bodyDisplays = body.map(el => el.style.display)
+      const headerMarginBottom = header.style.marginBottom
+      const headerPaddingBottom = header.style.paddingBottom
+      const headerBorderBottom = header.style.borderBottom
 
       const key = card.dataset.collapseKey || `${scope}-${index}`
       const storageKey = `reziflow:collapsed:${key}`
@@ -37,6 +41,7 @@ export default function CollapsibleCardsBehavior({ scope }: Props) {
       headerLeft.style.gap = '10px'
       headerLeft.style.minWidth = '0'
       headerLeft.style.flex = '1'
+      headerLeft.style.justifyContent = 'flex-start'
 
       originalNodes.forEach(node => headerLeft.appendChild(node))
       header.appendChild(headerLeft)
@@ -58,12 +63,14 @@ export default function CollapsibleCardsBehavior({ scope }: Props) {
       button.style.fontSize = '15px'
 
       const paint = () => {
-        body.forEach(el => { el.style.display = collapsed ? 'none' : '' })
+        body.forEach((el, bodyIndex) => {
+          el.style.display = collapsed ? 'none' : bodyDisplays[bodyIndex]
+        })
         button.textContent = collapsed ? '›' : '⌄'
         button.title = collapsed ? 'Развернуть' : 'Свернуть'
-        header.style.marginBottom = collapsed ? '0' : ''
-        header.style.paddingBottom = collapsed ? '0' : ''
-        header.style.borderBottom = collapsed ? 'none' : ''
+        header.style.marginBottom = collapsed ? '0' : headerMarginBottom
+        header.style.paddingBottom = collapsed ? '0' : headerPaddingBottom
+        header.style.borderBottom = collapsed ? 'none' : headerBorderBottom
       }
 
       const onClick = () => {
@@ -78,6 +85,12 @@ export default function CollapsibleCardsBehavior({ scope }: Props) {
       cleanups.push(() => {
         button.removeEventListener('click', onClick)
         button.remove()
+        body.forEach((el, bodyIndex) => {
+          el.style.display = bodyDisplays[bodyIndex]
+        })
+        header.style.marginBottom = headerMarginBottom
+        header.style.paddingBottom = headerPaddingBottom
+        header.style.borderBottom = headerBorderBottom
         originalNodes.forEach(node => header.appendChild(node))
         headerLeft.remove()
         delete header.dataset.collapseReady
