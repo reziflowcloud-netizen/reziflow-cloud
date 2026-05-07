@@ -11,10 +11,11 @@ export default function CollapsibleCardsBehavior({ scope }: Props) {
     const root = document.querySelector(`[data-collapsible-scope="${scope}"]`)
     if (!root) return
 
-    const cards = Array.from(root.querySelectorAll<HTMLElement>('[data-collapsible-card], .card'))
     const cleanups: Array<() => void> = []
 
-    cards.forEach((card, index) => {
+    const wireCards = () => {
+      const cards = Array.from(root.querySelectorAll<HTMLElement>('[data-collapsible-card], .card'))
+      cards.forEach((card, index) => {
       const header = (
         card.querySelector<HTMLElement>('[data-collapse-header]') ||
         card.querySelector<HTMLElement>(':scope > .section-title') ||
@@ -95,9 +96,17 @@ export default function CollapsibleCardsBehavior({ scope }: Props) {
         headerLeft.remove()
         delete header.dataset.collapseReady
       })
-    })
+      })
+    }
 
-    return () => cleanups.forEach(cleanup => cleanup())
+    wireCards()
+    const observer = new MutationObserver(() => wireCards())
+    observer.observe(root, { childList: true, subtree: true })
+
+    return () => {
+      observer.disconnect()
+      cleanups.forEach(cleanup => cleanup())
+    }
   }, [scope])
 
   return null

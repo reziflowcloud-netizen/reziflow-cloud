@@ -4,6 +4,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import CollapsibleCardsBehavior from '@/components/CollapsibleCardsBehavior'
 import SectionVisibilityBehavior from '@/components/SectionVisibilityBehavior'
+import CustomSectionsRenderer from '@/components/CustomSectionsRenderer'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -547,6 +548,8 @@ export default function ClientDetailPage() {
                 ))}
               </div>
             </div>
+
+            <CustomSectionsRenderer scope="client" recordId={String(id)} />
           </div>
         </div>
       </div>

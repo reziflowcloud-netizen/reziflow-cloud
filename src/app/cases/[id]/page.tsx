@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
 import CollapsibleCardsBehavior from '@/components/CollapsibleCardsBehavior'
 import SectionVisibilityBehavior from '@/components/SectionVisibilityBehavior'
+import CustomSectionsRenderer from '@/components/CustomSectionsRenderer'
 
 const WORK_TYPE = 'Выконывание пацы (Работа)'
 
@@ -1081,6 +1082,8 @@ export default function CaseDetailPage() {
                   <div className="section-title"><span>📝</span>{t('notes')}</div>
                   <textarea className="input" value={form.notes} onChange={e => set('notes', e.target.value)} rows={4} placeholder={t('notes_placeholder')} />
                 </div>
+
+                <CustomSectionsRenderer scope="case" recordId={String(id)} />
               </div>
             )}
 
