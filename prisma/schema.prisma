@@ -60,6 +60,8 @@ model Client {
   passportIssuedAt  DateTime?
   passportExpiresAt DateTime?
   addressInPoland   String?
+  originCountryAddress String?
+  previousResidenceAddress String?
   stayBasis         String?
   motherMaidenName  String?
   dependents        String?

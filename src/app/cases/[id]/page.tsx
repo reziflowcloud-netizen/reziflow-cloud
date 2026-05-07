@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
+import CollapsibleCardsBehavior from '@/components/CollapsibleCardsBehavior'
 
 const WORK_TYPE = 'Выконывание пацы (Работа)'
 
@@ -717,7 +718,8 @@ export default function CaseDetailPage() {
             </div>
 
             {tab === 'details' && (
-              <div>
+              <div data-collapsible-scope="case-details">
+                <CollapsibleCardsBehavior scope="case-details" />
                 {/* ── ОСНОВНЫЕ ДАННЫЕ ── */}
                 <div className="card" style={{ borderRadius: '0 0 10px 10px', marginBottom: 16 }}>
                   <div className="section-title"><span>📋</span>{t('case_detail_main')}</div>

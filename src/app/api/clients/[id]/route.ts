@@ -74,6 +74,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         eyeColor: body.eyeColor || null,
         specialSigns: body.specialSigns || null,
         // Stay in Poland
+        originCountryAddress: body.originCountryAddress || null,
+        previousResidenceAddress: body.previousResidenceAddress || null,
         addressInPoland: body.addressInPoland || null,
         legalTitle: body.legalTitle || null,
         rentalEndDate: body.rentalEndDate ? new Date(body.rentalEndDate) : null,

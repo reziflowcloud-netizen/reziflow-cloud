@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import CollapsibleCardsBehavior from '@/components/CollapsibleCardsBehavior'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -58,6 +59,8 @@ export default function ClientDetailPage() {
         passportIssuedAt: data.passportIssuedAt?.slice(0,10) || '',
         passportExpiresAt: data.passportExpiresAt?.slice(0,10) || '',
         height: data.height || '', eyeColor: data.eyeColor || '', specialSigns: data.specialSigns || '',
+        originCountryAddress: data.originCountryAddress || '',
+        previousResidenceAddress: data.previousResidenceAddress || '',
         addressInPoland: data.addressInPoland || '',
         legalTitle: data.legalTitle || '',
         rentalEndDate: data.rentalEndDate?.slice(0,10) || '',
@@ -140,10 +143,11 @@ export default function ClientDetailPage() {
 
       <div className="page-body">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
-          <div>
+          <div data-collapsible-scope="client-profile">
+            <CollapsibleCardsBehavior scope="client-profile" />
 
             {/* ── DANE OSOBOWE ── */}
-            <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card" data-collapse-key="client-personal" style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>👤</div>
                 <div>
@@ -186,7 +190,7 @@ export default function ClientDetailPage() {
             </div>
 
             {/* ── СТАТУС И СЕМЬЯ ── */}
-            <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card" data-collapse-key="client-status-family" style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>👨‍👩‍👧</div>
                 <div>
@@ -255,7 +259,7 @@ export default function ClientDetailPage() {
 
             {/* ── ПАСПОРТНЫЕ ДАННЫЕ + ФИЗИЧЕСКИЕ ПРИЗНАКИ ── */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-              <div className="card">
+              <div className="card" data-collapse-key="client-passport">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📋</div>
                   <div>
@@ -286,7 +290,7 @@ export default function ClientDetailPage() {
                 )}
               </div>
 
-              <div className="card">
+              <div className="card" data-collapse-key="client-physical">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: '#f5f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>👁</div>
                   <div>
@@ -311,8 +315,34 @@ export default function ClientDetailPage() {
               </div>
             </div>
 
+            <div className="card" data-collapse-key="client-origin-address" style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: '#ecfeff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🏠</div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>Адрес проживания в стране происхождения</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>Адрес, где клиент проживал до переезда</div>
+                </div>
+              </div>
+              <F label="Адрес проживания в стране происхождения" col>
+                <textarea className="input" value={form.originCountryAddress} onChange={e => set('originCountryAddress', e.target.value)} rows={3} placeholder="Страна, город, улица, дом, квартира..." />
+              </F>
+            </div>
+
+            <div className="card" data-collapse-key="client-previous-residence-address" style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🌍</div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>Адрес в стране предыдущего проживания</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>При условии проживания 365 дней +</div>
+                </div>
+              </div>
+              <F label="Адрес в стране предыдущего проживания (365 дней +)" col>
+                <textarea className="input" value={form.previousResidenceAddress} onChange={e => set('previousResidenceAddress', e.target.value)} rows={3} placeholder="Страна, город, улица, дом, квартира..." />
+              </F>
+            </div>
+
             {/* ── ПРЕБЫВАНИЕ В ПОЛЬШЕ ── */}
-            <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card" data-collapse-key="client-poland-stay" style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📍</div>
                 <div>
@@ -386,7 +416,7 @@ export default function ClientDetailPage() {
             </div>
 
             {/* ── ИСТОРИЯ ПУТЕШЕСТВИЙ ── */}
-            <div className="card">
+            <div className="card" data-collapse-key="client-travel-history">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✈️</div>

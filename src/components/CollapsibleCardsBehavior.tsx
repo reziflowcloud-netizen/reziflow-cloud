@@ -1,0 +1,77 @@
+'use client'
+
+import { useEffect } from 'react'
+
+type Props = {
+  scope: string
+}
+
+export default function CollapsibleCardsBehavior({ scope }: Props) {
+  useEffect(() => {
+    const root = document.querySelector(`[data-collapsible-scope="${scope}"]`)
+    if (!root) return
+
+    const cards = Array.from(root.querySelectorAll<HTMLElement>('[data-collapsible-card], .card'))
+    const cleanups: Array<() => void> = []
+
+    cards.forEach((card, index) => {
+      const header = (
+        card.querySelector<HTMLElement>('[data-collapse-header]') ||
+        card.querySelector<HTMLElement>(':scope > .section-title') ||
+        card.firstElementChild as HTMLElement | null
+      )
+      if (!header || header.dataset.collapseReady === '1') return
+
+      const body = Array.from(card.children).filter(child => child !== header) as HTMLElement[]
+      if (body.length === 0) return
+
+      const key = card.dataset.collapseKey || `${scope}-${index}`
+      const storageKey = `reziflow:collapsed:${key}`
+      let collapsed = localStorage.getItem(storageKey) === '1'
+
+      header.dataset.collapseReady = '1'
+      header.style.display = 'flex'
+      header.style.alignItems = 'center'
+      header.style.justifyContent = 'space-between'
+      header.style.gap = '12px'
+
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'btn btn-ghost'
+      button.setAttribute('aria-label', collapsed ? 'Развернуть сектор' : 'Свернуть сектор')
+      button.style.padding = '4px 9px'
+      button.style.minWidth = '32px'
+      button.style.height = '30px'
+      button.style.justifyContent = 'center'
+      button.style.fontSize = '15px'
+
+      const paint = () => {
+        body.forEach(el => { el.style.display = collapsed ? 'none' : '' })
+        button.textContent = collapsed ? '›' : '⌄'
+        button.title = collapsed ? 'Развернуть' : 'Свернуть'
+        header.style.marginBottom = collapsed ? '0' : ''
+        header.style.paddingBottom = collapsed ? '0' : ''
+        header.style.borderBottom = collapsed ? 'none' : ''
+      }
+
+      const onClick = () => {
+        collapsed = !collapsed
+        localStorage.setItem(storageKey, collapsed ? '1' : '0')
+        paint()
+      }
+
+      button.addEventListener('click', onClick)
+      header.appendChild(button)
+      paint()
+      cleanups.push(() => {
+        button.removeEventListener('click', onClick)
+        button.remove()
+        delete header.dataset.collapseReady
+      })
+    })
+
+    return () => cleanups.forEach(cleanup => cleanup())
+  }, [scope])
+
+  return null
+}
