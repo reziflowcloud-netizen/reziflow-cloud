@@ -254,7 +254,7 @@ export default function SectionSettingsPage() {
                     <input type="checkbox" checked={section.active} disabled={!canManage} onChange={e => patchSection(section.id, { active: e.target.checked })} />
                     Вкл.
                   </label>
-                  <button className="btn btn-light" disabled={!canManage} onClick={() => updateSection(section)}>Секция</button>
+                  <button className="btn btn-light" disabled={!canManage} onClick={() => updateSection(section)}>Сохранить секцию</button>
                   <button className="btn btn-danger" disabled={!canManage} onClick={() => deleteSection(section.id)}>Удалить</button>
                 </div>
                 <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>

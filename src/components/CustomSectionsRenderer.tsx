@@ -140,7 +140,7 @@ export default function CustomSectionsRenderer({ scope, recordId }: Props) {
   }
 
   return (
-    <>
+    <div style={{ marginTop: 18 }}>
       {visibleSections.map(section => (
         <div
           key={section.id}
@@ -166,6 +166,6 @@ export default function CustomSectionsRenderer({ scope, recordId }: Props) {
         <span style={{ color: message.includes('Не удалось') ? '#dc2626' : 'var(--muted)' }}>{message || 'Дополнительные поля сохраняются отдельно от стандартной карточки.'}</span>
         <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Сохранение...' : 'Сохранить дополнительные поля'}</button>
       </div>
-    </>
+    </div>
   )
 }
