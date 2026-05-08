@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
 import CollapsibleCardsBehavior from '@/components/CollapsibleCardsBehavior'
 import SectionVisibilityBehavior from '@/components/SectionVisibilityBehavior'
-import CustomSectionsRenderer from '@/components/CustomSectionsRenderer'
+import CustomSectionsRenderer, { type CustomSectionsHandle } from '@/components/CustomSectionsRenderer'
 
 const WORK_TYPE = 'Выконывание пацы (Работа)'
 
@@ -46,6 +46,7 @@ export default function CaseDetailPage() {
   const [uploading, setUploading] = useState(false)
   const [previewDoc, setPreviewDoc] = useState<any>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const customSectionsRef = useRef<CustomSectionsHandle>(null)
 
   // Новые даты
   const [newDateLabel, setNewDateLabel] = useState('')
@@ -114,20 +115,25 @@ export default function CaseDetailPage() {
 
   async function save() {
     setSaving(true)
-    const res = await fetch(`/api/cases/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, employeeId: form.employeeId ? parseInt(form.employeeId) : null, staySubPurpose: form.staySubPurpose || null }),
-    })
-    const updated = await res.json()
-    setC((prev: any) => ({ ...prev, ...updated, service: services.find(s => s.id === parseInt(form.serviceId)) || null }))
-    await saveMosId()
-    const reminderBaseDate = form.filingDate || form.mosSentAt
-    if (reminderBaseDate) {
-      await createFilingReminders(reminderBaseDate)
-      await loadCaseTasks({ ...c, ...updated })
+    try {
+      const res = await fetch(`/api/cases/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, employeeId: form.employeeId ? parseInt(form.employeeId) : null, staySubPurpose: form.staySubPurpose || null }),
+      })
+      const updated = await res.json()
+      setC((prev: any) => ({ ...prev, ...updated, service: services.find(s => s.id === parseInt(form.serviceId)) || null }))
+      await saveMosId()
+      const reminderBaseDate = form.filingDate || form.mosSentAt
+      if (reminderBaseDate) {
+        await createFilingReminders(reminderBaseDate)
+        await loadCaseTasks({ ...c, ...updated })
+      }
+      const customOk = await customSectionsRef.current?.save()
+      if (customOk === false) alert('Не удалось сохранить дополнительные поля')
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   async function refreshCase() {
@@ -1083,7 +1089,7 @@ export default function CaseDetailPage() {
                   <textarea className="input" value={form.notes} onChange={e => set('notes', e.target.value)} rows={4} placeholder={t('notes_placeholder')} />
                 </div>
 
-                <CustomSectionsRenderer scope="case" recordId={String(id)} />
+                <CustomSectionsRenderer ref={customSectionsRef} scope="case" recordId={String(id)} standaloneSave={false} />
               </div>
             )}
 

@@ -1,10 +1,10 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import CollapsibleCardsBehavior from '@/components/CollapsibleCardsBehavior'
 import SectionVisibilityBehavior from '@/components/SectionVisibilityBehavior'
-import CustomSectionsRenderer from '@/components/CustomSectionsRenderer'
+import CustomSectionsRenderer, { type CustomSectionsHandle } from '@/components/CustomSectionsRenderer'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -40,6 +40,7 @@ export default function ClientDetailPage() {
   const [travelHistory, setTravelHistory] = useState<any[]>([])
   const [newTravel, setNewTravel] = useState({ country: '', entryDate: '', exitDate: '' })
   const [showAddTravel, setShowAddTravel] = useState(false)
+  const customSectionsRef = useRef<CustomSectionsHandle>(null)
 
   useEffect(() => {
     fetch(`/api/clients/${id}`).then(r => r.json()).then(data => {
@@ -82,13 +83,18 @@ export default function ClientDetailPage() {
 
   async function save() {
     setSaving(true)
-    const res = await fetch(`/api/clients/${id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    })
-    const updated = await res.json()
-    setClient((prev: any) => ({ ...prev, ...updated }))
-    setSaving(false)
+    try {
+      const res = await fetch(`/api/clients/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const updated = await res.json()
+      setClient((prev: any) => ({ ...prev, ...updated }))
+      const customOk = await customSectionsRef.current?.save()
+      if (customOk === false) alert('Не удалось сохранить дополнительные поля')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function deleteClient() {
@@ -482,7 +488,7 @@ export default function ClientDetailPage() {
               )}
             </div>
 
-            <CustomSectionsRenderer scope="client" recordId={String(id)} />
+            <CustomSectionsRenderer ref={customSectionsRef} scope="client" recordId={String(id)} standaloneSave={false} />
 
           </div>
 

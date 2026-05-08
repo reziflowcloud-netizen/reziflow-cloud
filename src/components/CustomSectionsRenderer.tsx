@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 
 type Scope = 'client' | 'case'
 
@@ -24,13 +24,18 @@ type CustomSection = {
 type Props = {
   scope: Scope
   recordId: string
+  standaloneSave?: boolean
 }
 
 function checkboxValue(value: string | undefined) {
   return value === 'true'
 }
 
-export default function CustomSectionsRenderer({ scope, recordId }: Props) {
+export type CustomSectionsHandle = {
+  save: () => Promise<boolean>
+}
+
+const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function CustomSectionsRenderer({ scope, recordId, standaloneSave = true }, ref) {
   const [sections, setSections] = useState<CustomSection[]>([])
   const [values, setValues] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(true)
@@ -63,6 +68,26 @@ export default function CustomSectionsRenderer({ scope, recordId }: Props) {
   const visibleSections = useMemo(() => (
     sections.filter(section => section.fields.length > 0)
   ), [sections])
+
+  useImperativeHandle(ref, () => ({
+    save: async () => {
+      if (loading || visibleSections.length === 0) return true
+      setSaving(true)
+      setMessage('')
+      try {
+        const res = await fetch('/api/custom-field-values', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scope, recordId, values }),
+        })
+        return res.ok
+      } catch {
+        return false
+      } finally {
+        setSaving(false)
+      }
+    },
+  }))
 
   if (loading) return null
   if (visibleSections.length === 0) return null
@@ -162,10 +187,14 @@ export default function CustomSectionsRenderer({ scope, recordId }: Props) {
           </div>
         </div>
       ))}
+      {standaloneSave && (
       <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
         <span style={{ color: message.includes('Не удалось') ? '#dc2626' : 'var(--muted)' }}>{message || 'Дополнительные поля сохраняются отдельно от стандартной карточки.'}</span>
         <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Сохранение...' : 'Сохранить дополнительные поля'}</button>
       </div>
+      )}
     </div>
   )
-}
+})
+
+export default CustomSectionsRenderer
