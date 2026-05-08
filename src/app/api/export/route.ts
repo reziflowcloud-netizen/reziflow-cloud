@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         'Адрес в Польше', 'Основание пребывания',
         'Номер дела', 'Статус дела', 'Тип договора', 'Номер договора',
         'Договор подписан', 'Стоимость (zł)', 'Оплачено (zł)', 'Долг (zł)',
-        'Номер MOS', 'Дата подачи в MOS',
+        'Номер MOS', 'Дата подачи в MOS', 'Przewidywana data wydania decyzji', 'Логин кабинета', 'Пароль кабинета',
         'Дата подачи', 'Личная явка', 'Срок пребывания',
         'Ответственный',
         'Оплата 1 (дата)', 'Оплата 1 (zł)',
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
             toDate(client.passportIssuedAt), toDate(client.passportExpiresAt),
             client.addressInPoland, client.stayBasis,
             '', '', '', '', '', '', '', '',
-            '', '', '', '', '', '',
+            '', '', '', '', '', '', '', '', '',
             '', '', '', '', '', '', '', '', '', '',
             ...readCustomValues('client', client.id, clientCustomFields),
             ...caseCustomFields.map(() => ''),
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
               c.caseNumber, c.status, c.contractType, c.contractNumber,
               c.contractSigned ? 'Да' : 'Нет',
               c.totalValue.toFixed(2), c.totalPaid.toFixed(2), debt.toFixed(2),
-              c.mosNumber, toDate(c.mosSentAt),
+              c.mosNumber, toDate(c.mosSentAt), toDate(c.predictedDecisionDate), c.cabinetLogin, c.cabinetPassword,
               toDate(c.filingDate), toDate(c.personalAppearDate), toDate(c.legalStayDeadline),
               assignedName,
               ...payFields,
@@ -177,7 +177,7 @@ export async function GET(request: NextRequest) {
       const cases = await prisma.case.findMany({ where: { organizationId }, orderBy: { createdAt: 'desc' } })
       const clients = await prisma.client.findMany({ where: { organizationId }, select: { id: true, firstName: true, lastName: true, phone: true } })
       const clientMap = Object.fromEntries(clients.map(c => [c.id, c]))
-      const headers = ['Номер дела','Клиент','Телефон','Статус','Стоимость','Оплачено','Долг','Создано']
+      const headers = ['Номер дела','Клиент','Телефон','Статус','Стоимость','Оплачено','Долг','Номер MOS','Дата подачи в MOS','Przewidywana data wydania decyzji','Логин кабинета','Пароль кабинета','Создано']
       let csv = '\uFEFF' + headers.join(',') + '\n'
       for (const c of cases) {
         const cl = clientMap[c.clientId]
@@ -190,6 +190,11 @@ export async function GET(request: NextRequest) {
           c.totalValue.toFixed(2),
           c.totalPaid.toFixed(2),
           debt.toFixed(2),
+          c.mosNumber || '',
+          toDate(c.mosSentAt),
+          toDate(c.predictedDecisionDate),
+          c.cabinetLogin || '',
+          c.cabinetPassword || '',
           toDate(c.createdAt)
         ].map(esc).join(',') + '\n'
       }

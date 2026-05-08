@@ -173,7 +173,7 @@ export default function TasksPage() {
   }
   function taskMatchesCase(task: Task, item: CaseItem) {
     const meta = taskMeta(task)
-    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask]
+    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask, meta.predictedDecision]
     if (refs.some((ref: any) => ref?.caseId === item.id)) return true
     const number = String(item.caseNumber || '')
     return !!number && (String(task.title || '').includes(number) || String(task.description || '').includes(number))
@@ -191,7 +191,7 @@ export default function TasksPage() {
   function taskRelatedCaseId(task: Task | null) {
     if (!task) return ''
     const meta = taskMeta(task)
-    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask]
+    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask, meta.predictedDecision]
     const metaCaseId = refs.find((ref: any) => ref?.caseId)?.caseId
     if (metaCaseId) return metaCaseId
     const byNumber = cases.find(item => taskMatchesCase(task, item))?.id

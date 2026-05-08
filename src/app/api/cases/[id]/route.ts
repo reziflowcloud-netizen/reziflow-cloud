@@ -23,6 +23,7 @@ function taskBelongsToCase(
     meta.autoReminder,
     meta.customCaseReminder,
     meta.quickCaseTask,
+    meta.predictedDecision,
   ]
 
   if (refs.some((ref: any) => ref?.caseId === caseId)) return true
@@ -90,6 +91,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       mosNumber: body.mosNumber || null,
       mosSentAt: body.mosSentAt ? new Date(body.mosSentAt) : null,
       mosSentByPost: body.mosSentByPost ?? false,
+      predictedDecisionDate: body.predictedDecisionDate ? new Date(body.predictedDecisionDate) : null,
+      cabinetLogin: body.cabinetLogin || null,
+      cabinetPassword: body.cabinetPassword || null,
       filingDate: body.filingDate ? new Date(body.filingDate) : null,
       personalAppearDate: body.personalAppearDate ? new Date(body.personalAppearDate) : null,
       legalStayDeadline: body.legalStayDeadline ? new Date(body.legalStayDeadline) : null,

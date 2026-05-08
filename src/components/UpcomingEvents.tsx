@@ -50,7 +50,7 @@ export default function UpcomingEvents() {
   function taskRelatedCaseId(task: any) {
     if (!task) return ''
     const meta = taskMeta(task)
-    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask]
+    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask, meta.predictedDecision]
     const metaCaseId = refs.find((ref: any) => ref?.caseId)?.caseId
     if (metaCaseId) return metaCaseId
 
