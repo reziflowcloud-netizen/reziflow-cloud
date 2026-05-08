@@ -35,6 +35,10 @@ type CustomSection = {
   fields: CustomField[]
 }
 
+type OrganizationSettings = {
+  mosAutoRemindersEnabled: boolean
+}
+
 const fieldTypes = [
   { value: 'text', label: 'Текст' },
   { value: 'textarea', label: 'Большое поле' },
@@ -54,9 +58,13 @@ export default function SectionSettingsPage() {
   const [canManage, setCanManage] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingOrganizationSettings, setSavingOrganizationSettings] = useState(false)
   const [message, setMessage] = useState('')
   const [newSection, setNewSection] = useState({ scope: 'client' as Scope, title: '', description: '' })
   const [newFields, setNewFields] = useState<Record<number, any>>({})
+  const [organizationSettings, setOrganizationSettings] = useState<OrganizationSettings>({
+    mosAutoRemindersEnabled: true,
+  })
 
   useEffect(() => {
     loadAll()
@@ -64,15 +72,20 @@ export default function SectionSettingsPage() {
 
   async function loadAll() {
     setLoading(true)
-    const [uiRes, customRes] = await Promise.all([
+    const [uiRes, customRes, organizationRes] = await Promise.all([
       fetch('/api/ui-section-settings', { cache: 'no-store' }),
       fetch('/api/custom-sections', { cache: 'no-store' }),
+      fetch('/api/organization-settings', { cache: 'no-store' }),
     ])
     const ui = await uiRes.json()
     const custom = await customRes.json()
+    const organization = await organizationRes.json()
     setSettings(ui.settings || [])
     setSections(custom.sections || [])
-    setCanManage(Boolean(ui.canManage || custom.canManage))
+    setOrganizationSettings({
+      mosAutoRemindersEnabled: organization?.settings?.mosAutoRemindersEnabled !== false,
+    })
+    setCanManage(Boolean(ui.canManage || custom.canManage || organization.canManage))
     setLoading(false)
   }
 
@@ -105,6 +118,26 @@ export default function SectionSettingsPage() {
     })
     setSaving(false)
     setMessage(res.ok ? 'Настройки стандартных секций сохранены' : 'Не удалось сохранить настройки')
+  }
+
+  async function saveOrganizationSettings(nextSettings = organizationSettings) {
+    setSavingOrganizationSettings(true)
+    setMessage('')
+    const res = await fetch('/api/organization-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings: nextSettings }),
+    })
+    setSavingOrganizationSettings(false)
+    if (res.ok) {
+      const data = await res.json()
+      setOrganizationSettings({
+        mosAutoRemindersEnabled: data?.settings?.mosAutoRemindersEnabled !== false,
+      })
+      setMessage('Настройки автоматических напоминаний сохранены')
+    } else {
+      setMessage('Не удалось сохранить настройки автоматических напоминаний')
+    }
   }
 
   async function createSection() {
@@ -300,6 +333,59 @@ export default function SectionSettingsPage() {
           <div className="card">Загрузка...</div>
         ) : (
           <>
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="section-title" style={{ marginBottom: 12 }}>
+                <span>🔔</span>Автоматические напоминания
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr auto',
+                  gap: 14,
+                  alignItems: 'center',
+                  padding: 14,
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  background: 'var(--bg)',
+                }}
+              >
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <input
+                    type="checkbox"
+                    checked={organizationSettings.mosAutoRemindersEnabled}
+                    disabled={!canManage}
+                    onChange={e => {
+                      setOrganizationSettings(current => ({
+                        ...current,
+                        mosAutoRemindersEnabled: e.target.checked,
+                      }))
+                      setMessage('')
+                    }}
+                    style={{ width: 20, height: 20, marginTop: 2 }}
+                  />
+                  <span>
+                    <strong style={{ display: 'block', marginBottom: 4 }}>
+                      Автоматические напоминания с момента передачи документов в MOS
+                    </strong>
+                    <span style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.45 }}>
+                      Если включено, при сохранении дела с датой передачи в MOS автоматически создаются 4 напоминания:
+                      донести документы, получить ID, запросить логин и пароль от кабинета, проверить статус.
+                    </span>
+                  </span>
+                </label>
+                {canManage && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={savingOrganizationSettings}
+                    onClick={() => saveOrganizationSettings()}
+                  >
+                    {savingOrganizationSettings ? 'Сохранение...' : 'Сохранить'}
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="card" style={{ marginBottom: 16 }}>
               <div className="section-title" style={{ marginBottom: 12 }}><span>＋</span>Добавить свою секцию</div>
               <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr 1.3fr auto', gap: 10 }}>

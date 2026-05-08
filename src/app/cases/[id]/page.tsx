@@ -41,6 +41,7 @@ export default function CaseDetailPage() {
   const [customReminderTitle, setCustomReminderTitle] = useState('')
   const [customReminderDate, setCustomReminderDate] = useState('')
   const [customReminderSaving, setCustomReminderSaving] = useState(false)
+  const [mosAutoRemindersEnabled, setMosAutoRemindersEnabled] = useState(true)
   const [comment, setComment] = useState('')
   const [form, setForm] = useState<any>({})
   const [uploading, setUploading] = useState(false)
@@ -57,6 +58,11 @@ export default function CaseDetailPage() {
   const [newDocDesc, setNewDocDesc] = useState('')
 
   useEffect(() => {
+    fetch('/api/organization-settings', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setMosAutoRemindersEnabled(data?.settings?.mosAutoRemindersEnabled !== false))
+      .catch(() => setMosAutoRemindersEnabled(true))
+
     fetch(`/api/cases/${id}`).then(r => r.json()).then(data => {
       setC(data)
       loadPlannedPayments(data)
@@ -125,10 +131,10 @@ export default function CaseDetailPage() {
       setC((prev: any) => ({ ...prev, ...updated, service: services.find(s => s.id === parseInt(form.serviceId)) || null }))
       await saveMosId()
       const reminderBaseDate = form.filingDate || form.mosSentAt
-      if (reminderBaseDate) {
+      if (reminderBaseDate && mosAutoRemindersEnabled) {
         await createFilingReminders(reminderBaseDate)
-        await loadCaseTasks({ ...c, ...updated })
       }
+      await loadCaseTasks({ ...c, ...updated })
       const customOk = await customSectionsRef.current?.save()
       if (customOk === false) alert('Не удалось сохранить дополнительные поля')
     } finally {
@@ -345,7 +351,7 @@ export default function CaseDetailPage() {
   }
 
   async function createFilingReminders(filingDate: string) {
-    if (!filingDate || !c?.id) return
+    if (!filingDate || !c?.id || !mosAutoRemindersEnabled) return
     const tasks = await fetch('/api/tasks').then(r => r.json()).catch(() => [])
     const existing = new Set(
       Array.isArray(tasks)
