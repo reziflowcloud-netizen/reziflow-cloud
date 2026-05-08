@@ -87,6 +87,7 @@ export default function CaseDetailPage() {
         mosSentAt: data.mosSentAt?.slice(0, 10) || '',
         mosSentByPost: data.mosSentByPost || false,
         predictedDecisionDate: data.predictedDecisionDate?.slice(0, 10) || '',
+        fingerprintsDate: data.fingerprintsDate?.slice(0, 10) || '',
         cabinetLogin: data.cabinetLogin || '',
         cabinetPassword: data.cabinetPassword || '',
         filingDate: data.filingDate?.slice(0, 10) || '',
@@ -137,6 +138,7 @@ export default function CaseDetailPage() {
       if (reminderBaseDate && mosAutoRemindersEnabled) {
         await createFilingReminders(reminderBaseDate)
       }
+      await syncFingerprintsReminder(form.fingerprintsDate, { ...c, ...updated })
       await syncPredictedDecisionReminder(form.predictedDecisionDate, { ...c, ...updated })
       await loadCaseTasks({ ...c, ...updated })
       const customOk = await customSectionsRef.current?.save()
@@ -254,6 +256,7 @@ export default function CaseDetailPage() {
           meta.autoReminder,
           meta.customCaseReminder,
           meta.quickCaseTask,
+          meta.fingerprintsAppointment,
           meta.predictedDecision,
         ]
         if (metaValues.some((item: any) => item?.caseId === caseData.id)) return true
@@ -409,6 +412,50 @@ export default function CaseDetailPage() {
         reminderAt: `${decisionDate}T09:00`,
         reminderNote: `Ожидаемая дата выдачи решения по делу ${caseLabel}`,
         predictedDecision: { caseId: caseData.id, caseNumber: caseData.caseNumber || null },
+      }),
+    }
+
+    if (existing?.task?.id) {
+      await fetch(`/api/tasks/${existing.task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+    } else {
+      await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+    }
+  }
+
+  async function syncFingerprintsReminder(fingerprintsDate: string, caseData = c) {
+    if (!caseData?.id) return
+    const tasks = await fetch('/api/tasks').then(r => r.json()).catch(() => [])
+    const existing = Array.isArray(tasks)
+      ? tasks
+        .map((task: any) => ({ task, meta: parseTaskDescription(task.description) }))
+        .find(({ meta }: any) => meta.fingerprintsAppointment?.caseId === caseData.id)
+      : null
+
+    if (!fingerprintsDate) {
+      if (existing?.task?.id) await fetch(`/api/tasks/${existing.task.id}`, { method: 'DELETE' })
+      return
+    }
+
+    const clientName = `${caseData.client?.firstName || ''} ${caseData.client?.lastName || ''}`.trim()
+    const caseLabel = caseData.caseNumber || 'без номера'
+    const payload = {
+      title: 'Прийти на отпечатки пальцев',
+      priority: existing?.task?.priority || 'Нормально',
+      dueDate: fingerprintsDate,
+      clientName,
+      status: existing?.task?.status || 'todo',
+      description: JSON.stringify({
+        reminderAt: `${fingerprintsDate}T09:00`,
+        reminderNote: `Прийти на отпечатки пальцев по делу ${caseLabel}`,
+        fingerprintsAppointment: { caseId: caseData.id, caseNumber: caseData.caseNumber || null },
       }),
     }
 
@@ -1053,14 +1100,6 @@ export default function CaseDetailPage() {
                   </div>
 
                   <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, marginTop: 14 }}>
-                    <div className="section-title" style={{ marginBottom: 10 }}>{t('predicted_decision_date')}</div>
-                    <div className="form-group" style={{ maxWidth: 360 }}>
-                      <label className="label">{t('predicted_decision_date')}</label>
-                      <input className="input" type="date" value={form.predictedDecisionDate || ''} onChange={e => set('predictedDecisionDate', e.target.value)} />
-                    </div>
-                  </div>
-
-                  <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, marginTop: 14 }}>
                     <div className="section-title" style={{ marginBottom: 10 }}>{t('client_cabinet_access')}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                       <div className="form-group">
@@ -1071,6 +1110,22 @@ export default function CaseDetailPage() {
                         <label className="label">{t('cabinet_password')}</label>
                         <input className="input" value={form.cabinetPassword || ''} onChange={e => set('cabinetPassword', e.target.value)} placeholder={t('cabinet_password')} />
                       </div>
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, marginTop: 14 }}>
+                    <div className="section-title" style={{ marginBottom: 10 }}>{t('fingerprints_date')}</div>
+                    <div className="form-group" style={{ maxWidth: 360 }}>
+                      <label className="label">{t('fingerprints_date')}</label>
+                      <input className="input" type="date" value={form.fingerprintsDate || ''} onChange={e => set('fingerprintsDate', e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, marginTop: 14 }}>
+                    <div className="section-title" style={{ marginBottom: 10 }}>{t('predicted_decision_date')}</div>
+                    <div className="form-group" style={{ maxWidth: 360 }}>
+                      <label className="label">{t('predicted_decision_date')}</label>
+                      <input className="input" type="date" value={form.predictedDecisionDate || ''} onChange={e => set('predictedDecisionDate', e.target.value)} />
                     </div>
                   </div>
 

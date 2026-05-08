@@ -23,6 +23,7 @@ function taskBelongsToCase(
     meta.autoReminder,
     meta.customCaseReminder,
     meta.quickCaseTask,
+    meta.fingerprintsAppointment,
     meta.predictedDecision,
   ]
 
@@ -92,6 +93,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       mosSentAt: body.mosSentAt ? new Date(body.mosSentAt) : null,
       mosSentByPost: body.mosSentByPost ?? false,
       predictedDecisionDate: body.predictedDecisionDate ? new Date(body.predictedDecisionDate) : null,
+      fingerprintsDate: body.fingerprintsDate ? new Date(body.fingerprintsDate) : null,
       cabinetLogin: body.cabinetLogin || null,
       cabinetPassword: body.cabinetPassword || null,
       filingDate: body.filingDate ? new Date(body.filingDate) : null,
