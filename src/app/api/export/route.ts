@@ -23,10 +23,17 @@ function customHeader(scopeLabel: string, sectionTitle: string, fieldLabel: stri
   return `${scopeLabel}: ${sectionTitle} / ${fieldLabel}`
 }
 
+function canExportData(user: any): boolean {
+  return user?.role === 'admin' || user?.role === 'owner'
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!canExportData(user)) {
+      return NextResponse.json({ error: 'Export is available only to organization administrators' }, { status: 403 })
+    }
     const organizationId = getOrganizationId(user)
 
     const type = request.nextUrl.searchParams.get('type') || 'all'

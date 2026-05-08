@@ -10,6 +10,29 @@ import { getOrganizationId, getUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
+type DashboardCaseDate = {
+  createdAt: Date
+  contractDate: Date | null
+  contractSigned: boolean
+}
+
+function dashboardCaseDate(item: DashboardCaseDate): Date {
+  return item.contractSigned && item.contractDate ? item.contractDate : item.createdAt
+}
+
+function dashboardCaseMonthWhere(organizationId: string, start: Date, end: Date) {
+  return {
+    organizationId,
+    OR: [
+      { contractSigned: true, contractDate: { gte: start, lt: end } },
+      {
+        createdAt: { gte: start, lt: end },
+        OR: [{ contractSigned: false }, { contractDate: null }],
+      },
+    ],
+  }
+}
+
 export default async function NewCasesPage({
   searchParams,
 }: {
@@ -19,27 +42,28 @@ export default async function NewCasesPage({
   const organizationId = getOrganizationId(user)
   const allCases = await prisma.case.findMany({
     where: { organizationId },
-    select: { createdAt: true },
+    select: { createdAt: true, contractDate: true, contractSigned: true },
     orderBy: { createdAt: 'desc' },
   })
   const statuses = await prisma.caseStatus.findMany({ where: { organizationId } })
   const statusColors = new Map(statuses.map((status) => [status.name, status.color]))
-  const months = buildMonthOptions(allCases.map((item) => item.createdAt))
+  const months = buildMonthOptions(allCases.map(dashboardCaseDate))
   const monthKey = selectedMonth(searchParams.month, months)
   const month = months.find((item) => item.key === monthKey) || months[0]
 
   const cases = month
     ? await prisma.case.findMany({
-        where: { organizationId, createdAt: { gte: month.start, lt: month.end } },
+        where: dashboardCaseMonthWhere(organizationId, month.start, month.end),
         include: { client: true, service: true },
         orderBy: { createdAt: 'desc' },
       })
     : []
+  const sortedCases = [...cases].sort((a, b) => dashboardCaseDate(b).getTime() - dashboardCaseDate(a).getTime())
 
   const monthTotals = await Promise.all(
     months.map(async (item) => ({
       ...item,
-      count: await prisma.case.count({ where: { organizationId, createdAt: { gte: item.start, lt: item.end } } }),
+      count: await prisma.case.count({ where: dashboardCaseMonthWhere(organizationId, item.start, item.end) }),
     }))
   )
 
@@ -94,9 +118,9 @@ export default async function NewCasesPage({
               <tbody>
                 {cases.length === 0 ? (
                   <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}>В этом месяце новых дел нет</td></tr>
-                ) : cases.map((item) => (
+                ) : sortedCases.map((item) => (
                   <tr key={item.id}>
-                    <td>{formatDate(item.createdAt)}</td>
+                    <td>{formatDate(dashboardCaseDate(item))}</td>
                     <td style={{ fontWeight: 600 }}>{item.client.firstName} {item.client.lastName}</td>
                     <td>
                       <span

@@ -7,6 +7,19 @@ import Tr from '@/components/Tr'
 
 export const dynamic = 'force-dynamic'
 
+function dashboardCaseMonthWhere(organizationId: string, start: Date, end: Date) {
+  return {
+    organizationId,
+    OR: [
+      { contractSigned: true, contractDate: { gte: start, lt: end } },
+      {
+        createdAt: { gte: start, lt: end },
+        OR: [{ contractSigned: false }, { contractDate: null }],
+      },
+    ],
+  }
+}
+
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый':               { bg: '#eff6ff', color: '#1d4ed8' },
   'В работе':            { bg: '#fef3c7', color: '#92400e' },
@@ -51,11 +64,11 @@ export default async function DashboardPage() {
     for (let i = 5; i >= 0; i--) {
       const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const start = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), 1))
-      const end = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth() + 1, 1) - 1)
+      const end = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth() + 1, 1))
 
       const [cases, clients] = await Promise.all([
-        prisma.case.count({ where: { organizationId, createdAt: { gte: start, lte: end } } }),
-        prisma.client.count({ where: { organizationId, createdAt: { gte: start, lte: end } } }),
+        prisma.case.count({ where: dashboardCaseMonthWhere(organizationId, start, end) }),
+        prisma.client.count({ where: { organizationId, createdAt: { gte: start, lt: end } } }),
       ])
 
       last6months.push({
