@@ -36,6 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const doc = new Docxtemplater(zip, {
       paragraphLoop: true,
       linebreaks: true,
+      delimiters: { start: '{{', end: '}}' },
       nullGetter: () => '',
     } as any)
 

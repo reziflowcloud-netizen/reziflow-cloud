@@ -22,6 +22,7 @@ export const DOCUMENT_TEMPLATE_VARIABLES = [
   '{{case.caseNumber}}',
   '{{case.status}}',
   '{{case.totalValue}}',
+  '{{case.totalValueBrutto}}',
   '{{case.totalPaid}}',
   '{{case.debt}}',
   '{{case.contractNumber}}',
@@ -56,6 +57,7 @@ export function buildDocumentTemplateData(caseRecord: any) {
   const client = caseRecord.client || {}
   const organization = caseRecord.organization || {}
   const debt = Math.max(0, Number(caseRecord.totalValue || 0) - Number(caseRecord.totalPaid || 0))
+  const totalValue = Number(caseRecord.totalValue || 0)
 
   return {
     client: {
@@ -76,7 +78,8 @@ export function buildDocumentTemplateData(caseRecord: any) {
     case: {
       caseNumber: caseRecord.caseNumber || '',
       status: caseRecord.status || '',
-      totalValue: formatMoney(caseRecord.totalValue),
+      totalValue: formatMoney(totalValue),
+      totalValueBrutto: formatMoney(totalValue * 1.23),
       totalPaid: formatMoney(caseRecord.totalPaid),
       debt: formatMoney(debt),
       contractNumber: caseRecord.contractNumber || '',
