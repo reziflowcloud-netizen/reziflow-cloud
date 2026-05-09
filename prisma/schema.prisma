@@ -16,6 +16,7 @@ model User {
   role      String   @default("employee")
   avatarUrl String?
   avatarPublicId String?
+  preferences Json?
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
   createdAt DateTime @default(now())
@@ -45,6 +46,7 @@ model Organization {
   uiSectionSettings UiSectionSetting[]
   customSections CustomSection[]
   customFieldValues CustomFieldValue[]
+  clientFamilyLinks ClientFamilyLink[]
 }
 
 model UiSectionSetting {
@@ -160,6 +162,24 @@ model Client {
   finesInPoland      Boolean @default(false)
   finesDescription   String?
   travelHistory      TravelHistory[]
+  familyLinks         ClientFamilyLink[] @relation("ClientFamilySource")
+  familyLinkedBy      ClientFamilyLink[] @relation("ClientFamilyRelative")
+}
+
+model ClientFamilyLink {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clientId         String
+  client           Client       @relation("ClientFamilySource", fields: [clientId], references: [id], onDelete: Cascade)
+  relativeClientId String
+  relativeClient   Client       @relation("ClientFamilyRelative", fields: [relativeClientId], references: [id], onDelete: Cascade)
+  createdAt        DateTime     @default(now())
+
+  @@unique([clientId, relativeClientId])
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([relativeClientId])
 }
 
 model Case {

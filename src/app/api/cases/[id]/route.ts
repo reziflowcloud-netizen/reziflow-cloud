@@ -33,6 +33,15 @@ function taskBelongsToCase(
   return String(task.title || '').includes(caseNumber) || String(task.description || '').includes(caseNumber)
 }
 
+function isOrganizationAdmin(user: any) {
+  return user?.role === 'admin' || user?.role === 'owner'
+}
+
+function isArchiveStatus(status?: string | null) {
+  const value = String(status || '').trim().toLowerCase()
+  return value.includes('архив') || value.includes('archive') || value.includes('archiw') || status === 'РђСЂС…РёРІ'
+}
+
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -153,12 +162,18 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
+  if (!isOrganizationAdmin(user)) {
+    return NextResponse.json({ error: 'Only organization admin can delete cases' }, { status: 403 })
+  }
 
   const existing = await prisma.case.findFirst({
     where: { id: params.id, organizationId },
-    select: { id: true, caseNumber: true },
+    select: { id: true, caseNumber: true, status: true },
   })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!isArchiveStatus(existing.status)) {
+    return NextResponse.json({ error: 'Case must be archived before deletion' }, { status: 409 })
+  }
 
   const documents = await (prisma as any).caseDocument.findMany({
     where: { caseId: params.id },

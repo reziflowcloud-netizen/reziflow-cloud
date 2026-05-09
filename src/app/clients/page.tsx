@@ -22,6 +22,8 @@ const ALL_COLUMNS = [
   { key: 'birthDate',   labelKey: 'birth_date' },
   { key: 'cases',       labelKey: 'cases_title' },
 ]
+const DEFAULT_VISIBLE_COLUMNS = ['name','phone','pesel','citizenship','birthDate','cases']
+const COLUMN_KEYS = ALL_COLUMNS.map(col => col.key)
 
 type SortKey = 'name' | 'cases' | 'birthDate' | 'date'
 type SortDir = 'asc' | 'desc'
@@ -34,7 +36,8 @@ export default function ClientsPage() {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
-  const [visibleCols, setVisibleCols] = useState<string[]>(['name','phone','pesel','citizenship','birthDate','cases'])
+  const [visibleCols, setVisibleCols] = useState<string[]>(DEFAULT_VISIBLE_COLUMNS)
+  const [preferencesReady, setPreferencesReady] = useState(false)
   const [showColMenu, setShowColMenu] = useState(false)
   const colMenuRef = useRef<HTMLDivElement>(null)
 
@@ -43,6 +46,13 @@ export default function ClientsPage() {
       setClients(Array.isArray(data) ? data : [])
       setLoading(false)
     })
+    fetch('/api/user-preferences').then(r => r.ok ? r.json() : {}).then((data: any) => {
+      if (Array.isArray(data.clientColumns)) {
+        const next = data.clientColumns.filter((key: string) => COLUMN_KEYS.includes(key))
+        setVisibleCols(next.includes('name') ? next : ['name', ...next])
+      }
+      setPreferencesReady(true)
+    }).catch(() => setPreferencesReady(true))
   }, [])
 
   // Закрытие меню колонок при клике вне
@@ -60,9 +70,17 @@ export default function ClientsPage() {
   }
 
   function toggleCol(key: string) {
-    setVisibleCols(prev =>
-      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-    )
+    setVisibleCols(prev => {
+      const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+      if (preferencesReady) {
+        fetch('/api/user-preferences', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientColumns: next }),
+        }).catch(() => {})
+      }
+      return next
+    })
   }
 
   const SortIcon = ({ k }: { k: SortKey }) => (

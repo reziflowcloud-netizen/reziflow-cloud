@@ -38,6 +38,8 @@ export default function ClientDetailPage() {
   const [form, setForm] = useState<any>({})
   const [saving, setSaving] = useState(false)
   const [travelHistory, setTravelHistory] = useState<any[]>([])
+  const [availableClients, setAvailableClients] = useState<any[]>([])
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [newTravel, setNewTravel] = useState({ country: '', entryDate: '', exitDate: '' })
   const [showAddTravel, setShowAddTravel] = useState(false)
   const customSectionsRef = useRef<CustomSectionsHandle>(null)
@@ -75,8 +77,17 @@ export default function ClientDetailPage() {
         residenceCardExpiry: data.residenceCardExpiry?.slice(0,10) || '',
         finesInPoland: data.finesInPoland || false,
         finesDescription: data.finesDescription || '',
+        hasFamilyClients: (data.familyLinks || []).length > 0,
+        familyClientIds: (data.familyLinks || []).map((link: any) => link.relativeClientId),
       })
     })
+  }, [id])
+
+  useEffect(() => {
+    fetch('/api/clients').then(r => r.json()).then(data => {
+      setAvailableClients(Array.isArray(data) ? data.filter((item: any) => item.id !== id) : [])
+    })
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(data => setCurrentUser(data))
   }, [id])
 
   function set(k: string, v: any) { setForm((p: any) => ({ ...p, [k]: v })) }
@@ -89,7 +100,10 @@ export default function ClientDetailPage() {
         body: JSON.stringify(form),
       })
       const updated = await res.json()
-      setClient((prev: any) => ({ ...prev, ...updated }))
+      const selectedFamilyLinks = availableClients
+        .filter(item => (form.familyClientIds || []).includes(item.id))
+        .map(item => ({ relativeClientId: item.id, relativeClient: item }))
+      setClient((prev: any) => ({ ...prev, ...updated, familyLinks: selectedFamilyLinks }))
       const customOk = await customSectionsRef.current?.save()
       if (customOk === false) alert('Не удалось сохранить дополнительные поля')
     } finally {
@@ -130,6 +144,9 @@ export default function ClientDetailPage() {
   const activeCases = cases.filter((c: any) => ['В работе','Ожидание документов','Новый'].includes(c.status))
   const closedCases = cases.filter((c: any) => !['В работе','Ожидание документов','Новый'].includes(c.status))
 
+  const canDeleteClient = currentUser?.role === 'admin' || currentUser?.role === 'owner'
+  const selectedFamilyClients = availableClients.filter(item => (form.familyClientIds || []).includes(item.id))
+
   // Helpers
   return (
     <div className="fade-in">
@@ -147,7 +164,9 @@ export default function ClientDetailPage() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={save} className="btn btn-primary" disabled={saving}>{saving ? 'Сохранение...' : '💾 Сохранить'}</button>
           <Link href={`/cases/new?clientId=${client.id}`} className="btn btn-secondary">+ Новое дело</Link>
-          <button onClick={deleteClient} style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', color: '#dc2626', fontWeight: 500, fontSize: 13 }}>🗑 Удалить</button>
+          {canDeleteClient && (
+            <button onClick={deleteClient} style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', color: '#dc2626', fontWeight: 500, fontSize: 13 }}>🗑 Удалить</button>
+          )}
         </div>
       </div>
 
@@ -263,6 +282,48 @@ export default function ClientDetailPage() {
                     <F label="Лица на содержании" col>
                       <textarea className="input" value={form.dependents} onChange={e => set('dependents', e.target.value)} rows={2} placeholder="Informacje o osobach na utrzymaniu..." />
                     </F>
+                    <div style={{ gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!form.hasFamilyClients}
+                          onChange={e => {
+                            set('hasFamilyClients', e.target.checked)
+                            if (!e.target.checked) set('familyClientIds', [])
+                          }}
+                          style={{ width: 16, height: 16, accentColor: 'var(--brand)' }}
+                        />
+                        Клиент состоит в семье с другим клиентом
+                      </label>
+                      {form.hasFamilyClients && (
+                        <div style={{ marginTop: 10 }}>
+                          <select
+                            className="select"
+                            multiple
+                            value={form.familyClientIds || []}
+                            onChange={e => set('familyClientIds', Array.from(e.target.selectedOptions).map(option => option.value))}
+                            style={{ minHeight: 96 }}
+                          >
+                            {availableClients.map(item => (
+                              <option key={item.id} value={item.id}>{item.firstName} {item.lastName}{item.phone ? ` · ${item.phone}` : ''}</option>
+                            ))}
+                          </select>
+                          {selectedFamilyClients.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                              {selectedFamilyClients.map(item => (
+                                <Link
+                                  key={item.id}
+                                  href={`/clients/${item.id}`}
+                                  style={{ textDecoration: 'none', color: 'var(--brand)', background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.18)', borderRadius: 999, padding: '5px 10px', fontSize: 12, fontWeight: 600 }}
+                                >
+                                  {item.firstName} {item.lastName}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

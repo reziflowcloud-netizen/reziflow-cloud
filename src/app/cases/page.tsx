@@ -29,6 +29,7 @@ export default function CasesPage() {
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [statusPopup, setStatusPopup] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
 
   // Читаем фильтр из URL параметра
   // filter=active → активные дела
@@ -50,6 +51,7 @@ export default function CasesPage() {
       setStatuses(Array.isArray(s) ? s : [])
       setLoading(false)
     })
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(data => setCurrentUser(data))
   }, [])
 
   async function quickChangeStatus(caseId: string, newStatus: string, e: React.MouseEvent) {
@@ -112,6 +114,7 @@ export default function CasesPage() {
 
   const activeCasesCount = cases.filter(c => ACTIVE_STATUSES.includes(c.status)).length
   const noPayCount = cases.filter(c => c.contractSigned && c.totalPaid === 0 && c.totalValue > 0).length
+  const canDeleteCases = currentUser?.role === 'admin' || currentUser?.role === 'owner'
 
   // Заголовок активного фильтра
   const filterTitle = activeFilter === 'active' ? `Активные дела (${activeCasesCount})`
@@ -267,7 +270,7 @@ export default function CasesPage() {
                         {new Date(c.createdAt).toLocaleDateString('ru')}
                       </td>
                       <td onClick={e => e.stopPropagation()}>
-                        {c.status === 'Архив' && (
+                        {canDeleteCases && c.status === 'Архив' && (
                           <button
                             onClick={e => deleteCase(c.id, e)}
                             title="Удалить дело"

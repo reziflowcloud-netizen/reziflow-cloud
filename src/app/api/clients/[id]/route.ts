@@ -4,6 +4,10 @@ import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { deleteCloudinaryResources } from '@/lib/cloudinary'
 
+function isOrganizationAdmin(user: any) {
+  return user?.role === 'admin' || user?.role === 'owner'
+}
+
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -14,6 +18,14 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       include: {
         cases: { include: { service: true }, orderBy: { createdAt: 'desc' } },
         travelHistory: { orderBy: { entryDate: 'desc' } },
+        familyLinks: {
+          include: {
+            relativeClient: {
+              select: { id: true, firstName: true, lastName: true, phone: true, email: true },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
       }
     })
     if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -38,9 +50,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const existingClient = await prisma.client.findFirst({ where: { id: params.id, organizationId } })
     if (!existingClient) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const client = await (prisma as any).client.update({
-      where: { id: params.id },
-      data: {
+    const shouldUpdateFamily = Array.isArray(body.familyClientIds)
+    const familyClientIds = shouldUpdateFamily
+      ? Array.from(new Set<string>(body.familyClientIds.map((value: any) => String(value)).filter((value: string) => value && value !== params.id)))
+      : []
+    const validFamilyClients = familyClientIds.length > 0
+      ? await prisma.client.findMany({ where: { id: { in: familyClientIds }, organizationId }, select: { id: true } })
+      : []
+    const validFamilyIds = validFamilyClients.map(item => item.id)
+
+    const client = await prisma.$transaction(async tx => {
+      const updated = await (tx as any).client.update({
+        where: { id: params.id },
+        data: {
         firstName: body.firstName,
         lastName: body.lastName,
         phone: body.phone || null,
@@ -85,7 +107,29 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         residenceCardExpiry: body.residenceCardExpiry ? new Date(body.residenceCardExpiry) : null,
         finesInPoland: body.finesInPoland || false,
         finesDescription: body.finesDescription || null,
+        }
+      })
+
+      if (shouldUpdateFamily) {
+        await (tx as any).clientFamilyLink.deleteMany({
+          where: {
+            organizationId,
+            OR: [{ clientId: params.id }, { relativeClientId: params.id }],
+          },
+        })
       }
+
+      if (shouldUpdateFamily && validFamilyIds.length > 0) {
+        await (tx as any).clientFamilyLink.createMany({
+          data: validFamilyIds.flatMap(relativeClientId => [
+            { organizationId, clientId: params.id, relativeClientId },
+            { organizationId, clientId: relativeClientId, relativeClientId: params.id },
+          ]),
+          skipDuplicates: true,
+        })
+      }
+
+      return updated
     })
     // Если указана дата окончания паспорта — создаём задачу в календаре
     if (body.passportExpiresAt) {
@@ -141,6 +185,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!isOrganizationAdmin(user)) {
+    return NextResponse.json({ error: 'Only organization admin can delete clients' }, { status: 403 })
+  }
   const organizationId = getOrganizationId(user)
   try {
     const client = await prisma.client.findFirst({ where: { id: params.id, organizationId } })
@@ -182,6 +229,12 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     } catch (e) { /* игнорируем */ }
 
     // Удаляем клиента
+    await (prisma as any).clientFamilyLink.deleteMany({
+      where: {
+        organizationId,
+        OR: [{ clientId: params.id }, { relativeClientId: params.id }],
+      },
+    })
     await prisma.client.delete({ where: { id: params.id } })
     return NextResponse.json({ success: true, deletedCloudinaryFiles })
   } catch (e: any) {
