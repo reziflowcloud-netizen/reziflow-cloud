@@ -18,7 +18,7 @@ async function refreshUserCookie(updatedUser: any, currentUser: any) {
     role: updatedUser.role,
     avatarUrl: updatedUser.avatarUrl || null,
     organizationId: currentUser.organizationId || 'org_default',
-    organizationName: currentUser.organizationName || 'ReziFlow Cloud',
+    organizationName: currentUser.organizationName || 'ReziFlow CRM',
   })
   cookies().set('auth-token', token, {
     httpOnly: true,

@@ -45,7 +45,7 @@ export default function LoginPage() {
               <path d="M9 9 L16 16 L9 23" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
               <path d="M16 9 L23 16 L16 23" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.6"/>
             </svg>
-            <div className="logo-text">ReziFlow <em>Cloud</em></div>
+            <div className="logo-text">ReziFlow <em>CRM</em></div>
           </div>
           <p style={{ color: '#6b7280', fontSize: 13, marginTop: 4 }}>Система управления делами</p>
         </div>

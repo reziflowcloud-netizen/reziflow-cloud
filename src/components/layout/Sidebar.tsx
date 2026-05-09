@@ -135,7 +135,7 @@ export default function Sidebar({
           <path d="M9 9 L16 16 L9 23" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
           <path d="M16 9 L23 16 L16 23" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.6"/>
         </svg>
-        <span>ReziFlow <em>Cloud</em></span>
+        <span>ReziFlow <em>CRM</em></span>
       </div>
 
       <div style={{ flex: 1 }}>

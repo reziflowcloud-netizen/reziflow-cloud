@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': 'attachment; filename="ReziFlowCloud_import_template.csv"',
+          'Content-Disposition': 'attachment; filename="ReziFlowCRM_import_template.csv"',
         }
       })
     }
@@ -202,7 +202,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="ReziFlowCloud_baza_${new Date().toISOString().slice(0,10)}.csv"`,
+          'Content-Disposition': `attachment; filename="ReziFlowCRM_baza_${new Date().toISOString().slice(0,10)}.csv"`,
         }
       })
     }
@@ -219,7 +219,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="ReziFlowCloud_clients_${new Date().toISOString().slice(0,10)}.csv"`,
+          'Content-Disposition': `attachment; filename="ReziFlowCRM_clients_${new Date().toISOString().slice(0,10)}.csv"`,
         }
       })
     }
@@ -253,7 +253,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="ReziFlowCloud_cases_${new Date().toISOString().slice(0,10)}.csv"`,
+          'Content-Disposition': `attachment; filename="ReziFlowCRM_cases_${new Date().toISOString().slice(0,10)}.csv"`,
         }
       })
     }
@@ -280,7 +280,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="ReziFlowCloud_payments_${new Date().toISOString().slice(0,10)}.csv"`,
+          'Content-Disposition': `attachment; filename="ReziFlowCRM_payments_${new Date().toISOString().slice(0,10)}.csv"`,
         }
       })
     }

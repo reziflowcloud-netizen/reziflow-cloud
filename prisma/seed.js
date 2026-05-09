@@ -12,7 +12,7 @@ async function main() {
     update: {},
     create: {
       id: 'org_default',
-      name: process.env.ORGANIZATION_NAME || 'ReziFlow Cloud',
+      name: process.env.ORGANIZATION_NAME || 'ReziFlow CRM',
       slug: process.env.ORGANIZATION_SLUG || 'default',
       status: 'active',
       plan: 'manual',

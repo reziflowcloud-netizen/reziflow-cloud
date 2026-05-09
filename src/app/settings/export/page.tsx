@@ -138,7 +138,7 @@ export default function ExportPage() {
       <div className="page-header">
         <div>
           <div className="page-title">Экспорт и импорт данных</div>
-          <div className="page-subtitle">CSV-файлы для переноса клиентов, дел и резервной копии ReziFlow Cloud</div>
+          <div className="page-subtitle">CSV-файлы для переноса клиентов, дел и резервной копии ReziFlow CRM</div>
         </div>
       </div>
 
@@ -166,7 +166,7 @@ export default function ExportPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <button
                 className="btn btn-secondary"
-                onClick={() => doExport('import-template', 'ReziFlowCloud_import_template')}
+                onClick={() => doExport('import-template', 'ReziFlowCRM_import_template')}
                 disabled={loading === 'import-template'}
                 style={{ whiteSpace: 'nowrap' }}
               >
@@ -299,7 +299,7 @@ export default function ExportPage() {
                 Один файл: клиенты, дела, оплаты и дополнительные поля.
               </div>
             </div>
-            <button onClick={() => doExport('all', 'ReziFlowCloud_baza')}
+            <button onClick={() => doExport('all', 'ReziFlowCRM_baza')}
               className="btn btn-primary" disabled={loading === 'all'}
               style={{ padding: '12px 24px', fontSize: 15, flexShrink: 0 }}>
               {loading === 'all' ? 'Подготовка...' : 'Скачать все'}
@@ -310,9 +310,9 @@ export default function ExportPage() {
         <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, fontWeight: 500 }}>Или скачать отдельно:</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           {[
-            { id: 'clients', icon: '👥', title: 'Только клиенты', desc: 'Личные данные', filename: 'ReziFlowCloud_clients', color: '#eff6ff' },
-            { id: 'cases', icon: '📋', title: 'Только дела', desc: 'Дела и суммы', filename: 'ReziFlowCloud_cases', color: '#fef3c7' },
-            { id: 'payments', icon: '💳', title: 'Только оплаты', desc: 'История платежей', filename: 'ReziFlowCloud_payments', color: '#dcfce7' },
+            { id: 'clients', icon: '👥', title: 'Только клиенты', desc: 'Личные данные', filename: 'ReziFlowCRM_clients', color: '#eff6ff' },
+            { id: 'cases', icon: '📋', title: 'Только дела', desc: 'Дела и суммы', filename: 'ReziFlowCRM_cases', color: '#fef3c7' },
+            { id: 'payments', icon: '💳', title: 'Только оплаты', desc: 'История платежей', filename: 'ReziFlowCRM_payments', color: '#dcfce7' },
           ].map(exp => (
             <div key={exp.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 40, height: 40, borderRadius: 10, background: exp.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{exp.icon}</div>
