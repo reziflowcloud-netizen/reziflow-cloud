@@ -8,6 +8,45 @@ function isOrganizationAdmin(user: any) {
   return user?.role === 'admin' || user?.role === 'owner'
 }
 
+async function getFamilyLinksForClient(clientId: string, organizationId: string) {
+  const links = await (prisma as any).clientFamilyLink.findMany({
+    where: { organizationId },
+    select: { clientId: true, relativeClientId: true },
+  })
+  const familyIds = new Set<string>([clientId])
+  let changed = true
+
+  while (changed) {
+    changed = false
+    for (const link of links) {
+      const hasClient = familyIds.has(link.clientId)
+      const hasRelative = familyIds.has(link.relativeClientId)
+      if (hasClient && !hasRelative) {
+        familyIds.add(link.relativeClientId)
+        changed = true
+      }
+      if (hasRelative && !hasClient) {
+        familyIds.add(link.clientId)
+        changed = true
+      }
+    }
+  }
+
+  const relativeIds = Array.from(familyIds).filter(id => id !== clientId)
+  if (relativeIds.length === 0) return []
+
+  const relatives = await prisma.client.findMany({
+    where: { id: { in: relativeIds }, organizationId },
+    select: { id: true, firstName: true, lastName: true, phone: true, email: true },
+    orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+  })
+
+  return relatives.map(relativeClient => ({
+    relativeClientId: relativeClient.id,
+    relativeClient,
+  }))
+}
+
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -29,7 +68,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       }
     })
     if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json(client)
+    const familyLinks = await getFamilyLinksForClient(params.id, organizationId)
+    return NextResponse.json({ ...client, familyLinks })
   } catch (e) {
     // fallback
     const client = await prisma.client.findFirst({
@@ -111,22 +151,40 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       })
 
       if (shouldUpdateFamily) {
-        await (tx as any).clientFamilyLink.deleteMany({
+        const existingFamilyLinks = await (tx as any).clientFamilyLink.findMany({
           where: {
             organizationId,
             OR: [{ clientId: params.id }, { relativeClientId: params.id }],
           },
+          select: { clientId: true, relativeClientId: true },
         })
-      }
+        const affectedFamilyIds = Array.from(new Set<string>([
+          params.id,
+          ...validFamilyIds,
+          ...existingFamilyLinks.flatMap((link: any) => [link.clientId, link.relativeClientId]),
+        ]))
+        const familyGroupIds = [params.id, ...validFamilyIds]
 
-      if (shouldUpdateFamily && validFamilyIds.length > 0) {
-        await (tx as any).clientFamilyLink.createMany({
-          data: validFamilyIds.flatMap(relativeClientId => [
-            { organizationId, clientId: params.id, relativeClientId },
-            { organizationId, clientId: relativeClientId, relativeClientId: params.id },
-          ]),
-          skipDuplicates: true,
+        await (tx as any).clientFamilyLink.deleteMany({
+          where: {
+            organizationId,
+            OR: [
+              { clientId: { in: affectedFamilyIds } },
+              { relativeClientId: { in: affectedFamilyIds } },
+            ],
+          },
         })
+
+        if (validFamilyIds.length > 0) {
+          await (tx as any).clientFamilyLink.createMany({
+            data: familyGroupIds.flatMap(clientId =>
+              familyGroupIds
+                .filter(relativeClientId => relativeClientId !== clientId)
+                .map(relativeClientId => ({ organizationId, clientId, relativeClientId }))
+            ),
+            skipDuplicates: true,
+          })
+        }
       }
 
       return updated

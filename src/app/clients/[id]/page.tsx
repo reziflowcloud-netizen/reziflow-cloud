@@ -41,6 +41,7 @@ export default function ClientDetailPage() {
   const [availableClients, setAvailableClients] = useState<any[]>([])
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [familySearch, setFamilySearch] = useState('')
+  const [showFamilyPicker, setShowFamilyPicker] = useState(false)
   const [newTravel, setNewTravel] = useState({ country: '', entryDate: '', exitDate: '' })
   const [showAddTravel, setShowAddTravel] = useState(false)
   const customSectionsRef = useRef<CustomSectionsHandle>(null)
@@ -105,6 +106,7 @@ export default function ClientDetailPage() {
         .filter(item => (form.familyClientIds || []).includes(item.id))
         .map(item => ({ relativeClientId: item.id, relativeClient: item }))
       setClient((prev: any) => ({ ...prev, ...updated, familyLinks: selectedFamilyLinks }))
+      setShowFamilyPicker(false)
       const customOk = await customSectionsRef.current?.save()
       if (customOk === false) alert('Не удалось сохранить дополнительные поля')
     } finally {
@@ -302,6 +304,7 @@ export default function ClientDetailPage() {
                           checked={!!form.hasFamilyClients}
                           onChange={e => {
                             set('hasFamilyClients', e.target.checked)
+                            setShowFamilyPicker(e.target.checked)
                             if (!e.target.checked) set('familyClientIds', [])
                           }}
                           style={{ width: 16, height: 16, accentColor: 'var(--brand)' }}
@@ -310,43 +313,6 @@ export default function ClientDetailPage() {
                       </label>
                       {form.hasFamilyClients && (
                         <div style={{ marginTop: 10 }}>
-                          <input
-                            className="input"
-                            value={familySearch}
-                            onChange={e => setFamilySearch(e.target.value)}
-                            placeholder="Поиск по имени, телефону или email..."
-                            style={{ marginBottom: 8 }}
-                          />
-                          <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', maxHeight: 180, overflowY: 'auto' }}>
-                            {filteredFamilyClients.length === 0 ? (
-                              <div style={{ padding: 12, fontSize: 12, color: 'var(--muted)' }}>
-                                Клиенты не найдены
-                              </div>
-                            ) : filteredFamilyClients.map(item => {
-                              const checked = familySelectedIds.includes(item.id)
-                              return (
-                                <label
-                                  key={item.id}
-                                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: checked ? 'rgba(37,99,235,0.06)' : 'transparent' }}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() => toggleFamilyClient(item.id)}
-                                    style={{ width: 16, height: 16, accentColor: 'var(--brand)' }}
-                                  />
-                                  <span style={{ fontSize: 13, fontWeight: 500 }}>
-                                    {item.firstName} {item.lastName}
-                                  </span>
-                                  {(item.phone || item.email) && (
-                                    <span style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      {item.phone || item.email}
-                                    </span>
-                                  )}
-                                </label>
-                              )
-                            })}
-                          </div>
                           {selectedFamilyClients.length > 0 && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
                               {selectedFamilyClients.map(item => (
@@ -358,6 +324,57 @@ export default function ClientDetailPage() {
                                   {item.firstName} {item.lastName}
                                 </Link>
                               ))}
+                            </div>
+                          )}
+                          {!showFamilyPicker && (
+                            <button type="button" onClick={() => setShowFamilyPicker(true)} className="btn btn-secondary" style={{ marginTop: 10, fontSize: 12 }}>
+                              Изменить состав семьи
+                            </button>
+                          )}
+                          {(showFamilyPicker || selectedFamilyClients.length === 0) && (
+                            <div style={{ marginTop: 10 }}>
+                              <input
+                                className="input"
+                                value={familySearch}
+                                onChange={e => setFamilySearch(e.target.value)}
+                                placeholder="Поиск по имени, телефону или email..."
+                                style={{ marginBottom: 8 }}
+                              />
+                              <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', maxHeight: 180, overflowY: 'auto' }}>
+                                {filteredFamilyClients.length === 0 ? (
+                                  <div style={{ padding: 12, fontSize: 12, color: 'var(--muted)' }}>
+                                    Клиенты не найдены
+                                  </div>
+                                ) : filteredFamilyClients.map(item => {
+                                  const checked = familySelectedIds.includes(item.id)
+                                  return (
+                                    <label
+                                      key={item.id}
+                                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: checked ? 'rgba(37,99,235,0.06)' : 'transparent' }}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() => toggleFamilyClient(item.id)}
+                                        style={{ width: 16, height: 16, accentColor: 'var(--brand)' }}
+                                      />
+                                      <span style={{ fontSize: 13, fontWeight: 500 }}>
+                                        {item.firstName} {item.lastName}
+                                      </span>
+                                      {(item.phone || item.email) && (
+                                        <span style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {item.phone || item.email}
+                                        </span>
+                                      )}
+                                    </label>
+                                  )
+                                })}
+                              </div>
+                              {selectedFamilyClients.length > 0 && (
+                                <button type="button" onClick={() => setShowFamilyPicker(false)} className="btn btn-secondary" style={{ marginTop: 10, fontSize: 12 }}>
+                                  Готово
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
