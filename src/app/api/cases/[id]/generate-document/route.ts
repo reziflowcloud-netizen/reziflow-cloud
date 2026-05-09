@@ -8,6 +8,57 @@ import { buildDocumentTemplateData, getTemplateLabel, safeGeneratedFileName } fr
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+function readPath(scope: any, path: string) {
+  return path.split('.').reduce((value, key) => {
+    if (value === null || value === undefined) return ''
+    return value[key]
+  }, scope)
+}
+
+function templateParser(tag: string) {
+  return {
+    get(scope: any) {
+      const value = readPath(scope, tag.trim())
+      return value === null || value === undefined ? '' : value
+    },
+  }
+}
+
+function parseTaskDescription(description: string | null | undefined) {
+  try { return JSON.parse(description || '{}') } catch { return {} }
+}
+
+function getTaskPaymentAmount(task: any, meta: any) {
+  if (meta.paymentPlan?.amount) return String(meta.paymentPlan.amount).replace(',', '.')
+  const match = String(task.title || '').match(/([\d.,]+)\s*z/i)
+  return match ? match[1].replace(',', '.') : ''
+}
+
+async function loadPlannedPayments(caseRecord: any, organizationId: string) {
+  const tasks = await prisma.task.findMany({
+    where: { organizationId, status: { not: 'done' } },
+    select: { id: true, title: true, description: true, dueDate: true, status: true },
+  })
+  const caseNumber = String(caseRecord.caseNumber || '')
+
+  return tasks
+    .map(task => ({ task, meta: parseTaskDescription(task.description) }))
+    .filter(({ task, meta }) => {
+      if (meta.paymentPlan?.caseId === caseRecord.id) return true
+      return !!caseNumber
+        && String(task.title || '').startsWith('Получить платеж')
+        && String(meta.reminderNote || '').includes(caseNumber)
+    })
+    .map(({ task, meta }) => ({
+      amount: getTaskPaymentAmount(task, meta),
+      dueDate: task.dueDate || meta.reminderAt || null,
+      note: meta.reminderNote || '',
+      index: meta.paymentPlan?.index || 0,
+    }))
+    .filter(payment => payment.amount)
+    .sort((a, b) => String(a.dueDate || '').localeCompare(String(b.dueDate || '')) || Number(a.index) - Number(b.index))
+}
+
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -32,15 +83,17 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 })
 
   try {
+    const plannedPayments = await loadPlannedPayments(caseRecord, organizationId)
     const zip = new PizZip(Buffer.from(template.content))
     const doc = new Docxtemplater(zip, {
       paragraphLoop: true,
       linebreaks: true,
       delimiters: { start: '{{', end: '}}' },
+      parser: templateParser,
       nullGetter: () => '',
     } as any)
 
-    doc.render(buildDocumentTemplateData(caseRecord))
+    doc.render(buildDocumentTemplateData(caseRecord, plannedPayments))
     const generated = doc.getZip().generate({
       type: 'nodebuffer',
       compression: 'DEFLATE',

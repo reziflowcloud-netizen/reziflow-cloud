@@ -22,7 +22,9 @@ export const DOCUMENT_TEMPLATE_VARIABLES = [
   '{{case.caseNumber}}',
   '{{case.status}}',
   '{{case.totalValue}}',
+  '{{case.totalValueNetto}}',
   '{{case.totalValueBrutto}}',
+  '{{case.totalValueVat}}',
   '{{case.totalPaid}}',
   '{{case.debt}}',
   '{{case.contractNumber}}',
@@ -33,6 +35,18 @@ export const DOCUMENT_TEMPLATE_VARIABLES = [
   '{{case.serviceName}}',
   '{{organization.name}}',
   '{{today}}',
+  '{{paymentPlan.count}}',
+  '{{paymentPlan.totalAmount}}',
+  '{{paymentPlan.totalAmountBrutto}}',
+  '{{plannedPayment1.amount}}',
+  '{{plannedPayment1.amountBrutto}}',
+  '{{plannedPayment1.dueDate}}',
+  '{{plannedPayment2.amount}}',
+  '{{plannedPayment2.amountBrutto}}',
+  '{{plannedPayment2.dueDate}}',
+  '{{plannedPayment3.amount}}',
+  '{{plannedPayment3.amountBrutto}}',
+  '{{plannedPayment3.dueDate}}',
 ]
 
 export function getTemplateLabel(type: string) {
@@ -53,11 +67,28 @@ function formatMoney(value: unknown) {
   return `${number.toFixed(2)} zł`
 }
 
-export function buildDocumentTemplateData(caseRecord: any) {
+function formatPlainMoney(value: unknown) {
+  const number = Number(value || 0)
+  return number.toFixed(2)
+}
+
+function plannedPaymentData(payment?: any) {
+  const amount = Number(payment?.amount || 0)
+  return {
+    amount: payment ? formatMoney(amount) : '',
+    amountNetto: payment ? formatPlainMoney(amount) : '',
+    amountBrutto: payment ? formatMoney(amount * 1.23) : '',
+    dueDate: payment ? formatDate(payment.dueDate) : '',
+    note: payment?.note || '',
+  }
+}
+
+export function buildDocumentTemplateData(caseRecord: any, plannedPayments: any[] = []) {
   const client = caseRecord.client || {}
   const organization = caseRecord.organization || {}
   const debt = Math.max(0, Number(caseRecord.totalValue || 0) - Number(caseRecord.totalPaid || 0))
   const totalValue = Number(caseRecord.totalValue || 0)
+  const plannedTotal = plannedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
 
   return {
     client: {
@@ -79,7 +110,9 @@ export function buildDocumentTemplateData(caseRecord: any) {
       caseNumber: caseRecord.caseNumber || '',
       status: caseRecord.status || '',
       totalValue: formatMoney(totalValue),
+      totalValueNetto: formatPlainMoney(totalValue),
       totalValueBrutto: formatMoney(totalValue * 1.23),
+      totalValueVat: formatMoney(totalValue * 0.23),
       totalPaid: formatMoney(caseRecord.totalPaid),
       debt: formatMoney(debt),
       contractNumber: caseRecord.contractNumber || '',
@@ -92,6 +125,16 @@ export function buildDocumentTemplateData(caseRecord: any) {
     organization: {
       name: organization.name || '',
     },
+    paymentPlan: {
+      count: String(plannedPayments.length),
+      totalAmount: formatMoney(plannedTotal),
+      totalAmountBrutto: formatMoney(plannedTotal * 1.23),
+    },
+    plannedPayment1: plannedPaymentData(plannedPayments[0]),
+    plannedPayment2: plannedPaymentData(plannedPayments[1]),
+    plannedPayment3: plannedPaymentData(plannedPayments[2]),
+    plannedPayment4: plannedPaymentData(plannedPayments[3]),
+    plannedPayment5: plannedPaymentData(plannedPayments[4]),
     today: formatDate(new Date()),
   }
 }
