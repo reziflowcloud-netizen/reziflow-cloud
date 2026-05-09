@@ -163,7 +163,17 @@ export default function ExportPage() {
                 Сначала файл только проверяется. Распознанные колонки попадут в клиента и дело, а неизвестные колонки автоматически создадут поля в деле в секции <strong>Импортированные данные</strong>.
               </div>
             </div>
-            <span style={{ fontSize: 28 }}>📥</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => doExport('import-template', 'ReziFlowCloud_import_template')}
+                disabled={loading === 'import-template'}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                {loading === 'import-template' ? 'Скачиваю...' : 'Скачать бланк CSV'}
+              </button>
+              <span style={{ fontSize: 28 }}>📥</span>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) auto auto', gap: 10, alignItems: 'center' }}>

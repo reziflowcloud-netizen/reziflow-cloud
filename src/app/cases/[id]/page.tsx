@@ -1232,7 +1232,7 @@ export default function CaseDetailPage() {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <input className="input" type="number" placeholder={`${t('amount')} (zł)`} value={payAmount} onChange={e => setPayAmount(e.target.value)} step="0.01" style={{ maxWidth: 150 }} />
                     <input className="input" placeholder={t('note')} value={payNote} onChange={e => setPayNote(e.target.value)} />
-                    <button onClick={addPayment} className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>+ {t('add')}</button>
+                    <button onClick={addPayment} className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>{t('add')}</button>
                   </div>
                 </div>
                 <div className="card" style={{ marginBottom: 16 }}>

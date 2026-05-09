@@ -38,6 +38,57 @@ export async function GET(request: NextRequest) {
 
     const type = request.nextUrl.searchParams.get('type') || 'all'
 
+    if (type === 'import-template') {
+      const headers = [
+        'first name',
+        'last name',
+        'phone',
+        'email',
+        'pesel',
+        'data urodzenia',
+        'obywatelstwo',
+        'adres w polsce',
+        'status sprawy',
+        'wartosc uslugi',
+        'oplata',
+        'notes',
+        'filing date',
+        'contract date',
+        'employer',
+        'position',
+        'passport number',
+        'import comment',
+      ]
+      const sample = [
+        'Ivan',
+        'Ivanov',
+        '+48111222333',
+        'ivan@example.com',
+        '12345678901',
+        '01.01.1990',
+        'Ukraine',
+        'Warszawa, ul. Przykladowa 1',
+        'New',
+        '2500',
+        '500',
+        'Sample row. Delete it before real import.',
+        '15.05.2026',
+        '10.05.2026',
+        'Example Sp. z o.o.',
+        'Pracownik',
+        'AB123456',
+        'Extra columns will be saved as custom case fields',
+      ]
+      const csv = '\uFEFF' + headers.map(esc).join(',') + '\n' + sample.map(esc).join(',') + '\n'
+
+      return new NextResponse(csv, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="ReziFlowCloud_import_template.csv"',
+        }
+      })
+    }
+
     if (type === 'all') {
       // Step 1: get all clients
       const clients = await prisma.client.findMany({ where: { organizationId }, orderBy: { lastName: 'asc' } })
