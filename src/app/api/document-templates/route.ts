@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
-import { DOCUMENT_TEMPLATE_TYPES, getTemplateLabel } from '@/lib/documentTemplates'
+import { DOCUMENT_TEMPLATE_TYPES } from '@/lib/documentTemplates'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -35,7 +35,7 @@ export async function GET() {
       createdAt: true,
       updatedAt: true,
     },
-    orderBy: { type: 'asc' },
+    orderBy: [{ type: 'asc' }, { name: 'asc' }],
   })
 
   return NextResponse.json({
@@ -54,9 +54,11 @@ export async function POST(request: NextRequest) {
   const organizationId = getOrganizationId(user)
   const formData = await request.formData()
   const type = String(formData.get('type') || '')
+  const name = String(formData.get('name') || '').trim()
   const file = formData.get('file')
 
   if (!isTemplateType(type)) return NextResponse.json({ error: 'Unknown template type' }, { status: 400 })
+  if (!name) return NextResponse.json({ error: 'Template name is required' }, { status: 400 })
   if (!(file instanceof File)) return NextResponse.json({ error: 'DOCX file is required' }, { status: 400 })
   if (!file.name.toLowerCase().endsWith('.docx')) {
     return NextResponse.json({ error: 'Upload a .docx file' }, { status: 400 })
@@ -67,18 +69,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Template is too large. Maximum size is 8 MB.' }, { status: 413 })
   }
 
-  const template = await (prisma as any).documentTemplate.upsert({
-    where: { organizationId_type: { organizationId, type } },
-    update: {
-      name: getTemplateLabel(type),
-      fileName: safeDocxFileName(file.name),
-      mimeType: file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      content: bytes,
-    },
-    create: {
+  const template = await (prisma as any).documentTemplate.create({
+    data: {
       organizationId,
       type,
-      name: getTemplateLabel(type),
+      name,
       fileName: safeDocxFileName(file.name),
       mimeType: file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       content: bytes,

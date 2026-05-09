@@ -19,13 +19,18 @@ type Template = {
 export default function DocumentTemplatesPage() {
   const [types, setTypes] = useState<TemplateType[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
-  const [files, setFiles] = useState<Record<string, File | null>>({})
+  const [selectedType, setSelectedType] = useState('client_contract')
+  const [name, setName] = useState('')
+  const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   const templatesByType = useMemo(() => {
-    return Object.fromEntries(templates.map(template => [template.type, template]))
-  }, [templates])
+    return types.map(type => ({
+      ...type,
+      templates: templates.filter(template => template.type === type.type),
+    }))
+  }, [templates, types])
 
   async function loadTemplates() {
     setError('')
@@ -37,20 +42,21 @@ export default function DocumentTemplatesPage() {
     }
     setTypes(data.types || [])
     setTemplates(data.templates || [])
+    if (!selectedType && data.types?.[0]?.type) setSelectedType(data.types[0].type)
   }
 
   useEffect(() => {
     loadTemplates()
   }, [])
 
-  async function uploadTemplate(type: string) {
-    const file = files[type]
-    if (!file) return
-    setLoading(type)
+  async function uploadTemplate() {
+    if (!file || !name.trim()) return
+    setLoading('upload')
     setError('')
     try {
       const formData = new FormData()
-      formData.append('type', type)
+      formData.append('type', selectedType)
+      formData.append('name', name.trim())
       formData.append('file', file)
       const res = await fetch('/api/document-templates', { method: 'POST', body: formData })
       const data = await res.json()
@@ -58,7 +64,8 @@ export default function DocumentTemplatesPage() {
         setError(data.error || 'Не удалось сохранить шаблон')
         return
       }
-      setFiles(current => ({ ...current, [type]: null }))
+      setName('')
+      setFile(null)
       await loadTemplates()
     } finally {
       setLoading(null)
@@ -87,7 +94,7 @@ export default function DocumentTemplatesPage() {
       <div className="page-header">
         <div>
           <div className="page-title">Шаблоны документов</div>
-          <div className="page-subtitle">Загрузите DOCX-бланки организации для автоматического заполнения из дела клиента</div>
+          <div className="page-subtitle">Добавляйте несколько DOCX-бланков договоров, доверенностей и других документов для одной организации</div>
         </div>
       </div>
 
@@ -98,51 +105,80 @@ export default function DocumentTemplatesPage() {
           </div>
         )}
 
-        <div style={{ display: 'grid', gap: 16, maxWidth: 900 }}>
-          {types.map(item => {
-            const template = templatesByType[item.type]
-            return (
-              <div key={item.type} className="card">
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 14 }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 17 }}>{item.label}</div>
-                    <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-                      {template ? `Загружен файл: ${template.fileName}` : 'Шаблон пока не загружен'}
-                    </div>
-                  </div>
-                  {template && (
-                    <button
-                      className="btn btn-danger"
-                      onClick={() => deleteTemplate(template)}
-                      disabled={loading === `delete-${template.id}`}
-                    >
-                      Удалить
-                    </button>
-                  )}
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) auto', gap: 10, alignItems: 'center' }}>
-                  <input
-                    type="file"
-                    accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    onChange={event => setFiles(current => ({ ...current, [item.type]: event.target.files?.[0] || null }))}
-                  />
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => uploadTemplate(item.type)}
-                    disabled={!files[item.type] || loading === item.type}
-                  >
-                    {loading === item.type ? 'Сохраняю...' : template ? 'Заменить шаблон' : 'Загрузить шаблон'}
-                  </button>
-                </div>
+        <div style={{ display: 'grid', gap: 16, maxWidth: 980 }}>
+          <div className="card">
+            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 12 }}>Добавить шаблон</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '220px minmax(220px, 1fr)', gap: 10, marginBottom: 10 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="label">Тип документа</label>
+                <select className="select" value={selectedType} onChange={event => setSelectedType(event.target.value)}>
+                  {types.map(type => <option key={type.type} value={type.type}>{type.label}</option>)}
+                </select>
               </div>
-            )
-          })}
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="label">Название</label>
+                <input
+                  className="input"
+                  value={name}
+                  onChange={event => setName(event.target.value)}
+                  placeholder="Например: Umowa - Pakiet Podstawowy"
+                />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) auto', gap: 10, alignItems: 'center' }}>
+              <input
+                key={file ? file.name : 'empty'}
+                type="file"
+                accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                onChange={event => setFile(event.target.files?.[0] || null)}
+              />
+              <button
+                className="btn btn-primary"
+                onClick={uploadTemplate}
+                disabled={!file || !name.trim() || loading === 'upload'}
+              >
+                {loading === 'upload' ? 'Сохраняю...' : 'Добавить шаблон'}
+              </button>
+            </div>
+          </div>
+
+          {templatesByType.map(group => (
+            <div key={group.type} className="card">
+              <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 10 }}>{group.label}</div>
+              {group.templates.length === 0 ? (
+                <div style={{ color: 'var(--muted)', fontSize: 13 }}>Шаблонов этого типа пока нет</div>
+              ) : (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {group.templates.map(template => (
+                    <div
+                      key={template.id}
+                      style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) minmax(180px, 1fr) auto', gap: 10, alignItems: 'center', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{template.name}</div>
+                        <div style={{ color: 'var(--muted)', fontSize: 12 }}>Обновлён: {new Date(template.updatedAt).toLocaleDateString('ru')}</div>
+                      </div>
+                      <div style={{ color: 'var(--muted)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={template.fileName}>
+                        {template.fileName}
+                      </div>
+                      <button
+                        className="btn btn-danger"
+                        onClick={() => deleteTemplate(template)}
+                        disabled={loading === `delete-${template.id}`}
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
 
           <div className="card">
             <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 8 }}>Переменные для Word</div>
             <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 12 }}>
-              Вставьте нужные переменные прямо в текст договора. При генерации система заменит их на данные клиента и дела.
+              Вставьте нужные переменные прямо в текст договора. При генерации система заменит их на данные клиента, дела и плана платежей.
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {DOCUMENT_TEMPLATE_VARIABLES.map(variable => (

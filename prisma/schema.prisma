@@ -62,8 +62,8 @@ model DocumentTemplate {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  @@unique([organizationId, type])
   @@index([organizationId])
+  @@index([organizationId, type])
 }
 
 model UiSectionSetting {
