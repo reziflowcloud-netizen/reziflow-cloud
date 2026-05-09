@@ -43,6 +43,12 @@ export default function SettingsPage() {
       desc: 'Показывать или скрывать блоки в карточке клиента и деле',
     },
     {
+      href: '/settings/document-templates',
+      icon: '📄',
+      title: 'Шаблоны документов',
+      desc: 'DOCX-бланки договоров и доверенностей для автоматического заполнения',
+    },
+    {
       href: '/settings/organizations',
       icon: '🏢',
       title: 'Организации',

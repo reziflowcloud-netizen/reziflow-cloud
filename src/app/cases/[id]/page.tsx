@@ -21,6 +21,7 @@ export default function CaseDetailPage() {
   const [customDates, setCustomDates] = useState<any[]>([])
   const [docUpdates, setDocUpdates] = useState<any[]>([])
   const [documents, setDocuments] = useState<any[]>([])
+  const [documentTemplates, setDocumentTemplates] = useState<any[]>([])
   const [mosDocuments, setMosDocuments] = useState<any[]>([])
   const [caseTasks, setCaseTasks] = useState<any[]>([])
   const [tab, setTab] = useState('details')
@@ -45,6 +46,7 @@ export default function CaseDetailPage() {
   const [comment, setComment] = useState('')
   const [form, setForm] = useState<any>({})
   const [uploading, setUploading] = useState(false)
+  const [generatingTemplate, setGeneratingTemplate] = useState<number | null>(null)
   const [previewDoc, setPreviewDoc] = useState<any>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const customSectionsRef = useRef<CustomSectionsHandle>(null)
@@ -108,6 +110,7 @@ export default function CaseDetailPage() {
     fetch('/api/services').then(r => r.json()).then(d => setServices(Array.isArray(d) ? d.filter((s: any) => s.active) : []))
     fetch('/api/employees').then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d.filter((e: any) => e.active) : []))
     fetch('/api/case-options').then(r => r.json()).then(d => setCaseOptions(Array.isArray(d) ? d : []))
+    fetch('/api/document-templates').then(r => r.json()).then(d => setDocumentTemplates(Array.isArray(d.templates) ? d.templates : [])).catch(() => setDocumentTemplates([]))
   }, [id])
 
   function optionsByType(type: string) {
@@ -745,6 +748,32 @@ export default function CaseDetailPage() {
     setDocuments(p => p.filter((d: any) => d.id !== docId))
   }
 
+  async function generateDocument(template: any) {
+    setGeneratingTemplate(template.id)
+    try {
+      const res = await fetch(`/api/cases/${id}/generate-document?templateId=${template.id}`)
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || 'Не удалось сформировать документ')
+        return
+      }
+      const blob = await res.blob()
+      const disposition = res.headers.get('content-disposition') || ''
+      const match = disposition.match(/filename\*=UTF-8''([^;]+)/)
+      const fileName = match ? decodeURIComponent(match[1]) : `${template.name}.docx`
+      const blobUrl = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(blobUrl)
+    } finally {
+      setGeneratingTemplate(null)
+    }
+  }
+
   async function downloadFile(url: string, name: string) {
     try {
       const res = await fetch(url)
@@ -1350,6 +1379,27 @@ export default function CaseDetailPage() {
               <div>
                 <div className="card" style={{ borderRadius: '0 0 10px 10px', marginBottom: 16 }}>
                   <div className="section-title"><span>📁</span>{t('client_documents')}</div>
+                  <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 16, background: 'var(--bg)' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Сформировать документ</div>
+                    {documentTemplates.length === 0 ? (
+                      <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+                        Сначала загрузите DOCX-шаблон в настройках: <Link href="/settings/document-templates" style={{ color: 'var(--brand)', fontWeight: 600 }}>Шаблоны документов</Link>.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {documentTemplates.map((template: any) => (
+                          <button
+                            key={template.id}
+                            className="btn btn-secondary"
+                            onClick={() => generateDocument(template)}
+                            disabled={generatingTemplate === template.id}
+                          >
+                            {generatingTemplate === template.id ? 'Формирую...' : template.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
                     <input ref={fileInputRef} type="file" accept="image/*,.pdf" multiple style={{ display: 'none' }}
                       onChange={async e => { for (const f of Array.from(e.target.files || [])) await uploadFile(f); if (fileInputRef.current) fileInputRef.current.value = '' }} />

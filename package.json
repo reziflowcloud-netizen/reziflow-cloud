@@ -19,7 +19,9 @@
     "@prisma/client": "^5.13.0",
     "prisma": "^5.13.0",
     "bcryptjs": "^2.4.3",
-    "jose": "^5.2.4"
+    "jose": "^5.2.4",
+    "docxtemplater": "^3.68.7",
+    "pizzip": "^3.2.0"
   },
   "devDependencies": {
     "typescript": "^5",
