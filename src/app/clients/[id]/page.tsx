@@ -40,6 +40,7 @@ export default function ClientDetailPage() {
   const [travelHistory, setTravelHistory] = useState<any[]>([])
   const [availableClients, setAvailableClients] = useState<any[]>([])
   const [currentUser, setCurrentUser] = useState<any>(null)
+  const [familySearch, setFamilySearch] = useState('')
   const [newTravel, setNewTravel] = useState({ country: '', entryDate: '', exitDate: '' })
   const [showAddTravel, setShowAddTravel] = useState(false)
   const customSectionsRef = useRef<CustomSectionsHandle>(null)
@@ -145,7 +146,19 @@ export default function ClientDetailPage() {
   const closedCases = cases.filter((c: any) => !['В работе','Ожидание документов','Новый'].includes(c.status))
 
   const canDeleteClient = currentUser?.role === 'admin' || currentUser?.role === 'owner'
-  const selectedFamilyClients = availableClients.filter(item => (form.familyClientIds || []).includes(item.id))
+  const familySelectedIds = form.familyClientIds || []
+  const selectedFamilyClients = availableClients.filter(item => familySelectedIds.includes(item.id))
+  const filteredFamilyClients = availableClients.filter(item => {
+    const text = `${item.firstName || ''} ${item.lastName || ''} ${item.phone || ''} ${item.email || ''}`.toLowerCase()
+    return text.includes(familySearch.trim().toLowerCase())
+  })
+
+  function toggleFamilyClient(clientId: string) {
+    const selected = familySelectedIds.includes(clientId)
+      ? familySelectedIds.filter((item: string) => item !== clientId)
+      : [...familySelectedIds, clientId]
+    set('familyClientIds', selected)
+  }
 
   // Helpers
   return (
@@ -297,17 +310,43 @@ export default function ClientDetailPage() {
                       </label>
                       {form.hasFamilyClients && (
                         <div style={{ marginTop: 10 }}>
-                          <select
-                            className="select"
-                            multiple
-                            value={form.familyClientIds || []}
-                            onChange={e => set('familyClientIds', Array.from(e.target.selectedOptions).map(option => option.value))}
-                            style={{ minHeight: 96 }}
-                          >
-                            {availableClients.map(item => (
-                              <option key={item.id} value={item.id}>{item.firstName} {item.lastName}{item.phone ? ` · ${item.phone}` : ''}</option>
-                            ))}
-                          </select>
+                          <input
+                            className="input"
+                            value={familySearch}
+                            onChange={e => setFamilySearch(e.target.value)}
+                            placeholder="Поиск по имени, телефону или email..."
+                            style={{ marginBottom: 8 }}
+                          />
+                          <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', maxHeight: 180, overflowY: 'auto' }}>
+                            {filteredFamilyClients.length === 0 ? (
+                              <div style={{ padding: 12, fontSize: 12, color: 'var(--muted)' }}>
+                                Клиенты не найдены
+                              </div>
+                            ) : filteredFamilyClients.map(item => {
+                              const checked = familySelectedIds.includes(item.id)
+                              return (
+                                <label
+                                  key={item.id}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: checked ? 'rgba(37,99,235,0.06)' : 'transparent' }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleFamilyClient(item.id)}
+                                    style={{ width: 16, height: 16, accentColor: 'var(--brand)' }}
+                                  />
+                                  <span style={{ fontSize: 13, fontWeight: 500 }}>
+                                    {item.firstName} {item.lastName}
+                                  </span>
+                                  {(item.phone || item.email) && (
+                                    <span style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {item.phone || item.email}
+                                    </span>
+                                  )}
+                                </label>
+                              )
+                            })}
+                          </div>
                           {selectedFamilyClients.length > 0 && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
                               {selectedFamilyClients.map(item => (
