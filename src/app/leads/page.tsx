@@ -17,6 +17,8 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   'Переведён в клиента': { bg: '#f3f4f6', color: '#374151' },
 }
 
+type QuickFilter = 'all' | 'today' | 'overdue' | 'unassigned' | 'no_next_contact'
+
 function initials(lead: any) {
   return leadDisplayName(lead).slice(0, 2).toUpperCase()
 }
@@ -49,6 +51,16 @@ function isConvertedLead(lead: any) {
   return Boolean(lead.convertedClientId) || value.includes('клиент') || value.includes('client') || value.includes('klient')
 }
 
+function isToday(value?: string) {
+  return Boolean(value) && dateKey(value as string) === dateKey(new Date())
+}
+
+function isOverdue(value?: string) {
+  if (!value) return false
+  const date = new Date(value)
+  return !Number.isNaN(date.getTime()) && date.getTime() < Date.now()
+}
+
 export default function LeadsPage() {
   const router = useRouter()
   const { lang } = useLanguage()
@@ -59,6 +71,10 @@ export default function LeadsPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [source, setSource] = useState('')
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all')
+  const [users, setUsers] = useState<any[]>([])
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
+  const [bulkSaving, setBulkSaving] = useState(false)
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
   const [editingStatuses, setEditingStatuses] = useState(false)
   const [newStatusName, setNewStatusName] = useState('')
@@ -101,6 +117,9 @@ export default function LeadsPage() {
     fetch('/api/lead-statuses', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => setLeadStatuses(Array.isArray(data) ? data : []))
+    fetch('/api/users')
+      .then(res => res.json())
+      .then(data => setUsers(Array.isArray(data) ? data : []))
   }, [])
 
   const filtered = useMemo(() => {
@@ -109,7 +128,15 @@ export default function LeadsPage() {
       const index = statusNames.indexOf(lead.status)
       return index === -1 ? 999 : index
     }
-    const byFilters = leads.filter(lead => (!status || lead.status === status) && (!source || lead.source === source))
+    const byFilters = leads.filter(lead => {
+      if (status && lead.status !== status) return false
+      if (source && lead.source !== source) return false
+      if (quickFilter === 'today') return isToday(lead.nextContactAt) && !isConvertedLead(lead)
+      if (quickFilter === 'overdue') return isOverdue(lead.nextContactAt) && !isConvertedLead(lead)
+      if (quickFilter === 'unassigned') return !lead.assignedToId && !isConvertedLead(lead)
+      if (quickFilter === 'no_next_contact') return !lead.nextContactAt && !isConvertedLead(lead)
+      return true
+    })
     const searched = q ? byFilters.filter(lead => [
       leadDisplayName(lead),
       lead.phone,
@@ -122,7 +149,22 @@ export default function LeadsPage() {
       lead.notes,
     ].filter(Boolean).join(' ').toLowerCase().includes(q)) : byFilters
     return [...searched].sort((a, b) => rank(a) - rank(b) || new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
-  }, [leads, search, status, source, statusNames.join('|')])
+  }, [leads, search, status, source, quickFilter, statusNames.join('|')])
+
+  const visibleLeadIds = useMemo(() => filtered.map(lead => lead.id), [filtered])
+  const allVisibleSelected = visibleLeadIds.length > 0 && visibleLeadIds.every(id => selectedLeadIds.includes(id))
+
+  const quickCounts = useMemo(() => ({
+    all: leads.length,
+    today: leads.filter(lead => isToday(lead.nextContactAt) && !isConvertedLead(lead)).length,
+    overdue: leads.filter(lead => isOverdue(lead.nextContactAt) && !isConvertedLead(lead)).length,
+    unassigned: leads.filter(lead => !lead.assignedToId && !isConvertedLead(lead)).length,
+    no_next_contact: leads.filter(lead => !lead.nextContactAt && !isConvertedLead(lead)).length,
+  }), [leads])
+
+  useEffect(() => {
+    setSelectedLeadIds(current => current.filter(id => leads.some(lead => lead.id === id)))
+  }, [leads])
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -189,6 +231,57 @@ export default function LeadsPage() {
       body: JSON.stringify({ status: nextStatus }),
     })
     if (!res.ok) setLeads(previousLeads)
+  }
+
+  function toggleLeadSelection(id: string) {
+    setSelectedLeadIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
+  }
+
+  function toggleVisibleSelection() {
+    setSelectedLeadIds(current => {
+      if (allVisibleSelected) return current.filter(id => !visibleLeadIds.includes(id))
+      return Array.from(new Set([...current, ...visibleLeadIds]))
+    })
+  }
+
+  async function bulkPatch(patch: any) {
+    if (selectedLeadIds.length === 0) return
+    const previousLeads = leads
+    setBulkSaving(true)
+    setLeads(current => current.map(lead => selectedLeadIds.includes(lead.id) ? { ...lead, ...patch } : lead))
+    try {
+      const results = await Promise.all(selectedLeadIds.map(id => fetch(`/api/leads/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      })))
+      if (results.some(res => !res.ok)) {
+        setLeads(previousLeads)
+        return
+      }
+      await loadLeads()
+      setSelectedLeadIds([])
+    } finally {
+      setBulkSaving(false)
+    }
+  }
+
+  async function bulkDelete() {
+    if (selectedLeadIds.length === 0 || !confirm(lt('bulk_delete_confirm'))) return
+    const previousLeads = leads
+    setBulkSaving(true)
+    setLeads(current => current.filter(lead => !selectedLeadIds.includes(lead.id)))
+    try {
+      const results = await Promise.all(selectedLeadIds.map(id => fetch(`/api/leads/${id}`, { method: 'DELETE' })))
+      if (results.some(res => !res.ok)) {
+        setLeads(previousLeads)
+        return
+      }
+      setSelectedLeadIds([])
+      await loadLeads()
+    } finally {
+      setBulkSaving(false)
+    }
   }
 
   function droppedOnStatus(nextStatus: string) {
@@ -397,6 +490,26 @@ export default function LeadsPage() {
           )}
         </div>
 
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          {([
+            ['all', 'quick_all'],
+            ['today', 'quick_today'],
+            ['overdue', 'quick_overdue'],
+            ['unassigned', 'quick_unassigned'],
+            ['no_next_contact', 'quick_no_next_contact'],
+          ] as Array<[QuickFilter, string]>).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={quickFilter === key ? 'btn btn-primary' : 'btn btn-secondary'}
+              onClick={() => setQuickFilter(key)}
+              style={{ padding: '7px 10px' }}
+            >
+              {lt(label)} <span style={{ opacity: 0.78 }}>({quickCounts[key]})</span>
+            </button>
+          ))}
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 190px 190px auto', gap: 10, marginBottom: 16 }}>
           <input className="input" placeholder={`🔍 ${lt('search_placeholder')}`} value={search} onChange={e => setSearch(e.target.value)} />
           <select className="select" value={status} onChange={e => setStatus(e.target.value)}>
@@ -413,6 +526,29 @@ export default function LeadsPage() {
           </div>
         </div>
 
+        {selectedLeadIds.length > 0 && (
+          <div className="card" style={{ marginBottom: 16, padding: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(160px, 1fr) minmax(170px, 1fr) minmax(160px, 1fr) auto auto', gap: 8, alignItems: 'center' }}>
+              <strong>{lt('selected_count')}: {selectedLeadIds.length}</strong>
+              <select className="select" defaultValue="" disabled={bulkSaving} onChange={event => event.target.value && bulkPatch({ status: event.target.value })}>
+                <option value="">{lt('bulk_status')}</option>
+                {statusNames.map(item => <option key={item} value={item}>{leadStatusLabel(lang, item)}</option>)}
+              </select>
+              <select className="select" defaultValue="" disabled={bulkSaving} onChange={event => event.target.value && bulkPatch({ assignedToId: event.target.value === '__none' ? '' : event.target.value })}>
+                <option value="">{lt('bulk_responsible')}</option>
+                <option value="__none">{lt('not_assigned')}</option>
+                {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+              </select>
+              <select className="select" defaultValue="" disabled={bulkSaving} onChange={event => event.target.value && bulkPatch({ source: event.target.value })}>
+                <option value="">{lt('bulk_source')}</option>
+                {LEAD_SOURCES.map(item => <option key={item.value} value={item.value}>{leadSourceLabel(lang, item.value)}</option>)}
+              </select>
+              <button type="button" className="btn btn-secondary" disabled={bulkSaving} onClick={() => setSelectedLeadIds([])}>{lt('clear_selection')}</button>
+              <button type="button" className="btn btn-danger" disabled={bulkSaving} onClick={bulkDelete}>{bulkSaving ? lt('processing') : lt('bulk_delete')}</button>
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 340px)', gap: 16, alignItems: 'start' }}>
           {viewMode === 'table' ? (
           <div className="table-container">
@@ -420,6 +556,15 @@ export default function LeadsPage() {
               <table className="table">
                 <thead>
                   <tr>
+                    <th style={{ width: 42 }}>
+                      <input
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        onChange={toggleVisibleSelection}
+                        onClick={event => event.stopPropagation()}
+                        aria-label={lt('selected_count')}
+                      />
+                    </th>
                     <th>{lt('lead')}</th>
                     <th>{lt('status')}</th>
                     <th>{lt('source')}</th>
@@ -430,17 +575,27 @@ export default function LeadsPage() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>{lt('loading')}</td></tr>
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>{lt('loading')}</td></tr>
                   ) : filtered.length === 0 ? (
-                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
                       <div style={{ fontSize: 32, marginBottom: 8 }}>◎</div>
                       <div>{search || status || source ? lt('leads_not_found') : lt('no_leads')}</div>
                       {!search && !status && !source && <Link href="/leads/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>{lt('add_first_lead')}</Link>}
                     </td></tr>
                   ) : filtered.map(lead => {
                     const colors = statusColors(statusByName[lead.status])
+                    const overdue = isOverdue(lead.nextContactAt) && !isConvertedLead(lead)
+                    const dueToday = isToday(lead.nextContactAt) && !isConvertedLead(lead)
                     return (
-                      <tr key={lead.id} onClick={() => router.push(`/leads/${lead.id}`)} style={{ cursor: 'pointer' }}>
+                      <tr key={lead.id} onClick={() => router.push(`/leads/${lead.id}`)} style={{ cursor: 'pointer', background: overdue ? '#fef2f2' : undefined }}>
+                        <td onClick={event => event.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedLeadIds.includes(lead.id)}
+                            onChange={() => toggleLeadSelection(lead.id)}
+                            aria-label={leadDisplayName(lead)}
+                          />
+                        </td>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <div className="avatar" style={{ width: 32, height: 32, fontSize: 12 }}>{initials(lead)}</div>
@@ -465,7 +620,14 @@ export default function LeadsPage() {
                         <td style={{ fontSize: 13 }}>
                           {lead.nextContactAt ? (
                             <div>
-                              <div>{formatLeadDateTime(lead.nextContactAt, locale)}</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <span>{formatLeadDateTime(lead.nextContactAt, locale)}</span>
+                                {(overdue || dueToday) && (
+                                  <span className="badge" style={{ background: overdue ? '#fee2e2' : '#fef3c7', color: overdue ? '#b91c1c' : '#92400e' }}>
+                                    {overdue ? lt('overdue') : lt('due_today')}
+                                  </span>
+                                )}
+                              </div>
                               {lead.nextContactNote && <div style={{ color: 'var(--muted)', marginTop: 2 }}>{lead.nextContactNote}</div>}
                             </div>
                           ) : lt('no_value')}
@@ -505,9 +667,15 @@ export default function LeadsPage() {
                             onDragStart={() => setDraggingLeadId(lead.id)}
                             onDragEnd={() => setDraggingLeadId(null)}
                             onClick={() => router.push(`/leads/${lead.id}`)}
-                            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, cursor: 'grab', boxShadow: 'var(--shadow-sm)' }}
+                            style={{ background: isOverdue(lead.nextContactAt) && !isConvertedLead(lead) ? '#fef2f2' : 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, cursor: 'grab', boxShadow: 'var(--shadow-sm)' }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedLeadIds.includes(lead.id)}
+                                onChange={() => toggleLeadSelection(lead.id)}
+                                onClick={event => event.stopPropagation()}
+                              />
                               <div className="avatar" style={{ width: 30, height: 30, fontSize: 11 }}>{initials(lead)}</div>
                               <div style={{ minWidth: 0 }}>
                                 <div style={{ fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{leadDisplayName(lead)}</div>
@@ -515,7 +683,11 @@ export default function LeadsPage() {
                               </div>
                             </div>
                             {lead.serviceInterest && <div style={{ fontSize: 12, marginBottom: 6 }}>{lead.serviceInterest}</div>}
-                            {lead.nextContactAt && <div style={{ color: 'var(--muted)', fontSize: 12 }}>{formatLeadDateTime(lead.nextContactAt, locale)}</div>}
+                            {lead.nextContactAt && (
+                              <div style={{ color: isOverdue(lead.nextContactAt) && !isConvertedLead(lead) ? '#b91c1c' : 'var(--muted)', fontSize: 12, fontWeight: isOverdue(lead.nextContactAt) && !isConvertedLead(lead) ? 800 : 500 }}>
+                                {formatLeadDateTime(lead.nextContactAt, locale)}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
