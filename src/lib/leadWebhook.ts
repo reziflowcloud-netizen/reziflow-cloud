@@ -29,3 +29,12 @@ export function keyMatches(expected: string, received: string) {
   return timingSafeEqual(expectedBuffer, receivedBuffer)
 }
 
+export function sanitizeLeadWebhookPayload(value: unknown) {
+  const raw = settingsObject(value)
+  const blocked = new Set(['key', 'apiKey', 'token', 'password', 'secret', 'authorization'])
+  return Object.fromEntries(
+    Object.entries(raw)
+      .filter(([key]) => !blocked.has(key))
+      .map(([key, item]) => [key, typeof item === 'string' && item.length > 1000 ? `${item.slice(0, 1000)}...` : item])
+  )
+}

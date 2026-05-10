@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeLeadBody } from '@/lib/leads'
-import { getLeadWebhookSettings, keyMatches } from '@/lib/leadWebhook'
+import { getLeadWebhookSettings, keyMatches, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +19,7 @@ function appendPayloadNote(notes: string | null, payload: any) {
 
 export async function POST(request: NextRequest, { params }: { params: { slug: string } }) {
   const body = await request.json().catch(() => ({}))
+  const safePayload = sanitizeLeadWebhookPayload(body)
   const organization = await prisma.organization.findUnique({
     where: { slug: params.slug },
     select: { id: true, settings: true },
@@ -28,11 +29,29 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
 
   const settings = getLeadWebhookSettings(organization.settings)
   if (settings.leadWebhookEnabled === false) {
+    await (prisma as any).leadWebhookLog.create({
+      data: {
+        organizationId: organization.id,
+        status: 'rejected',
+        source: body?.source || null,
+        payload: safePayload,
+        error: 'Lead webhook is disabled',
+      },
+    })
     return NextResponse.json({ error: 'Lead webhook is disabled' }, { status: 403 })
   }
 
   const receivedKey = readWebhookKey(request, body)
   if (!keyMatches(settings.leadWebhookKey || '', receivedKey)) {
+    await (prisma as any).leadWebhookLog.create({
+      data: {
+        organizationId: organization.id,
+        status: 'rejected',
+        source: body?.source || null,
+        payload: safePayload,
+        error: 'Invalid webhook key',
+      },
+    })
     return NextResponse.json({ error: 'Invalid webhook key' }, { status: 401 })
   }
 
@@ -42,20 +61,40 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
   })
 
   if (!data.fullName && !data.phone && !data.email && !data.instagram && !data.facebook) {
+    await (prisma as any).leadWebhookLog.create({
+      data: {
+        organizationId: organization.id,
+        status: 'failed',
+        source: data.source || null,
+        payload: safePayload,
+        error: 'Provide firstName, lastName, fullName, phone, email, Instagram or Facebook',
+      },
+    })
     return NextResponse.json({ error: 'Provide firstName, lastName, fullName, phone, email, Instagram or Facebook' }, { status: 400 })
   }
 
-  const lead = await (prisma as any).lead.create({
-    data: {
-      organizationId: organization.id,
-      ...data,
-      notes: appendPayloadNote(data.notes, body),
-    },
-    include: {
-      assignedTo: { select: { id: true, name: true } },
-    },
+  const lead = await (prisma as any).$transaction(async (tx: any) => {
+    const created = await tx.lead.create({
+      data: {
+        organizationId: organization.id,
+        ...data,
+        notes: appendPayloadNote(data.notes, body),
+      },
+      include: {
+        assignedTo: { select: { id: true, name: true } },
+      },
+    })
+    await tx.leadWebhookLog.create({
+      data: {
+        organizationId: organization.id,
+        leadId: created.id,
+        status: 'created',
+        source: data.source || null,
+        payload: safePayload,
+      },
+    })
+    return created
   })
 
   return NextResponse.json({ ok: true, leadId: lead.id, lead }, { status: 201 })
 }
-

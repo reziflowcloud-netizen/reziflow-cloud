@@ -8,6 +8,23 @@ type WebhookSettings = {
   key: string
 }
 
+type WebhookLog = {
+  id: number
+  status: string
+  source?: string | null
+  error?: string | null
+  payload?: Record<string, unknown> | null
+  createdAt: string
+  lead?: {
+    id: string
+    firstName?: string | null
+    lastName?: string | null
+    fullName?: string | null
+    phone?: string | null
+    email?: string | null
+  } | null
+}
+
 const samplePayload = `{
   "firstName": "Ivan",
   "lastName": "Ivanov",
@@ -25,6 +42,8 @@ export default function IntegrationsPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [showKey, setShowKey] = useState(false)
+  const [logs, setLogs] = useState<WebhookLog[]>([])
+  const [logsLoading, setLogsLoading] = useState(false)
 
   const webhookUrl = useMemo(() => {
     if (!settings || typeof window === 'undefined') return ''
@@ -33,6 +52,7 @@ export default function IntegrationsPage() {
 
   useEffect(() => {
     loadSettings()
+    loadLogs()
   }, [])
 
   async function loadSettings() {
@@ -73,6 +93,22 @@ export default function IntegrationsPage() {
 
   async function copy(text: string) {
     await navigator.clipboard.writeText(text)
+  }
+
+  async function loadLogs() {
+    setLogsLoading(true)
+    try {
+      const res = await fetch('/api/lead-webhook-logs', { cache: 'no-store' })
+      const data = await res.json()
+      if (res.ok) setLogs(Array.isArray(data) ? data : [])
+    } finally {
+      setLogsLoading(false)
+    }
+  }
+
+  function leadName(lead: WebhookLog['lead']) {
+    if (!lead) return ''
+    return lead.fullName || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.phone || lead.email || 'Лид'
   }
 
   const maskedKey = settings?.key ? `${settings.key.slice(0, 8)}••••••••••••${settings.key.slice(-6)}` : ''
@@ -153,8 +189,62 @@ ${samplePayload}`}
             </div>
           </div>
         ) : null}
+
+        {!loading && (
+          <div className="card" style={{ marginTop: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <div>
+                <div className="section-title" style={{ marginBottom: 4 }}><span>📥</span>Журнал входящих заявок</div>
+                <div style={{ color: 'var(--muted)', fontSize: 13 }}>Последние 50 запросов из внешних форм и сервисов</div>
+              </div>
+              <button type="button" className="btn btn-secondary" onClick={loadLogs} disabled={logsLoading}>
+                {logsLoading ? 'Обновляю...' : 'Обновить'}
+              </button>
+            </div>
+
+            {logs.length === 0 ? (
+              <div style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>Входящих заявок пока нет</div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Дата</th>
+                      <th>Статус</th>
+                      <th>Источник</th>
+                      <th>Лид</th>
+                      <th>Payload / ошибка</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {logs.map(log => {
+                      const isCreated = log.status === 'created'
+                      const payload = log.payload ? Object.entries(log.payload).slice(0, 4).map(([key, value]) => `${key}: ${String(value)}`).join(', ') : ''
+                      return (
+                        <tr key={log.id}>
+                          <td style={{ fontSize: 13 }}>{new Date(log.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                          <td>
+                            <span style={{ display: 'inline-flex', borderRadius: 999, padding: '4px 8px', fontSize: 12, fontWeight: 800, background: isCreated ? '#dcfce7' : '#fee2e2', color: isCreated ? '#166534' : '#991b1b' }}>
+                              {isCreated ? 'Создан' : log.status === 'failed' ? 'Ошибка' : 'Отклонен'}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: 13 }}>{log.source || '—'}</td>
+                          <td style={{ fontSize: 13 }}>
+                            {log.lead ? <a href={`/leads/${log.lead.id}`}>{leadName(log.lead)}</a> : '—'}
+                          </td>
+                          <td style={{ fontSize: 12, color: log.error ? '#991b1b' : 'var(--muted)', maxWidth: 520 }}>
+                            {log.error || payload || '—'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
 }
-
