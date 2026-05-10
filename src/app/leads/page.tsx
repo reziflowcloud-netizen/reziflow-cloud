@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, leadDisplayName } from '@/lib/leads'
+import { useLanguage } from '@/context/LanguageContext'
+import { LEAD_LOCALES, LEAD_WEEKDAYS, leadSourceLabel, leadStatusLabel, leadText } from '@/lib/leadI18n'
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -13,10 +15,6 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   'Готов к сделке': { bg: '#dcfce7', color: '#166534' },
   'Не подходит': { bg: '#fef2f2', color: '#991b1b' },
   'Переведён в клиента': { bg: '#f3f4f6', color: '#374151' },
-}
-
-function sourceLabel(value: string) {
-  return LEAD_SOURCES.find(source => source.value === value)?.label || value
 }
 
 function initials(lead: any) {
@@ -32,8 +30,8 @@ function dateKey(value: Date | string) {
   return `${year}-${month}-${day}`
 }
 
-function formatLeadDateTime(value: string) {
-  return new Date(value).toLocaleString('ru-RU', {
+function formatLeadDateTime(value: string, locale: string) {
+  return new Date(value).toLocaleString(locale, {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
@@ -53,6 +51,9 @@ function isConvertedLead(lead: any) {
 
 export default function LeadsPage() {
   const router = useRouter()
+  const { lang } = useLanguage()
+  const locale = LEAD_LOCALES[lang] || 'ru-RU'
+  const lt = (key: string) => leadText(lang, key)
   const [leads, setLeads] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -342,19 +343,19 @@ export default function LeadsPage() {
     <div className="fade-in">
       <div className="page-header">
         <div>
-          <div className="page-title">Лиды</div>
-          <div className="page-subtitle">Всего: {leads.length}. Активных: {activeLeadCount}. Обработка, прогрев и перевод в клиентов</div>
+          <div className="page-title">{lt('leads')}</div>
+          <div className="page-subtitle">{lt('total')}: {leads.length}. {lt('active')}: {activeLeadCount}. {lt('leads_subtitle')}</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Link href="/dashboard" className="btn btn-secondary">Dashboard</Link>
-          <Link href="/leads/new" className="btn btn-primary">+ Добавить лид</Link>
+          <Link href="/dashboard" className="btn btn-secondary">{lt('dashboard')}</Link>
+          <Link href="/leads/new" className="btn btn-primary">{lt('add_lead')}</Link>
         </div>
       </div>
 
       <div className="page-body">
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
           <button type="button" className="btn btn-secondary" onClick={() => setEditingStatuses(current => !current)}>
-            {editingStatuses ? 'Готово' : 'Настроить статусы'}
+            {editingStatuses ? lt('done') : lt('configure_statuses')}
           </button>
         </div>
 
@@ -372,7 +373,7 @@ export default function LeadsPage() {
                   {editingStatuses && item.id ? (
                     <input className="input" defaultValue={item.name} onBlur={event => event.target.value.trim() !== item.name && saveLeadStatus(item, { name: event.target.value })} style={{ height: 30, padding: '4px 8px', fontSize: 12, fontWeight: 700 }} />
                   ) : (
-                    <div style={{ fontSize: 12, fontWeight: 700 }}>{item.name}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700 }}>{leadStatusLabel(lang, item.name)}</div>
                   )}
                 </button>
                 {editingStatuses && item.id && (
@@ -387,28 +388,28 @@ export default function LeadsPage() {
           })}
           {editingStatuses && (
             <div style={{ border: '1px dashed var(--border)', borderRadius: 8, padding: 10, background: 'var(--surface)' }}>
-              <input className="input" value={newStatusName} onChange={event => setNewStatusName(event.target.value)} placeholder="Новый статус" style={{ height: 30, marginBottom: 8 }} />
+              <input className="input" value={newStatusName} onChange={event => setNewStatusName(event.target.value)} placeholder={lt('new_status')} style={{ height: 30, marginBottom: 8 }} />
               <div style={{ display: 'flex', gap: 6 }}>
                 <input type="color" value={newStatusColor} onChange={event => setNewStatusColor(event.target.value)} style={{ width: 36, height: 32, padding: 2, border: '1px solid var(--border)', borderRadius: 6 }} />
-                <button type="button" className="btn btn-primary" style={{ flex: 1, padding: '6px 10px' }} onClick={addLeadStatus}>Добавить</button>
+                <button type="button" className="btn btn-primary" style={{ flex: 1, padding: '6px 10px' }} onClick={addLeadStatus}>{lt('add')}</button>
               </div>
             </div>
           )}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 190px 190px auto', gap: 10, marginBottom: 16 }}>
-          <input className="input" placeholder="🔍 Поиск по имени, телефону, Instagram, услуге..." value={search} onChange={e => setSearch(e.target.value)} />
+          <input className="input" placeholder={`🔍 ${lt('search_placeholder')}`} value={search} onChange={e => setSearch(e.target.value)} />
           <select className="select" value={status} onChange={e => setStatus(e.target.value)}>
-            <option value="">Все статусы</option>
-            {statusNames.map(item => <option key={item}>{item}</option>)}
+            <option value="">{lt('all_statuses')}</option>
+            {statusNames.map(item => <option key={item} value={item}>{leadStatusLabel(lang, item)}</option>)}
           </select>
           <select className="select" value={source} onChange={e => setSource(e.target.value)}>
-            <option value="">Все источники</option>
-            {LEAD_SOURCES.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+            <option value="">{lt('all_sources')}</option>
+            {LEAD_SOURCES.map(item => <option key={item.value} value={item.value}>{leadSourceLabel(lang, item.value)}</option>)}
           </select>
           <div style={{ display: 'flex', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}>
-            <button type="button" className={viewMode === 'table' ? 'btn btn-primary' : 'btn btn-ghost'} style={{ padding: '7px 10px' }} onClick={() => setViewMode('table')}>Таблица</button>
-            <button type="button" className={viewMode === 'board' ? 'btn btn-primary' : 'btn btn-ghost'} style={{ padding: '7px 10px' }} onClick={() => setViewMode('board')}>Борд</button>
+            <button type="button" className={viewMode === 'table' ? 'btn btn-primary' : 'btn btn-ghost'} style={{ padding: '7px 10px' }} onClick={() => setViewMode('table')}>{lt('table')}</button>
+            <button type="button" className={viewMode === 'board' ? 'btn btn-primary' : 'btn btn-ghost'} style={{ padding: '7px 10px' }} onClick={() => setViewMode('board')}>{lt('board')}</button>
           </div>
         </div>
 
@@ -419,22 +420,22 @@ export default function LeadsPage() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Лид</th>
-                    <th>Статус</th>
-                    <th>Источник</th>
-                    <th>Интерес</th>
-                    <th>Следующий контакт</th>
-                    <th>Ответственный</th>
+                    <th>{lt('lead')}</th>
+                    <th>{lt('status')}</th>
+                    <th>{lt('source')}</th>
+                    <th>{lt('interest')}</th>
+                    <th>{lt('next_contact')}</th>
+                    <th>{lt('responsible')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>Загрузка...</td></tr>
+                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>{lt('loading')}</td></tr>
                   ) : filtered.length === 0 ? (
                     <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
                       <div style={{ fontSize: 32, marginBottom: 8 }}>◎</div>
-                      <div>{search || status || source ? 'Лиды не найдены' : 'Пока нет лидов'}</div>
-                      {!search && !status && !source && <Link href="/leads/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>Добавить первый лид</Link>}
+                      <div>{search || status || source ? lt('leads_not_found') : lt('no_leads')}</div>
+                      {!search && !status && !source && <Link href="/leads/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>{lt('add_first_lead')}</Link>}
                     </td></tr>
                   ) : filtered.map(lead => {
                     const colors = statusColors(statusByName[lead.status])
@@ -445,7 +446,7 @@ export default function LeadsPage() {
                             <div className="avatar" style={{ width: 32, height: 32, fontSize: 12 }}>{initials(lead)}</div>
                             <div>
                               <div style={{ fontWeight: 700, fontSize: 13 }}>{leadDisplayName(lead)}</div>
-                              <div style={{ fontSize: 12, color: 'var(--muted)' }}>{lead.phone || lead.email || lead.instagram || lead.facebook || 'Контакт не указан'}</div>
+                              <div style={{ fontSize: 12, color: 'var(--muted)' }}>{lead.phone || lead.email || lead.instagram || lead.facebook || lt('contact_not_set')}</div>
                             </div>
                           </div>
                         </td>
@@ -456,20 +457,20 @@ export default function LeadsPage() {
                             onChange={event => updateLeadStatus(lead, event.target.value)}
                             style={{ minWidth: 150, height: 32, padding: '4px 8px', background: colors.bg, color: colors.color, fontWeight: 700, borderColor: colors.bg }}
                           >
-                            {statusNames.map(item => <option key={item}>{item}</option>)}
+                            {statusNames.map(item => <option key={item} value={item}>{leadStatusLabel(lang, item)}</option>)}
                           </select>
                         </td>
-                        <td style={{ fontSize: 13 }}>{sourceLabel(lead.source)}</td>
-                        <td style={{ fontSize: 13 }}>{lead.serviceInterest || '—'}</td>
+                        <td style={{ fontSize: 13 }}>{leadSourceLabel(lang, lead.source)}</td>
+                        <td style={{ fontSize: 13 }}>{lead.serviceInterest || lt('no_value')}</td>
                         <td style={{ fontSize: 13 }}>
                           {lead.nextContactAt ? (
                             <div>
-                              <div>{formatLeadDateTime(lead.nextContactAt)}</div>
+                              <div>{formatLeadDateTime(lead.nextContactAt, locale)}</div>
                               {lead.nextContactNote && <div style={{ color: 'var(--muted)', marginTop: 2 }}>{lead.nextContactNote}</div>}
                             </div>
-                          ) : '—'}
+                          ) : lt('no_value')}
                         </td>
-                        <td style={{ fontSize: 13 }}>{lead.assignedTo?.name || '—'}</td>
+                        <td style={{ fontSize: 13 }}>{lead.assignedTo?.name || lt('no_value')}</td>
                       </tr>
                     )
                   })}
@@ -491,12 +492,12 @@ export default function LeadsPage() {
                       style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, minHeight: 420, padding: 10 }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                        <div style={{ fontWeight: 800, color: colors.color }}>{item.name}</div>
+                        <div style={{ fontWeight: 800, color: colors.color }}>{leadStatusLabel(lang, item.name)}</div>
                         <span style={{ background: colors.bg, color: colors.color, borderRadius: 999, padding: '3px 8px', fontSize: 12, fontWeight: 800 }}>{columnLeads.length}</span>
                       </div>
                       <div style={{ display: 'grid', gap: 8 }}>
                         {columnLeads.length === 0 ? (
-                          <div style={{ border: '1px dashed var(--border)', borderRadius: 8, padding: 12, color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>Перетащите лид сюда</div>
+                          <div style={{ border: '1px dashed var(--border)', borderRadius: 8, padding: 12, color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>{lt('drag_lead_here')}</div>
                         ) : columnLeads.map(lead => (
                           <div
                             key={lead.id}
@@ -510,11 +511,11 @@ export default function LeadsPage() {
                               <div className="avatar" style={{ width: 30, height: 30, fontSize: 11 }}>{initials(lead)}</div>
                               <div style={{ minWidth: 0 }}>
                                 <div style={{ fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{leadDisplayName(lead)}</div>
-                                <div style={{ color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.phone || lead.email || lead.instagram || 'Контакт не указан'}</div>
+                                <div style={{ color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.phone || lead.email || lead.instagram || lt('contact_not_set')}</div>
                               </div>
                             </div>
                             {lead.serviceInterest && <div style={{ fontSize: 12, marginBottom: 6 }}>{lead.serviceInterest}</div>}
-                            {lead.nextContactAt && <div style={{ color: 'var(--muted)', fontSize: 12 }}>{formatLeadDateTime(lead.nextContactAt)}</div>}
+                            {lead.nextContactAt && <div style={{ color: 'var(--muted)', fontSize: 12 }}>{formatLeadDateTime(lead.nextContactAt, locale)}</div>}
                           </div>
                         ))}
                       </div>
@@ -526,14 +527,14 @@ export default function LeadsPage() {
           )}
 
           <div className="card" style={{ position: 'sticky', top: 16 }}>
-            <div className="section-title"><span>◷</span>Календарь лидов</div>
+            <div className="section-title"><span>◷</span>{lt('leads_calendar')}</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <button type="button" className="btn btn-secondary" style={{ padding: '6px 10px' }} onClick={() => changeCalendarMonth(-1)}>‹</button>
-              <strong>{calendarMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}</strong>
+              <strong>{calendarMonth.toLocaleDateString(locale, { month: 'long', year: 'numeric' })}</strong>
               <button type="button" className="btn btn-secondary" style={{ padding: '6px 10px' }} onClick={() => changeCalendarMonth(1)}>›</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 8, color: 'var(--muted)', fontSize: 11, textAlign: 'center', fontWeight: 700 }}>
-              {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(day => <div key={day}>{day}</div>)}
+              {LEAD_WEEKDAYS[lang].map(day => <div key={day}>{day}</div>)}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
               {calendarDays.map(item => item.day ? (
@@ -559,10 +560,10 @@ export default function LeadsPage() {
             </div>
             <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
               <div style={{ fontWeight: 800, marginBottom: 10 }}>
-                {new Date(`${selectedDate}T00:00:00`).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' })}
+                {new Date(`${selectedDate}T00:00:00`).toLocaleDateString(locale, { day: '2-digit', month: 'long', year: 'numeric' })}
               </div>
               {selectedReminders.length === 0 ? (
-                <div style={{ color: 'var(--muted)', fontSize: 13 }}>На этот день контактов по лидам нет</div>
+                <div style={{ color: 'var(--muted)', fontSize: 13 }}>{lt('no_lead_contacts_day')}</div>
               ) : (
                 <div style={{ display: 'grid', gap: 8 }}>
                   {selectedReminders.map(lead => (
@@ -574,9 +575,9 @@ export default function LeadsPage() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
                         <strong>{leadDisplayName(lead)}</strong>
-                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>{new Date(lead.nextContactAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>{new Date(lead.nextContactAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
-                      <div style={{ color: 'var(--muted)', fontSize: 12 }}>{lead.nextContactNote || 'Без пометки'}</div>
+                      <div style={{ color: 'var(--muted)', fontSize: 12 }}>{lead.nextContactNote || lt('no_note')}</div>
                     </button>
                   ))}
                 </div>
@@ -606,45 +607,45 @@ export default function LeadsPage() {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
               <div>
-                <div className="section-title" style={{ marginBottom: 4 }}><span>◷</span>Контакт с лидом</div>
+                <div className="section-title" style={{ marginBottom: 4 }}><span>◷</span>{lt('lead_contact')}</div>
                 <div style={{ fontSize: 18, fontWeight: 800 }}>{leadDisplayName(activeReminder)}</div>
-                <div style={{ color: 'var(--muted)', fontSize: 13 }}>{activeReminder.phone || activeReminder.email || activeReminder.instagram || 'Контакт не указан'}</div>
+                <div style={{ color: 'var(--muted)', fontSize: 13 }}>{activeReminder.phone || activeReminder.email || activeReminder.instagram || lt('contact_not_set')}</div>
               </div>
-              <Link href={`/leads/${activeReminder.id}`} className="btn btn-secondary">Открыть карточку</Link>
+              <Link href={`/leads/${activeReminder.id}`} className="btn btn-secondary">{lt('open_card')}</Link>
             </div>
 
             <div style={{ display: 'grid', gap: 12 }}>
               <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 700 }}>
                 <input type="checkbox" checked={reminderForm.completed} onChange={setReminderField('completed')} />
-                Контакт состоялся
+                {lt('contact_completed')}
               </label>
 
               <div className="form-group">
-                <label className="label">Дата последнего контакта</label>
+                <label className="label">{lt('last_contact_date')}</label>
                 <input className="input" type="datetime-local" value={reminderForm.lastContactAt} onChange={setReminderField('lastContactAt')} />
               </div>
 
               <div className="form-group">
-                <label className="label">О чем был контакт</label>
-                <textarea className="input" rows={3} value={reminderForm.lastContactNote} onChange={setReminderField('lastContactNote')} placeholder="Что обсудили, что клиент ответил, какие договоренности появились" />
+                <label className="label">{lt('last_contact_note')}</label>
+                <textarea className="input" rows={3} value={reminderForm.lastContactNote} onChange={setReminderField('lastContactNote')} placeholder={lt('last_contact_note_placeholder')} />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
                 <div className="form-group">
-                  <label className="label">Следующий контакт</label>
+                  <label className="label">{lt('next_contact')}</label>
                   <input className="input" type="datetime-local" value={reminderForm.nextContactAt} onChange={setReminderField('nextContactAt')} />
                 </div>
                 <div className="form-group">
-                  <label className="label">О чем сконтактироваться дальше</label>
-                  <textarea className="input" rows={3} value={reminderForm.nextContactNote} onChange={setReminderField('nextContactNote')} placeholder="Что обсудить при следующем контакте" />
+                  <label className="label">{lt('next_contact_note')}</label>
+                  <textarea className="input" rows={3} value={reminderForm.nextContactNote} onChange={setReminderField('nextContactNote')} placeholder={lt('next_contact_note_placeholder')} />
                 </div>
               </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button type="button" className="btn btn-secondary" onClick={() => setActiveReminder(null)}>Отмена</button>
+              <button type="button" className="btn btn-secondary" onClick={() => setActiveReminder(null)}>{lt('cancel')}</button>
               <button type="button" className="btn btn-primary" onClick={saveReminder} disabled={reminderSaving}>
-                {reminderSaving ? 'Сохраняю...' : 'Сохранить'}
+                {reminderSaving ? lt('saving') : lt('save')}
               </button>
             </div>
           </div>

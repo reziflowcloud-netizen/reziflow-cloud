@@ -10,21 +10,21 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
   ru: {
     menu: 'Меню', system: 'Система',
     dashboard: 'Dashboard', cases: 'Дела', clients: 'Клиенты',
-    stages: 'Этапы', tasks: 'Задачи', calendar: 'Календарь', settings: 'Настройки',
+    leads: 'Лиды', stages: 'Этапы', tasks: 'Задачи', calendar: 'Календарь', settings: 'Настройки',
     logout: 'Выйти', light: 'Светлая', dark: 'Тёмная', slate: 'Slate',
     administrator: 'Администратор', employee: 'Сотрудник', company: 'Фирма',
   },
   uk: {
     menu: 'Меню', system: 'Система',
     dashboard: 'Dashboard', cases: 'Справи', clients: 'Клієнти',
-    stages: 'Етапи', tasks: 'Завдання', calendar: 'Календар', settings: 'Налаштування',
+    leads: 'Ліди', stages: 'Етапи', tasks: 'Завдання', calendar: 'Календар', settings: 'Налаштування',
     logout: 'Вийти', light: 'Світла', dark: 'Темна', slate: 'Slate',
     administrator: 'Адміністратор', employee: 'Співробітник', company: 'Фірма',
   },
   pl: {
     menu: 'Menu', system: 'System',
     dashboard: 'Pulpit', cases: 'Sprawy', clients: 'Klienci',
-    stages: 'Etapy', tasks: 'Zadania', calendar: 'Kalendarz', settings: 'Ustawienia',
+    leads: 'Leady', stages: 'Etapy', tasks: 'Zadania', calendar: 'Kalendarz', settings: 'Ustawienia',
     logout: 'Wyloguj', light: 'Jasny', dark: 'Ciemny', slate: 'Slate',
     administrator: 'Administrator', employee: 'Pracownik', company: 'Firma',
   },
@@ -96,7 +96,7 @@ export default function Sidebar({
         <line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
       </svg>
     )},
-    { href: '/leads', key: 'leads', label: 'Лиды', icon: (
+    { href: '/leads', key: 'leads', icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 11l18-8-8 18-2-7-8-3z"/>
         <path d="M13 14l-3-3"/>
@@ -166,7 +166,7 @@ export default function Sidebar({
       <div className="sidebar-bottom">
         <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
           {(['ru', 'uk', 'pl'] as const).map(l => (
-            <button key={l} onClick={() => changeLang(l)} className={`sidebar-segment ${lang === l ? 'active' : ''}`}>{l}</button>
+            <button key={l} onClick={() => changeLang(l)} className={`sidebar-segment ${lang === l ? 'active' : ''}`}>{l === 'uk' ? 'ua' : l}</button>
           ))}
         </div>
 

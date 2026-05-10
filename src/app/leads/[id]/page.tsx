@@ -4,10 +4,15 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, leadDisplayName } from '@/lib/leads'
+import { useLanguage } from '@/context/LanguageContext'
+import { LEAD_LOCALES, leadSourceLabel, leadStatusLabel, leadText } from '@/lib/leadI18n'
 
 export default function LeadDetailPage() {
   const { id } = useParams()
   const router = useRouter()
+  const { lang } = useLanguage()
+  const locale = LEAD_LOCALES[lang] || 'ru-RU'
+  const lt = (key: string) => leadText(lang, key)
   const [lead, setLead] = useState<any>(null)
   const [form, setForm] = useState<any>({})
   const [services, setServices] = useState<any[]>([])
@@ -170,7 +175,7 @@ export default function LeadDetailPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Не удалось сохранить лид')
+        setError(data.error || lt('save_failed'))
         return
       }
       setLead(data)
@@ -205,7 +210,7 @@ export default function LeadDetailPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Не удалось перевести лида')
+        setError(data.error || lt('convert_failed'))
         return
       }
       router.push(data.caseId ? `/cases/${data.caseId}` : `/clients/${data.clientId}`)
@@ -215,12 +220,12 @@ export default function LeadDetailPage() {
   }
 
   async function deleteLead() {
-    if (!confirm('Удалить лид?')) return
+    if (!confirm(lt('delete_confirm'))) return
     await fetch(`/api/leads/${id}`, { method: 'DELETE' })
     router.push('/leads')
   }
 
-  if (!lead) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Загрузка...</div>
+  if (!lead) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>{lt('loading')}</div>
 
   return (
     <div className="fade-in">
@@ -229,19 +234,19 @@ export default function LeadDetailPage() {
           <button onClick={() => router.push('/leads')} className="btn btn-ghost" style={{ padding: '6px 10px' }}>←</button>
           <div>
             <div className="page-title">{leadDisplayName(lead)}</div>
-            <div className="page-subtitle">{lead.phone || lead.email || lead.instagram || 'Контакт не указан'}</div>
+            <div className="page-subtitle">{lead.phone || lead.email || lead.instagram || lt('contact_not_set')}</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Link href="/dashboard" className="btn btn-secondary">Dashboard</Link>
+          <Link href="/dashboard" className="btn btn-secondary">{lt('dashboard')}</Link>
           {lead.convertedClientId ? (
-            <Link className="btn btn-secondary" href={`/clients/${lead.convertedClientId}`}>Открыть клиента</Link>
+            <Link className="btn btn-secondary" href={`/clients/${lead.convertedClientId}`}>{lt('open_client')}</Link>
           ) : (
             <button className="btn btn-secondary" onClick={openConvertModal} disabled={converting}>
-              {converting ? 'Перевожу...' : 'Перевести в клиента'}
+              {converting ? lt('converting') : lt('convert_to_client')}
             </button>
           )}
-          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
+          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? lt('saving') : lt('save')}</button>
         </div>
       </div>
 
@@ -251,117 +256,117 @@ export default function LeadDetailPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
           <div>
             <div className="card" style={{ marginBottom: 16 }}>
-              <div className="section-title"><span>◎</span>Воронка</div>
+              <div className="section-title"><span>◎</span>{lt('funnel')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
-                  <label className="label">Статус</label>
+                  <label className="label">{lt('status')}</label>
                   <select className="select" value={form.status} onChange={set('status')}>
-                    {(leadStatuses.length ? leadStatuses : DEFAULT_LEAD_STATUSES).map(status => <option key={status.name}>{status.name}</option>)}
+                    {(leadStatuses.length ? leadStatuses : DEFAULT_LEAD_STATUSES).map(status => <option key={status.name} value={status.name}>{leadStatusLabel(lang, status.name)}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="label">Источник</label>
+                  <label className="label">{lt('source')}</label>
                   <select className="select" value={form.source} onChange={set('source')}>
-                    {LEAD_SOURCES.map(source => <option key={source.value} value={source.value}>{source.label}</option>)}
+                    {LEAD_SOURCES.map(source => <option key={source.value} value={source.value}>{leadSourceLabel(lang, source.value)}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="label">Ответственный</label>
+                  <label className="label">{lt('responsible')}</label>
                   <select className="select" value={form.assignedToId || ''} onChange={set('assignedToId')}>
-                    <option value="">— Не назначен —</option>
+                    <option value="">{lt('not_assigned')}</option>
                     {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="label">Интересующая услуга</label>
+                  <label className="label">{lt('interested_service')}</label>
                   <select className="select" value={form.serviceInterest || ''} onChange={set('serviceInterest')}>
-                    <option value="">— Выберите услугу —</option>
+                    <option value="">{lt('choose_service')}</option>
                     {services.map(service => <option key={service.id} value={service.name}>{service.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="label">Последний контакт</label>
+                  <label className="label">{lt('last_contact')}</label>
                   <input className="input" type="datetime-local" value={form.lastContactAt} onChange={set('lastContactAt')} />
                 </div>
                 <div className="form-group">
-                  <label className="label">Следующий контакт</label>
+                  <label className="label">{lt('next_contact')}</label>
                   <input className="input" type="datetime-local" value={form.nextContactAt} onChange={set('nextContactAt')} />
                 </div>
                 <div className="form-group">
-                  <label className="label">О чем был последний контакт</label>
-                  <textarea className="input" rows={3} value={form.lastContactNote || ''} onChange={set('lastContactNote')} placeholder="Например: обсудили документы, клиент попросил перезвонить, отправили условия" />
+                  <label className="label">{lt('last_contact_about')}</label>
+                  <textarea className="input" rows={3} value={form.lastContactNote || ''} onChange={set('lastContactNote')} placeholder={lt('last_contact_note_placeholder')} />
                 </div>
                 <div className="form-group">
-                  <label className="label">О чем сконтактироваться</label>
-                  <textarea className="input" rows={3} value={form.nextContactNote || ''} onChange={set('nextContactNote')} placeholder="Например: уточнить документы, напомнить об оплате, назначить консультацию" />
+                  <label className="label">{lt('next_contact_about')}</label>
+                  <textarea className="input" rows={3} value={form.nextContactNote || ''} onChange={set('nextContactNote')} placeholder={lt('next_contact_note_placeholder')} />
                 </div>
               </div>
             </div>
 
             <div className="card" style={{ marginBottom: 16 }}>
-              <div className="section-title"><span>☎</span>Контакты</div>
+              <div className="section-title"><span>☎</span>{lt('contacts')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="form-group"><label className="label">Имя</label><input className="input" value={form.firstName || ''} onChange={set('firstName')} /></div>
-                <div className="form-group"><label className="label">Фамилия</label><input className="input" value={form.lastName || ''} onChange={set('lastName')} /></div>
-                <div className="form-group"><label className="label">Телефон</label><input className="input" value={form.phone} onChange={set('phone')} /></div>
-                <div className="form-group"><label className="label">Email</label><input className="input" type="email" value={form.email} onChange={set('email')} /></div>
+                <div className="form-group"><label className="label">{lt('first_name')}</label><input className="input" value={form.firstName || ''} onChange={set('firstName')} /></div>
+                <div className="form-group"><label className="label">{lt('last_name')}</label><input className="input" value={form.lastName || ''} onChange={set('lastName')} /></div>
+                <div className="form-group"><label className="label">{lt('phone')}</label><input className="input" value={form.phone} onChange={set('phone')} /></div>
+                <div className="form-group"><label className="label">{lt('email')}</label><input className="input" type="email" value={form.email} onChange={set('email')} /></div>
                 <div className="form-group"><label className="label">Instagram</label><input className="input" value={form.instagram} onChange={set('instagram')} /></div>
                 <div className="form-group"><label className="label">Facebook</label><input className="input" value={form.facebook} onChange={set('facebook')} /></div>
               </div>
             </div>
 
             <div className="card">
-              <div className="section-title"><span>✦</span>Квалификация</div>
+              <div className="section-title"><span>✦</span>{lt('qualification')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="form-group"><label className="label">Город</label><input className="input" value={form.city} onChange={set('city')} /></div>
-                <div className="form-group"><label className="label">Страна/гражданство</label><input className="input" value={form.country} onChange={set('country')} /></div>
-                <div className="form-group"><label className="label">Язык</label><input className="input" value={form.language} onChange={set('language')} /></div>
-                <div className="form-group"><label className="label">Бюджет</label><input className="input" value={form.budget} onChange={set('budget')} /></div>
-                <div className="form-group"><label className="label">Срочность</label><input className="input" value={form.urgency} onChange={set('urgency')} /></div>
-                <div className="form-group" style={{ gridColumn: '1/-1' }}><label className="label">Заметки</label><textarea className="input" rows={7} value={form.notes} onChange={set('notes')} /></div>
+                <div className="form-group"><label className="label">{lt('city')}</label><input className="input" value={form.city} onChange={set('city')} /></div>
+                <div className="form-group"><label className="label">{lt('country')}</label><input className="input" value={form.country} onChange={set('country')} /></div>
+                <div className="form-group"><label className="label">{lt('language')}</label><input className="input" value={form.language} onChange={set('language')} /></div>
+                <div className="form-group"><label className="label">{lt('budget')}</label><input className="input" value={form.budget} onChange={set('budget')} /></div>
+                <div className="form-group"><label className="label">{lt('urgency')}</label><input className="input" value={form.urgency} onChange={set('urgency')} /></div>
+                <div className="form-group" style={{ gridColumn: '1/-1' }}><label className="label">{lt('notes')}</label><textarea className="input" rows={7} value={form.notes} onChange={set('notes')} /></div>
               </div>
             </div>
 
             <div className="card" style={{ marginTop: 16 }}>
-              <div className="section-title"><span>◷</span>История контактов</div>
+              <div className="section-title"><span>◷</span>{lt('contact_history')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
                 <div className="form-group">
-                  <label className="label">Дата контакта</label>
+                  <label className="label">{lt('last_contact_date')}</label>
                   <input className="input" type="datetime-local" value={contactForm.contactAt} onChange={setContact('contactAt')} />
                 </div>
                 <div className="form-group">
-                  <label className="label">Следующий контакт</label>
+                  <label className="label">{lt('next_contact')}</label>
                   <input className="input" type="datetime-local" value={contactForm.nextContactAt} onChange={setContact('nextContactAt')} />
                 </div>
                 <div className="form-group" style={{ gridColumn: '1/-1' }}>
-                  <label className="label">О чем был контакт</label>
-                  <textarea className="input" rows={3} value={contactForm.note} onChange={setContact('note')} placeholder="Что обсудили, что клиент ответил, о чем договорились" />
+                  <label className="label">{lt('last_contact_note')}</label>
+                  <textarea className="input" rows={3} value={contactForm.note} onChange={setContact('note')} placeholder={lt('last_contact_note_placeholder')} />
                 </div>
                 <div className="form-group" style={{ gridColumn: '1/-1' }}>
-                  <label className="label">О чем сконтактироваться дальше</label>
-                  <textarea className="input" rows={3} value={contactForm.nextContactNote} onChange={setContact('nextContactNote')} placeholder="Что обсудить при следующем контакте" />
+                  <label className="label">{lt('next_contact_note')}</label>
+                  <textarea className="input" rows={3} value={contactForm.nextContactNote} onChange={setContact('nextContactNote')} placeholder={lt('next_contact_note_placeholder')} />
                 </div>
                 <div style={{ gridColumn: '1/-1', display: 'flex', justifyContent: 'flex-end' }}>
                   <button className="btn btn-primary" onClick={addContactHistory} disabled={savingContact || !contactForm.note.trim()}>
-                    {savingContact ? 'Сохраняю...' : '+ Добавить запись'}
+                    {savingContact ? lt('saving') : lt('add_record')}
                   </button>
                 </div>
               </div>
 
               {contactHistory.length === 0 ? (
-                <div style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>Истории контактов пока нет</div>
+                <div style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>{lt('no_contact_history')}</div>
               ) : (
                 <div style={{ display: 'grid', gap: 10 }}>
                   {contactHistory.map(item => (
                     <div key={item.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, background: 'var(--surface)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
-                        <strong>{new Date(item.contactAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</strong>
-                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>{item.author?.name || '—'}</span>
+                        <strong>{new Date(item.contactAt).toLocaleString(locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</strong>
+                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>{item.author?.name || lt('no_value')}</span>
                       </div>
                       <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{item.note}</div>
                       {(item.nextContactAt || item.nextContactNote) && (
                         <div style={{ borderTop: '1px solid var(--border)', marginTop: 10, paddingTop: 10, color: 'var(--muted)', fontSize: 12 }}>
-                          {item.nextContactAt && <div><strong>Следующий контакт:</strong> {new Date(item.nextContactAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>}
+                          {item.nextContactAt && <div><strong>{lt('next_contact')}:</strong> {new Date(item.nextContactAt).toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>}
                           {item.nextContactNote && <div style={{ marginTop: 4 }}>{item.nextContactNote}</div>}
                         </div>
                       )}
@@ -374,17 +379,17 @@ export default function LeadDetailPage() {
 
           <div>
             <div className="card" style={{ marginBottom: 16 }}>
-              <div className="section-title"><span>ⓘ</span>Информация</div>
+              <div className="section-title"><span>ⓘ</span>{lt('info')}</div>
               <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>Создан</span><strong>{new Date(lead.createdAt).toLocaleDateString('ru-RU')}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>Обновлён</span><strong>{new Date(lead.updatedAt).toLocaleDateString('ru-RU')}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>Ответственный</span><strong>{users.find(user => String(user.id) === String(form.assignedToId))?.name || '—'}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>{lt('created')}</span><strong>{new Date(lead.createdAt).toLocaleDateString(locale)}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>{lt('updated')}</span><strong>{new Date(lead.updatedAt).toLocaleDateString(locale)}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>{lt('responsible')}</span><strong>{users.find(user => String(user.id) === String(form.assignedToId))?.name || lt('no_value')}</strong></div>
               </div>
             </div>
 
             <div className="card">
-              <div className="section-title"><span>⚠</span>Опасная зона</div>
-              <button className="btn btn-danger" onClick={deleteLead} style={{ width: '100%', justifyContent: 'center' }}>Удалить лид</button>
+              <div className="section-title"><span>⚠</span>{lt('danger_zone')}</div>
+              <button className="btn btn-danger" onClick={deleteLead} style={{ width: '100%', justifyContent: 'center' }}>{lt('delete_lead')}</button>
             </div>
           </div>
         </div>
@@ -395,46 +400,46 @@ export default function LeadDetailPage() {
           onClick={() => setShowConvert(false)}
         >
           <div className="card" style={{ width: 'min(720px, 100%)', maxHeight: '90vh', overflow: 'auto' }} onClick={event => event.stopPropagation()}>
-            <div className="section-title"><span>→</span>Перевод лида в клиента</div>
+            <div className="section-title"><span>→</span>{lt('convert_title')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="form-group"><label className="label">Имя</label><input className="input" value={convertForm.firstName} onChange={setConvert('firstName')} /></div>
-              <div className="form-group"><label className="label">Фамилия</label><input className="input" value={convertForm.lastName} onChange={setConvert('lastName')} /></div>
-              <div className="form-group"><label className="label">Телефон</label><input className="input" value={convertForm.phone} onChange={setConvert('phone')} /></div>
-              <div className="form-group"><label className="label">Email</label><input className="input" value={convertForm.email} onChange={setConvert('email')} /></div>
-              <div className="form-group"><label className="label">Город</label><input className="input" value={convertForm.city} onChange={setConvert('city')} /></div>
-              <div className="form-group"><label className="label">Страна/гражданство</label><input className="input" value={convertForm.country} onChange={setConvert('country')} /></div>
+              <div className="form-group"><label className="label">{lt('first_name')}</label><input className="input" value={convertForm.firstName} onChange={setConvert('firstName')} /></div>
+              <div className="form-group"><label className="label">{lt('last_name')}</label><input className="input" value={convertForm.lastName} onChange={setConvert('lastName')} /></div>
+              <div className="form-group"><label className="label">{lt('phone')}</label><input className="input" value={convertForm.phone} onChange={setConvert('phone')} /></div>
+              <div className="form-group"><label className="label">{lt('email')}</label><input className="input" value={convertForm.email} onChange={setConvert('email')} /></div>
+              <div className="form-group"><label className="label">{lt('city')}</label><input className="input" value={convertForm.city} onChange={setConvert('city')} /></div>
+              <div className="form-group"><label className="label">{lt('country')}</label><input className="input" value={convertForm.country} onChange={setConvert('country')} /></div>
               <label style={{ gridColumn: '1/-1', display: 'flex', gap: 8, alignItems: 'center', fontWeight: 700, marginTop: 4 }}>
                 <input type="checkbox" checked={convertForm.createCase} onChange={setConvert('createCase')} />
-                Создать дело сразу после создания клиента
+                {lt('create_case_after_client')}
               </label>
               {convertForm.createCase && (
                 <>
                   <div className="form-group">
-                    <label className="label">Услуга</label>
+                    <label className="label">{lt('service')}</label>
                     <select className="select" value={convertForm.serviceId} onChange={setConvert('serviceId')}>
-                      <option value="">— Выберите услугу —</option>
+                      <option value="">{lt('choose_service')}</option>
                       {services.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}
                     </select>
                   </div>
-                  <div className="form-group"><label className="label">Стоимость</label><input className="input" type="number" step="0.01" value={convertForm.totalValue} onChange={setConvert('totalValue')} /></div>
+                  <div className="form-group"><label className="label">{lt('cost')}</label><input className="input" type="number" step="0.01" value={convertForm.totalValue} onChange={setConvert('totalValue')} /></div>
                   <div className="form-group">
-                    <label className="label">Ответственный</label>
+                    <label className="label">{lt('responsible')}</label>
                     <select className="select" value={convertForm.assignedToId} onChange={setConvert('assignedToId')}>
-                      <option value="">— Не назначен —</option>
+                      <option value="">{lt('not_assigned')}</option>
                       {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
                     </select>
                   </div>
                   <div className="form-group" style={{ gridColumn: '1/-1' }}>
-                    <label className="label">Заметка к делу</label>
+                    <label className="label">{lt('case_note')}</label>
                     <textarea className="input" rows={3} value={convertForm.caseNotes} onChange={setConvert('caseNotes')} />
                   </div>
                 </>
               )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button type="button" className="btn btn-secondary" onClick={() => setShowConvert(false)}>Отмена</button>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowConvert(false)}>{lt('cancel')}</button>
               <button type="button" className="btn btn-primary" onClick={convertToClient} disabled={converting || !convertForm.firstName.trim()}>
-                {converting ? 'Перевожу...' : 'Перевести'}
+                {converting ? lt('converting') : lt('convert')}
               </button>
             </div>
           </div>

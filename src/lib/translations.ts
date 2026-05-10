@@ -5,7 +5,7 @@ export const T: Record<Lang, Record<string, string>> = {
   ru: {
     // Nav
     menu: 'Меню', system: 'Система',
-    nav_dashboard: 'Dashboard', nav_cases: 'Дела', nav_clients: 'Клиенты',
+    nav_dashboard: 'Dashboard', nav_cases: 'Дела', nav_leads: 'Лиды', nav_clients: 'Клиенты',
     nav_tasks: 'Задачи', nav_calendar: 'Календарь', nav_settings: 'Настройки',
     logout: 'Выйти',
     // Dashboard
@@ -125,7 +125,7 @@ export const T: Record<Lang, Record<string, string>> = {
   },
   uk: {
     menu: 'Меню', system: 'Система',
-    nav_dashboard: 'Dashboard', nav_cases: 'Справи', nav_clients: 'Клієнти',
+    nav_dashboard: 'Dashboard', nav_cases: 'Справи', nav_leads: 'Ліди', nav_clients: 'Клієнти',
     nav_tasks: 'Завдання', nav_calendar: 'Календар', nav_settings: 'Налаштування',
     logout: 'Вийти',
     dashboard_title: 'Dashboard', dashboard_welcome: 'Ласкаво просимо',
@@ -236,7 +236,7 @@ export const T: Record<Lang, Record<string, string>> = {
   },
   pl: {
     menu: 'Menu', system: 'System',
-    nav_dashboard: 'Pulpit', nav_cases: 'Sprawy', nav_clients: 'Klienci',
+    nav_dashboard: 'Pulpit', nav_cases: 'Sprawy', nav_leads: 'Leady', nav_clients: 'Klienci',
     nav_tasks: 'Zadania', nav_calendar: 'Kalendarz', nav_settings: 'Ustawienia',
     logout: 'Wyloguj',
     dashboard_title: 'Pulpit', dashboard_welcome: 'Witaj',

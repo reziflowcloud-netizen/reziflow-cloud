@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES } from '@/lib/leads'
+import { useLanguage } from '@/context/LanguageContext'
+import { leadSourceLabel, leadStatusLabel, leadText } from '@/lib/leadI18n'
 
 const initialForm = {
   status: 'Новый',
@@ -29,6 +31,8 @@ const initialForm = {
 
 export default function NewLeadPage() {
   const router = useRouter()
+  const { lang } = useLanguage()
+  const lt = (key: string) => leadText(lang, key)
   const [form, setForm] = useState(initialForm)
   const [services, setServices] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
@@ -64,7 +68,7 @@ export default function NewLeadPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Не удалось сохранить лид')
+        setError(data.error || lt('save_failed'))
         return
       }
       router.push(`/leads/${data.id}`)
@@ -78,13 +82,13 @@ export default function NewLeadPage() {
       <form onSubmit={save}>
         <div className="page-header">
           <div>
-            <div className="page-title">Новый лид</div>
-            <div className="page-subtitle">Первичный контакт до перевода в клиента</div>
+            <div className="page-title">{lt('new_lead')}</div>
+            <div className="page-subtitle">{lt('new_lead_subtitle')}</div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <Link href="/dashboard" className="btn btn-secondary">Dashboard</Link>
-            <button type="button" className="btn btn-secondary" onClick={() => router.back()}>Отмена</button>
-            <button className="btn btn-primary" disabled={loading}>{loading ? 'Сохраняю...' : 'Сохранить'}</button>
+            <Link href="/dashboard" className="btn btn-secondary">{lt('dashboard')}</Link>
+            <button type="button" className="btn btn-secondary" onClick={() => router.back()}>{lt('cancel')}</button>
+            <button className="btn btn-primary" disabled={loading}>{loading ? lt('saving') : lt('save')}</button>
           </div>
         </div>
 
@@ -92,39 +96,39 @@ export default function NewLeadPage() {
           {error && <div className="error-msg">{error}</div>}
 
           <div className="card" style={{ marginBottom: 16 }}>
-            <div className="section-title"><span>◎</span>Основное</div>
+            <div className="section-title"><span>◎</span>{lt('main')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group">
-                <label className="label">Имя</label>
-                <input className="input" value={form.firstName} onChange={set('firstName')} placeholder="Например: Ivan" />
+                <label className="label">{lt('first_name')}</label>
+                <input className="input" value={form.firstName} onChange={set('firstName')} placeholder={lt('first_name_placeholder')} />
               </div>
               <div className="form-group">
-                <label className="label">Фамилия</label>
-                <input className="input" value={form.lastName} onChange={set('lastName')} placeholder="Например: Ivanov" />
+                <label className="label">{lt('last_name')}</label>
+                <input className="input" value={form.lastName} onChange={set('lastName')} placeholder={lt('last_name_placeholder')} />
               </div>
               <div className="form-group">
-                <label className="label">Интересующая услуга</label>
+                <label className="label">{lt('interested_service')}</label>
                 <select className="select" value={form.serviceInterest} onChange={set('serviceInterest')}>
-                  <option value="">— Выберите услугу —</option>
+                  <option value="">{lt('choose_service')}</option>
                   {services.map(service => <option key={service.id} value={service.name}>{service.name}</option>)}
                 </select>
               </div>
               <div className="form-group">
-                <label className="label">Статус</label>
+                <label className="label">{lt('status')}</label>
                 <select className="select" value={form.status} onChange={set('status')}>
-                  {(leadStatuses.length ? leadStatuses : DEFAULT_LEAD_STATUSES).map(status => <option key={status.name}>{status.name}</option>)}
+                  {(leadStatuses.length ? leadStatuses : DEFAULT_LEAD_STATUSES).map(status => <option key={status.name} value={status.name}>{leadStatusLabel(lang, status.name)}</option>)}
                 </select>
               </div>
               <div className="form-group">
-                <label className="label">Источник</label>
+                <label className="label">{lt('source')}</label>
                 <select className="select" value={form.source} onChange={set('source')}>
-                  {LEAD_SOURCES.map(source => <option key={source.value} value={source.value}>{source.label}</option>)}
+                  {LEAD_SOURCES.map(source => <option key={source.value} value={source.value}>{leadSourceLabel(lang, source.value)}</option>)}
                 </select>
               </div>
               <div className="form-group" style={{ gridColumn: '1/-1' }}>
-                <label className="label">Ответственный</label>
+                <label className="label">{lt('responsible')}</label>
                 <select className="select" value={form.assignedToId} onChange={set('assignedToId')}>
-                  <option value="">— Не назначен —</option>
+                  <option value="">{lt('not_assigned')}</option>
                   {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
                 </select>
               </div>
@@ -132,29 +136,29 @@ export default function NewLeadPage() {
           </div>
 
           <div className="card" style={{ marginBottom: 16 }}>
-            <div className="section-title"><span>☎</span>Контакты</div>
+            <div className="section-title"><span>☎</span>{lt('contacts')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="form-group"><label className="label">Телефон</label><input className="input" value={form.phone} onChange={set('phone')} /></div>
-              <div className="form-group"><label className="label">Email</label><input className="input" type="email" value={form.email} onChange={set('email')} /></div>
+              <div className="form-group"><label className="label">{lt('phone')}</label><input className="input" value={form.phone} onChange={set('phone')} /></div>
+              <div className="form-group"><label className="label">{lt('email')}</label><input className="input" type="email" value={form.email} onChange={set('email')} /></div>
               <div className="form-group"><label className="label">Instagram</label><input className="input" value={form.instagram} onChange={set('instagram')} placeholder="@username" /></div>
               <div className="form-group"><label className="label">Facebook</label><input className="input" value={form.facebook} onChange={set('facebook')} /></div>
             </div>
           </div>
 
           <div className="card">
-            <div className="section-title"><span>✦</span>Квалификация</div>
+            <div className="section-title"><span>✦</span>{lt('qualification')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="form-group"><label className="label">Город</label><input className="input" value={form.city} onChange={set('city')} /></div>
-              <div className="form-group"><label className="label">Страна/гражданство</label><input className="input" value={form.country} onChange={set('country')} /></div>
-              <div className="form-group"><label className="label">Язык</label><input className="input" value={form.language} onChange={set('language')} /></div>
-              <div className="form-group"><label className="label">Бюджет</label><input className="input" value={form.budget} onChange={set('budget')} /></div>
-              <div className="form-group"><label className="label">Срочность</label><input className="input" value={form.urgency} onChange={set('urgency')} /></div>
-              <div className="form-group"><label className="label">Следующий контакт</label><input className="input" type="datetime-local" value={form.nextContactAt} onChange={set('nextContactAt')} /></div>
+              <div className="form-group"><label className="label">{lt('city')}</label><input className="input" value={form.city} onChange={set('city')} /></div>
+              <div className="form-group"><label className="label">{lt('country')}</label><input className="input" value={form.country} onChange={set('country')} /></div>
+              <div className="form-group"><label className="label">{lt('language')}</label><input className="input" value={form.language} onChange={set('language')} /></div>
+              <div className="form-group"><label className="label">{lt('budget')}</label><input className="input" value={form.budget} onChange={set('budget')} /></div>
+              <div className="form-group"><label className="label">{lt('urgency')}</label><input className="input" value={form.urgency} onChange={set('urgency')} /></div>
+              <div className="form-group"><label className="label">{lt('next_contact')}</label><input className="input" type="datetime-local" value={form.nextContactAt} onChange={set('nextContactAt')} /></div>
               <div className="form-group" style={{ gridColumn: '1/-1' }}>
-                <label className="label">О чем сконтактироваться</label>
-                <textarea className="input" rows={3} value={form.nextContactNote} onChange={set('nextContactNote')} placeholder="Например: уточнить документы, напомнить об оплате, назначить консультацию" />
+                <label className="label">{lt('next_contact_about')}</label>
+                <textarea className="input" rows={3} value={form.nextContactNote} onChange={set('nextContactNote')} placeholder={lt('next_contact_note_placeholder')} />
               </div>
-              <div className="form-group" style={{ gridColumn: '1/-1' }}><label className="label">Заметки</label><textarea className="input" rows={5} value={form.notes} onChange={set('notes')} /></div>
+              <div className="form-group" style={{ gridColumn: '1/-1' }}><label className="label">{lt('notes')}</label><textarea className="input" rows={5} value={form.notes} onChange={set('notes')} /></div>
             </div>
           </div>
         </div>

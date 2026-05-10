@@ -4,9 +4,9 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 const LABELS: Record<string, Record<string, string>> = {
-  ru: { dashboard: 'Пульт', cases: 'Дела', clients: 'Клиенты', tasks: 'Задачи', calendar: 'Календарь' },
-  uk: { dashboard: 'Пульт', cases: 'Справи', clients: 'Клієнти', tasks: 'Завдання', calendar: 'Календар' },
-  pl: { dashboard: 'Pulpit', cases: 'Sprawy', clients: 'Klienci', tasks: 'Zadania', calendar: 'Kalendarz' },
+  ru: { dashboard: 'Пульт', cases: 'Дела', leads: 'Лиды', clients: 'Клиенты', stages: 'Этапы', tasks: 'Задачи', calendar: 'Календарь' },
+  uk: { dashboard: 'Пульт', cases: 'Справи', leads: 'Ліди', clients: 'Клієнти', stages: 'Етапи', tasks: 'Завдання', calendar: 'Календар' },
+  pl: { dashboard: 'Pulpit', cases: 'Sprawy', leads: 'Leady', clients: 'Klienci', stages: 'Etapy', tasks: 'Zadania', calendar: 'Kalendarz' },
 }
 
 const NAV_ITEMS = [
@@ -30,6 +30,15 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: '/leads', key: 'leads',
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} fillOpacity={active ? 0.12 : 0} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 11l18-8-8 18-2-7-8-3z"/>
+        <path d="M13 14l-3-3"/>
+      </svg>
+    ),
+  },
+  {
     href: '/clients', key: 'clients',
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -40,7 +49,7 @@ const NAV_ITEMS = [
     ),
   },
   {
-    href: '/stages', key: 'Этапы',
+    href: '/stages', key: 'stages',
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} fillOpacity={active ? 0.12 : 0} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M4 6h16"/>
