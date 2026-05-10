@@ -46,6 +46,11 @@ function statusColors(status: any) {
   return { bg: `${color}18`, color }
 }
 
+function isConvertedLead(lead: any) {
+  const value = String(lead.status || '').toLowerCase()
+  return Boolean(lead.convertedClientId) || value.includes('клиент') || value.includes('client') || value.includes('klient')
+}
+
 export default function LeadsPage() {
   const router = useRouter()
   const [leads, setLeads] = useState<any[]>([])
@@ -81,10 +86,7 @@ export default function LeadsPage() {
 
   function loadLeads() {
     setLoading(true)
-    const params = new URLSearchParams()
-    if (status) params.set('status', status)
-    if (source) params.set('source', source)
-    return fetch(`/api/leads?${params.toString()}`, { cache: 'no-store' })
+    return fetch('/api/leads', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => setLeads(Array.isArray(data) ? data : []))
       .finally(() => setLoading(false))
@@ -92,7 +94,7 @@ export default function LeadsPage() {
 
   useEffect(() => {
     loadLeads()
-  }, [status, source])
+  }, [])
 
   useEffect(() => {
     fetch('/api/lead-statuses', { cache: 'no-store' })
@@ -106,7 +108,8 @@ export default function LeadsPage() {
       const index = statusNames.indexOf(lead.status)
       return index === -1 ? 999 : index
     }
-    const searched = q ? leads.filter(lead => [
+    const byFilters = leads.filter(lead => (!status || lead.status === status) && (!source || lead.source === source))
+    const searched = q ? byFilters.filter(lead => [
       leadDisplayName(lead),
       lead.phone,
       lead.email,
@@ -116,15 +119,17 @@ export default function LeadsPage() {
       lead.nextContactNote,
       lead.city,
       lead.notes,
-    ].filter(Boolean).join(' ').toLowerCase().includes(q)) : leads
+    ].filter(Boolean).join(' ').toLowerCase().includes(q)) : byFilters
     return [...searched].sort((a, b) => rank(a) - rank(b) || new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
-  }, [leads, search, statusNames.join('|')])
+  }, [leads, search, status, source, statusNames.join('|')])
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const lead of leads) counts[lead.status] = (counts[lead.status] || 0) + 1
     return counts
   }, [leads])
+
+  const activeLeadCount = useMemo(() => leads.filter(lead => !isConvertedLead(lead)).length, [leads])
 
   const reminders = useMemo(() => {
     return leads
@@ -325,7 +330,7 @@ export default function LeadsPage() {
       <div className="page-header">
         <div>
           <div className="page-title">Лиды</div>
-          <div className="page-subtitle">Всего: {leads.length}. Обработка, прогрев и перевод в клиентов</div>
+          <div className="page-subtitle">Всего: {leads.length}. Активных: {activeLeadCount}. Обработка, прогрев и перевод в клиентов</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <Link href="/dashboard" className="btn btn-secondary">Dashboard</Link>
