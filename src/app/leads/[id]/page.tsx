@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, leadDisplayName } from '@/lib/leads'
@@ -25,6 +25,10 @@ export default function LeadDetailPage() {
     nextContactAt: '',
     nextContactNote: '',
   })
+  const [quickNote, setQuickNote] = useState('')
+  const [quickNextContactAt, setQuickNextContactAt] = useState('')
+  const [quickNextContactNote, setQuickNextContactNote] = useState('')
+  const [quickSaving, setQuickSaving] = useState(false)
   const [showConvert, setShowConvert] = useState(false)
   const [convertForm, setConvertForm] = useState({
     firstName: '',
@@ -102,6 +106,20 @@ export default function LeadDetailPage() {
     setContactHistory(Array.isArray(data) ? data : [])
   }
 
+  const activityItems = useMemo(() => {
+    const items = [
+      ...contactHistory.map(item => ({ ...item, kind: 'history' })),
+      ...(lead?.createdAt ? [{
+        id: 'created',
+        kind: 'created',
+        contactAt: lead.createdAt,
+        note: lt('lead_created'),
+        author: null,
+      }] : []),
+    ]
+    return items.sort((a, b) => new Date(b.contactAt).getTime() - new Date(a.contactAt).getTime())
+  }, [contactHistory, lead?.createdAt, lang])
+
   function set(key: string) {
     return (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       setForm((current: any) => ({ ...current, [key]: event.target.value }))
@@ -160,6 +178,76 @@ export default function LeadDetailPage() {
       setContactForm({ contactAt: '', note: '', nextContactAt: '', nextContactNote: '' })
     } finally {
       setSavingContact(false)
+    }
+  }
+
+  async function recordQuickContact(actionKey: string) {
+    setQuickSaving(true)
+    setError('')
+    const baseNote = lt(actionKey)
+    const note = [baseNote, quickNote.trim()].filter(Boolean).join(': ')
+    try {
+      const res = await fetch(`/api/leads/${id}/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contactAt: new Date().toISOString(),
+          note,
+          nextContactAt: quickNextContactAt,
+          nextContactNote: quickNextContactNote,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || lt('save_failed'))
+        return
+      }
+      setContactHistory(current => [data, ...current])
+      setForm((current: any) => ({
+        ...current,
+        lastContactAt: toDateTimeLocal(data.contactAt),
+        lastContactNote: data.note || '',
+        nextContactAt: data.nextContactAt ? toDateTimeLocal(data.nextContactAt) : '',
+        nextContactNote: data.nextContactNote || '',
+      }))
+      setQuickNote('')
+      setQuickNextContactAt('')
+      setQuickNextContactNote('')
+    } finally {
+      setQuickSaving(false)
+    }
+  }
+
+  async function scheduleQuickContact() {
+    if (!quickNextContactAt && !quickNextContactNote.trim()) return
+    setQuickSaving(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/leads/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          nextContactAt: quickNextContactAt,
+          nextContactNote: quickNextContactNote,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || lt('save_failed'))
+        return
+      }
+      setLead(data)
+      setForm((current: any) => ({
+        ...current,
+        nextContactAt: data.nextContactAt ? toDateTimeLocal(data.nextContactAt) : '',
+        nextContactNote: data.nextContactNote || '',
+      }))
+      setQuickNextContactAt('')
+      setQuickNextContactNote('')
+      await loadContactHistory()
+    } finally {
+      setQuickSaving(false)
     }
   }
 
@@ -328,7 +416,7 @@ export default function LeadDetailPage() {
             </div>
 
             <div className="card" style={{ marginTop: 16 }}>
-              <div className="section-title"><span>◷</span>{lt('contact_history')}</div>
+              <div className="section-title"><span>◷</span>{lt('activity')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
                 <div className="form-group">
                   <label className="label">{lt('last_contact_date')}</label>
@@ -353,15 +441,15 @@ export default function LeadDetailPage() {
                 </div>
               </div>
 
-              {contactHistory.length === 0 ? (
+              {activityItems.length === 0 ? (
                 <div style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>{lt('no_contact_history')}</div>
               ) : (
                 <div style={{ display: 'grid', gap: 10 }}>
-                  {contactHistory.map(item => (
+                  {activityItems.map(item => (
                     <div key={item.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, background: 'var(--surface)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
                         <strong>{new Date(item.contactAt).toLocaleString(locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</strong>
-                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>{item.author?.name || lt('no_value')}</span>
+                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>{item.author?.name || (item.kind === 'created' ? lt('lead') : lt('no_value'))}</span>
                       </div>
                       <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{item.note}</div>
                       {(item.nextContactAt || item.nextContactNote) && (
@@ -378,6 +466,33 @@ export default function LeadDetailPage() {
           </div>
 
           <div>
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="section-title"><span>⚡</span>{lt('quick_actions')}</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => recordQuickContact('quick_called')} disabled={quickSaving}>{lt('quick_called')}</button>
+                <button type="button" className="btn btn-secondary" onClick={() => recordQuickContact('quick_wrote')} disabled={quickSaving}>{lt('quick_wrote')}</button>
+                <button type="button" className="btn btn-secondary" onClick={() => recordQuickContact('quick_no_answer')} disabled={quickSaving}>{lt('quick_no_answer')}</button>
+              </div>
+              <div className="form-group">
+                <label className="label">{lt('quick_contact_note')}</label>
+                <textarea className="input" rows={3} value={quickNote} onChange={event => setQuickNote(event.target.value)} placeholder={lt('quick_note_placeholder')} />
+              </div>
+              <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 12 }}>
+                <div className="section-title" style={{ marginBottom: 10 }}><span>◷</span>{lt('schedule_next_contact')}</div>
+                <div className="form-group">
+                  <label className="label">{lt('next_contact')}</label>
+                  <input className="input" type="datetime-local" value={quickNextContactAt} onChange={event => setQuickNextContactAt(event.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="label">{lt('next_contact_note')}</label>
+                  <textarea className="input" rows={3} value={quickNextContactNote} onChange={event => setQuickNextContactNote(event.target.value)} placeholder={lt('next_contact_note_placeholder')} />
+                </div>
+                <button type="button" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={scheduleQuickContact} disabled={quickSaving || (!quickNextContactAt && !quickNextContactNote.trim())}>
+                  {quickSaving ? lt('saving') : lt('quick_schedule')}
+                </button>
+              </div>
+            </div>
+
             <div className="card" style={{ marginBottom: 16 }}>
               <div className="section-title"><span>ⓘ</span>{lt('info')}</div>
               <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
