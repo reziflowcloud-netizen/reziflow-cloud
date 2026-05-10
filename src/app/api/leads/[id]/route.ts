@@ -31,7 +31,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const body = await request.json()
   const lead = await (prisma as any).lead.update({
     where: { id: params.id },
-    data: normalizeLeadBody(body),
+    data: normalizeLeadBody({ ...existing, ...body }),
   })
 
   return NextResponse.json(lead)

@@ -48,6 +48,8 @@ export default function LeadsPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [source, setSource] = useState('')
+  const [viewMode, setViewMode] = useState<'table' | 'board'>('table')
+  const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null)
   const [calendarMonth, setCalendarMonth] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState(() => dateKey(new Date()))
   const [activeReminder, setActiveReminder] = useState<any>(null)
@@ -115,6 +117,16 @@ export default function LeadsPage() {
 
   const selectedReminders = remindersByDate[selectedDate] || []
 
+  const leadsByStatus = useMemo(() => {
+    const groups: Record<string, any[]> = {}
+    for (const item of LEAD_STATUSES) groups[item] = []
+    for (const lead of filtered) {
+      if (!groups[lead.status]) groups[lead.status] = []
+      groups[lead.status].push(lead)
+    }
+    return groups
+  }, [filtered])
+
   const calendarDays = useMemo(() => {
     const year = calendarMonth.getFullYear()
     const month = calendarMonth.getMonth()
@@ -132,6 +144,24 @@ export default function LeadsPage() {
 
   function changeCalendarMonth(delta: number) {
     setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() + delta, 1))
+  }
+
+  async function updateLeadStatus(lead: any, nextStatus: string) {
+    if (!lead || lead.status === nextStatus) return
+    const previousLeads = leads
+    setLeads(current => current.map(item => item.id === lead.id ? { ...item, status: nextStatus } : item))
+    const res = await fetch(`/api/leads/${lead.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: nextStatus }),
+    })
+    if (!res.ok) setLeads(previousLeads)
+  }
+
+  function droppedOnStatus(nextStatus: string) {
+    const lead = leads.find(item => item.id === draggingLeadId)
+    setDraggingLeadId(null)
+    if (lead) updateLeadStatus(lead, nextStatus)
   }
 
   function toDateTimeLocal(value?: string) {
@@ -242,7 +272,7 @@ export default function LeadsPage() {
           })}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 190px 190px', gap: 10, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 190px 190px auto', gap: 10, marginBottom: 16 }}>
           <input className="input" placeholder="🔍 Поиск по имени, телефону, Instagram, услуге..." value={search} onChange={e => setSearch(e.target.value)} />
           <select className="select" value={status} onChange={e => setStatus(e.target.value)}>
             <option value="">Все статусы</option>
@@ -252,9 +282,14 @@ export default function LeadsPage() {
             <option value="">Все источники</option>
             {LEAD_SOURCES.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
+          <div style={{ display: 'flex', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}>
+            <button type="button" className={viewMode === 'table' ? 'btn btn-primary' : 'btn btn-ghost'} style={{ padding: '7px 10px' }} onClick={() => setViewMode('table')}>Таблица</button>
+            <button type="button" className={viewMode === 'board' ? 'btn btn-primary' : 'btn btn-ghost'} style={{ padding: '7px 10px' }} onClick={() => setViewMode('board')}>Борд</button>
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 340px)', gap: 16, alignItems: 'start' }}>
+          {viewMode === 'table' ? (
           <div className="table-container">
             <div className="table-scroll">
               <table className="table">
@@ -290,7 +325,16 @@ export default function LeadsPage() {
                             </div>
                           </div>
                         </td>
-                        <td><span style={{ background: colors.bg, color: colors.color, borderRadius: 999, padding: '4px 9px', fontSize: 12, fontWeight: 700 }}>{lead.status}</span></td>
+                        <td onClick={event => event.stopPropagation()}>
+                          <select
+                            className="select"
+                            value={lead.status}
+                            onChange={event => updateLeadStatus(lead, event.target.value)}
+                            style={{ minWidth: 150, height: 32, padding: '4px 8px', background: colors.bg, color: colors.color, fontWeight: 700, borderColor: colors.bg }}
+                          >
+                            {LEAD_STATUSES.map(item => <option key={item}>{item}</option>)}
+                          </select>
+                        </td>
                         <td style={{ fontSize: 13 }}>{sourceLabel(lead.source)}</td>
                         <td style={{ fontSize: 13 }}>{lead.serviceInterest || '—'}</td>
                         <td style={{ fontSize: 13 }}>
@@ -309,6 +353,53 @@ export default function LeadsPage() {
               </table>
             </div>
           </div>
+          ) : (
+            <div style={{ overflowX: 'auto', paddingBottom: 6 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${LEAD_STATUSES.length}, minmax(230px, 1fr))`, gap: 12, minWidth: 1660 }}>
+                {LEAD_STATUSES.map(item => {
+                  const colors = STATUS_STYLE[item] || { bg: '#f3f4f6', color: '#374151' }
+                  const columnLeads = leadsByStatus[item] || []
+                  return (
+                    <div
+                      key={item}
+                      onDragOver={event => event.preventDefault()}
+                      onDrop={() => droppedOnStatus(item)}
+                      style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, minHeight: 420, padding: 10 }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+                        <div style={{ fontWeight: 800, color: colors.color }}>{item}</div>
+                        <span style={{ background: colors.bg, color: colors.color, borderRadius: 999, padding: '3px 8px', fontSize: 12, fontWeight: 800 }}>{columnLeads.length}</span>
+                      </div>
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        {columnLeads.length === 0 ? (
+                          <div style={{ border: '1px dashed var(--border)', borderRadius: 8, padding: 12, color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>Перетащите лид сюда</div>
+                        ) : columnLeads.map(lead => (
+                          <div
+                            key={lead.id}
+                            draggable
+                            onDragStart={() => setDraggingLeadId(lead.id)}
+                            onDragEnd={() => setDraggingLeadId(null)}
+                            onClick={() => router.push(`/leads/${lead.id}`)}
+                            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, cursor: 'grab', boxShadow: 'var(--shadow-sm)' }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                              <div className="avatar" style={{ width: 30, height: 30, fontSize: 11 }}>{initials(lead)}</div>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{leadDisplayName(lead)}</div>
+                                <div style={{ color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.phone || lead.email || lead.instagram || 'Контакт не указан'}</div>
+                              </div>
+                            </div>
+                            {lead.serviceInterest && <div style={{ fontSize: 12, marginBottom: 6 }}>{lead.serviceInterest}</div>}
+                            {lead.nextContactAt && <div style={{ color: 'var(--muted)', fontSize: 12 }}>{formatLeadDateTime(lead.nextContactAt)}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="card" style={{ position: 'sticky', top: 16 }}>
             <div className="section-title"><span>◷</span>Календарь лидов</div>
