@@ -60,6 +60,12 @@ export default function SettingsPage() {
       title: t('export_title'),
       desc: t('export_sub'),
     },
+    {
+      href: '/settings/integrations',
+      icon: '🔌',
+      title: 'Интеграции',
+      desc: 'Webhook для заявок с сайта, квиза, рекламы и внешних сервисов',
+    },
   ]
 
   return (
