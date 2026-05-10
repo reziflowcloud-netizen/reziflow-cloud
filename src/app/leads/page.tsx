@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { LEAD_SOURCES, LEAD_STATUSES, leadDisplayName } from '@/lib/leads'
+import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, leadDisplayName } from '@/lib/leads'
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -41,6 +41,11 @@ function formatLeadDateTime(value: string) {
   })
 }
 
+function statusColors(status: any) {
+  const color = status?.color || '#2563eb'
+  return { bg: `${color}18`, color }
+}
+
 export default function LeadsPage() {
   const router = useRouter()
   const [leads, setLeads] = useState<any[]>([])
@@ -48,6 +53,10 @@ export default function LeadsPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [source, setSource] = useState('')
+  const [leadStatuses, setLeadStatuses] = useState<any[]>([])
+  const [editingStatuses, setEditingStatuses] = useState(false)
+  const [newStatusName, setNewStatusName] = useState('')
+  const [newStatusColor, setNewStatusColor] = useState('#2563eb')
   const [viewMode, setViewMode] = useState<'table' | 'board'>('table')
   const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null)
   const [calendarMonth, setCalendarMonth] = useState(() => new Date())
@@ -61,6 +70,14 @@ export default function LeadsPage() {
     nextContactNote: '',
   })
   const [reminderSaving, setReminderSaving] = useState(false)
+
+  const orderedStatuses = leadStatuses.length ? leadStatuses : DEFAULT_LEAD_STATUSES
+  const statusNames = orderedStatuses.map(status => status.name)
+  const statusByName = useMemo(() => {
+    const map: Record<string, any> = {}
+    for (const item of orderedStatuses) map[item.name] = item
+    return map
+  }, [leadStatuses])
 
   function loadLeads() {
     setLoading(true)
@@ -77,10 +94,19 @@ export default function LeadsPage() {
     loadLeads()
   }, [status, source])
 
+  useEffect(() => {
+    fetch('/api/lead-statuses', { cache: 'no-store' })
+      .then(res => res.json())
+      .then(data => setLeadStatuses(Array.isArray(data) ? data : []))
+  }, [])
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return leads
-    return leads.filter(lead => [
+    const rank = (lead: any) => {
+      const index = statusNames.indexOf(lead.status)
+      return index === -1 ? 999 : index
+    }
+    const searched = q ? leads.filter(lead => [
       leadDisplayName(lead),
       lead.phone,
       lead.email,
@@ -90,8 +116,9 @@ export default function LeadsPage() {
       lead.nextContactNote,
       lead.city,
       lead.notes,
-    ].filter(Boolean).join(' ').toLowerCase().includes(q))
-  }, [leads, search])
+    ].filter(Boolean).join(' ').toLowerCase().includes(q)) : leads
+    return [...searched].sort((a, b) => rank(a) - rank(b) || new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
+  }, [leads, search, statusNames.join('|')])
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -119,13 +146,13 @@ export default function LeadsPage() {
 
   const leadsByStatus = useMemo(() => {
     const groups: Record<string, any[]> = {}
-    for (const item of LEAD_STATUSES) groups[item] = []
+    for (const item of statusNames) groups[item] = []
     for (const lead of filtered) {
       if (!groups[lead.status]) groups[lead.status] = []
       groups[lead.status].push(lead)
     }
     return groups
-  }, [filtered])
+  }, [filtered, statusNames.join('|')])
 
   const calendarDays = useMemo(() => {
     const year = calendarMonth.getFullYear()
@@ -162,6 +189,57 @@ export default function LeadsPage() {
     const lead = leads.find(item => item.id === draggingLeadId)
     setDraggingLeadId(null)
     if (lead) updateLeadStatus(lead, nextStatus)
+  }
+
+  async function saveLeadStatus(item: any, patch: any) {
+    const previous = leadStatuses
+    const nextStatuses = leadStatuses.map(status => status.id === item.id ? { ...status, ...patch } : status)
+    setLeadStatuses(nextStatuses)
+    const res = await fetch(`/api/lead-statuses/${item.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    if (!res.ok) {
+      setLeadStatuses(previous)
+      return
+    }
+    const updated = await res.json()
+    setLeadStatuses(current => current.map(status => status.id === item.id ? updated : status).sort((a, b) => a.order - b.order))
+    if (patch.name && patch.name !== item.name) {
+      setLeads(current => current.map(lead => lead.status === item.name ? { ...lead, status: patch.name } : lead))
+      if (status === item.name) setStatus(patch.name)
+    }
+  }
+
+  async function moveLeadStatus(index: number, delta: number) {
+    const targetIndex = index + delta
+    if (targetIndex < 0 || targetIndex >= leadStatuses.length) return
+    const reordered = [...leadStatuses]
+    const [moved] = reordered.splice(index, 1)
+    reordered.splice(targetIndex, 0, moved)
+    const withOrder = reordered.map((item, order) => ({ ...item, order }))
+    setLeadStatuses(withOrder)
+    await Promise.all(withOrder.map(item => fetch(`/api/lead-statuses/${item.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order: item.order }),
+    })))
+  }
+
+  async function addLeadStatus() {
+    const name = newStatusName.trim()
+    if (!name) return
+    const res = await fetch('/api/lead-statuses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, color: newStatusColor, order: leadStatuses.length }),
+    })
+    if (!res.ok) return
+    const created = await res.json()
+    setLeadStatuses(current => [...current, created].sort((a, b) => a.order - b.order))
+    setNewStatusName('')
+    setNewStatusColor('#2563eb')
   }
 
   function toDateTimeLocal(value?: string) {
@@ -256,27 +334,55 @@ export default function LeadsPage() {
       </div>
 
       <div className="page-body">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+          <button type="button" className="btn btn-secondary" onClick={() => setEditingStatuses(current => !current)}>
+            {editingStatuses ? 'Готово' : 'Настроить статусы'}
+          </button>
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 16 }}>
-          {LEAD_STATUSES.map(item => {
-            const colors = STATUS_STYLE[item] || { bg: '#f3f4f6', color: '#374151' }
+          {orderedStatuses.map((item, index) => {
+            const colors = statusColors(item)
             return (
-              <button
-                key={item}
-                onClick={() => setStatus(current => current === item ? '' : item)}
-                style={{ textAlign: 'left', border: `1px solid ${status === item ? colors.color : 'var(--border)'}`, background: status === item ? colors.bg : 'var(--surface)', borderRadius: 8, padding: 10, cursor: 'pointer' }}
-              >
-                <div style={{ color: colors.color, fontWeight: 800, fontSize: 18 }}>{statusCounts[item] || 0}</div>
-                <div style={{ fontSize: 12, fontWeight: 700 }}>{item}</div>
-              </button>
+              <div key={item.id || item.name} style={{ border: `1px solid ${status === item.name ? colors.color : 'var(--border)'}`, background: status === item.name ? colors.bg : 'var(--surface)', borderRadius: 8, padding: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => !editingStatuses && setStatus(current => current === item.name ? '' : item.name)}
+                  style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: 0, cursor: editingStatuses ? 'default' : 'pointer' }}
+                >
+                  <div style={{ color: colors.color, fontWeight: 800, fontSize: 18 }}>{statusCounts[item.name] || 0}</div>
+                  {editingStatuses && item.id ? (
+                    <input className="input" defaultValue={item.name} onBlur={event => event.target.value.trim() !== item.name && saveLeadStatus(item, { name: event.target.value })} style={{ height: 30, padding: '4px 8px', fontSize: 12, fontWeight: 700 }} />
+                  ) : (
+                    <div style={{ fontSize: 12, fontWeight: 700 }}>{item.name}</div>
+                  )}
+                </button>
+                {editingStatuses && item.id && (
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 8 }}>
+                    <input type="color" value={item.color || '#2563eb'} onChange={event => saveLeadStatus(item, { color: event.target.value })} style={{ width: 34, height: 28, padding: 2, border: '1px solid var(--border)', borderRadius: 6 }} />
+                    <button type="button" className="btn btn-secondary" style={{ padding: '4px 8px' }} disabled={index === 0} onClick={() => moveLeadStatus(index, -1)}>←</button>
+                    <button type="button" className="btn btn-secondary" style={{ padding: '4px 8px' }} disabled={index === leadStatuses.length - 1} onClick={() => moveLeadStatus(index, 1)}>→</button>
+                  </div>
+                )}
+              </div>
             )
           })}
+          {editingStatuses && (
+            <div style={{ border: '1px dashed var(--border)', borderRadius: 8, padding: 10, background: 'var(--surface)' }}>
+              <input className="input" value={newStatusName} onChange={event => setNewStatusName(event.target.value)} placeholder="Новый статус" style={{ height: 30, marginBottom: 8 }} />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input type="color" value={newStatusColor} onChange={event => setNewStatusColor(event.target.value)} style={{ width: 36, height: 32, padding: 2, border: '1px solid var(--border)', borderRadius: 6 }} />
+                <button type="button" className="btn btn-primary" style={{ flex: 1, padding: '6px 10px' }} onClick={addLeadStatus}>Добавить</button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 190px 190px auto', gap: 10, marginBottom: 16 }}>
           <input className="input" placeholder="🔍 Поиск по имени, телефону, Instagram, услуге..." value={search} onChange={e => setSearch(e.target.value)} />
           <select className="select" value={status} onChange={e => setStatus(e.target.value)}>
             <option value="">Все статусы</option>
-            {LEAD_STATUSES.map(item => <option key={item}>{item}</option>)}
+            {statusNames.map(item => <option key={item}>{item}</option>)}
           </select>
           <select className="select" value={source} onChange={e => setSource(e.target.value)}>
             <option value="">Все источники</option>
@@ -313,7 +419,7 @@ export default function LeadsPage() {
                       {!search && !status && !source && <Link href="/leads/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>Добавить первый лид</Link>}
                     </td></tr>
                   ) : filtered.map(lead => {
-                    const colors = STATUS_STYLE[lead.status] || { bg: '#f3f4f6', color: '#374151' }
+                    const colors = statusColors(statusByName[lead.status])
                     return (
                       <tr key={lead.id} onClick={() => router.push(`/leads/${lead.id}`)} style={{ cursor: 'pointer' }}>
                         <td>
@@ -332,7 +438,7 @@ export default function LeadsPage() {
                             onChange={event => updateLeadStatus(lead, event.target.value)}
                             style={{ minWidth: 150, height: 32, padding: '4px 8px', background: colors.bg, color: colors.color, fontWeight: 700, borderColor: colors.bg }}
                           >
-                            {LEAD_STATUSES.map(item => <option key={item}>{item}</option>)}
+                            {statusNames.map(item => <option key={item}>{item}</option>)}
                           </select>
                         </td>
                         <td style={{ fontSize: 13 }}>{sourceLabel(lead.source)}</td>
@@ -355,19 +461,19 @@ export default function LeadsPage() {
           </div>
           ) : (
             <div style={{ overflowX: 'auto', paddingBottom: 6 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${LEAD_STATUSES.length}, minmax(230px, 1fr))`, gap: 12, minWidth: 1660 }}>
-                {LEAD_STATUSES.map(item => {
-                  const colors = STATUS_STYLE[item] || { bg: '#f3f4f6', color: '#374151' }
-                  const columnLeads = leadsByStatus[item] || []
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${statusNames.length}, minmax(230px, 1fr))`, gap: 12, minWidth: Math.max(320, statusNames.length * 240) }}>
+                {orderedStatuses.map(item => {
+                  const colors = statusColors(item)
+                  const columnLeads = leadsByStatus[item.name] || []
                   return (
                     <div
-                      key={item}
+                      key={item.id || item.name}
                       onDragOver={event => event.preventDefault()}
-                      onDrop={() => droppedOnStatus(item)}
+                      onDrop={() => droppedOnStatus(item.name)}
                       style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, minHeight: 420, padding: 10 }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                        <div style={{ fontWeight: 800, color: colors.color }}>{item}</div>
+                        <div style={{ fontWeight: 800, color: colors.color }}>{item.name}</div>
                         <span style={{ background: colors.bg, color: colors.color, borderRadius: 999, padding: '3px 8px', fontSize: 12, fontWeight: 800 }}>{columnLeads.length}</span>
                       </div>
                       <div style={{ display: 'grid', gap: 8 }}>

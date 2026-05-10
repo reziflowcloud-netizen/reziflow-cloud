@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { LEAD_SOURCES, LEAD_STATUSES, leadDisplayName } from '@/lib/leads'
+import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, leadDisplayName } from '@/lib/leads'
 
 export default function LeadDetailPage() {
   const { id } = useParams()
@@ -12,6 +12,7 @@ export default function LeadDetailPage() {
   const [form, setForm] = useState<any>({})
   const [services, setServices] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
+  const [leadStatuses, setLeadStatuses] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [converting, setConverting] = useState(false)
   const [error, setError] = useState('')
@@ -19,6 +20,7 @@ export default function LeadDetailPage() {
   useEffect(() => {
     fetch('/api/services').then(r => r.json()).then(data => setServices(Array.isArray(data) ? data.filter((s: any) => s.active) : []))
     fetch('/api/users').then(r => r.json()).then(data => setUsers(Array.isArray(data) ? data : []))
+    fetch('/api/lead-statuses').then(r => r.json()).then(data => setLeadStatuses(Array.isArray(data) ? data : []))
     fetch(`/api/leads/${id}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
@@ -135,7 +137,7 @@ export default function LeadDetailPage() {
                 <div className="form-group">
                   <label className="label">Статус</label>
                   <select className="select" value={form.status} onChange={set('status')}>
-                    {LEAD_STATUSES.map(status => <option key={status}>{status}</option>)}
+                    {(leadStatuses.length ? leadStatuses : DEFAULT_LEAD_STATUSES).map(status => <option key={status.name}>{status.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group">

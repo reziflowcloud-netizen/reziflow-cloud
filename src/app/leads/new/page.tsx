@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { LEAD_SOURCES, LEAD_STATUSES } from '@/lib/leads'
+import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES } from '@/lib/leads'
 
 const initialForm = {
   status: 'Новый',
@@ -32,12 +32,18 @@ export default function NewLeadPage() {
   const [form, setForm] = useState(initialForm)
   const [services, setServices] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
+  const [leadStatuses, setLeadStatuses] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     fetch('/api/services').then(r => r.json()).then(data => setServices(Array.isArray(data) ? data.filter((s: any) => s.active) : []))
     fetch('/api/users').then(r => r.json()).then(data => setUsers(Array.isArray(data) ? data : []))
+    fetch('/api/lead-statuses').then(r => r.json()).then(data => {
+      const statuses = Array.isArray(data) ? data : []
+      setLeadStatuses(statuses)
+      if (statuses[0]?.name) setForm(current => ({ ...current, status: statuses[0].name }))
+    })
   }, [])
 
   function set(key: string) {
@@ -106,7 +112,7 @@ export default function NewLeadPage() {
               <div className="form-group">
                 <label className="label">Статус</label>
                 <select className="select" value={form.status} onChange={set('status')}>
-                  {LEAD_STATUSES.map(status => <option key={status}>{status}</option>)}
+                  {(leadStatuses.length ? leadStatuses : DEFAULT_LEAD_STATUSES).map(status => <option key={status.name}>{status.name}</option>)}
                 </select>
               </div>
               <div className="form-group">

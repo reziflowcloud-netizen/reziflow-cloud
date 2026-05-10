@@ -50,6 +50,21 @@ model Organization {
   clientFamilyLinks ClientFamilyLink[]
   documentTemplates DocumentTemplate[]
   leads     Lead[]
+  leadStatuses LeadStatus[]
+}
+
+model LeadStatus {
+  id             Int          @id @default(autoincrement())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  color          String       @default("#2563eb")
+  order          Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, name])
+  @@index([organizationId, order])
 }
 
 model Lead {

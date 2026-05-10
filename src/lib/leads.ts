@@ -8,6 +8,16 @@ export const LEAD_STATUSES = [
   'Переведён в клиента',
 ]
 
+export const DEFAULT_LEAD_STATUSES = [
+  { name: LEAD_STATUSES[0], color: '#2563eb', order: 0 },
+  { name: LEAD_STATUSES[1], color: '#0369a1', order: 1 },
+  { name: LEAD_STATUSES[2], color: '#d97706', order: 2 },
+  { name: LEAD_STATUSES[3], color: '#7c3aed', order: 3 },
+  { name: LEAD_STATUSES[4], color: '#15803d', order: 4 },
+  { name: LEAD_STATUSES[5], color: '#dc2626', order: 5 },
+  { name: LEAD_STATUSES[6], color: '#4b5563', order: 6 },
+]
+
 export const LEAD_SOURCES = [
   { value: 'manual', label: 'Вручную' },
   { value: 'instagram', label: 'Instagram' },
