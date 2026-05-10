@@ -22,6 +22,7 @@ model User {
   createdAt DateTime @default(now())
   cases     Case[]
   tasks     Task[]
+  leads     Lead[]
 }
 
 model Organization {
@@ -48,6 +49,42 @@ model Organization {
   customFieldValues CustomFieldValue[]
   clientFamilyLinks ClientFamilyLink[]
   documentTemplates DocumentTemplate[]
+  leads     Lead[]
+}
+
+model Lead {
+  id             String        @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  assignedToId   Int?
+  assignedTo     User?         @relation(fields: [assignedToId], references: [id])
+  convertedClientId String?
+  status         String        @default("Новый")
+  source         String        @default("manual")
+  firstName      String?
+  lastName       String?
+  fullName       String?
+  phone          String?
+  email          String?
+  instagram      String?
+  facebook       String?
+  messengerId    String?
+  city           String?
+  country        String?
+  language       String?
+  serviceInterest String?
+  budget         String?
+  urgency        String?
+  notes          String?
+  lastContactAt  DateTime?
+  nextContactAt  DateTime?
+  convertedAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([organizationId, status])
+  @@index([organizationId, source])
+  @@index([organizationId, assignedToId])
 }
 
 model DocumentTemplate {
