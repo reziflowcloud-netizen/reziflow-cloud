@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { LEAD_SOURCES, LEAD_STATUSES } from '@/lib/leads'
 
 const initialForm = {
@@ -20,6 +21,7 @@ const initialForm = {
   serviceInterest: '',
   budget: '',
   urgency: '',
+  assignedToId: '',
   nextContactAt: '',
   notes: '',
 }
@@ -27,8 +29,15 @@ const initialForm = {
 export default function NewLeadPage() {
   const router = useRouter()
   const [form, setForm] = useState(initialForm)
+  const [services, setServices] = useState<any[]>([])
+  const [users, setUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    fetch('/api/services').then(r => r.json()).then(data => setServices(Array.isArray(data) ? data.filter((s: any) => s.active) : []))
+    fetch('/api/users').then(r => r.json()).then(data => setUsers(Array.isArray(data) ? data : []))
+  }, [])
 
   function set(key: string) {
     return (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -66,6 +75,7 @@ export default function NewLeadPage() {
             <div className="page-subtitle">Первичный контакт до перевода в клиента</div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            <Link href="/dashboard" className="btn btn-secondary">Dashboard</Link>
             <button type="button" className="btn btn-secondary" onClick={() => router.back()}>Отмена</button>
             <button className="btn btn-primary" disabled={loading}>{loading ? 'Сохраняю...' : 'Сохранить'}</button>
           </div>
@@ -83,7 +93,10 @@ export default function NewLeadPage() {
               </div>
               <div className="form-group">
                 <label className="label">Интересующая услуга</label>
-                <input className="input" value={form.serviceInterest} onChange={set('serviceInterest')} placeholder="Побыт часовый, карта, работа..." />
+                <select className="select" value={form.serviceInterest} onChange={set('serviceInterest')}>
+                  <option value="">— Выберите услугу —</option>
+                  {services.map(service => <option key={service.id} value={service.name}>{service.name}</option>)}
+                </select>
               </div>
               <div className="form-group">
                 <label className="label">Статус</label>
@@ -95,6 +108,13 @@ export default function NewLeadPage() {
                 <label className="label">Источник</label>
                 <select className="select" value={form.source} onChange={set('source')}>
                   {LEAD_SOURCES.map(source => <option key={source.value} value={source.value}>{source.label}</option>)}
+                </select>
+              </div>
+              <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                <label className="label">Ответственный</label>
+                <select className="select" value={form.assignedToId} onChange={set('assignedToId')}>
+                  <option value="">— Не назначен —</option>
+                  {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
                 </select>
               </div>
             </div>

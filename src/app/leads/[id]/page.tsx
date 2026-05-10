@@ -10,11 +10,15 @@ export default function LeadDetailPage() {
   const router = useRouter()
   const [lead, setLead] = useState<any>(null)
   const [form, setForm] = useState<any>({})
+  const [services, setServices] = useState<any[]>([])
+  const [users, setUsers] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [converting, setConverting] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
+    fetch('/api/services').then(r => r.json()).then(data => setServices(Array.isArray(data) ? data.filter((s: any) => s.active) : []))
+    fetch('/api/users').then(r => r.json()).then(data => setUsers(Array.isArray(data) ? data : []))
     fetch(`/api/leads/${id}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
@@ -35,6 +39,7 @@ export default function LeadDetailPage() {
           serviceInterest: data.serviceInterest || '',
           budget: data.budget || '',
           urgency: data.urgency || '',
+          assignedToId: data.assignedToId ? String(data.assignedToId) : '',
           nextContactAt: data.nextContactAt?.slice(0, 16) || '',
           lastContactAt: data.lastContactAt?.slice(0, 16) || '',
           notes: data.notes || '',
@@ -63,6 +68,7 @@ export default function LeadDetailPage() {
         return
       }
       setLead(data)
+      setForm((current: any) => ({ ...current, assignedToId: data.assignedToId ? String(data.assignedToId) : '' }))
     } finally {
       setSaving(false)
     }
@@ -104,6 +110,7 @@ export default function LeadDetailPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <Link href="/dashboard" className="btn btn-secondary">Dashboard</Link>
           {lead.convertedClientId ? (
             <Link className="btn btn-secondary" href={`/clients/${lead.convertedClientId}`}>Открыть клиента</Link>
           ) : (
@@ -136,6 +143,20 @@ export default function LeadDetailPage() {
                   </select>
                 </div>
                 <div className="form-group">
+                  <label className="label">Ответственный</label>
+                  <select className="select" value={form.assignedToId || ''} onChange={set('assignedToId')}>
+                    <option value="">— Не назначен —</option>
+                    {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="label">Интересующая услуга</label>
+                  <select className="select" value={form.serviceInterest || ''} onChange={set('serviceInterest')}>
+                    <option value="">— Выберите услугу —</option>
+                    {services.map(service => <option key={service.id} value={service.name}>{service.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
                   <label className="label">Последний контакт</label>
                   <input className="input" type="datetime-local" value={form.lastContactAt} onChange={set('lastContactAt')} />
                 </div>
@@ -150,7 +171,6 @@ export default function LeadDetailPage() {
               <div className="section-title"><span>☎</span>Контакты</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group"><label className="label">Имя</label><input className="input" value={form.fullName} onChange={set('fullName')} /></div>
-                <div className="form-group"><label className="label">Интересующая услуга</label><input className="input" value={form.serviceInterest} onChange={set('serviceInterest')} /></div>
                 <div className="form-group"><label className="label">Телефон</label><input className="input" value={form.phone} onChange={set('phone')} /></div>
                 <div className="form-group"><label className="label">Email</label><input className="input" type="email" value={form.email} onChange={set('email')} /></div>
                 <div className="form-group"><label className="label">Instagram</label><input className="input" value={form.instagram} onChange={set('instagram')} /></div>
@@ -177,7 +197,7 @@ export default function LeadDetailPage() {
               <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>Создан</span><strong>{new Date(lead.createdAt).toLocaleDateString('ru-RU')}</strong></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>Обновлён</span><strong>{new Date(lead.updatedAt).toLocaleDateString('ru-RU')}</strong></div>
-                {lead.assignedTo?.name && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>Ответственный</span><strong>{lead.assignedTo.name}</strong></div>}
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>Ответственный</span><strong>{users.find(user => String(user.id) === String(form.assignedToId))?.name || '—'}</strong></div>
               </div>
             </div>
 

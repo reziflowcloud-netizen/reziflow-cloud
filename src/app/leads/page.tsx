@@ -70,7 +70,10 @@ export default function LeadsPage() {
           <div className="page-title">Лиды</div>
           <div className="page-subtitle">Всего: {leads.length}. Обработка, прогрев и перевод в клиентов</div>
         </div>
-        <Link href="/leads/new" className="btn btn-primary">+ Добавить лид</Link>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Link href="/dashboard" className="btn btn-secondary">Dashboard</Link>
+          <Link href="/leads/new" className="btn btn-primary">+ Добавить лид</Link>
+        </div>
       </div>
 
       <div className="page-body">
