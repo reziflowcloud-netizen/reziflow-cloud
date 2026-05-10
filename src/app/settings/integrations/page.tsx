@@ -6,6 +6,12 @@ type WebhookSettings = {
   slug: string
   enabled: boolean
   key: string
+  fieldMap: FieldMapRow[]
+}
+
+type FieldMapRow = {
+  external: string
+  target: string
 }
 
 type WebhookLog = {
@@ -36,6 +42,27 @@ const samplePayload = `{
   "notes": "Zgloszenie z formularza"
 }`
 
+const targetFields = [
+  { value: 'firstName', label: 'Имя' },
+  { value: 'lastName', label: 'Фамилия' },
+  { value: 'fullName', label: 'Полное имя' },
+  { value: 'phone', label: 'Телефон' },
+  { value: 'email', label: 'Email' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'messengerId', label: 'Messenger ID' },
+  { value: 'city', label: 'Город' },
+  { value: 'country', label: 'Страна / гражданство' },
+  { value: 'language', label: 'Язык' },
+  { value: 'serviceInterest', label: 'Интересующая услуга' },
+  { value: 'budget', label: 'Бюджет' },
+  { value: 'urgency', label: 'Срочность' },
+  { value: 'notes', label: 'Заметки' },
+  { value: 'source', label: 'Источник' },
+  { value: 'nextContactAt', label: 'Следующий контакт' },
+  { value: 'nextContactNote', label: 'О чем сконтактироваться' },
+]
+
 export default function IntegrationsPage() {
   const [settings, setSettings] = useState<WebhookSettings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -44,6 +71,7 @@ export default function IntegrationsPage() {
   const [showKey, setShowKey] = useState(false)
   const [logs, setLogs] = useState<WebhookLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
+  const [fieldMapDraft, setFieldMapDraft] = useState<FieldMapRow[]>([])
 
   const webhookUrl = useMemo(() => {
     if (!settings || typeof window === 'undefined') return ''
@@ -66,6 +94,7 @@ export default function IntegrationsPage() {
         return
       }
       setSettings(data)
+      setFieldMapDraft(Array.isArray(data.fieldMap) ? data.fieldMap : [])
     } finally {
       setLoading(false)
     }
@@ -86,6 +115,7 @@ export default function IntegrationsPage() {
         return
       }
       setSettings(data)
+      if (Array.isArray(data.fieldMap)) setFieldMapDraft(data.fieldMap)
     } finally {
       setSaving(false)
     }
@@ -109,6 +139,26 @@ export default function IntegrationsPage() {
   function leadName(lead: WebhookLog['lead']) {
     if (!lead) return ''
     return lead.fullName || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.phone || lead.email || 'Лид'
+  }
+
+  function updateFieldMapRow(index: number, patch: Partial<FieldMapRow>) {
+    setFieldMapDraft(current => current.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row))
+  }
+
+  function addFieldMapRow() {
+    setFieldMapDraft(current => [...current, { external: '', target: 'phone' }])
+  }
+
+  function removeFieldMapRow(index: number) {
+    setFieldMapDraft(current => current.filter((_, rowIndex) => rowIndex !== index))
+  }
+
+  function saveFieldMap() {
+    updateSettings({
+      fieldMap: fieldMapDraft
+        .map(row => ({ external: row.external.trim(), target: row.target }))
+        .filter(row => row.external && row.target),
+    })
   }
 
   const maskedKey = settings?.key ? `${settings.key.slice(0, 8)}••••••••••••${settings.key.slice(-6)}` : ''
@@ -189,6 +239,47 @@ ${samplePayload}`}
             </div>
           </div>
         ) : null}
+
+        {!loading && settings && (
+          <div className="card" style={{ marginTop: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+              <div>
+                <div className="section-title" style={{ marginBottom: 4 }}><span>⇄</span>Маппинг полей</div>
+                <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5 }}>
+                  CRM уже автоматически понимает частые названия вроде name, phone, telefon, email, usluga, service. Здесь можно добавить свои правила для конкретного квиза или формы.
+                </div>
+              </div>
+              <button type="button" className="btn btn-secondary" onClick={addFieldMapRow}>+ Поле</button>
+            </div>
+
+            {fieldMapDraft.length === 0 ? (
+              <div style={{ color: 'var(--muted)', fontSize: 13, padding: '10px 0' }}>Ручных правил пока нет. Автораспознавание все равно работает.</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 10 }}>
+                {fieldMapDraft.map((row, index) => (
+                  <div key={index} style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) minmax(180px, 1fr) auto', gap: 10, alignItems: 'center' }}>
+                    <input
+                      className="input"
+                      value={row.external}
+                      onChange={event => updateFieldMapRow(index, { external: event.target.value })}
+                      placeholder="Поле из формы, например phone_number"
+                    />
+                    <select className="input" value={row.target} onChange={event => updateFieldMapRow(index, { target: event.target.value })}>
+                      {targetFields.map(field => <option key={field.value} value={field.value}>{field.label}</option>)}
+                    </select>
+                    <button type="button" className="btn btn-danger" onClick={() => removeFieldMapRow(index)}>Удалить</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+              <button type="button" className="btn btn-primary" onClick={saveFieldMap} disabled={saving}>
+                {saving ? 'Сохраняю...' : 'Сохранить маппинг'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {!loading && (
           <div className="card" style={{ marginTop: 16 }}>

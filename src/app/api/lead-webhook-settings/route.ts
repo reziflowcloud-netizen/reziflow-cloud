@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
-import { generateLeadWebhookKey, getLeadWebhookSettings, settingsObject } from '@/lib/leadWebhook'
+import { LEAD_WEBHOOK_TARGET_FIELDS, generateLeadWebhookKey, getLeadWebhookSettings, settingsObject } from '@/lib/leadWebhook'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +37,7 @@ export async function GET() {
           ...current,
           leadWebhookEnabled: settings.leadWebhookEnabled !== false,
           leadWebhookKey: settings.leadWebhookKey,
+          leadWebhookFieldMap: settings.leadWebhookFieldMap || [],
         },
       },
     })
@@ -46,6 +47,7 @@ export async function GET() {
     slug: organization.slug,
     enabled: settings.leadWebhookEnabled !== false,
     key: settings.leadWebhookKey,
+    fieldMap: settings.leadWebhookFieldMap || [],
   })
 }
 
@@ -62,6 +64,14 @@ export async function PATCH(request: NextRequest) {
   const previous = getLeadWebhookSettings(current)
   const nextKey = body.regenerateKey ? generateLeadWebhookKey() : previous.leadWebhookKey || generateLeadWebhookKey()
   const nextEnabled = typeof body.enabled === 'boolean' ? body.enabled : previous.leadWebhookEnabled !== false
+  const nextFieldMap = Array.isArray(body.fieldMap)
+    ? body.fieldMap
+        .map((item: any) => ({
+          external: String(item?.external || '').trim(),
+          target: String(item?.target || '').trim(),
+        }))
+        .filter((item: any) => item.external && LEAD_WEBHOOK_TARGET_FIELDS.includes(item.target))
+    : previous.leadWebhookFieldMap || []
 
   await prisma.organization.update({
     where: { id: organization.id },
@@ -70,6 +80,7 @@ export async function PATCH(request: NextRequest) {
         ...current,
         leadWebhookEnabled: nextEnabled,
         leadWebhookKey: nextKey,
+        leadWebhookFieldMap: nextFieldMap,
       },
     },
   })
@@ -78,6 +89,6 @@ export async function PATCH(request: NextRequest) {
     slug: organization.slug,
     enabled: nextEnabled,
     key: nextKey,
+    fieldMap: nextFieldMap,
   })
 }
-

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeLeadBody } from '@/lib/leads'
-import { getLeadWebhookSettings, keyMatches, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
+import { applyLeadWebhookMapping, getLeadWebhookSettings, keyMatches, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,9 +55,10 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     return NextResponse.json({ error: 'Invalid webhook key' }, { status: 401 })
   }
 
+  const mappedBody = applyLeadWebhookMapping(body, settings.leadWebhookFieldMap || [])
   const data = normalizeLeadBody({
-    ...body,
-    source: body.source || 'website',
+    ...mappedBody,
+    source: mappedBody.source || body.source || 'website',
   })
 
   if (!data.fullName && !data.phone && !data.email && !data.instagram && !data.facebook) {
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         organizationId: organization.id,
         status: 'failed',
         source: data.source || null,
-        payload: safePayload,
+        payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
         error: 'Provide firstName, lastName, fullName, phone, email, Instagram or Facebook',
       },
     })
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         leadId: created.id,
         status: 'created',
         source: data.source || null,
-        payload: safePayload,
+        payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
       },
     })
     return created
