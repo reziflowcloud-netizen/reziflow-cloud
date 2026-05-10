@@ -9,6 +9,10 @@ function canManage(user: any) {
   return user?.role === 'admin' || user?.role === 'owner'
 }
 
+function normalizeAssignmentMode(value: unknown) {
+  return value === 'single' || value === 'round_robin' ? value : 'off'
+}
+
 async function getOrganizationForUser(user: any) {
   const organizationId = getOrganizationId(user)
   return prisma.organization.findUnique({
@@ -38,6 +42,10 @@ export async function GET() {
           leadWebhookEnabled: settings.leadWebhookEnabled !== false,
           leadWebhookKey: settings.leadWebhookKey,
           leadWebhookFieldMap: settings.leadWebhookFieldMap || [],
+          leadWebhookAssignmentMode: settings.leadWebhookAssignmentMode || 'off',
+          leadWebhookAssignmentUserId: settings.leadWebhookAssignmentUserId || null,
+          leadWebhookAssignmentUserIds: settings.leadWebhookAssignmentUserIds || [],
+          leadWebhookAssignmentCursor: settings.leadWebhookAssignmentCursor || 0,
         },
       },
     })
@@ -48,6 +56,11 @@ export async function GET() {
     enabled: settings.leadWebhookEnabled !== false,
     key: settings.leadWebhookKey,
     fieldMap: settings.leadWebhookFieldMap || [],
+    assignment: {
+      mode: settings.leadWebhookAssignmentMode || 'off',
+      userId: settings.leadWebhookAssignmentUserId || null,
+      userIds: settings.leadWebhookAssignmentUserIds || [],
+    },
   })
 }
 
@@ -72,6 +85,12 @@ export async function PATCH(request: NextRequest) {
         }))
         .filter((item: any) => item.external && LEAD_WEBHOOK_TARGET_FIELDS.includes(item.target))
     : previous.leadWebhookFieldMap || []
+  const incomingAssignment = body.assignment && typeof body.assignment === 'object' ? body.assignment : null
+  const nextAssignmentMode = incomingAssignment ? normalizeAssignmentMode(incomingAssignment.mode) : previous.leadWebhookAssignmentMode || 'off'
+  const nextAssignmentUserId = incomingAssignment?.userId ? Number(incomingAssignment.userId) : previous.leadWebhookAssignmentUserId || null
+  const nextAssignmentUserIds = Array.isArray(incomingAssignment?.userIds)
+    ? incomingAssignment.userIds.map(Number).filter(Number.isFinite)
+    : previous.leadWebhookAssignmentUserIds || []
 
   await prisma.organization.update({
     where: { id: organization.id },
@@ -81,6 +100,9 @@ export async function PATCH(request: NextRequest) {
         leadWebhookEnabled: nextEnabled,
         leadWebhookKey: nextKey,
         leadWebhookFieldMap: nextFieldMap,
+        leadWebhookAssignmentMode: nextAssignmentMode,
+        leadWebhookAssignmentUserId: Number.isFinite(nextAssignmentUserId) ? nextAssignmentUserId : null,
+        leadWebhookAssignmentUserIds: nextAssignmentUserIds,
       },
     },
   })
@@ -90,5 +112,10 @@ export async function PATCH(request: NextRequest) {
     enabled: nextEnabled,
     key: nextKey,
     fieldMap: nextFieldMap,
+    assignment: {
+      mode: nextAssignmentMode,
+      userId: Number.isFinite(nextAssignmentUserId) ? nextAssignmentUserId : null,
+      userIds: nextAssignmentUserIds,
+    },
   })
 }

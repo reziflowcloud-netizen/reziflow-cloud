@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeLeadBody } from '@/lib/leads'
-import { applyLeadWebhookMapping, getLeadWebhookSettings, keyMatches, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
+import { applyLeadWebhookMapping, getLeadWebhookSettings, keyMatches, sanitizeLeadWebhookPayload, settingsObject } from '@/lib/leadWebhook'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +15,41 @@ function appendPayloadNote(notes: string | null, payload: any) {
   const sourceNote = payload?.sourceName || payload?.campaign || payload?.formName
   const parts = [notes, sourceNote ? `Source details: ${sourceNote}` : 'Lead received via webhook'].filter(Boolean)
   return parts.join('\n')
+}
+
+async function resolveAssignedToId(organizationId: string, organizationSettings: unknown, mappedBody: Record<string, unknown>, settings: ReturnType<typeof getLeadWebhookSettings>) {
+  if (mappedBody.assignedToId) return Number(mappedBody.assignedToId)
+  if (settings.leadWebhookAssignmentMode === 'single' && settings.leadWebhookAssignmentUserId) {
+    const user = await prisma.user.findFirst({
+      where: { id: settings.leadWebhookAssignmentUserId, organizationId },
+      select: { id: true },
+    })
+    return user?.id || null
+  }
+  if (settings.leadWebhookAssignmentMode === 'round_robin') {
+    const userIds = settings.leadWebhookAssignmentUserIds || []
+    if (userIds.length === 0) return null
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds }, organizationId },
+      select: { id: true },
+      orderBy: { id: 'asc' },
+    })
+    const validIds = userIds.filter(id => users.some(user => user.id === id))
+    if (validIds.length === 0) return null
+    const cursor = settings.leadWebhookAssignmentCursor || 0
+    const picked = validIds[cursor % validIds.length]
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        settings: {
+          ...settingsObject(organizationSettings),
+          leadWebhookAssignmentCursor: cursor + 1,
+        },
+      },
+    })
+    return picked
+  }
+  return null
 }
 
 export async function POST(request: NextRequest, { params }: { params: { slug: string } }) {
@@ -56,8 +91,10 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
   }
 
   const mappedBody = applyLeadWebhookMapping(body, settings.leadWebhookFieldMap || [])
+  const assignedToId = await resolveAssignedToId(organization.id, organization.settings, mappedBody, settings)
   const data = normalizeLeadBody({
     ...mappedBody,
+    assignedToId: assignedToId || mappedBody.assignedToId,
     source: mappedBody.source || body.source || 'website',
   })
 

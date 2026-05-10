@@ -7,11 +7,25 @@ type WebhookSettings = {
   enabled: boolean
   key: string
   fieldMap: FieldMapRow[]
+  assignment: AssignmentSettings
 }
 
 type FieldMapRow = {
   external: string
   target: string
+}
+
+type AssignmentSettings = {
+  mode: 'off' | 'single' | 'round_robin'
+  userId: number | null
+  userIds: number[]
+}
+
+type UserOption = {
+  id: number
+  name: string
+  email: string
+  role: string
 }
 
 type WebhookLog = {
@@ -72,6 +86,8 @@ export default function IntegrationsPage() {
   const [logs, setLogs] = useState<WebhookLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
   const [fieldMapDraft, setFieldMapDraft] = useState<FieldMapRow[]>([])
+  const [users, setUsers] = useState<UserOption[]>([])
+  const [assignmentDraft, setAssignmentDraft] = useState<AssignmentSettings>({ mode: 'off', userId: null, userIds: [] })
 
   const webhookUrl = useMemo(() => {
     if (!settings || typeof window === 'undefined') return ''
@@ -81,6 +97,7 @@ export default function IntegrationsPage() {
   useEffect(() => {
     loadSettings()
     loadLogs()
+    loadUsers()
   }, [])
 
   async function loadSettings() {
@@ -95,6 +112,7 @@ export default function IntegrationsPage() {
       }
       setSettings(data)
       setFieldMapDraft(Array.isArray(data.fieldMap) ? data.fieldMap : [])
+      setAssignmentDraft(data.assignment || { mode: 'off', userId: null, userIds: [] })
     } finally {
       setLoading(false)
     }
@@ -116,6 +134,7 @@ export default function IntegrationsPage() {
       }
       setSettings(data)
       if (Array.isArray(data.fieldMap)) setFieldMapDraft(data.fieldMap)
+      if (data.assignment) setAssignmentDraft(data.assignment)
     } finally {
       setSaving(false)
     }
@@ -134,6 +153,12 @@ export default function IntegrationsPage() {
     } finally {
       setLogsLoading(false)
     }
+  }
+
+  async function loadUsers() {
+    const res = await fetch('/api/users', { cache: 'no-store' })
+    const data = await res.json().catch(() => [])
+    if (res.ok) setUsers(Array.isArray(data) ? data : [])
   }
 
   function leadName(lead: WebhookLog['lead']) {
@@ -159,6 +184,19 @@ export default function IntegrationsPage() {
         .map(row => ({ external: row.external.trim(), target: row.target }))
         .filter(row => row.external && row.target),
     })
+  }
+
+  function toggleRoundRobinUser(userId: number) {
+    setAssignmentDraft(current => ({
+      ...current,
+      userIds: current.userIds.includes(userId)
+        ? current.userIds.filter(id => id !== userId)
+        : [...current.userIds, userId],
+    }))
+  }
+
+  function saveAssignment() {
+    updateSettings({ assignment: assignmentDraft })
   }
 
   const maskedKey = settings?.key ? `${settings.key.slice(0, 8)}••••••••••••${settings.key.slice(-6)}` : ''
@@ -276,6 +314,75 @@ ${samplePayload}`}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
               <button type="button" className="btn btn-primary" onClick={saveFieldMap} disabled={saving}>
                 {saving ? 'Сохраняю...' : 'Сохранить маппинг'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!loading && settings && (
+          <div className="card" style={{ marginTop: 16 }}>
+            <div className="section-title" style={{ marginBottom: 4 }}><span>👤</span>Автораспределение лидов</div>
+            <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
+              Новые лиды из webhook можно сразу назначать ответственному. Если внешний сервис передаст assignedToId, он будет иметь приоритет.
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 320px) 1fr', gap: 16, alignItems: 'start' }}>
+              <div className="form-group">
+                <label className="label">Режим</label>
+                <select
+                  className="input"
+                  value={assignmentDraft.mode}
+                  onChange={event => setAssignmentDraft(current => ({ ...current, mode: event.target.value as AssignmentSettings['mode'] }))}
+                >
+                  <option value="off">Не назначать автоматически</option>
+                  <option value="single">Назначать одного сотрудника</option>
+                  <option value="round_robin">По очереди между сотрудниками</option>
+                </select>
+              </div>
+
+              {assignmentDraft.mode === 'single' && (
+                <div className="form-group">
+                  <label className="label">Ответственный</label>
+                  <select
+                    className="input"
+                    value={assignmentDraft.userId || ''}
+                    onChange={event => setAssignmentDraft(current => ({ ...current, userId: event.target.value ? Number(event.target.value) : null }))}
+                  >
+                    <option value="">— Не выбран —</option>
+                    {users.map(user => <option key={user.id} value={user.id}>{user.name} · {user.email}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {assignmentDraft.mode === 'round_robin' && (
+                <div>
+                  <div className="label" style={{ marginBottom: 8 }}>Участники очереди</div>
+                  {users.length === 0 ? (
+                    <div style={{ color: 'var(--muted)', fontSize: 13 }}>Нет пользователей для выбора</div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
+                      {users.map(user => (
+                        <label key={user.id} style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--border)', borderRadius: 8, padding: 10, cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={assignmentDraft.userIds.includes(user.id)}
+                            onChange={() => toggleRoundRobinUser(user.id)}
+                          />
+                          <span>
+                            <span style={{ display: 'block', fontWeight: 700 }}>{user.name}</span>
+                            <span style={{ display: 'block', color: 'var(--muted)', fontSize: 12 }}>{user.email}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+              <button type="button" className="btn btn-primary" onClick={saveAssignment} disabled={saving}>
+                {saving ? 'Сохраняю...' : 'Сохранить распределение'}
               </button>
             </div>
           </div>

@@ -4,7 +4,13 @@ export type LeadWebhookSettings = {
   leadWebhookEnabled?: boolean
   leadWebhookKey?: string
   leadWebhookFieldMap?: LeadWebhookFieldMapping[]
+  leadWebhookAssignmentMode?: LeadWebhookAssignmentMode
+  leadWebhookAssignmentUserId?: number | null
+  leadWebhookAssignmentUserIds?: number[]
+  leadWebhookAssignmentCursor?: number
 }
+
+export type LeadWebhookAssignmentMode = 'off' | 'single' | 'round_robin'
 
 export type LeadWebhookFieldMapping = {
   external: string
@@ -67,10 +73,21 @@ export function getLeadWebhookSettings(value: unknown): LeadWebhookSettings {
         }))
         .filter(item => item.external && LEAD_WEBHOOK_TARGET_FIELDS.includes(item.target))
     : []
+  const assignmentMode = ['single', 'round_robin'].includes(String(raw.leadWebhookAssignmentMode))
+    ? String(raw.leadWebhookAssignmentMode) as LeadWebhookAssignmentMode
+    : 'off'
+  const assignmentUserId = raw.leadWebhookAssignmentUserId ? Number(raw.leadWebhookAssignmentUserId) : null
+  const assignmentUserIds = Array.isArray(raw.leadWebhookAssignmentUserIds)
+    ? raw.leadWebhookAssignmentUserIds.map(Number).filter(Number.isFinite)
+    : []
   return {
     leadWebhookEnabled: raw.leadWebhookEnabled !== false,
     leadWebhookKey: typeof raw.leadWebhookKey === 'string' ? raw.leadWebhookKey : '',
     leadWebhookFieldMap: fieldMap,
+    leadWebhookAssignmentMode: assignmentMode,
+    leadWebhookAssignmentUserId: Number.isFinite(assignmentUserId) ? assignmentUserId : null,
+    leadWebhookAssignmentUserIds: assignmentUserIds,
+    leadWebhookAssignmentCursor: Number.isFinite(Number(raw.leadWebhookAssignmentCursor)) ? Number(raw.leadWebhookAssignmentCursor) : 0,
   }
 }
 
