@@ -23,6 +23,7 @@ const initialForm = {
   urgency: '',
   assignedToId: '',
   nextContactAt: '',
+  nextContactNote: '',
   notes: '',
 }
 
@@ -88,8 +89,12 @@ export default function NewLeadPage() {
             <div className="section-title"><span>◎</span>Основное</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group">
-                <label className="label">Имя лида</label>
-                <input className="input" value={form.fullName} onChange={set('fullName')} placeholder="Например: Ivan Ivanov" />
+                <label className="label">Имя</label>
+                <input className="input" value={form.firstName} onChange={set('firstName')} placeholder="Например: Ivan" />
+              </div>
+              <div className="form-group">
+                <label className="label">Фамилия</label>
+                <input className="input" value={form.lastName} onChange={set('lastName')} placeholder="Например: Ivanov" />
               </div>
               <div className="form-group">
                 <label className="label">Интересующая услуга</label>
@@ -139,6 +144,10 @@ export default function NewLeadPage() {
               <div className="form-group"><label className="label">Бюджет</label><input className="input" value={form.budget} onChange={set('budget')} /></div>
               <div className="form-group"><label className="label">Срочность</label><input className="input" value={form.urgency} onChange={set('urgency')} /></div>
               <div className="form-group"><label className="label">Следующий контакт</label><input className="input" type="datetime-local" value={form.nextContactAt} onChange={set('nextContactAt')} /></div>
+              <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                <label className="label">О чем сконтактироваться</label>
+                <input className="input" value={form.nextContactNote} onChange={set('nextContactNote')} placeholder="Например: уточнить документы, напомнить об оплате, назначить консультацию" />
+              </div>
               <div className="form-group" style={{ gridColumn: '1/-1' }}><label className="label">Заметки</label><textarea className="input" rows={5} value={form.notes} onChange={set('notes')} /></div>
             </div>
           </div>

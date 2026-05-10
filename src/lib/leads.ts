@@ -25,7 +25,7 @@ export function normalizeLeadBody(body: any) {
   const fullName = String(body.fullName || '').trim()
   const firstName = String(body.firstName || '').trim()
   const lastName = String(body.lastName || '').trim()
-  const fallbackName = fullName || `${firstName} ${lastName}`.trim()
+  const fallbackName = `${firstName} ${lastName}`.trim() || fullName
 
   return {
     status: body.status || 'Новый',
@@ -47,6 +47,7 @@ export function normalizeLeadBody(body: any) {
     notes: body.notes || null,
     assignedToId: body.assignedToId ? Number(body.assignedToId) : null,
     nextContactAt: body.nextContactAt ? new Date(body.nextContactAt) : null,
+    nextContactNote: body.nextContactNote || null,
     lastContactAt: body.lastContactAt ? new Date(body.lastContactAt) : null,
   }
 }

@@ -78,6 +78,7 @@ model Lead {
   notes          String?
   lastContactAt  DateTime?
   nextContactAt  DateTime?
+  nextContactNote String?
   convertedAt    DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt

@@ -41,6 +41,7 @@ export default function LeadDetailPage() {
           urgency: data.urgency || '',
           assignedToId: data.assignedToId ? String(data.assignedToId) : '',
           nextContactAt: data.nextContactAt?.slice(0, 16) || '',
+          nextContactNote: data.nextContactNote || '',
           lastContactAt: data.lastContactAt?.slice(0, 16) || '',
           notes: data.notes || '',
         })
@@ -164,13 +165,18 @@ export default function LeadDetailPage() {
                   <label className="label">Следующий контакт</label>
                   <input className="input" type="datetime-local" value={form.nextContactAt} onChange={set('nextContactAt')} />
                 </div>
+                <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                  <label className="label">О чем сконтактироваться</label>
+                  <input className="input" value={form.nextContactNote || ''} onChange={set('nextContactNote')} placeholder="Например: уточнить документы, напомнить об оплате, назначить консультацию" />
+                </div>
               </div>
             </div>
 
             <div className="card" style={{ marginBottom: 16 }}>
               <div className="section-title"><span>☎</span>Контакты</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="form-group"><label className="label">Имя</label><input className="input" value={form.fullName} onChange={set('fullName')} /></div>
+                <div className="form-group"><label className="label">Имя</label><input className="input" value={form.firstName || ''} onChange={set('firstName')} /></div>
+                <div className="form-group"><label className="label">Фамилия</label><input className="input" value={form.lastName || ''} onChange={set('lastName')} /></div>
                 <div className="form-group"><label className="label">Телефон</label><input className="input" value={form.phone} onChange={set('phone')} /></div>
                 <div className="form-group"><label className="label">Email</label><input className="input" type="email" value={form.email} onChange={set('email')} /></div>
                 <div className="form-group"><label className="label">Instagram</label><input className="input" value={form.instagram} onChange={set('instagram')} /></div>
