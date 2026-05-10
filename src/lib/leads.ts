@@ -49,5 +49,6 @@ export function normalizeLeadBody(body: any) {
     nextContactAt: body.nextContactAt ? new Date(body.nextContactAt) : null,
     nextContactNote: body.nextContactNote || null,
     lastContactAt: body.lastContactAt ? new Date(body.lastContactAt) : null,
+    lastContactNote: body.lastContactNote || null,
   }
 }

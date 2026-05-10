@@ -50,16 +50,29 @@ export default function LeadsPage() {
   const [source, setSource] = useState('')
   const [calendarMonth, setCalendarMonth] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState(() => dateKey(new Date()))
+  const [activeReminder, setActiveReminder] = useState<any>(null)
+  const [reminderForm, setReminderForm] = useState({
+    completed: false,
+    lastContactAt: '',
+    lastContactNote: '',
+    nextContactAt: '',
+    nextContactNote: '',
+  })
+  const [reminderSaving, setReminderSaving] = useState(false)
 
-  useEffect(() => {
+  function loadLeads() {
     setLoading(true)
     const params = new URLSearchParams()
     if (status) params.set('status', status)
     if (source) params.set('source', source)
-    fetch(`/api/leads?${params.toString()}`, { cache: 'no-store' })
+    return fetch(`/api/leads?${params.toString()}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => setLeads(Array.isArray(data) ? data : []))
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadLeads()
   }, [status, source])
 
   const filtered = useMemo(() => {
@@ -119,6 +132,84 @@ export default function LeadsPage() {
 
   function changeCalendarMonth(delta: number) {
     setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() + delta, 1))
+  }
+
+  function toDateTimeLocal(value?: string) {
+    if (!value) return ''
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return ''
+    const offset = date.getTimezoneOffset()
+    return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16)
+  }
+
+  function openReminder(lead: any) {
+    setActiveReminder(lead)
+    setReminderForm({
+      completed: false,
+      lastContactAt: toDateTimeLocal(lead.nextContactAt) || toDateTimeLocal(new Date().toISOString()),
+      lastContactNote: lead.lastContactNote || lead.nextContactNote || '',
+      nextContactAt: '',
+      nextContactNote: '',
+    })
+  }
+
+  function setReminderField(key: string) {
+    return (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      const value = event.target instanceof HTMLInputElement && event.target.type === 'checkbox' ? event.target.checked : event.target.value
+      setReminderForm(current => ({ ...current, [key]: value }))
+    }
+  }
+
+  async function saveReminder() {
+    if (!activeReminder) return
+    setReminderSaving(true)
+    const payload: any = {
+      status: activeReminder.status,
+      source: activeReminder.source,
+      firstName: activeReminder.firstName || '',
+      lastName: activeReminder.lastName || '',
+      fullName: activeReminder.fullName || '',
+      phone: activeReminder.phone || '',
+      email: activeReminder.email || '',
+      instagram: activeReminder.instagram || '',
+      facebook: activeReminder.facebook || '',
+      city: activeReminder.city || '',
+      country: activeReminder.country || '',
+      language: activeReminder.language || '',
+      serviceInterest: activeReminder.serviceInterest || '',
+      budget: activeReminder.budget || '',
+      urgency: activeReminder.urgency || '',
+      assignedToId: activeReminder.assignedToId || '',
+      notes: activeReminder.notes || '',
+      lastContactAt: activeReminder.lastContactAt ? toDateTimeLocal(activeReminder.lastContactAt) : '',
+      lastContactNote: activeReminder.lastContactNote || '',
+      nextContactAt: reminderForm.nextContactAt,
+      nextContactNote: reminderForm.nextContactNote,
+    }
+
+    if (reminderForm.completed) {
+      payload.lastContactAt = reminderForm.lastContactAt
+      payload.lastContactNote = reminderForm.lastContactNote
+    } else {
+      payload.lastContactAt = activeReminder.lastContactAt ? toDateTimeLocal(activeReminder.lastContactAt) : ''
+      payload.lastContactNote = activeReminder.lastContactNote || ''
+      payload.nextContactAt = reminderForm.nextContactAt || toDateTimeLocal(activeReminder.nextContactAt)
+      payload.nextContactNote = reminderForm.nextContactNote || activeReminder.nextContactNote || ''
+    }
+
+    try {
+      const res = await fetch(`/api/leads/${activeReminder.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) {
+        await loadLeads()
+        setActiveReminder(null)
+      }
+    } finally {
+      setReminderSaving(false)
+    }
   }
 
   return (
@@ -263,7 +354,7 @@ export default function LeadsPage() {
                     <button
                       key={lead.id}
                       type="button"
-                      onClick={() => router.push(`/leads/${lead.id}`)}
+                      onClick={() => openReminder(lead)}
                       style={{ textAlign: 'left', border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 8, padding: 10, cursor: 'pointer' }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
@@ -279,6 +370,71 @@ export default function LeadsPage() {
           </div>
         </div>
       </div>
+      {activeReminder && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+            zIndex: 50,
+          }}
+          onClick={() => setActiveReminder(null)}
+        >
+          <div
+            className="card"
+            style={{ width: 'min(620px, 100%)', maxHeight: '90vh', overflow: 'auto' }}
+            onClick={event => event.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
+              <div>
+                <div className="section-title" style={{ marginBottom: 4 }}><span>◷</span>Контакт с лидом</div>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>{leadDisplayName(activeReminder)}</div>
+                <div style={{ color: 'var(--muted)', fontSize: 13 }}>{activeReminder.phone || activeReminder.email || activeReminder.instagram || 'Контакт не указан'}</div>
+              </div>
+              <Link href={`/leads/${activeReminder.id}`} className="btn btn-secondary">Открыть карточку</Link>
+            </div>
+
+            <div style={{ display: 'grid', gap: 12 }}>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 700 }}>
+                <input type="checkbox" checked={reminderForm.completed} onChange={setReminderField('completed')} />
+                Контакт состоялся
+              </label>
+
+              <div className="form-group">
+                <label className="label">Дата последнего контакта</label>
+                <input className="input" type="datetime-local" value={reminderForm.lastContactAt} onChange={setReminderField('lastContactAt')} />
+              </div>
+
+              <div className="form-group">
+                <label className="label">О чем был контакт</label>
+                <textarea className="input" rows={3} value={reminderForm.lastContactNote} onChange={setReminderField('lastContactNote')} placeholder="Что обсудили, что клиент ответил, какие договоренности появились" />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                <div className="form-group">
+                  <label className="label">Следующий контакт</label>
+                  <input className="input" type="datetime-local" value={reminderForm.nextContactAt} onChange={setReminderField('nextContactAt')} />
+                </div>
+                <div className="form-group">
+                  <label className="label">О чем сконтактироваться дальше</label>
+                  <textarea className="input" rows={3} value={reminderForm.nextContactNote} onChange={setReminderField('nextContactNote')} placeholder="Что обсудить при следующем контакте" />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setActiveReminder(null)}>Отмена</button>
+              <button type="button" className="btn btn-primary" onClick={saveReminder} disabled={reminderSaving}>
+                {reminderSaving ? 'Сохраняю...' : 'Сохранить'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

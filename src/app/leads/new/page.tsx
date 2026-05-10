@@ -146,7 +146,7 @@ export default function NewLeadPage() {
               <div className="form-group"><label className="label">Следующий контакт</label><input className="input" type="datetime-local" value={form.nextContactAt} onChange={set('nextContactAt')} /></div>
               <div className="form-group" style={{ gridColumn: '1/-1' }}>
                 <label className="label">О чем сконтактироваться</label>
-                <input className="input" value={form.nextContactNote} onChange={set('nextContactNote')} placeholder="Например: уточнить документы, напомнить об оплате, назначить консультацию" />
+                <textarea className="input" rows={3} value={form.nextContactNote} onChange={set('nextContactNote')} placeholder="Например: уточнить документы, напомнить об оплате, назначить консультацию" />
               </div>
               <div className="form-group" style={{ gridColumn: '1/-1' }}><label className="label">Заметки</label><textarea className="input" rows={5} value={form.notes} onChange={set('notes')} /></div>
             </div>

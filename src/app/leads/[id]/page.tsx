@@ -43,6 +43,7 @@ export default function LeadDetailPage() {
           nextContactAt: data.nextContactAt?.slice(0, 16) || '',
           nextContactNote: data.nextContactNote || '',
           lastContactAt: data.lastContactAt?.slice(0, 16) || '',
+          lastContactNote: data.lastContactNote || '',
           notes: data.notes || '',
         })
       })
@@ -165,9 +166,13 @@ export default function LeadDetailPage() {
                   <label className="label">Следующий контакт</label>
                   <input className="input" type="datetime-local" value={form.nextContactAt} onChange={set('nextContactAt')} />
                 </div>
-                <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                <div className="form-group">
+                  <label className="label">О чем был последний контакт</label>
+                  <textarea className="input" rows={3} value={form.lastContactNote || ''} onChange={set('lastContactNote')} placeholder="Например: обсудили документы, клиент попросил перезвонить, отправили условия" />
+                </div>
+                <div className="form-group">
                   <label className="label">О чем сконтактироваться</label>
-                  <input className="input" value={form.nextContactNote || ''} onChange={set('nextContactNote')} placeholder="Например: уточнить документы, напомнить об оплате, назначить консультацию" />
+                  <textarea className="input" rows={3} value={form.nextContactNote || ''} onChange={set('nextContactNote')} placeholder="Например: уточнить документы, напомнить об оплате, назначить консультацию" />
                 </div>
               </div>
             </div>

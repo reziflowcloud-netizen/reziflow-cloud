@@ -77,6 +77,7 @@ model Lead {
   urgency        String?
   notes          String?
   lastContactAt  DateTime?
+  lastContactNote String?
   nextContactAt  DateTime?
   nextContactNote String?
   convertedAt    DateTime?
