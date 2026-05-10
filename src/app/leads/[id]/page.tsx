@@ -13,7 +13,15 @@ export default function LeadDetailPage() {
   const [services, setServices] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
+  const [contactHistory, setContactHistory] = useState<any[]>([])
+  const [contactForm, setContactForm] = useState({
+    contactAt: '',
+    note: '',
+    nextContactAt: '',
+    nextContactNote: '',
+  })
   const [saving, setSaving] = useState(false)
+  const [savingContact, setSavingContact] = useState(false)
   const [converting, setConverting] = useState(false)
   const [error, setError] = useState('')
 
@@ -21,6 +29,7 @@ export default function LeadDetailPage() {
     fetch('/api/services').then(r => r.json()).then(data => setServices(Array.isArray(data) ? data.filter((s: any) => s.active) : []))
     fetch('/api/users').then(r => r.json()).then(data => setUsers(Array.isArray(data) ? data : []))
     fetch('/api/lead-statuses').then(r => r.json()).then(data => setLeadStatuses(Array.isArray(data) ? data : []))
+    fetch(`/api/leads/${id}/contacts`, { cache: 'no-store' }).then(r => r.json()).then(data => setContactHistory(Array.isArray(data) ? data : []))
     fetch(`/api/leads/${id}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
@@ -54,6 +63,54 @@ export default function LeadDetailPage() {
   function set(key: string) {
     return (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       setForm((current: any) => ({ ...current, [key]: event.target.value }))
+    }
+  }
+
+  function setContact(key: string) {
+    return (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setContactForm(current => ({ ...current, [key]: event.target.value }))
+    }
+  }
+
+  function toDateTimeLocal(value?: string) {
+    if (!value) return ''
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return ''
+    const offset = date.getTimezoneOffset()
+    return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16)
+  }
+
+  async function addContactHistory() {
+    if (!contactForm.note.trim()) return
+    setSavingContact(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/leads/${id}/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contactAt: contactForm.contactAt || new Date().toISOString(),
+          note: contactForm.note,
+          nextContactAt: contactForm.nextContactAt,
+          nextContactNote: contactForm.nextContactNote,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Не удалось добавить контакт')
+        return
+      }
+      setContactHistory(current => [data, ...current])
+      setForm((current: any) => ({
+        ...current,
+        lastContactAt: toDateTimeLocal(data.contactAt),
+        lastContactNote: data.note || '',
+        nextContactAt: data.nextContactAt ? toDateTimeLocal(data.nextContactAt) : '',
+        nextContactNote: data.nextContactNote || '',
+      }))
+      setContactForm({ contactAt: '', note: '', nextContactAt: '', nextContactNote: '' })
+    } finally {
+      setSavingContact(false)
     }
   }
 
@@ -201,6 +258,55 @@ export default function LeadDetailPage() {
                 <div className="form-group"><label className="label">Срочность</label><input className="input" value={form.urgency} onChange={set('urgency')} /></div>
                 <div className="form-group" style={{ gridColumn: '1/-1' }}><label className="label">Заметки</label><textarea className="input" rows={7} value={form.notes} onChange={set('notes')} /></div>
               </div>
+            </div>
+
+            <div className="card" style={{ marginTop: 16 }}>
+              <div className="section-title"><span>◷</span>История контактов</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div className="form-group">
+                  <label className="label">Дата контакта</label>
+                  <input className="input" type="datetime-local" value={contactForm.contactAt} onChange={setContact('contactAt')} />
+                </div>
+                <div className="form-group">
+                  <label className="label">Следующий контакт</label>
+                  <input className="input" type="datetime-local" value={contactForm.nextContactAt} onChange={setContact('nextContactAt')} />
+                </div>
+                <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                  <label className="label">О чем был контакт</label>
+                  <textarea className="input" rows={3} value={contactForm.note} onChange={setContact('note')} placeholder="Что обсудили, что клиент ответил, о чем договорились" />
+                </div>
+                <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                  <label className="label">О чем сконтактироваться дальше</label>
+                  <textarea className="input" rows={3} value={contactForm.nextContactNote} onChange={setContact('nextContactNote')} placeholder="Что обсудить при следующем контакте" />
+                </div>
+                <div style={{ gridColumn: '1/-1', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button className="btn btn-primary" onClick={addContactHistory} disabled={savingContact || !contactForm.note.trim()}>
+                    {savingContact ? 'Сохраняю...' : '+ Добавить запись'}
+                  </button>
+                </div>
+              </div>
+
+              {contactHistory.length === 0 ? (
+                <div style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>Истории контактов пока нет</div>
+              ) : (
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {contactHistory.map(item => (
+                    <div key={item.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, background: 'var(--surface)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+                        <strong>{new Date(item.contactAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</strong>
+                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>{item.author?.name || '—'}</span>
+                      </div>
+                      <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{item.note}</div>
+                      {(item.nextContactAt || item.nextContactNote) && (
+                        <div style={{ borderTop: '1px solid var(--border)', marginTop: 10, paddingTop: 10, color: 'var(--muted)', fontSize: 12 }}>
+                          {item.nextContactAt && <div><strong>Следующий контакт:</strong> {new Date(item.nextContactAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>}
+                          {item.nextContactNote && <div style={{ marginTop: 4 }}>{item.nextContactNote}</div>}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

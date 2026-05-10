@@ -23,6 +23,7 @@ model User {
   cases     Case[]
   tasks     Task[]
   leads     Lead[]
+  leadContactHistory LeadContactHistory[]
 }
 
 model Organization {
@@ -51,6 +52,7 @@ model Organization {
   documentTemplates DocumentTemplate[]
   leads     Lead[]
   leadStatuses LeadStatus[]
+  leadContactHistory LeadContactHistory[]
 }
 
 model LeadStatus {
@@ -98,10 +100,30 @@ model Lead {
   convertedAt    DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+  contactHistory LeadContactHistory[]
 
   @@index([organizationId, status])
   @@index([organizationId, source])
   @@index([organizationId, assignedToId])
+}
+
+model LeadContactHistory {
+  id             Int          @id @default(autoincrement())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leadId         String
+  lead           Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  authorId       Int?
+  author         User?        @relation(fields: [authorId], references: [id])
+  contactAt      DateTime     @default(now())
+  note           String
+  nextContactAt  DateTime?
+  nextContactNote String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, leadId])
+  @@index([leadId, contactAt])
 }
 
 model DocumentTemplate {

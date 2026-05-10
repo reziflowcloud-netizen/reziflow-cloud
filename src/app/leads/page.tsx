@@ -311,15 +311,28 @@ export default function LeadsPage() {
     }
 
     try {
-      const res = await fetch(`/api/leads/${activeReminder.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (res.ok) {
-        await loadLeads()
-        setActiveReminder(null)
+      if (reminderForm.completed) {
+        const res = await fetch(`/api/leads/${activeReminder.id}/contacts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contactAt: reminderForm.lastContactAt,
+            note: reminderForm.lastContactNote,
+            nextContactAt: reminderForm.nextContactAt,
+            nextContactNote: reminderForm.nextContactNote,
+          }),
+        })
+        if (!res.ok) return
+      } else {
+        const res = await fetch(`/api/leads/${activeReminder.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (!res.ok) return
       }
+      await loadLeads()
+      setActiveReminder(null)
     } finally {
       setReminderSaving(false)
     }
