@@ -29,9 +29,24 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await request.json()
-  const lead = await (prisma as any).lead.update({
-    where: { id: params.id },
-    data: normalizeLeadBody({ ...existing, ...body }),
+  const data = normalizeLeadBody({ ...existing, ...body })
+  const lead = await (prisma as any).$transaction(async (tx: any) => {
+    const updated = await tx.lead.update({
+      where: { id: params.id },
+      data,
+    })
+    if (body.status !== undefined && data.status && data.status !== existing.status) {
+      await tx.leadContactHistory.create({
+        data: {
+          organizationId,
+          leadId: params.id,
+          authorId: user.id,
+          contactAt: new Date(),
+          note: `Статус изменен: ${existing.status || '—'} -> ${data.status}`,
+        },
+      })
+    }
+    return updated
   })
 
   return NextResponse.json(lead)

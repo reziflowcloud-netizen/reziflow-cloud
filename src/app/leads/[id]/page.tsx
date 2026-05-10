@@ -20,6 +20,20 @@ export default function LeadDetailPage() {
     nextContactAt: '',
     nextContactNote: '',
   })
+  const [showConvert, setShowConvert] = useState(false)
+  const [convertForm, setConvertForm] = useState({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    email: '',
+    city: '',
+    country: '',
+    createCase: true,
+    serviceId: '',
+    totalValue: '',
+    assignedToId: '',
+    caseNotes: '',
+  })
   const [saving, setSaving] = useState(false)
   const [savingContact, setSavingContact] = useState(false)
   const [converting, setConverting] = useState(false)
@@ -29,7 +43,7 @@ export default function LeadDetailPage() {
     fetch('/api/services').then(r => r.json()).then(data => setServices(Array.isArray(data) ? data.filter((s: any) => s.active) : []))
     fetch('/api/users').then(r => r.json()).then(data => setUsers(Array.isArray(data) ? data : []))
     fetch('/api/lead-statuses').then(r => r.json()).then(data => setLeadStatuses(Array.isArray(data) ? data : []))
-    fetch(`/api/leads/${id}/contacts`, { cache: 'no-store' }).then(r => r.json()).then(data => setContactHistory(Array.isArray(data) ? data : []))
+    loadContactHistory()
     fetch(`/api/leads/${id}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
@@ -57,8 +71,31 @@ export default function LeadDetailPage() {
           lastContactNote: data.lastContactNote || '',
           notes: data.notes || '',
         })
+        setConvertForm(current => ({
+          ...current,
+          firstName: data.firstName || '',
+          lastName: data.lastName || '',
+          phone: data.phone || '',
+          email: data.email || '',
+          city: data.city || '',
+          country: data.country || '',
+          totalValue: data.budget || '',
+          assignedToId: data.assignedToId ? String(data.assignedToId) : '',
+          caseNotes: data.notes || '',
+        }))
       })
   }, [id])
+
+  useEffect(() => {
+    if (!services.length || !lead?.serviceInterest || convertForm.serviceId) return
+    const service = services.find(item => item.name === lead.serviceInterest)
+    if (service) setConvertForm(current => ({ ...current, serviceId: String(service.id) }))
+  }, [services, lead?.serviceInterest, convertForm.serviceId])
+
+  async function loadContactHistory() {
+    const data = await fetch(`/api/leads/${id}/contacts`, { cache: 'no-store' }).then(r => r.json())
+    setContactHistory(Array.isArray(data) ? data : [])
+  }
 
   function set(key: string) {
     return (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -69,6 +106,13 @@ export default function LeadDetailPage() {
   function setContact(key: string) {
     return (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       setContactForm(current => ({ ...current, [key]: event.target.value }))
+    }
+  }
+
+  function setConvert(key: string) {
+    return (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+      const value = event.target instanceof HTMLInputElement && event.target.type === 'checkbox' ? event.target.checked : event.target.value
+      setConvertForm(current => ({ ...current, [key]: value }))
     }
   }
 
@@ -117,6 +161,7 @@ export default function LeadDetailPage() {
   async function save() {
     setSaving(true)
     setError('')
+    const previousStatus = lead?.status
     try {
       const res = await fetch(`/api/leads/${id}`, {
         method: 'PATCH',
@@ -130,23 +175,40 @@ export default function LeadDetailPage() {
       }
       setLead(data)
       setForm((current: any) => ({ ...current, assignedToId: data.assignedToId ? String(data.assignedToId) : '' }))
+      if (form.status && form.status !== previousStatus) {
+        loadContactHistory()
+      }
     } finally {
       setSaving(false)
     }
   }
 
+  function openConvertModal() {
+    const service = services.find(item => item.name === form.serviceInterest)
+    setConvertForm(current => ({
+      ...current,
+      serviceId: current.serviceId || (service ? String(service.id) : ''),
+      totalValue: current.totalValue || form.budget || '',
+      assignedToId: current.assignedToId || form.assignedToId || '',
+    }))
+    setShowConvert(true)
+  }
+
   async function convertToClient() {
-    if (!confirm('Перевести этого лида в клиента?')) return
     setConverting(true)
     setError('')
     try {
-      const res = await fetch(`/api/leads/${id}/convert`, { method: 'POST' })
+      const res = await fetch(`/api/leads/${id}/convert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(convertForm),
+      })
       const data = await res.json()
       if (!res.ok) {
         setError(data.error || 'Не удалось перевести лида')
         return
       }
-      router.push(`/clients/${data.clientId}`)
+      router.push(data.caseId ? `/cases/${data.caseId}` : `/clients/${data.clientId}`)
     } finally {
       setConverting(false)
     }
@@ -175,7 +237,7 @@ export default function LeadDetailPage() {
           {lead.convertedClientId ? (
             <Link className="btn btn-secondary" href={`/clients/${lead.convertedClientId}`}>Открыть клиента</Link>
           ) : (
-            <button className="btn btn-secondary" onClick={convertToClient} disabled={converting}>
+            <button className="btn btn-secondary" onClick={openConvertModal} disabled={converting}>
               {converting ? 'Перевожу...' : 'Перевести в клиента'}
             </button>
           )}
@@ -327,6 +389,57 @@ export default function LeadDetailPage() {
           </div>
         </div>
       </div>
+      {showConvert && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 50 }}
+          onClick={() => setShowConvert(false)}
+        >
+          <div className="card" style={{ width: 'min(720px, 100%)', maxHeight: '90vh', overflow: 'auto' }} onClick={event => event.stopPropagation()}>
+            <div className="section-title"><span>→</span>Перевод лида в клиента</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="form-group"><label className="label">Имя</label><input className="input" value={convertForm.firstName} onChange={setConvert('firstName')} /></div>
+              <div className="form-group"><label className="label">Фамилия</label><input className="input" value={convertForm.lastName} onChange={setConvert('lastName')} /></div>
+              <div className="form-group"><label className="label">Телефон</label><input className="input" value={convertForm.phone} onChange={setConvert('phone')} /></div>
+              <div className="form-group"><label className="label">Email</label><input className="input" value={convertForm.email} onChange={setConvert('email')} /></div>
+              <div className="form-group"><label className="label">Город</label><input className="input" value={convertForm.city} onChange={setConvert('city')} /></div>
+              <div className="form-group"><label className="label">Страна/гражданство</label><input className="input" value={convertForm.country} onChange={setConvert('country')} /></div>
+              <label style={{ gridColumn: '1/-1', display: 'flex', gap: 8, alignItems: 'center', fontWeight: 700, marginTop: 4 }}>
+                <input type="checkbox" checked={convertForm.createCase} onChange={setConvert('createCase')} />
+                Создать дело сразу после создания клиента
+              </label>
+              {convertForm.createCase && (
+                <>
+                  <div className="form-group">
+                    <label className="label">Услуга</label>
+                    <select className="select" value={convertForm.serviceId} onChange={setConvert('serviceId')}>
+                      <option value="">— Выберите услугу —</option>
+                      {services.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group"><label className="label">Стоимость</label><input className="input" type="number" step="0.01" value={convertForm.totalValue} onChange={setConvert('totalValue')} /></div>
+                  <div className="form-group">
+                    <label className="label">Ответственный</label>
+                    <select className="select" value={convertForm.assignedToId} onChange={setConvert('assignedToId')}>
+                      <option value="">— Не назначен —</option>
+                      {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                    <label className="label">Заметка к делу</label>
+                    <textarea className="input" rows={3} value={convertForm.caseNotes} onChange={setConvert('caseNotes')} />
+                  </div>
+                </>
+              )}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowConvert(false)}>Отмена</button>
+              <button type="button" className="btn btn-primary" onClick={convertToClient} disabled={converting || !convertForm.firstName.trim()}>
+                {converting ? 'Перевожу...' : 'Перевести'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

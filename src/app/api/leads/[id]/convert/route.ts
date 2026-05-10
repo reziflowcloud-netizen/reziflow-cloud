@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { leadDisplayName } from '@/lib/leads'
@@ -18,10 +18,22 @@ function splitName(lead: any) {
   return { firstName: parts.slice(0, -1).join(' '), lastName: parts[parts.length - 1] }
 }
 
-export async function POST(_: Request, { params }: { params: { id: string } }) {
+async function convertedStatusName(organizationId: string) {
+  const statuses = await (prisma as any).leadStatus.findMany({
+    where: { organizationId },
+    orderBy: [{ order: 'asc' }, { id: 'asc' }],
+  })
+  return statuses.find((item: any) => {
+    const name = String(item.name || '').toLowerCase()
+    return name.includes('клиент') || name.includes('client') || name.includes('klient')
+  })?.name || 'Переведён в клиента'
+}
+
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
+  const body = await request.json().catch(() => ({}))
 
   const lead = await (prisma as any).lead.findFirst({ where: { id: params.id, organizationId } })
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -29,28 +41,79 @@ export async function POST(_: Request, { params }: { params: { id: string } }) {
     return NextResponse.json({ error: 'Лид уже переведён в клиента', clientId: lead.convertedClientId }, { status: 409 })
   }
 
-  const name = splitName(lead)
-  const client = await prisma.client.create({
-    data: {
-      organizationId,
-      firstName: name.firstName,
-      lastName: name.lastName,
-      phone: lead.phone || null,
-      email: lead.email || null,
-      city: lead.city || null,
-      citizenship: lead.country || null,
-    },
+  const fallbackName = splitName(lead)
+  const name = {
+    firstName: String(body.firstName || '').trim() || fallbackName.firstName,
+    lastName: String(body.lastName || '').trim() || fallbackName.lastName,
+  }
+  const convertedStatus = await convertedStatusName(organizationId)
+
+  const result = await (prisma as any).$transaction(async (tx: any) => {
+    const client = await tx.client.create({
+      data: {
+        organizationId,
+        firstName: name.firstName,
+        lastName: name.lastName,
+        phone: body.phone || lead.phone || null,
+        email: body.email || lead.email || null,
+        city: body.city || lead.city || null,
+        citizenship: body.country || lead.country || null,
+      },
+    })
+
+    let createdCase: any = null
+    if (body.createCase) {
+      createdCase = await tx.case.create({
+        data: {
+          organizationId,
+          clientId: client.id,
+          status: body.caseStatus || 'Новый',
+          totalValue: parseFloat(body.totalValue) || 0,
+          assignedToId: body.assignedToId ? parseInt(body.assignedToId) : lead.assignedToId || null,
+          serviceId: body.serviceId ? parseInt(body.serviceId) : null,
+          notes: body.caseNotes || `Создано при переводе лида: ${leadDisplayName(lead)}`,
+        },
+      })
+      await tx.statusHistory.create({
+        data: { caseId: createdCase.id, toStatus: createdCase.status, changedBy: user.name || 'System' },
+      })
+    }
+
+    await tx.lead.update({
+      where: { id: lead.id },
+      data: {
+        status: convertedStatus,
+        convertedClientId: client.id,
+        convertedAt: new Date(),
+        notes: [lead.notes, `Переведён в клиента: ${leadDisplayName(lead)}`].filter(Boolean).join('\n'),
+      },
+    })
+
+    await tx.leadContactHistory.create({
+      data: {
+        organizationId,
+        leadId: lead.id,
+        authorId: user.id,
+        contactAt: new Date(),
+        note: `Лид переведён в клиента: ${name.firstName} ${name.lastName}`.trim(),
+        nextContactNote: createdCase ? `Создано дело ${createdCase.caseNumber || createdCase.id}` : null,
+      },
+    })
+
+    if (lead.status !== convertedStatus) {
+      await tx.leadContactHistory.create({
+        data: {
+          organizationId,
+          leadId: lead.id,
+          authorId: user.id,
+          contactAt: new Date(),
+          note: `Статус изменен: ${lead.status || '—'} -> ${convertedStatus}`,
+        },
+      })
+    }
+
+    return { clientId: client.id, caseId: createdCase?.id || null }
   })
 
-  await (prisma as any).lead.update({
-    where: { id: lead.id },
-    data: {
-      status: 'Переведён в клиента',
-      convertedClientId: client.id,
-      convertedAt: new Date(),
-      notes: [lead.notes, `Переведён в клиента: ${leadDisplayName(lead)}`].filter(Boolean).join('\n'),
-    },
-  })
-
-  return NextResponse.json({ clientId: client.id })
+  return NextResponse.json(result)
 }
