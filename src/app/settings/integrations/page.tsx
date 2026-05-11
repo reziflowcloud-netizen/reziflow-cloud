@@ -95,7 +95,7 @@ export default function IntegrationsPage() {
   }, [settings])
   const webliumWebhookUrl = useMemo(() => {
     if (!webhookUrl || !settings?.key) return ''
-    return `${webhookUrl}?key=${encodeURIComponent(settings.key)}`
+    return `${webhookUrl}/${encodeURIComponent(settings.key)}`
   }, [webhookUrl, settings?.key])
 
   useEffect(() => {
