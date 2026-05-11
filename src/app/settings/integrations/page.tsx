@@ -432,13 +432,14 @@ ${samplePayload}`}
                   <tbody>
                     {logs.map(log => {
                       const isCreated = log.status === 'created'
+                      const isPing = log.status === 'ping'
                       const payload = log.payload ? Object.entries(log.payload).slice(0, 4).map(([key, value]) => `${key}: ${String(value)}`).join(', ') : ''
                       return (
                         <tr key={log.id}>
                           <td style={{ fontSize: 13 }}>{new Date(log.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                           <td>
-                            <span style={{ display: 'inline-flex', borderRadius: 999, padding: '4px 8px', fontSize: 12, fontWeight: 800, background: isCreated ? '#dcfce7' : '#fee2e2', color: isCreated ? '#166534' : '#991b1b' }}>
-                              {isCreated ? 'Создан' : log.status === 'failed' ? 'Ошибка' : 'Отклонен'}
+                            <span style={{ display: 'inline-flex', borderRadius: 999, padding: '4px 8px', fontSize: 12, fontWeight: 800, background: isCreated ? '#dcfce7' : isPing ? '#dbeafe' : '#fee2e2', color: isCreated ? '#166534' : isPing ? '#1d4ed8' : '#991b1b' }}>
+                              {isCreated ? 'Создан' : isPing ? 'Тест' : log.status === 'failed' ? 'Ошибка' : 'Отклонен'}
                             </span>
                           </td>
                           <td style={{ fontSize: 13 }}>{log.source || '—'}</td>

@@ -17,6 +17,21 @@ function appendPayloadNote(notes: string | null, payload: any) {
   return parts.join('\n')
 }
 
+async function readWebhookBody(request: NextRequest) {
+  const contentType = request.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) return request.json().catch(() => ({}))
+  if (contentType.includes('application/x-www-form-urlencoded')) {
+    const text = await request.text().catch(() => '')
+    return Object.fromEntries(new URLSearchParams(text))
+  }
+  if (contentType.includes('multipart/form-data')) {
+    const formData = await request.formData().catch(() => null)
+    if (!formData) return {}
+    return Object.fromEntries(Array.from(formData.entries()).map(([key, value]) => [key, typeof value === 'string' ? value : value.name]))
+  }
+  return request.json().catch(() => ({}))
+}
+
 async function resolveAssignedToId(organizationId: string, organizationSettings: unknown, mappedBody: Record<string, unknown>, settings: ReturnType<typeof getLeadWebhookSettings>) {
   if (mappedBody.assignedToId) return Number(mappedBody.assignedToId)
   if (settings.leadWebhookAssignmentMode === 'single' && settings.leadWebhookAssignmentUserId) {
@@ -52,8 +67,43 @@ async function resolveAssignedToId(organizationId: string, organizationSettings:
   return null
 }
 
+export async function GET(request: NextRequest, { params }: { params: { slug: string } }) {
+  const organization = await prisma.organization.findUnique({
+    where: { slug: params.slug },
+    select: { id: true, settings: true },
+  })
+
+  if (!organization) return NextResponse.json({ ok: false, error: 'Organization not found' }, { status: 404 })
+
+  const settings = getLeadWebhookSettings(organization.settings)
+  const receivedKey = readWebhookKey(request, {})
+  if (!keyMatches(settings.leadWebhookKey || '', receivedKey)) {
+    await (prisma as any).leadWebhookLog.create({
+      data: {
+        organizationId: organization.id,
+        status: 'rejected',
+        source: 'webhook-test',
+        payload: { method: 'GET' },
+        error: 'Invalid webhook key',
+      },
+    })
+    return NextResponse.json({ ok: false, error: 'Invalid webhook key' }, { status: 401 })
+  }
+
+  await (prisma as any).leadWebhookLog.create({
+    data: {
+      organizationId: organization.id,
+      status: 'ping',
+      source: 'webhook-test',
+      payload: { method: 'GET' },
+    },
+  })
+
+  return NextResponse.json({ ok: true, message: 'ReziFlow lead webhook is connected' })
+}
+
 export async function POST(request: NextRequest, { params }: { params: { slug: string } }) {
-  const body = await request.json().catch(() => ({}))
+  const body = await readWebhookBody(request)
   const safePayload = sanitizeLeadWebhookPayload(body)
   const organization = await prisma.organization.findUnique({
     where: { slug: params.slug },
