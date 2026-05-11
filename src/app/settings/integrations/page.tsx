@@ -93,6 +93,10 @@ export default function IntegrationsPage() {
     if (!settings || typeof window === 'undefined') return ''
     return `${window.location.origin}/api/webhooks/leads/${settings.slug}`
   }, [settings])
+  const webliumWebhookUrl = useMemo(() => {
+    if (!webhookUrl || !settings?.key) return ''
+    return `${webhookUrl}?key=${encodeURIComponent(settings.key)}`
+  }, [webhookUrl, settings?.key])
 
   useEffect(() => {
     loadSettings()
@@ -242,6 +246,17 @@ export default function IntegrationsPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
                   <input className="input" readOnly value={webhookUrl} />
                   <button className="btn btn-secondary" type="button" onClick={() => copy(webhookUrl)}>Копировать</button>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="label">Webhook URL для Weblium</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
+                  <input className="input" readOnly value={showKey ? webliumWebhookUrl : 'Покажите ключ, чтобы увидеть URL для Weblium'} />
+                  <button className="btn btn-secondary" type="button" onClick={() => copy(webliumWebhookUrl)} disabled={!showKey}>Копировать</button>
+                </div>
+                <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
+                  Используйте этот вариант, если сервис не умеет отправлять заголовок x-reziflow-key.
                 </div>
               </div>
 

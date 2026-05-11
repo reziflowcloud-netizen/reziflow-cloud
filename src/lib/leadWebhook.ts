@@ -123,7 +123,11 @@ function normalizeFieldKey(value: string) {
 function stringifyWebhookValue(value: unknown) {
   if (Array.isArray(value)) return value.filter(Boolean).join(', ')
   if (value === null || value === undefined) return ''
-  if (typeof value === 'object') return JSON.stringify(value)
+  if (typeof value === 'object') {
+    const raw = settingsObject(value)
+    if (typeof raw.url === 'string' && typeof raw.fileName === 'string') return `${raw.fileName}: ${raw.url}`
+    return Object.values(raw).filter(Boolean).map(String).join(', ') || JSON.stringify(value)
+  }
   return String(value)
 }
 
@@ -131,11 +135,23 @@ function flattenWebhookPayload(value: unknown) {
   const raw = settingsObject(value)
   const flattened: Record<string, unknown> = { ...raw }
   const fieldData = Array.isArray(raw.field_data) ? raw.field_data : Array.isArray(raw.fieldData) ? raw.fieldData : []
+  const webliumFields = settingsObject(raw.fields)
 
   for (const field of fieldData as any[]) {
     const name = String(field?.name || '').trim()
     if (!name) continue
     flattened[name] = Array.isArray(field?.values) ? field.values.join(', ') : field?.value
+  }
+
+  for (const [key, field] of Object.entries(webliumFields)) {
+    const item = settingsObject(field)
+    const title = String(item.title || key).trim()
+    const type = String(item.type || '').trim()
+    const value = item.value
+    if (title) flattened[title] = stringifyWebhookValue(value)
+    if (key) flattened[key] = stringifyWebhookValue(value)
+    if (type === 'phone' && !flattened.phone) flattened.phone = stringifyWebhookValue(value)
+    if (type === 'email' && !flattened.email) flattened.email = stringifyWebhookValue(value)
   }
 
   return flattened

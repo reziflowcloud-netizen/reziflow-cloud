@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 function readWebhookKey(request: NextRequest, body: any) {
   const authorization = request.headers.get('authorization') || ''
   const bearer = authorization.toLowerCase().startsWith('bearer ') ? authorization.slice(7).trim() : ''
-  return request.headers.get('x-reziflow-key') || bearer || body?.apiKey || body?.key || ''
+  return request.headers.get('x-reziflow-key') || bearer || request.nextUrl.searchParams.get('key') || body?.apiKey || body?.key || ''
 }
 
 function appendPayloadNote(notes: string | null, payload: any) {
