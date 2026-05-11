@@ -146,12 +146,16 @@ function flattenWebhookPayload(value: unknown) {
   for (const [key, field] of Object.entries(webliumFields)) {
     const item = settingsObject(field)
     const title = String(item.title || key).trim()
-    const type = String(item.type || '').trim()
+    const type = String(item.type || '').trim().toLowerCase()
     const value = item.value
+    const textValue = stringifyWebhookValue(value)
     if (title) flattened[title] = stringifyWebhookValue(value)
-    if (key) flattened[key] = stringifyWebhookValue(value)
-    if (type === 'phone' && !flattened.phone) flattened.phone = stringifyWebhookValue(value)
-    if (type === 'email' && !flattened.email) flattened.email = stringifyWebhookValue(value)
+    if (key) flattened[key] = textValue
+    if (key === 'short_text' && !flattened.fullName) flattened.fullName = textValue
+    if (key === 'contactForm_phoneNumber' && !flattened.phone) flattened.phone = textValue
+    if (type === 'phone' && !flattened.phone) flattened.phone = textValue
+    if (type === 'email' && !flattened.email) flattened.email = textValue
+    if (type === 'dropdown' && !flattened.serviceInterest) flattened.serviceInterest = textValue
   }
 
   return flattened
