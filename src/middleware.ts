@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from './lib/auth'
 
 const PUBLIC_PATHS = ['/', '/api/auth/login']
-const PUBLIC_PREFIXES = ['/api/webhooks/leads']
+const PUBLIC_PREFIXES = ['/api/webhooks/leads', '/api/webhooks/meta/leads']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl

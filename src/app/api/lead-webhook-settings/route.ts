@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
-import { LEAD_WEBHOOK_TARGET_FIELDS, generateLeadWebhookKey, getLeadWebhookSettings, settingsObject } from '@/lib/leadWebhook'
+import { LEAD_WEBHOOK_TARGET_FIELDS, generateFacebookVerifyToken, generateLeadWebhookKey, getLeadWebhookSettings, settingsObject } from '@/lib/leadWebhook'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +33,11 @@ export async function GET() {
   let settings = getLeadWebhookSettings(current)
 
   if (!settings.leadWebhookKey) {
-    settings = { ...settings, leadWebhookKey: generateLeadWebhookKey() }
+    settings = {
+      ...settings,
+      leadWebhookKey: generateLeadWebhookKey(),
+      facebookLeadVerifyToken: settings.facebookLeadVerifyToken || generateFacebookVerifyToken(),
+    }
     await prisma.organization.update({
       where: { id: organization.id },
       data: {
@@ -46,6 +50,22 @@ export async function GET() {
           leadWebhookAssignmentUserId: settings.leadWebhookAssignmentUserId || null,
           leadWebhookAssignmentUserIds: settings.leadWebhookAssignmentUserIds || [],
           leadWebhookAssignmentCursor: settings.leadWebhookAssignmentCursor || 0,
+          facebookLeadEnabled: settings.facebookLeadEnabled === true,
+          facebookLeadVerifyToken: settings.facebookLeadVerifyToken,
+          facebookLeadPageAccessToken: settings.facebookLeadPageAccessToken || '',
+          facebookLeadApiVersion: settings.facebookLeadApiVersion || 'v23.0',
+        },
+      },
+    })
+  } else if (!settings.facebookLeadVerifyToken) {
+    settings = { ...settings, facebookLeadVerifyToken: generateFacebookVerifyToken() }
+    await prisma.organization.update({
+      where: { id: organization.id },
+      data: {
+        settings: {
+          ...current,
+          facebookLeadVerifyToken: settings.facebookLeadVerifyToken,
+          facebookLeadApiVersion: settings.facebookLeadApiVersion || 'v23.0',
         },
       },
     })
@@ -60,6 +80,12 @@ export async function GET() {
       mode: settings.leadWebhookAssignmentMode || 'off',
       userId: settings.leadWebhookAssignmentUserId || null,
       userIds: settings.leadWebhookAssignmentUserIds || [],
+    },
+    facebook: {
+      enabled: settings.facebookLeadEnabled === true,
+      verifyToken: settings.facebookLeadVerifyToken || '',
+      pageAccessToken: settings.facebookLeadPageAccessToken || '',
+      apiVersion: settings.facebookLeadApiVersion || 'v23.0',
     },
   })
 }
@@ -91,6 +117,21 @@ export async function PATCH(request: NextRequest) {
   const nextAssignmentUserIds = Array.isArray(incomingAssignment?.userIds)
     ? incomingAssignment.userIds.map(Number).filter(Number.isFinite)
     : previous.leadWebhookAssignmentUserIds || []
+  const incomingFacebook = body.facebook && typeof body.facebook === 'object' ? body.facebook : null
+  const nextFacebookEnabled = incomingFacebook && typeof incomingFacebook.enabled === 'boolean'
+    ? incomingFacebook.enabled
+    : previous.facebookLeadEnabled === true
+  const nextFacebookVerifyToken = body.regenerateFacebookVerifyToken
+    ? generateFacebookVerifyToken()
+    : incomingFacebook && typeof incomingFacebook.verifyToken === 'string'
+      ? incomingFacebook.verifyToken.trim() || previous.facebookLeadVerifyToken || generateFacebookVerifyToken()
+      : previous.facebookLeadVerifyToken || generateFacebookVerifyToken()
+  const nextFacebookPageAccessToken = incomingFacebook && typeof incomingFacebook.pageAccessToken === 'string'
+    ? incomingFacebook.pageAccessToken.trim()
+    : previous.facebookLeadPageAccessToken || ''
+  const nextFacebookApiVersion = incomingFacebook && typeof incomingFacebook.apiVersion === 'string'
+    ? incomingFacebook.apiVersion.trim() || 'v23.0'
+    : previous.facebookLeadApiVersion || 'v23.0'
 
   await prisma.organization.update({
     where: { id: organization.id },
@@ -103,6 +144,10 @@ export async function PATCH(request: NextRequest) {
         leadWebhookAssignmentMode: nextAssignmentMode,
         leadWebhookAssignmentUserId: Number.isFinite(nextAssignmentUserId) ? nextAssignmentUserId : null,
         leadWebhookAssignmentUserIds: nextAssignmentUserIds,
+        facebookLeadEnabled: nextFacebookEnabled,
+        facebookLeadVerifyToken: nextFacebookVerifyToken,
+        facebookLeadPageAccessToken: nextFacebookPageAccessToken,
+        facebookLeadApiVersion: nextFacebookApiVersion,
       },
     },
   })
@@ -116,6 +161,12 @@ export async function PATCH(request: NextRequest) {
       mode: nextAssignmentMode,
       userId: Number.isFinite(nextAssignmentUserId) ? nextAssignmentUserId : null,
       userIds: nextAssignmentUserIds,
+    },
+    facebook: {
+      enabled: nextFacebookEnabled,
+      verifyToken: nextFacebookVerifyToken,
+      pageAccessToken: nextFacebookPageAccessToken,
+      apiVersion: nextFacebookApiVersion,
     },
   })
 }

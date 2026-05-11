@@ -8,6 +8,7 @@ type WebhookSettings = {
   key: string
   fieldMap: FieldMapRow[]
   assignment: AssignmentSettings
+  facebook: FacebookLeadSettings
 }
 
 type FieldMapRow = {
@@ -19,6 +20,13 @@ type AssignmentSettings = {
   mode: 'off' | 'single' | 'round_robin'
   userId: number | null
   userIds: number[]
+}
+
+type FacebookLeadSettings = {
+  enabled: boolean
+  verifyToken: string
+  pageAccessToken: string
+  apiVersion: string
 }
 
 type UserOption = {
@@ -88,6 +96,8 @@ export default function IntegrationsPage() {
   const [fieldMapDraft, setFieldMapDraft] = useState<FieldMapRow[]>([])
   const [users, setUsers] = useState<UserOption[]>([])
   const [assignmentDraft, setAssignmentDraft] = useState<AssignmentSettings>({ mode: 'off', userId: null, userIds: [] })
+  const [facebookDraft, setFacebookDraft] = useState<FacebookLeadSettings>({ enabled: false, verifyToken: '', pageAccessToken: '', apiVersion: 'v23.0' })
+  const [showFacebookToken, setShowFacebookToken] = useState(false)
 
   const webhookUrl = useMemo(() => {
     if (!settings || typeof window === 'undefined') return ''
@@ -97,6 +107,10 @@ export default function IntegrationsPage() {
     if (!webhookUrl || !settings?.key) return ''
     return `${webhookUrl}/${encodeURIComponent(settings.key)}`
   }, [webhookUrl, settings?.key])
+  const facebookCallbackUrl = useMemo(() => {
+    if (!settings || typeof window === 'undefined') return ''
+    return `${window.location.origin}/api/webhooks/meta/leads/${settings.slug}`
+  }, [settings])
 
   useEffect(() => {
     loadSettings()
@@ -117,6 +131,7 @@ export default function IntegrationsPage() {
       setSettings(data)
       setFieldMapDraft(Array.isArray(data.fieldMap) ? data.fieldMap : [])
       setAssignmentDraft(data.assignment || { mode: 'off', userId: null, userIds: [] })
+      setFacebookDraft(data.facebook || { enabled: false, verifyToken: '', pageAccessToken: '', apiVersion: 'v23.0' })
     } finally {
       setLoading(false)
     }
@@ -139,6 +154,7 @@ export default function IntegrationsPage() {
       setSettings(data)
       if (Array.isArray(data.fieldMap)) setFieldMapDraft(data.fieldMap)
       if (data.assignment) setAssignmentDraft(data.assignment)
+      if (data.facebook) setFacebookDraft(data.facebook)
     } finally {
       setSaving(false)
     }
@@ -201,6 +217,10 @@ export default function IntegrationsPage() {
 
   function saveAssignment() {
     updateSettings({ assignment: assignmentDraft })
+  }
+
+  function saveFacebookSettings(patch?: Partial<FacebookLeadSettings>) {
+    updateSettings({ facebook: { ...facebookDraft, ...patch } })
   }
 
   const maskedKey = settings?.key ? `${settings.key.slice(0, 8)}••••••••••••${settings.key.slice(-6)}` : ''
@@ -398,6 +418,90 @@ ${samplePayload}`}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
               <button type="button" className="btn btn-primary" onClick={saveAssignment} disabled={saving}>
                 {saving ? 'Сохраняю...' : 'Сохранить распределение'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!loading && settings && (
+          <div className="card" style={{ marginTop: 16 }}>
+            <div className="section-title" style={{ marginBottom: 4 }}><span>📣</span>Facebook Lead Ads</div>
+            <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
+              Подключение лид-форм Meta/Facebook. В Meta App укажите Callback URL и Verify Token, а в CRM сохраните Page Access Token страницы.
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, fontWeight: 700 }}>
+              <input
+                type="checkbox"
+                checked={facebookDraft.enabled}
+                onChange={event => setFacebookDraft(current => ({ ...current, enabled: event.target.checked }))}
+              />
+              Принимать лиды из Facebook Lead Ads
+            </label>
+
+            <div className="form-group">
+              <label className="label">Callback URL для Meta</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
+                <input className="input" readOnly value={facebookCallbackUrl} />
+                <button className="btn btn-secondary" type="button" onClick={() => copy(facebookCallbackUrl)}>Копировать</button>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(220px, 1fr)', gap: 12 }}>
+              <div className="form-group">
+                <label className="label">Verify Token</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
+                  <input
+                    className="input"
+                    value={facebookDraft.verifyToken}
+                    onChange={event => setFacebookDraft(current => ({ ...current, verifyToken: event.target.value }))}
+                    placeholder="rzfb_..."
+                  />
+                  <button className="btn btn-secondary" type="button" onClick={() => copy(facebookDraft.verifyToken)}>Копировать</button>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="label">Graph API version</label>
+                <input
+                  className="input"
+                  value={facebookDraft.apiVersion}
+                  onChange={event => setFacebookDraft(current => ({ ...current, apiVersion: event.target.value }))}
+                  placeholder="v23.0"
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="label">Page Access Token</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
+                <input
+                  className="input"
+                  type={showFacebookToken ? 'text' : 'password'}
+                  value={facebookDraft.pageAccessToken}
+                  onChange={event => setFacebookDraft(current => ({ ...current, pageAccessToken: event.target.value }))}
+                  placeholder="Токен страницы Facebook"
+                />
+                <button className="btn btn-secondary" type="button" onClick={() => setShowFacebookToken(value => !value)}>
+                  {showFacebookToken ? 'Скрыть' : 'Показать'}
+                </button>
+              </div>
+              <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
+                Для первой версии вставляем токен вручную. Позже можно добавить вход через Facebook и выбор страницы прямо в CRM.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginTop: 14 }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={saving}
+                onClick={() => updateSettings({ regenerateFacebookVerifyToken: true, facebook: facebookDraft })}
+              >
+                Новый Verify Token
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => saveFacebookSettings()} disabled={saving}>
+                {saving ? 'Сохраняю...' : 'Сохранить Facebook'}
               </button>
             </div>
           </div>

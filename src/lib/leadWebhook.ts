@@ -8,6 +8,10 @@ export type LeadWebhookSettings = {
   leadWebhookAssignmentUserId?: number | null
   leadWebhookAssignmentUserIds?: number[]
   leadWebhookAssignmentCursor?: number
+  facebookLeadEnabled?: boolean
+  facebookLeadVerifyToken?: string
+  facebookLeadPageAccessToken?: string
+  facebookLeadApiVersion?: string
 }
 
 export type LeadWebhookAssignmentMode = 'off' | 'single' | 'round_robin'
@@ -88,11 +92,19 @@ export function getLeadWebhookSettings(value: unknown): LeadWebhookSettings {
     leadWebhookAssignmentUserId: Number.isFinite(assignmentUserId) ? assignmentUserId : null,
     leadWebhookAssignmentUserIds: assignmentUserIds,
     leadWebhookAssignmentCursor: Number.isFinite(Number(raw.leadWebhookAssignmentCursor)) ? Number(raw.leadWebhookAssignmentCursor) : 0,
+    facebookLeadEnabled: raw.facebookLeadEnabled === true,
+    facebookLeadVerifyToken: typeof raw.facebookLeadVerifyToken === 'string' ? raw.facebookLeadVerifyToken : '',
+    facebookLeadPageAccessToken: typeof raw.facebookLeadPageAccessToken === 'string' ? raw.facebookLeadPageAccessToken : '',
+    facebookLeadApiVersion: typeof raw.facebookLeadApiVersion === 'string' && raw.facebookLeadApiVersion ? raw.facebookLeadApiVersion : 'v23.0',
   }
 }
 
 export function generateLeadWebhookKey() {
   return `rzf_${randomBytes(24).toString('hex')}`
+}
+
+export function generateFacebookVerifyToken() {
+  return `rzfb_${randomBytes(24).toString('hex')}`
 }
 
 export function keyMatches(expected: string, received: string) {
