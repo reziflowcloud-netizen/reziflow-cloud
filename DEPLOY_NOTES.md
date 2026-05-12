@@ -126,3 +126,4 @@ If `DIRECT_URL` is missing, migrations are skipped and deployment continues.
 Client documents should not be stored only on a local computer. For production use, store uploaded files in Cloudinary or Supabase Storage.
 
 If Cloudinary variables are missing, the app can fall back to local uploads, but this is not reliable for production.
+ 
