@@ -119,20 +119,39 @@ export default function IntegrationsPage() {
     if (!webliumWebhookUrl) return ''
     return `const REZIFLOW_WEBHOOK_URL = '${webliumWebhookUrl}';
 
-function sendLastRowToReziFlow() {
-  const sheet = SpreadsheetApp.getActiveSheet();
-  const values = sheet.getDataRange().getValues();
-  if (values.length < 2) return;
+function pick(row, names) {
+  for (const name of names) {
+    if (row[name] !== undefined && row[name] !== null && String(row[name]).trim() !== '') {
+      return row[name];
+    }
+  }
+  return '';
+}
 
-  const headers = values[0].map(String);
-  const row = values[values.length - 1];
-  const payload = {};
+function normalizeReziFlowPayload(row) {
+  const firstName = pick(row, ["Ім'я", "Имя", "Name", "name", "firstName"]);
+  const phone = pick(row, ["Контактний номер", "Контактный номер", "Телефон", "phone", "Phone"]);
+  const interest = pick(row, ["Прізвище", "Интерес", "Услуга", "serviceInterest", "Service"]);
+  const preferredHours = pick(row, ["Години", "Годины", "Час", "Время"]);
+  const requestDate = pick(row, ["E-mail", "Email", "Дата заявки", "Дата"]);
+  const notes = pick(row, ["Нотатки", "Заметки", "Notes", "notes"]);
 
-  headers.forEach((header, index) => {
-    if (header) payload[header] = row[index];
-  });
+  return {
+    firstName: String(firstName || '').trim(),
+    phone: String(phone || '').trim(),
+    serviceInterest: String(interest || '').trim(),
+    source: 'google_sheets',
+    nextContactNote: preferredHours ? 'Перезвонить в окно: ' + preferredHours : '',
+    notes: [
+      requestDate ? 'Дата заявки: ' + requestDate : '',
+      notes ? 'Заметки: ' + notes : '',
+    ].filter(Boolean).join('\\n'),
+    rawSheetRow: row,
+  };
+}
 
-  payload.source = payload.source || 'google_sheets';
+function postToReziFlow(row) {
+  const payload = normalizeReziFlowPayload(row);
 
   UrlFetchApp.fetch(REZIFLOW_WEBHOOK_URL, {
     method: 'post',
@@ -142,23 +161,32 @@ function sendLastRowToReziFlow() {
   });
 }
 
+function sendLastRowToReziFlow() {
+  const sheet = SpreadsheetApp.getActiveSheet();
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) return;
+
+  const headers = values[0].map(String);
+  const row = values[values.length - 1];
+  const rowObject = {};
+
+  headers.forEach((header, index) => {
+    if (header) rowObject[header] = row[index];
+  });
+
+  postToReziFlow(rowObject);
+}
+
 function onFormSubmit(e) {
-  const payload = {};
+  const rowObject = {};
   const namedValues = e && e.namedValues ? e.namedValues : {};
 
   Object.keys(namedValues).forEach((key) => {
     const value = namedValues[key];
-    payload[key] = Array.isArray(value) ? value.join(', ') : value;
+    rowObject[key] = Array.isArray(value) ? value.join(', ') : value;
   });
 
-  payload.source = payload.source || 'google_sheets';
-
-  UrlFetchApp.fetch(REZIFLOW_WEBHOOK_URL, {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true,
-  });
+  postToReziFlow(rowObject);
 }`
   }, [webliumWebhookUrl])
 

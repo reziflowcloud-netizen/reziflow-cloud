@@ -63,6 +63,11 @@ const FIELD_ALIASES: Record<string, string[]> = {
   nextContactNote: ['nextContactNote', 'next_contact_note', 'callback_note', 'contact_note', 'о чем сконтактироваться', 'про що сконтактуватися'],
 }
 
+FIELD_ALIASES.firstName.push("Ім'я", 'імя', 'iмя')
+FIELD_ALIASES.phone.push('Контактний номер', 'контактный номер')
+FIELD_ALIASES.serviceInterest.push('Прізвище', 'интерес')
+FIELD_ALIASES.nextContactNote.push('Години', 'годины')
+
 export function settingsObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 }
