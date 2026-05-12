@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, leadDisplayName } from '@/lib/leads'
+import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, leadDisplayName } from '@/lib/leads'
 import { useLanguage } from '@/context/LanguageContext'
-import { LEAD_LOCALES, LEAD_WEEKDAYS, leadSourceLabel, leadStatusLabel, leadText } from '@/lib/leadI18n'
+import { LEAD_LOCALES, LEAD_WEEKDAYS, leadSourceLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -18,6 +18,10 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
 }
 
 type QuickFilter = 'all' | 'today' | 'overdue' | 'unassigned' | 'no_next_contact'
+
+function temperatureMeta(value?: string) {
+  return LEAD_TEMPERATURES.find(item => item.value === value)
+}
 
 function initials(lead: any) {
   return leadDisplayName(lead).slice(0, 2).toUpperCase()
@@ -71,6 +75,7 @@ export default function LeadsPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [source, setSource] = useState('')
+  const [temperature, setTemperature] = useState('')
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all')
   const [users, setUsers] = useState<any[]>([])
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
@@ -131,6 +136,7 @@ export default function LeadsPage() {
     const byFilters = leads.filter(lead => {
       if (status && lead.status !== status) return false
       if (source && lead.source !== source) return false
+      if (temperature && lead.urgency !== temperature) return false
       if (quickFilter === 'today') return isToday(lead.nextContactAt) && !isConvertedLead(lead)
       if (quickFilter === 'overdue') return isOverdue(lead.nextContactAt) && !isConvertedLead(lead)
       if (quickFilter === 'unassigned') return !lead.assignedToId && !isConvertedLead(lead)
@@ -146,10 +152,11 @@ export default function LeadsPage() {
       lead.serviceInterest,
       lead.nextContactNote,
       lead.city,
+      lead.voivodeship,
       lead.notes,
     ].filter(Boolean).join(' ').toLowerCase().includes(q)) : byFilters
     return [...searched].sort((a, b) => rank(a) - rank(b) || new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
-  }, [leads, search, status, source, quickFilter, statusNames.join('|')])
+  }, [leads, search, status, source, temperature, quickFilter, statusNames.join('|')])
 
   const visibleLeadIds = useMemo(() => filtered.map(lead => lead.id), [filtered])
   const allVisibleSelected = visibleLeadIds.length > 0 && visibleLeadIds.every(id => selectedLeadIds.includes(id))
@@ -161,6 +168,14 @@ export default function LeadsPage() {
     unassigned: leads.filter(lead => !lead.assignedToId && !isConvertedLead(lead)).length,
     no_next_contact: leads.filter(lead => !lead.nextContactAt && !isConvertedLead(lead)).length,
   }), [leads])
+
+  const temperatureCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const lead of leads) {
+      if (!isConvertedLead(lead) && lead.urgency) counts[lead.urgency] = (counts[lead.urgency] || 0) + 1
+    }
+    return counts
+  }, [leads])
 
   useEffect(() => {
     setSelectedLeadIds(current => current.filter(id => leads.some(lead => lead.id === id)))
@@ -176,14 +191,23 @@ export default function LeadsPage() {
 
   const reminders = useMemo(() => {
     return leads
-      .filter(lead => lead.nextContactAt)
-      .sort((a, b) => new Date(a.nextContactAt).getTime() - new Date(b.nextContactAt).getTime())
-  }, [leads])
+      .flatMap(lead => {
+        const items: any[] = []
+        if (lead.nextContactAt) {
+          items.push({ ...lead, reminderId: `${lead.id}:contact`, reminderKind: 'contact', reminderAt: lead.nextContactAt, reminderNote: lead.nextContactNote })
+        }
+        if (lead.deadlineAt && !isConvertedLead(lead)) {
+          items.push({ ...lead, reminderId: `${lead.id}:deadline`, reminderKind: 'deadline', reminderAt: lead.deadlineAt, reminderNote: lt('deadline_hint') })
+        }
+        return items
+      })
+      .sort((a, b) => new Date(a.reminderAt).getTime() - new Date(b.reminderAt).getTime())
+  }, [leads, lang])
 
   const remindersByDate = useMemo(() => {
     const map: Record<string, any[]> = {}
     for (const lead of reminders) {
-      const key = dateKey(lead.nextContactAt)
+      const key = dateKey(lead.reminderAt)
       if (!key) continue
       map[key] = [...(map[key] || []), lead]
     }
@@ -381,11 +405,13 @@ export default function LeadsPage() {
       instagram: activeReminder.instagram || '',
       facebook: activeReminder.facebook || '',
       city: activeReminder.city || '',
+      voivodeship: activeReminder.voivodeship || '',
       country: activeReminder.country || '',
       language: activeReminder.language || '',
       serviceInterest: activeReminder.serviceInterest || '',
       budget: activeReminder.budget || '',
       urgency: activeReminder.urgency || '',
+      deadlineAt: activeReminder.deadlineAt || '',
       assignedToId: activeReminder.assignedToId || '',
       notes: activeReminder.notes || '',
       lastContactAt: activeReminder.lastContactAt ? toDateTimeLocal(activeReminder.lastContactAt) : '',
@@ -508,6 +534,18 @@ export default function LeadsPage() {
               {lt(label)} <span style={{ opacity: 0.78 }}>({quickCounts[key]})</span>
             </button>
           ))}
+          {LEAD_TEMPERATURES.map(item => (
+            <button
+              key={item.value}
+              type="button"
+              className={temperature === item.value ? 'btn btn-primary' : 'btn btn-secondary'}
+              onClick={() => setTemperature(current => current === item.value ? '' : item.value)}
+              style={{ padding: '7px 10px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: 999, background: item.color }} />
+              {leadTemperatureLabel(lang, item.value)} <span style={{ opacity: 0.78 }}>({temperatureCounts[item.value] || 0})</span>
+            </button>
+          ))}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 190px 190px auto', gap: 10, marginBottom: 16 }}>
@@ -579,11 +617,12 @@ export default function LeadsPage() {
                   ) : filtered.length === 0 ? (
                     <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
                       <div style={{ fontSize: 32, marginBottom: 8 }}>◎</div>
-                      <div>{search || status || source ? lt('leads_not_found') : lt('no_leads')}</div>
-                      {!search && !status && !source && <Link href="/leads/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>{lt('add_first_lead')}</Link>}
+                      <div>{search || status || source || temperature ? lt('leads_not_found') : lt('no_leads')}</div>
+                      {!search && !status && !source && !temperature && <Link href="/leads/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>{lt('add_first_lead')}</Link>}
                     </td></tr>
                   ) : filtered.map(lead => {
                     const colors = statusColors(statusByName[lead.status])
+                    const temp = temperatureMeta(lead.urgency)
                     const overdue = isOverdue(lead.nextContactAt) && !isConvertedLead(lead)
                     const dueToday = isToday(lead.nextContactAt) && !isConvertedLead(lead)
                     return (
@@ -600,7 +639,10 @@ export default function LeadsPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <div className="avatar" style={{ width: 32, height: 32, fontSize: 12 }}>{initials(lead)}</div>
                             <div>
-                              <div style={{ fontWeight: 700, fontSize: 13 }}>{leadDisplayName(lead)}</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13 }}>
+                                {temp && <span title={leadTemperatureLabel(lang, lead.urgency)} style={{ width: 8, height: 8, borderRadius: 999, background: temp.color, flex: '0 0 auto' }} />}
+                                <span>{leadDisplayName(lead)}</span>
+                              </div>
                               <div style={{ fontSize: 12, color: 'var(--muted)' }}>{lead.phone || lead.email || lead.instagram || lead.facebook || lt('contact_not_set')}</div>
                             </div>
                           </div>
@@ -660,7 +702,9 @@ export default function LeadsPage() {
                       <div style={{ display: 'grid', gap: 8 }}>
                         {columnLeads.length === 0 ? (
                           <div style={{ border: '1px dashed var(--border)', borderRadius: 8, padding: 12, color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>{lt('drag_lead_here')}</div>
-                        ) : columnLeads.map(lead => (
+                        ) : columnLeads.map(lead => {
+                          const temp = temperatureMeta(lead.urgency)
+                          return (
                           <div
                             key={lead.id}
                             draggable
@@ -678,7 +722,10 @@ export default function LeadsPage() {
                               />
                               <div className="avatar" style={{ width: 30, height: 30, fontSize: 11 }}>{initials(lead)}</div>
                               <div style={{ minWidth: 0 }}>
-                                <div style={{ fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{leadDisplayName(lead)}</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {temp && <span title={leadTemperatureLabel(lang, lead.urgency)} style={{ width: 8, height: 8, borderRadius: 999, background: temp.color, flex: '0 0 auto' }} />}
+                                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{leadDisplayName(lead)}</span>
+                                </div>
                                 <div style={{ color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.phone || lead.email || lead.instagram || lt('contact_not_set')}</div>
                               </div>
                             </div>
@@ -689,7 +736,8 @@ export default function LeadsPage() {
                               </div>
                             )}
                           </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   )
@@ -740,16 +788,16 @@ export default function LeadsPage() {
                 <div style={{ display: 'grid', gap: 8 }}>
                   {selectedReminders.map(lead => (
                     <button
-                      key={lead.id}
+                      key={lead.reminderId || lead.id}
                       type="button"
-                      onClick={() => openReminder(lead)}
+                      onClick={() => lead.reminderKind === 'deadline' ? router.push(`/leads/${lead.id}`) : openReminder(lead)}
                       style={{ textAlign: 'left', border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 8, padding: 10, cursor: 'pointer' }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
                         <strong>{leadDisplayName(lead)}</strong>
-                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>{new Date(lead.nextContactAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>{lead.reminderKind === 'deadline' ? lt('deadline_at') : new Date(lead.reminderAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
-                      <div style={{ color: 'var(--muted)', fontSize: 12 }}>{lead.nextContactNote || lt('no_note')}</div>
+                      <div style={{ color: 'var(--muted)', fontSize: 12 }}>{lead.reminderNote || lt('no_note')}</div>
                     </button>
                   ))}
                 </div>

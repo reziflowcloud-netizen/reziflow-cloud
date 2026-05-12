@@ -62,10 +62,18 @@ export const LEAD_TEXT: Record<Lang, Record<string, string>> = {
     email: 'Email',
     qualification: 'Квалификация',
     city: 'Город',
+    voivodeship: 'Воеводство',
     country: 'Страна/гражданство',
     language: 'Язык',
     budget: 'Бюджет',
-    urgency: 'Срочность',
+    urgency: 'Температура',
+    deadline_at: 'Deadline',
+    deadline_hint: 'Дата окончания текущей легализации',
+    temperature_all: 'Все температуры',
+    temperature_cold: 'Холодный',
+    temperature_warm: 'Теплый',
+    temperature_hot: 'Горячий',
+    temperature_empty: 'Без температуры',
     notes: 'Заметки',
     funnel: 'Воронка',
     last_contact: 'Последний контакт',
@@ -176,10 +184,18 @@ export const LEAD_TEXT: Record<Lang, Record<string, string>> = {
     email: 'Email',
     qualification: 'Кваліфікація',
     city: 'Місто',
+    voivodeship: 'Воєводство',
     country: 'Країна/громадянство',
     language: 'Мова',
     budget: 'Бюджет',
-    urgency: 'Терміновість',
+    urgency: 'Температура',
+    deadline_at: 'Deadline',
+    deadline_hint: 'Дата закінчення поточної легалізації',
+    temperature_all: 'Усі температури',
+    temperature_cold: 'Холодний',
+    temperature_warm: 'Теплий',
+    temperature_hot: 'Гарячий',
+    temperature_empty: 'Без температури',
     notes: 'Нотатки',
     funnel: 'Воронка',
     last_contact: 'Останній контакт',
@@ -290,10 +306,18 @@ export const LEAD_TEXT: Record<Lang, Record<string, string>> = {
     email: 'Email',
     qualification: 'Kwalifikacja',
     city: 'Miasto',
+    voivodeship: 'Województwo',
     country: 'Kraj/obywatelstwo',
     language: 'Język',
     budget: 'Budżet',
-    urgency: 'Pilność',
+    urgency: 'Temperatura',
+    deadline_at: 'Deadline',
+    deadline_hint: 'Data końca aktualnej legalizacji',
+    temperature_all: 'Wszystkie temperatury',
+    temperature_cold: 'Zimny',
+    temperature_warm: 'Ciepły',
+    temperature_hot: 'Gorący',
+    temperature_empty: 'Bez temperatury',
     notes: 'Notatki',
     funnel: 'Lejek',
     last_contact: 'Ostatni kontakt',
@@ -353,9 +377,15 @@ export const LEAD_STATUS_TRANSLATIONS: Record<Lang, string[]> = {
 }
 
 export const LEAD_SOURCE_TRANSLATIONS: Record<Lang, Record<string, string>> = {
-  ru: { manual: 'Вручную', instagram: 'Instagram', facebook: 'Facebook', quiz: 'Квиз', target: 'Таргет', website: 'Сайт' },
-  uk: { manual: 'Вручну', instagram: 'Instagram', facebook: 'Facebook', quiz: 'Квіз', target: 'Таргет', website: 'Сайт' },
-  pl: { manual: 'Ręcznie', instagram: 'Instagram', facebook: 'Facebook', quiz: 'Quiz', target: 'Reklama', website: 'Strona' },
+  ru: { manual: 'Вручную', instagram: 'Instagram', facebook: 'Facebook', quiz: 'Квиз', target: 'Meta Ads', website: 'Сайт' },
+  uk: { manual: 'Вручну', instagram: 'Instagram', facebook: 'Facebook', quiz: 'Квіз', target: 'Meta Ads', website: 'Сайт' },
+  pl: { manual: 'Ręcznie', instagram: 'Instagram', facebook: 'Facebook', quiz: 'Quiz', target: 'Meta Ads', website: 'Strona' },
+}
+
+export const LEAD_TEMPERATURE_TRANSLATIONS: Record<Lang, Record<string, string>> = {
+  ru: { cold: 'Холодный', warm: 'Теплый', hot: 'Горячий' },
+  uk: { cold: 'Холодний', warm: 'Теплий', hot: 'Гарячий' },
+  pl: { cold: 'Zimny', warm: 'Ciepły', hot: 'Gorący' },
 }
 
 export const LEAD_LOCALES: Record<Lang, string> = {
@@ -376,6 +406,10 @@ export function leadText(lang: Lang, key: string) {
 
 export function leadSourceLabel(lang: Lang, value: string) {
   return LEAD_SOURCE_TRANSLATIONS[lang]?.[value] || LEAD_SOURCE_TRANSLATIONS.ru[value] || value
+}
+
+export function leadTemperatureLabel(lang: Lang, value: string) {
+  return LEAD_TEMPERATURE_TRANSLATIONS[lang]?.[value] || LEAD_TEMPERATURE_TRANSLATIONS.ru[value] || value
 }
 
 export function leadStatusLabel(lang: Lang, name: string) {

@@ -23,8 +23,33 @@ export const LEAD_SOURCES = [
   { value: 'instagram', label: 'Instagram' },
   { value: 'facebook', label: 'Facebook' },
   { value: 'quiz', label: 'Квиз' },
-  { value: 'target', label: 'Таргет' },
+  { value: 'target', label: 'Meta Ads' },
   { value: 'website', label: 'Сайт' },
+]
+
+export const LEAD_TEMPERATURES = [
+  { value: 'cold', color: '#2563eb' },
+  { value: 'warm', color: '#d97706' },
+  { value: 'hot', color: '#dc2626' },
+]
+
+export const POLISH_VOIVODESHIPS = [
+  'Варминьско-Мазурское',
+  'Великопольское',
+  'Западно-Поморское',
+  'Куявско-Поморское',
+  'Лодзинское',
+  'Люблинское',
+  'Любушское',
+  'Мазовецкое',
+  'Малопольское',
+  'Нижнесилезское',
+  'Опольское',
+  'Подкарпатское',
+  'Подляское',
+  'Поморское',
+  'Свентокшиское',
+  'Силезское',
 ]
 
 export function leadDisplayName(lead: any) {
@@ -49,6 +74,7 @@ export function normalizeLeadBody(body: any) {
     facebook: body.facebook || null,
     messengerId: body.messengerId || null,
     city: body.city || null,
+    voivodeship: body.voivodeship || null,
     country: body.country || null,
     language: body.language || null,
     serviceInterest: body.serviceInterest || null,
@@ -56,6 +82,7 @@ export function normalizeLeadBody(body: any) {
     urgency: body.urgency || null,
     notes: body.notes || null,
     assignedToId: body.assignedToId ? Number(body.assignedToId) : null,
+    deadlineAt: body.deadlineAt ? new Date(body.deadlineAt) : null,
     nextContactAt: body.nextContactAt ? new Date(body.nextContactAt) : null,
     nextContactNote: body.nextContactNote || null,
     lastContactAt: body.lastContactAt ? new Date(body.lastContactAt) : null,

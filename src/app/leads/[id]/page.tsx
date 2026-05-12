@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, leadDisplayName } from '@/lib/leads'
+import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, POLISH_VOIVODESHIPS, leadDisplayName } from '@/lib/leads'
 import { useLanguage } from '@/context/LanguageContext'
-import { LEAD_LOCALES, leadSourceLabel, leadStatusLabel, leadText } from '@/lib/leadI18n'
+import { LEAD_LOCALES, leadSourceLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
 
 export default function LeadDetailPage() {
   const { id } = useParams()
@@ -68,11 +68,13 @@ export default function LeadDetailPage() {
           instagram: data.instagram || '',
           facebook: data.facebook || '',
           city: data.city || '',
+          voivodeship: data.voivodeship || '',
           country: data.country || '',
           language: data.language || '',
           serviceInterest: data.serviceInterest || '',
           budget: data.budget || '',
           urgency: data.urgency || '',
+          deadlineAt: data.deadlineAt?.slice(0, 10) || '',
           assignedToId: data.assignedToId ? String(data.assignedToId) : '',
           nextContactAt: data.nextContactAt?.slice(0, 16) || '',
           nextContactNote: data.nextContactNote || '',
@@ -407,10 +409,27 @@ export default function LeadDetailPage() {
               <div className="section-title"><span>✦</span>{lt('qualification')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group"><label className="label">{lt('city')}</label><input className="input" value={form.city} onChange={set('city')} /></div>
+                <div className="form-group">
+                  <label className="label">{lt('voivodeship')}</label>
+                  <select className="select" value={form.voivodeship || ''} onChange={set('voivodeship')}>
+                    <option value="">{lt('no_value')}</option>
+                    {POLISH_VOIVODESHIPS.map(item => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </div>
                 <div className="form-group"><label className="label">{lt('country')}</label><input className="input" value={form.country} onChange={set('country')} /></div>
                 <div className="form-group"><label className="label">{lt('language')}</label><input className="input" value={form.language} onChange={set('language')} /></div>
                 <div className="form-group"><label className="label">{lt('budget')}</label><input className="input" value={form.budget} onChange={set('budget')} /></div>
-                <div className="form-group"><label className="label">{lt('urgency')}</label><input className="input" value={form.urgency} onChange={set('urgency')} /></div>
+                <div className="form-group">
+                  <label className="label">{lt('urgency')}</label>
+                  <select className="select" value={form.urgency || ''} onChange={set('urgency')}>
+                    <option value="">{lt('temperature_empty')}</option>
+                    {LEAD_TEMPERATURES.map(item => <option key={item.value} value={item.value}>{leadTemperatureLabel(lang, item.value)}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="label">{lt('deadline_at')}</label>
+                  <input className="input" type="date" value={form.deadlineAt || ''} onChange={set('deadlineAt')} title={lt('deadline_hint')} />
+                </div>
                 <div className="form-group" style={{ gridColumn: '1/-1' }}><label className="label">{lt('notes')}</label><textarea className="input" rows={7} value={form.notes} onChange={set('notes')} /></div>
               </div>
             </div>

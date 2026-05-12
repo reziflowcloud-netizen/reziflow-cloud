@@ -31,6 +31,7 @@ export const LEAD_WEBHOOK_TARGET_FIELDS = [
   'facebook',
   'messengerId',
   'city',
+  'voivodeship',
   'country',
   'language',
   'serviceInterest',
@@ -40,6 +41,7 @@ export const LEAD_WEBHOOK_TARGET_FIELDS = [
   'source',
   'nextContactAt',
   'nextContactNote',
+  'deadlineAt',
 ]
 
 const FIELD_ALIASES: Record<string, string[]> = {
@@ -52,6 +54,7 @@ const FIELD_ALIASES: Record<string, string[]> = {
   facebook: ['facebook', 'fb', 'facebook_profile'],
   messengerId: ['messengerId', 'messenger_id', 'psid', 'sender_id', 'subscriber_id'],
   city: ['city', 'miasto', 'город', 'місто'],
+  voivodeship: ['voivodeship', 'wojewodztwo', 'województwo', 'region', 'province', 'воеводство', 'воєводство'],
   country: ['country', 'citizenship', 'obywatelstwo', 'kraj', 'страна', 'гражданство', 'країна', 'громадянство'],
   language: ['language', 'lang', 'język', 'jezyk', 'язык', 'мова'],
   serviceInterest: ['serviceInterest', 'service_interest', 'service', 'usluga', 'usługa', 'interest', 'quiz_result', 'product', 'услуга', 'послуга', 'интерес', 'інтерес'],
@@ -61,6 +64,7 @@ const FIELD_ALIASES: Record<string, string[]> = {
   source: ['source', 'utm_source', 'lead_source', 'источник', 'джерело'],
   nextContactAt: ['nextContactAt', 'next_contact_at', 'next_contact', 'callback_at', 'call_at', 'дата контакта', 'наступний контакт'],
   nextContactNote: ['nextContactNote', 'next_contact_note', 'callback_note', 'contact_note', 'о чем сконтактироваться', 'про що сконтактуватися'],
+  deadlineAt: ['deadlineAt', 'deadline', 'legalization_deadline', 'legalisation_deadline', 'дедлайн', 'дата окончания легализации', 'дата закінчення легалізації'],
 }
 
 FIELD_ALIASES.firstName.push("Ім'я", 'імя', 'iмя')
