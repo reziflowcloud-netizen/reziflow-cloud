@@ -111,6 +111,56 @@ export default function IntegrationsPage() {
     if (!settings || typeof window === 'undefined') return ''
     return `${window.location.origin}/api/webhooks/meta/leads/${settings.slug}`
   }, [settings])
+  const telegramWebhookUrl = useMemo(() => {
+    if (!settings || typeof window === 'undefined' || !settings.key) return ''
+    return `${window.location.origin}/api/webhooks/telegram/leads/${settings.slug}/${encodeURIComponent(settings.key)}`
+  }, [settings])
+  const googleSheetsScript = useMemo(() => {
+    if (!webliumWebhookUrl) return ''
+    return `const REZIFLOW_WEBHOOK_URL = '${webliumWebhookUrl}';
+
+function sendLastRowToReziFlow() {
+  const sheet = SpreadsheetApp.getActiveSheet();
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) return;
+
+  const headers = values[0].map(String);
+  const row = values[values.length - 1];
+  const payload = {};
+
+  headers.forEach((header, index) => {
+    if (header) payload[header] = row[index];
+  });
+
+  payload.source = payload.source || 'google_sheets';
+
+  UrlFetchApp.fetch(REZIFLOW_WEBHOOK_URL, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true,
+  });
+}
+
+function onFormSubmit(e) {
+  const payload = {};
+  const namedValues = e && e.namedValues ? e.namedValues : {};
+
+  Object.keys(namedValues).forEach((key) => {
+    const value = namedValues[key];
+    payload[key] = Array.isArray(value) ? value.join(', ') : value;
+  });
+
+  payload.source = payload.source || 'google_sheets';
+
+  UrlFetchApp.fetch(REZIFLOW_WEBHOOK_URL, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true,
+  });
+}`
+  }, [webliumWebhookUrl])
 
   useEffect(() => {
     loadSettings()
@@ -503,6 +553,55 @@ ${samplePayload}`}
               <button type="button" className="btn btn-primary" onClick={() => saveFacebookSettings()} disabled={saving}>
                 {saving ? 'Сохраняю...' : 'Сохранить Facebook'}
               </button>
+            </div>
+          </div>
+        )}
+
+        {!loading && settings && (
+          <div className="card" style={{ marginTop: 16 }}>
+            <div className="section-title" style={{ marginBottom: 4 }}><span>📊</span>Google Sheets</div>
+            <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
+              Если лиды уже попадают в Google таблицу, можно поставить в таблицу Apps Script. Он отправит новую строку в CRM без Make и Zapier.
+            </div>
+
+            <div className="form-group">
+              <label className="label">Webhook URL для Google Sheets</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
+                <input className="input" readOnly value={webliumWebhookUrl} />
+                <button className="btn btn-secondary" type="button" onClick={() => copy(webliumWebhookUrl)}>Копировать</button>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="label">Apps Script</label>
+              <pre style={{ whiteSpace: 'pre-wrap', background: '#0f172a', color: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 12, lineHeight: 1.5, overflowX: 'auto', maxHeight: 360 }}>
+{googleSheetsScript}
+              </pre>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                <button className="btn btn-secondary" type="button" onClick={() => copy(googleSheetsScript)}>Копировать скрипт</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!loading && settings && (
+          <div className="card" style={{ marginTop: 16 }}>
+            <div className="section-title" style={{ marginBottom: 4 }}><span>✈️</span>Telegram</div>
+            <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
+              Этот вариант нужен для группы, куда уже приходят уведомления. Создайте своего Telegram-бота, добавьте его в группу и установите webhook на URL ниже. Если Telegram даст боту читать сообщения WebJackBot, CRM будет создавать лиды из этих текстов.
+            </div>
+
+            <div className="form-group">
+              <label className="label">Telegram webhook URL</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
+                <input className="input" readOnly value={telegramWebhookUrl} />
+                <button className="btn btn-secondary" type="button" onClick={() => copy(telegramWebhookUrl)}>Копировать</button>
+              </div>
+            </div>
+
+            <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, padding: 12, fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>
+              Команда для подключения webhook:
+              <pre style={{ whiteSpace: 'pre-wrap', margin: '8px 0 0', color: '#0f172a' }}>{`https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=${telegramWebhookUrl}`}</pre>
             </div>
           </div>
         )}
