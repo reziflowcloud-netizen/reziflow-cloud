@@ -111,6 +111,10 @@ export default function IntegrationsPage() {
     if (!settings || typeof window === 'undefined') return ''
     return `${window.location.origin}/api/webhooks/meta/leads/${settings.slug}`
   }, [settings])
+  const facebookMessagesCallbackUrl = useMemo(() => {
+    if (!settings || typeof window === 'undefined') return ''
+    return `${window.location.origin}/api/webhooks/meta/messages/${settings.slug}`
+  }, [settings])
   const telegramWebhookUrl = useMemo(() => {
     if (!settings || typeof window === 'undefined' || !settings.key) return ''
     return `${window.location.origin}/api/webhooks/telegram/leads/${settings.slug}/${encodeURIComponent(settings.key)}`
@@ -619,6 +623,17 @@ ${samplePayload}`}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
                 <input className="input" readOnly value={facebookCallbackUrl} />
                 <button className="btn btn-secondary" type="button" onClick={() => copy(facebookCallbackUrl)}>Копировать</button>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="label">Callback URL для сообщений Instagram/Facebook</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
+                <input className="input" readOnly value={facebookMessagesCallbackUrl} />
+                <button className="btn btn-secondary" type="button" onClick={() => copy(facebookMessagesCallbackUrl)}>Копировать</button>
+              </div>
+              <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
+                Этот URL добавляем в Meta Webhooks для событий сообщений. Verify Token и Page Access Token используются те же, что и для Facebook Lead Ads.
               </div>
             </div>
 
