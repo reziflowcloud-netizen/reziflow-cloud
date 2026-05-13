@@ -225,6 +225,10 @@ function rowToObject(headers, row) {
 }
 
 function sendLastRowToReziFlow() {
+  sendNewRowsToReziFlow();
+}
+
+function sendNewRowsToReziFlow() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) return;
 
@@ -234,15 +238,20 @@ function sendLastRowToReziFlow() {
     if (values.length < 2) return;
 
     const headers = values[0].map(String);
+    const hadSentColumn = headers.indexOf(REZIFLOW_SENT_COLUMN) >= 0;
     const sentColumnIndex = ensureSentColumn(sheet, headers);
-    const rowIndex = values.length - 1;
-    const row = values[rowIndex];
-    const alreadySent = String(row[sentColumnIndex] || '').trim();
-    if (alreadySent) return;
 
-    const rowObject = rowToObject(headers, row);
-    if (postToReziFlow(rowObject)) {
-      sheet.getRange(rowIndex + 1, sentColumnIndex + 1).setValue(new Date());
+    if (!hadSentColumn) return;
+
+    for (let rowIndex = 1; rowIndex < values.length; rowIndex++) {
+      const row = values[rowIndex];
+      const alreadySent = String(row[sentColumnIndex] || '').trim();
+      if (alreadySent) continue;
+
+      const rowObject = rowToObject(headers, row);
+      if (postToReziFlow(rowObject)) {
+        sheet.getRange(rowIndex + 1, sentColumnIndex + 1).setValue(new Date());
+      }
     }
   } finally {
     lock.releaseLock();
@@ -691,7 +700,7 @@ ${samplePayload}`}
             <div className="form-group">
               <label className="label">Apps Script</label>
               <div style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, marginBottom: 8 }}>
-                First setup: run markExistingRowsAsSent once for old rows. Trigger: sendLastRowToReziFlow, source From spreadsheet, event On change.
+                First setup: run markExistingRowsAsSent once for old rows. Trigger: sendLastRowToReziFlow, source From spreadsheet, event On change. New rows can be appended or inserted anywhere in the sheet.
               </div>
               <pre style={{ whiteSpace: 'pre-wrap', background: '#0f172a', color: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 12, lineHeight: 1.5, overflowX: 'auto', maxHeight: 360 }}>
 {googleSheetsScript}
