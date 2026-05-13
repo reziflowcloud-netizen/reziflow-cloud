@@ -30,6 +30,34 @@ async function readWebhookBody(request: NextRequest) {
   return request.json().catch(() => ({}))
 }
 
+function findPayloadValue(payload: any, names: string[]) {
+  if (!payload || typeof payload !== 'object') return ''
+  for (const name of names) {
+    const value = payload[name]
+    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim()
+  }
+  if (payload.rawSheetRow && typeof payload.rawSheetRow === 'object') {
+    return findPayloadValue(payload.rawSheetRow, names)
+  }
+  return ''
+}
+
+function inferNextContactAtFromPreferredHours(payload: any) {
+  const text = findPayloadValue(payload, ['Години', 'Годины', 'Час', 'Время', 'preferredHours', 'preferred_hours', 'callTime', 'call_time'])
+    || String(payload?.nextContactNote || '').trim()
+  const match = text.match(/(\d{1,2})(?:[.:](\d{2}))?/)
+  if (!match) return null
+
+  const hour = Number(match[1])
+  const minute = match[2] ? Number(match[2]) : 0
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null
+
+  const next = new Date()
+  next.setHours(hour, minute, 0, 0)
+  if (next.getTime() <= Date.now()) next.setDate(next.getDate() + 1)
+  return next
+}
+
 async function resolveAssignedToId(organizationId: string, organizationSettings: unknown, mappedBody: Record<string, unknown>, settings: ReturnType<typeof getLeadWebhookSettings>) {
   if (mappedBody.assignedToId) return Number(mappedBody.assignedToId)
   if (settings.leadWebhookAssignmentMode === 'single' && settings.leadWebhookAssignmentUserId) {
@@ -144,6 +172,7 @@ export async function handleLeadWebhookPost(request: NextRequest, slug: string, 
     ...mappedBody,
     assignedToId: assignedToId || mappedBody.assignedToId,
     source: mappedBody.source || body.source || 'website',
+    nextContactAt: mappedBody.nextContactAt || body.nextContactAt || inferNextContactAtFromPreferredHours({ ...body, ...mappedBody }),
   })
 
   if (!data.fullName && !data.phone && !data.email && !data.instagram && !data.facebook) {
@@ -160,6 +189,40 @@ export async function handleLeadWebhookPost(request: NextRequest, slug: string, 
   }
 
   const lead = await (prisma as any).$transaction(async (tx: any) => {
+    const duplicateWhere: any[] = []
+    if (data.phone) duplicateWhere.push({ phone: data.phone })
+    if (data.email) duplicateWhere.push({ email: data.email })
+    if (data.instagram) duplicateWhere.push({ instagram: data.instagram })
+    if (data.facebook) duplicateWhere.push({ facebook: data.facebook })
+
+    if (duplicateWhere.length) {
+      const duplicate = await tx.lead.findFirst({
+        where: {
+          organizationId: organization.id,
+          source: data.source || undefined,
+          createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) },
+          OR: duplicateWhere,
+        },
+        include: {
+          assignedTo: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+
+      if (duplicate) {
+        await tx.leadWebhookLog.create({
+          data: {
+            organizationId: organization.id,
+            leadId: duplicate.id,
+            status: 'duplicate',
+            source: data.source || null,
+            payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
+          },
+        })
+        return duplicate
+      }
+    }
+
     const created = await tx.lead.create({
       data: {
         organizationId: organization.id,

@@ -118,6 +118,7 @@ export default function IntegrationsPage() {
   const googleSheetsScript = useMemo(() => {
     if (!webliumWebhookUrl) return ''
     return `const REZIFLOW_WEBHOOK_URL = '${webliumWebhookUrl}';
+const REZIFLOW_SENT_COLUMN = 'ReziFlow sent';
 
 function pick(row, names) {
   for (const name of names) {
@@ -126,6 +127,28 @@ function pick(row, names) {
     }
   }
   return '';
+}
+
+function buildNextContactAt(preferredHours) {
+  const text = String(preferredHours || '').trim();
+  if (!text) return '';
+
+  const match = text.match(/(\\d{1,2})(?:[.:](\\d{2}))?/);
+  if (!match) return '';
+
+  const hour = Number(match[1]);
+  const minute = match[2] ? Number(match[2]) : 0;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return '';
+
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(hour, minute, 0, 0);
+
+  if (next.getTime() <= now.getTime()) {
+    next.setDate(next.getDate() + 1);
+  }
+
+  return Utilities.formatDate(next, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
 }
 
 function normalizeReziFlowPayload(row) {
@@ -140,7 +163,8 @@ function normalizeReziFlowPayload(row) {
     firstName: String(firstName || '').trim(),
     phone: String(phone || '').trim(),
     serviceInterest: String(interest || '').trim(),
-    source: 'google_sheets',
+    source: 'target',
+    nextContactAt: buildNextContactAt(preferredHours),
     nextContactNote: preferredHours ? 'Перезвонить в окно: ' + preferredHours : '',
     notes: [
       requestDate ? 'Дата заявки: ' + requestDate : '',
@@ -153,28 +177,72 @@ function normalizeReziFlowPayload(row) {
 function postToReziFlow(row) {
   const payload = normalizeReziFlowPayload(row);
 
-  UrlFetchApp.fetch(REZIFLOW_WEBHOOK_URL, {
+  if (!payload.firstName && !payload.phone && !payload.serviceInterest) {
+    return false;
+  }
+
+  const response = UrlFetchApp.fetch(REZIFLOW_WEBHOOK_URL, {
     method: 'post',
     contentType: 'application/json',
     payload: JSON.stringify(payload),
     muteHttpExceptions: true,
   });
+
+  const code = response.getResponseCode();
+  if (code < 200 || code >= 300) {
+    throw new Error('ReziFlow webhook failed: ' + code + ' ' + response.getContentText());
+  }
+
+  return true;
+}
+
+function ensureSentColumn(sheet, headers) {
+  let index = headers.indexOf(REZIFLOW_SENT_COLUMN);
+  if (index >= 0) return index;
+
+  index = headers.length;
+  sheet.getRange(1, index + 1).setValue(REZIFLOW_SENT_COLUMN);
+  headers.push(REZIFLOW_SENT_COLUMN);
+  return index;
+}
+
+function rowToObject(headers, row) {
+  const rowObject = {};
+  headers.forEach((header, index) => {
+    if (header && header !== REZIFLOW_SENT_COLUMN) rowObject[header] = row[index];
+  });
+  return rowObject;
 }
 
 function sendLastRowToReziFlow() {
+  sendPendingRowsToReziFlow();
+}
+
+function sendPendingRowsToReziFlow() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return;
+
+  try {
   const sheet = SpreadsheetApp.getActiveSheet();
   const values = sheet.getDataRange().getValues();
   if (values.length < 2) return;
 
   const headers = values[0].map(String);
-  const row = values[values.length - 1];
-  const rowObject = {};
+  const sentColumnIndex = ensureSentColumn(sheet, headers);
 
-  headers.forEach((header, index) => {
-    if (header) rowObject[header] = row[index];
-  });
+  for (let rowIndex = 1; rowIndex < values.length; rowIndex++) {
+    const row = values[rowIndex];
+    const alreadySent = String(row[sentColumnIndex] || '').trim();
+    if (alreadySent) continue;
 
-  postToReziFlow(rowObject);
+    const rowObject = rowToObject(headers, row);
+    if (postToReziFlow(rowObject)) {
+      sheet.getRange(rowIndex + 1, sentColumnIndex + 1).setValue(new Date());
+    }
+  }
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function onFormSubmit(e) {
