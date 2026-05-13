@@ -25,7 +25,7 @@ async function convertedStatusName(organizationId: string) {
   })
   return statuses.find((item: any) => {
     const name = String(item.name || '').toLowerCase()
-    return name.includes('клиент') || name.includes('client') || name.includes('klient')
+    return name.includes('клиент') || name.includes('\u043a\u043b\u0456\u0454\u043d\u0442') || name.includes('client') || name.includes('klient')
   })?.name || 'Переведён в клиента'
 }
 

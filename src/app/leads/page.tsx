@@ -60,7 +60,7 @@ function parseReasonList(value: string) {
 
 function isConvertedLead(lead: any) {
   const value = String(lead.status || '').toLowerCase()
-  return Boolean(lead.convertedClientId) || value.includes('клиент') || value.includes('client') || value.includes('klient')
+  return Boolean(lead.convertedClientId) || value.includes('клиент') || value.includes('\u043a\u043b\u0456\u0454\u043d\u0442') || value.includes('client') || value.includes('klient')
 }
 
 function isToday(value?: string) {
@@ -117,6 +117,9 @@ export default function LeadsPage() {
     for (const item of orderedStatuses) map[item.name] = item
     return map
   }, [leadStatuses])
+  const selectedStatusConfig = status ? statusByName[status] : null
+  const selectedStatusReasons = statusReasons(selectedStatusConfig)
+  const showStatusReasons = Boolean(status && selectedStatusConfig?.requireReason && selectedStatusReasons.length > 0)
 
   function loadLeads() {
     setLoading(true)
@@ -147,7 +150,7 @@ export default function LeadsPage() {
     }
     const byFilters = leads.filter(lead => {
       if (status && lead.status !== status) return false
-      if (statusReasonFilter && lead.statusReason !== statusReasonFilter) return false
+      if (showStatusReasons && statusReasonFilter && lead.statusReason !== statusReasonFilter) return false
       if (source && lead.source !== source) return false
       if (temperature && lead.urgency !== temperature) return false
       if (quickFilter === 'today') return isToday(lead.nextContactAt) && !isConvertedLead(lead)
@@ -169,7 +172,7 @@ export default function LeadsPage() {
       lead.notes,
     ].filter(Boolean).join(' ').toLowerCase().includes(q)) : byFilters
     return [...searched].sort((a, b) => rank(a) - rank(b) || new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
-  }, [leads, search, status, statusReasonFilter, source, temperature, quickFilter, statusNames.join('|')])
+  }, [leads, search, status, statusReasonFilter, source, temperature, quickFilter, showStatusReasons, statusNames.join('|')])
 
   const visibleLeadIds = useMemo(() => filtered.map(lead => lead.id), [filtered])
   const allVisibleSelected = visibleLeadIds.length > 0 && visibleLeadIds.every(id => selectedLeadIds.includes(id))
@@ -204,8 +207,6 @@ export default function LeadsPage() {
     return counts
   }, [leads])
 
-  const selectedStatusConfig = status ? statusByName[status] : null
-  const selectedStatusReasons = statusReasons(selectedStatusConfig)
   const statusReasonCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     if (!status) return counts
@@ -636,7 +637,7 @@ export default function LeadsPage() {
           ))}
         </div>
 
-        {status && (selectedStatusReasons.length > 0 || Object.keys(statusReasonCounts).length > 0) && (
+        {showStatusReasons && (
           <div className="card" style={{ marginBottom: 12, padding: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 8 }}>
               <strong>Причины: {leadStatusLabel(lang, status)}</strong>
@@ -715,7 +716,7 @@ export default function LeadsPage() {
                     </th>
                     <th>{lt('lead')}</th>
                     <th>{lt('status')}</th>
-                    {status && <th>Причина</th>}
+                    {showStatusReasons && <th>Причина</th>}
                     <th>{lt('source')}</th>
                     <th>{lt('interest')}</th>
                     <th>{lt('next_contact')}</th>
@@ -724,9 +725,9 @@ export default function LeadsPage() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={status ? 8 : 7} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>{lt('loading')}</td></tr>
+                    <tr><td colSpan={showStatusReasons ? 8 : 7} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>{lt('loading')}</td></tr>
                   ) : filtered.length === 0 ? (
-                    <tr><td colSpan={status ? 8 : 7} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
+                    <tr><td colSpan={showStatusReasons ? 8 : 7} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
                       <div style={{ fontSize: 32, marginBottom: 8 }}>◎</div>
                       <div>{search || status || source || temperature ? lt('leads_not_found') : lt('no_leads')}</div>
                       {!search && !status && !source && !temperature && <Link href="/leads/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>{lt('add_first_lead')}</Link>}
@@ -768,7 +769,7 @@ export default function LeadsPage() {
                             {statusNames.map(item => <option key={item} value={item}>{leadStatusLabel(lang, item)}</option>)}
                           </select>
                         </td>
-                        {status && (
+                        {showStatusReasons && (
                           <td style={{ fontSize: 13 }}>
                             {lead.statusReason ? (
                               <div>
