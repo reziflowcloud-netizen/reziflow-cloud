@@ -19,6 +19,13 @@ export default function LeadDetailPage() {
   const [users, setUsers] = useState<any[]>([])
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
   const [contactHistory, setContactHistory] = useState<any[]>([])
+  const [messages, setMessages] = useState<any[]>([])
+  const [messageForm, setMessageForm] = useState({
+    text: '',
+    direction: 'outgoing',
+    senderType: 'employee',
+    channel: 'manual',
+  })
   const [contactForm, setContactForm] = useState({
     contactAt: '',
     note: '',
@@ -45,6 +52,7 @@ export default function LeadDetailPage() {
   })
   const [saving, setSaving] = useState(false)
   const [savingContact, setSavingContact] = useState(false)
+  const [savingMessage, setSavingMessage] = useState(false)
   const [converting, setConverting] = useState(false)
   const [error, setError] = useState('')
 
@@ -53,6 +61,7 @@ export default function LeadDetailPage() {
     fetch('/api/users').then(r => r.json()).then(data => setUsers(Array.isArray(data) ? data : []))
     fetch('/api/lead-statuses').then(r => r.json()).then(data => setLeadStatuses(Array.isArray(data) ? data : []))
     loadContactHistory()
+    loadMessages()
     fetch(`/api/leads/${id}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
@@ -84,6 +93,7 @@ export default function LeadDetailPage() {
           lastContactNote: data.lastContactNote || '',
           notes: data.notes || '',
         })
+        setMessageForm(current => ({ ...current, channel: data.source || 'manual' }))
         setConvertForm(current => ({
           ...current,
           firstName: data.firstName || '',
@@ -108,6 +118,11 @@ export default function LeadDetailPage() {
   async function loadContactHistory() {
     const data = await fetch(`/api/leads/${id}/contacts`, { cache: 'no-store' }).then(r => r.json())
     setContactHistory(Array.isArray(data) ? data : [])
+  }
+
+  async function loadMessages() {
+    const data = await fetch(`/api/leads/${id}/messages`, { cache: 'no-store' }).then(r => r.json())
+    setMessages(Array.isArray(data) ? data : [])
   }
 
   const activityItems = useMemo(() => {
@@ -138,6 +153,17 @@ export default function LeadDetailPage() {
   function setContact(key: string) {
     return (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       setContactForm(current => ({ ...current, [key]: event.target.value }))
+    }
+  }
+
+  function setMessage(key: string) {
+    return (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+      const value = event.target.value
+      setMessageForm(current => {
+        const next = { ...current, [key]: value }
+        if (key === 'direction') next.senderType = value === 'outgoing' ? 'employee' : 'lead'
+        return next
+      })
     }
   }
 
@@ -187,6 +213,33 @@ export default function LeadDetailPage() {
       setContactForm({ contactAt: '', note: '', nextContactAt: '', nextContactNote: '' })
     } finally {
       setSavingContact(false)
+    }
+  }
+
+  async function addMessage() {
+    if (!messageForm.text.trim()) return
+    setSavingMessage(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/leads/${id}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(messageForm),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Не удалось добавить сообщение')
+        return
+      }
+      setMessages(current => [...current, data])
+      setForm((current: any) => ({
+        ...current,
+        lastContactAt: toDateTimeLocal(data.sentAt),
+        lastContactNote: data.text || '',
+      }))
+      setMessageForm(current => ({ ...current, text: '' }))
+    } finally {
+      setSavingMessage(false)
     }
   }
 
@@ -433,6 +486,78 @@ export default function LeadDetailPage() {
                 <div className="form-group"><label className="label">{lt('email')}</label><input className="input" type="email" value={form.email} onChange={set('email')} /></div>
                 <div className="form-group"><label className="label">Instagram</label><input className="input" value={form.instagram} onChange={set('instagram')} /></div>
                 <div className="form-group"><label className="label">Facebook</label><input className="input" value={form.facebook} onChange={set('facebook')} /></div>
+              </div>
+            </div>
+
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="section-title"><span>💬</span>Диалог</div>
+              <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', padding: 12, minHeight: 160, maxHeight: 360, overflow: 'auto', marginBottom: 12 }}>
+                {messages.length === 0 ? (
+                  <div style={{ color: 'var(--muted)', fontSize: 13 }}>Сообщений пока нет. Здесь будет переписка с лидами из Instagram, Facebook или добавленная вручную.</div>
+                ) : (
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    {messages.map(message => {
+                      const outgoing = message.direction === 'outgoing'
+                      const sender = message.senderType === 'bot'
+                        ? 'Бот'
+                        : message.senderType === 'employee'
+                          ? (message.author?.name || 'Сотрудник')
+                          : 'Лид'
+                      return (
+                        <div key={message.id} style={{ display: 'flex', justifyContent: outgoing ? 'flex-end' : 'flex-start' }}>
+                          <div style={{
+                            maxWidth: '78%',
+                            border: outgoing ? '1px solid #2563eb' : '1px solid var(--border)',
+                            borderRadius: 8,
+                            padding: 10,
+                            background: outgoing ? '#2563eb' : 'white',
+                            color: outgoing ? 'white' : 'var(--text)',
+                          }}>
+                            <div style={{ fontSize: 11, opacity: outgoing ? 0.85 : 0.65, marginBottom: 5 }}>
+                              {sender} · {leadSourceLabel(lang, message.channel || 'manual')} · {new Date(message.sentAt).toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                            <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.45 }}>{message.text}</div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '160px 160px 1fr', gap: 10, alignItems: 'start' }}>
+                <div className="form-group">
+                  <label className="label">Тип</label>
+                  <select className="select" value={messageForm.direction} onChange={setMessage('direction')}>
+                    <option value="outgoing">Ответ фирмы</option>
+                    <option value="incoming">Сообщение лида</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="label">Автор</label>
+                  <select className="select" value={messageForm.senderType} onChange={setMessage('senderType')}>
+                    <option value="employee">Сотрудник</option>
+                    <option value="lead">Лид</option>
+                    <option value="bot">Бот</option>
+                    <option value="system">Система</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="label">Канал</label>
+                  <select className="select" value={messageForm.channel} onChange={setMessage('channel')}>
+                    {LEAD_SOURCES.map(source => <option key={source.value} value={source.value}>{leadSourceLabel(lang, source.value)}</option>)}
+                    <option value="messenger">Messenger</option>
+                    <option value="manual">Вручную</option>
+                  </select>
+                </div>
+                <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                  <label className="label">Сообщение</label>
+                  <textarea className="input" rows={3} value={messageForm.text} onChange={setMessage('text')} placeholder="Текст сообщения или ответа..." />
+                </div>
+                <div style={{ gridColumn: '1/-1', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button className="btn btn-primary" onClick={addMessage} disabled={savingMessage || !messageForm.text.trim()}>
+                    {savingMessage ? lt('saving') : 'Добавить сообщение'}
+                  </button>
+                </div>
               </div>
             </div>
 
