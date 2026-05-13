@@ -28,17 +28,11 @@ export default function UpcomingEvents() {
     Promise.all([
       fetch('/api/tasks').then(r => r.json()),
       fetch('/api/task-priorities').then(r => r.json()),
-      fetch('/api/clients').then(r => r.json()),
-      fetch('/api/cases').then(r => r.json()),
-    ]).then(([t, p, c, cs]) => {
+    ]).then(([t, p]) => {
       const taskList = Array.isArray(t) ? t : []
       const prioList = Array.isArray(p) ? p : []
-      const clientList = Array.isArray(c) ? c : []
-      const caseList = Array.isArray(cs) ? cs : []
       setTasks(taskList)
       setPriorities(prioList)
-      setClients(clientList)
-      setCases(caseList)
       buildItems(taskList)
     })
   }, [])
@@ -103,6 +97,15 @@ export default function UpcomingEvents() {
     const reminderAt = meta.reminderAt || ''
     const reminderNote = meta.reminderNote || ''
     setEditingTask({ ...t, dueDate: t.dueDate?.slice(0, 10) || '', reminderAt: reminderAt ? reminderAt.slice(0, 16) : '', reminderNote })
+    if (clients.length === 0 || cases.length === 0) {
+      Promise.all([
+        clients.length === 0 ? fetch('/api/clients').then(r => r.json()) : Promise.resolve(clients),
+        cases.length === 0 ? fetch('/api/cases').then(r => r.json()) : Promise.resolve(cases),
+      ]).then(([clientData, caseData]) => {
+        if (Array.isArray(clientData)) setClients(clientData)
+        if (Array.isArray(caseData)) setCases(caseData)
+      })
+    }
   }
 
   function setE(k: string, v: string) { setEditingTask((p: any) => ({ ...p, [k]: v })) }
