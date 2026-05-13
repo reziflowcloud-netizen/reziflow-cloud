@@ -32,59 +32,99 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 export default async function DashboardPage() {
   const user = await getUser()
   const organizationId = getOrganizationId(user)
-  let totalClients = 0, totalCases = 0, activeCases = 0
-  let monthlyIncome = 0, totalDebt = 0, contractsNoPay = 0
-  let last6months: { month: string; cases: number; clients: number }[] = []
-  let recentCases: any[] = []
+  let dashboardData = {
+    totalClients: 0,
+    totalCases: 0,
+    activeCases: 0,
+    monthlyIncome: 0,
+    totalDebt: 0,
+    contractsNoPay: 0,
+    last6months: [] as { month: string; cases: number; clients: number }[],
+    recentCases: [] as any[],
+  }
+
+  const now = new Date()
+  const startOfMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1))
+  const monthRanges = Array.from({ length: 6 }, (_, index) => {
+    const targetDate = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1)
+    const start = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), 1))
+    const end = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth() + 1, 1))
+    return { start, end }
+  })
 
   try {
-    const now = new Date()
-    const startOfMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1))
-
-    ;[totalClients, totalCases, activeCases] = await Promise.all([
+    const [
+      totalClients,
+      totalCases,
+      activeCases,
+      payments,
+      debtCases,
+      contractsNoPay,
+      last6months,
+      recentCases,
+    ] = await Promise.all([
       prisma.client.count({ where: { organizationId } }),
       prisma.case.count({ where: { organizationId } }),
       prisma.case.count({ where: { organizationId, status: { in: ['Новый', 'В работе', 'Ожидание документов'] } } }),
+      prisma.payment.aggregate({
+        where: { date: { gte: startOfMonth }, case: { organizationId } },
+        _sum: { amount: true },
+      }),
+      prisma.case.findMany({
+        where: { organizationId },
+        select: { totalValue: true, totalPaid: true },
+      }),
+      prisma.case.count({
+        where: { organizationId, contractSigned: true, totalPaid: 0, totalValue: { gt: 0 } },
+      }),
+      Promise.all(monthRanges.map(async ({ start, end }) => {
+        const [cases, clients] = await Promise.all([
+          prisma.case.count({ where: dashboardCaseMonthWhere(organizationId, start, end) }),
+          prisma.client.count({ where: { organizationId, createdAt: { gte: start, lt: end } } }),
+        ])
+        return {
+          month: start.toLocaleDateString('ru', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
+          cases,
+          clients,
+        }
+      })),
+      prisma.case.findMany({
+        where: { organizationId },
+        select: {
+          id: true,
+          caseNumber: true,
+          status: true,
+          totalValue: true,
+          totalPaid: true,
+          client: { select: { firstName: true, lastName: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 6,
+      }),
     ])
 
-    const payments = await prisma.payment.aggregate({
-      where: { date: { gte: startOfMonth }, case: { organizationId } },
-      _sum: { amount: true }
-    })
-    monthlyIncome = payments._sum.amount || 0
-
-    const allCases = await prisma.case.findMany({
-      where: { organizationId },
-      select: { totalValue: true, totalPaid: true, contractSigned: true }
-    })
-    totalDebt = allCases.reduce((acc, c) => acc + Math.max(0, c.totalValue - c.totalPaid), 0)
-    contractsNoPay = allCases.filter(c => c.contractSigned && c.totalPaid === 0 && c.totalValue > 0).length
-
-    // Графики с UTC чтобы избежать проблем с часовым поясом
-    for (let i = 5; i >= 0; i--) {
-      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const start = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), 1))
-      const end = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth() + 1, 1))
-
-      const [cases, clients] = await Promise.all([
-        prisma.case.count({ where: dashboardCaseMonthWhere(organizationId, start, end) }),
-        prisma.client.count({ where: { organizationId, createdAt: { gte: start, lt: end } } }),
-      ])
-
-      last6months.push({
-        month: start.toLocaleDateString('ru', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
-        cases,
-        clients
-      })
+    dashboardData = {
+      totalClients,
+      totalCases,
+      activeCases,
+      monthlyIncome: payments._sum.amount || 0,
+      totalDebt: debtCases.reduce((acc, c) => acc + Math.max(0, c.totalValue - c.totalPaid), 0),
+      contractsNoPay,
+      last6months,
+      recentCases,
     }
-
-    recentCases = await prisma.case.findMany({
-      where: { organizationId },
-      include: { client: true },
-      orderBy: { createdAt: 'desc' },
-      take: 6
-    })
   } catch (e) { console.error(e) }
+
+  const {
+    totalClients,
+    totalCases,
+    activeCases,
+    monthlyIncome,
+    totalDebt,
+    contractsNoPay,
+    last6months,
+    recentCases,
+  } = dashboardData
 
   const maxCases = Math.max(...last6months.map(m => m.cases), 1)
   const maxClients = Math.max(...last6months.map(m => m.clients), 1)
