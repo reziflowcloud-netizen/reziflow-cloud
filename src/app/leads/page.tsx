@@ -50,6 +50,14 @@ function statusColors(status: any) {
   return { bg: `${color}18`, color }
 }
 
+function statusReasons(status: any) {
+  return Array.isArray(status?.reasons) ? status.reasons.map((item: any) => String(item || '').trim()).filter(Boolean) as string[] : []
+}
+
+function parseReasonList(value: string) {
+  return Array.from(new Set(value.split(/\r?\n|,/).map(item => item.trim()).filter(Boolean)))
+}
+
 function isConvertedLead(lead: any) {
   const value = String(lead.status || '').toLowerCase()
   return Boolean(lead.convertedClientId) || value.includes('клиент') || value.includes('client') || value.includes('klient')
@@ -74,6 +82,7 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
+  const [statusReasonFilter, setStatusReasonFilter] = useState('')
   const [source, setSource] = useState('')
   const [temperature, setTemperature] = useState('')
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all')
@@ -97,6 +106,9 @@ export default function LeadsPage() {
     nextContactNote: '',
   })
   const [reminderSaving, setReminderSaving] = useState(false)
+  const [statusReasonModal, setStatusReasonModal] = useState<null | { leadIds: string[], nextStatus: string, previousLeads: any[] }>(null)
+  const [statusReasonDraft, setStatusReasonDraft] = useState({ reason: '', comment: '' })
+  const [statusReasonSaving, setStatusReasonSaving] = useState(false)
 
   const orderedStatuses = leadStatuses.length ? leadStatuses : DEFAULT_LEAD_STATUSES
   const statusNames = orderedStatuses.map(status => status.name)
@@ -135,6 +147,7 @@ export default function LeadsPage() {
     }
     const byFilters = leads.filter(lead => {
       if (status && lead.status !== status) return false
+      if (statusReasonFilter && lead.statusReason !== statusReasonFilter) return false
       if (source && lead.source !== source) return false
       if (temperature && lead.urgency !== temperature) return false
       if (quickFilter === 'today') return isToday(lead.nextContactAt) && !isConvertedLead(lead)
@@ -156,7 +169,7 @@ export default function LeadsPage() {
       lead.notes,
     ].filter(Boolean).join(' ').toLowerCase().includes(q)) : byFilters
     return [...searched].sort((a, b) => rank(a) - rank(b) || new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
-  }, [leads, search, status, source, temperature, quickFilter, statusNames.join('|')])
+  }, [leads, search, status, statusReasonFilter, source, temperature, quickFilter, statusNames.join('|')])
 
   const visibleLeadIds = useMemo(() => filtered.map(lead => lead.id), [filtered])
   const allVisibleSelected = visibleLeadIds.length > 0 && visibleLeadIds.every(id => selectedLeadIds.includes(id))
@@ -181,11 +194,28 @@ export default function LeadsPage() {
     setSelectedLeadIds(current => current.filter(id => leads.some(lead => lead.id === id)))
   }, [leads])
 
+  useEffect(() => {
+    setStatusReasonFilter('')
+  }, [status])
+
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const lead of leads) counts[lead.status] = (counts[lead.status] || 0) + 1
     return counts
   }, [leads])
+
+  const selectedStatusConfig = status ? statusByName[status] : null
+  const selectedStatusReasons = statusReasons(selectedStatusConfig)
+  const statusReasonCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    if (!status) return counts
+    for (const lead of leads) {
+      if (lead.status !== status) continue
+      const reason = lead.statusReason || 'Без причины'
+      counts[reason] = (counts[reason] || 0) + 1
+    }
+    return counts
+  }, [leads, status])
 
   const activeLeadCount = useMemo(() => leads.filter(lead => !isConvertedLead(lead)).length, [leads])
 
@@ -247,14 +277,44 @@ export default function LeadsPage() {
 
   async function updateLeadStatus(lead: any, nextStatus: string) {
     if (!lead || lead.status === nextStatus) return
+    const targetStatus = statusByName[nextStatus]
+    if (targetStatus?.requireReason) {
+      setStatusReasonDraft({ reason: statusReasons(targetStatus)[0] || '', comment: '' })
+      setStatusReasonModal({ leadIds: [lead.id], nextStatus, previousLeads: leads })
+      return
+    }
     const previousLeads = leads
-    setLeads(current => current.map(item => item.id === lead.id ? { ...item, status: nextStatus } : item))
+    setLeads(current => current.map(item => item.id === lead.id ? { ...item, status: nextStatus, statusReason: null, statusReasonComment: null } : item))
     const res = await fetch(`/api/leads/${lead.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: nextStatus }),
+      body: JSON.stringify({ status: nextStatus, statusReason: null, statusReasonComment: null }),
     })
     if (!res.ok) setLeads(previousLeads)
+  }
+
+  async function applyStatusReasonChange() {
+    if (!statusReasonModal || !statusReasonDraft.reason) return
+    const { leadIds, nextStatus, previousLeads } = statusReasonModal
+    setStatusReasonSaving(true)
+    const patch = { status: nextStatus, statusReason: statusReasonDraft.reason, statusReasonComment: statusReasonDraft.comment }
+    setLeads(current => current.map(lead => leadIds.includes(lead.id) ? { ...lead, ...patch } : lead))
+    try {
+      const results = await Promise.all(leadIds.map(id => fetch(`/api/leads/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      })))
+      if (results.some(res => !res.ok)) {
+        setLeads(previousLeads)
+        return
+      }
+      setStatusReasonModal(null)
+      setStatusReasonDraft({ reason: '', comment: '' })
+      await loadLeads()
+    } finally {
+      setStatusReasonSaving(false)
+    }
   }
 
   function toggleLeadSelection(id: string) {
@@ -288,6 +348,17 @@ export default function LeadsPage() {
     } finally {
       setBulkSaving(false)
     }
+  }
+
+  function bulkChangeStatus(nextStatus: string) {
+    if (!nextStatus || selectedLeadIds.length === 0) return
+    const targetStatus = statusByName[nextStatus]
+    if (targetStatus?.requireReason) {
+      setStatusReasonDraft({ reason: statusReasons(targetStatus)[0] || '', comment: '' })
+      setStatusReasonModal({ leadIds: selectedLeadIds, nextStatus, previousLeads: leads })
+      return
+    }
+    bulkPatch({ status: nextStatus, statusReason: null, statusReasonComment: null })
   }
 
   async function bulkDelete() {
@@ -502,6 +573,23 @@ export default function LeadsPage() {
                     <button type="button" className="btn btn-secondary" style={{ padding: '4px 8px' }} disabled={index === leadStatuses.length - 1} onClick={() => moveLeadStatus(index, 1)}>→</button>
                   </div>
                 )}
+                {editingStatuses && item.id && (
+                  <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                    <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, fontWeight: 700 }}>
+                      <input type="checkbox" checked={Boolean(item.requireReason)} onChange={event => saveLeadStatus(item, { requireReason: event.target.checked })} />
+                      Причина при переводе
+                    </label>
+                    {item.requireReason && (
+                      <textarea
+                        className="textarea"
+                        defaultValue={statusReasons(item).join('\n')}
+                        onBlur={event => saveLeadStatus(item, { reasons: parseReasonList(event.target.value) })}
+                        placeholder="Причины, каждая с новой строки"
+                        style={{ minHeight: 72, fontSize: 12 }}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}
@@ -548,6 +636,28 @@ export default function LeadsPage() {
           ))}
         </div>
 
+        {status && (selectedStatusReasons.length > 0 || Object.keys(statusReasonCounts).length > 0) && (
+          <div className="card" style={{ marginBottom: 12, padding: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+              <strong>Причины: {leadStatusLabel(lang, status)}</strong>
+              <button type="button" className="btn btn-secondary" style={{ padding: '5px 8px' }} onClick={() => setStatusReasonFilter('')}>Все причины</button>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {Array.from(new Set([...selectedStatusReasons, ...Object.keys(statusReasonCounts)])).map(reason => (
+                <button
+                  key={reason}
+                  type="button"
+                  className={statusReasonFilter === reason ? 'btn btn-primary' : 'btn btn-secondary'}
+                  onClick={() => setStatusReasonFilter(current => current === reason ? '' : reason)}
+                  style={{ padding: '6px 10px' }}
+                >
+                  {reason} <span style={{ opacity: 0.78 }}>({statusReasonCounts[reason] || 0})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 190px 190px auto', gap: 10, marginBottom: 16 }}>
           <input className="input" placeholder={`🔍 ${lt('search_placeholder')}`} value={search} onChange={e => setSearch(e.target.value)} />
           <select className="select" value={status} onChange={e => setStatus(e.target.value)}>
@@ -568,7 +678,7 @@ export default function LeadsPage() {
           <div className="card" style={{ marginBottom: 16, padding: 12 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(160px, 1fr) minmax(170px, 1fr) minmax(160px, 1fr) auto auto', gap: 8, alignItems: 'center' }}>
               <strong>{lt('selected_count')}: {selectedLeadIds.length}</strong>
-              <select className="select" defaultValue="" disabled={bulkSaving} onChange={event => event.target.value && bulkPatch({ status: event.target.value })}>
+              <select className="select" defaultValue="" disabled={bulkSaving} onChange={event => event.target.value && bulkChangeStatus(event.target.value)}>
                 <option value="">{lt('bulk_status')}</option>
                 {statusNames.map(item => <option key={item} value={item}>{leadStatusLabel(lang, item)}</option>)}
               </select>
@@ -605,6 +715,7 @@ export default function LeadsPage() {
                     </th>
                     <th>{lt('lead')}</th>
                     <th>{lt('status')}</th>
+                    {status && <th>Причина</th>}
                     <th>{lt('source')}</th>
                     <th>{lt('interest')}</th>
                     <th>{lt('next_contact')}</th>
@@ -613,9 +724,9 @@ export default function LeadsPage() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>{lt('loading')}</td></tr>
+                    <tr><td colSpan={status ? 8 : 7} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>{lt('loading')}</td></tr>
                   ) : filtered.length === 0 ? (
-                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
+                    <tr><td colSpan={status ? 8 : 7} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
                       <div style={{ fontSize: 32, marginBottom: 8 }}>◎</div>
                       <div>{search || status || source || temperature ? lt('leads_not_found') : lt('no_leads')}</div>
                       {!search && !status && !source && !temperature && <Link href="/leads/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>{lt('add_first_lead')}</Link>}
@@ -657,6 +768,16 @@ export default function LeadsPage() {
                             {statusNames.map(item => <option key={item} value={item}>{leadStatusLabel(lang, item)}</option>)}
                           </select>
                         </td>
+                        {status && (
+                          <td style={{ fontSize: 13 }}>
+                            {lead.statusReason ? (
+                              <div>
+                                <strong>{lead.statusReason}</strong>
+                                {lead.statusReasonComment && <div style={{ color: 'var(--muted)', marginTop: 2 }}>{lead.statusReasonComment}</div>}
+                              </div>
+                            ) : lt('no_value')}
+                          </td>
+                        )}
                         <td style={{ fontSize: 13 }}>{leadSourceLabel(lang, lead.source)}</td>
                         <td style={{ fontSize: 13 }}>{lead.serviceInterest || lt('no_value')}</td>
                         <td style={{ fontSize: 13 }}>
@@ -730,6 +851,7 @@ export default function LeadsPage() {
                               </div>
                             </div>
                             {lead.serviceInterest && <div style={{ fontSize: 12, marginBottom: 6 }}>{lead.serviceInterest}</div>}
+                            {lead.statusReason && <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--muted)' }}>Причина: {lead.statusReason}</div>}
                             {lead.nextContactAt && (
                               <div style={{ color: isOverdue(lead.nextContactAt) && !isConvertedLead(lead) ? '#b91c1c' : 'var(--muted)', fontSize: 12, fontWeight: isOverdue(lead.nextContactAt) && !isConvertedLead(lead) ? 800 : 500 }}>
                                 {formatLeadDateTime(lead.nextContactAt, locale)}
@@ -866,6 +988,57 @@ export default function LeadsPage() {
               <button type="button" className="btn btn-secondary" onClick={() => setActiveReminder(null)}>{lt('cancel')}</button>
               <button type="button" className="btn btn-primary" onClick={saveReminder} disabled={reminderSaving}>
                 {reminderSaving ? lt('saving') : lt('save')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {statusReasonModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+            zIndex: 60,
+          }}
+          onClick={() => {
+            setLeads(statusReasonModal.previousLeads)
+            setStatusReasonModal(null)
+          }}
+        >
+          <div className="card" style={{ width: 'min(520px, 100%)' }} onClick={event => event.stopPropagation()}>
+            <div className="section-title" style={{ marginBottom: 12 }}><span>!</span>Причина смены статуса</div>
+            <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 14 }}>
+              Статус: <strong>{leadStatusLabel(lang, statusReasonModal.nextStatus)}</strong>. Лидов: {statusReasonModal.leadIds.length}
+            </div>
+            <div className="form-group">
+              <label className="label">Причина</label>
+              <select className="select" value={statusReasonDraft.reason} onChange={event => setStatusReasonDraft(current => ({ ...current, reason: event.target.value }))}>
+                <option value="">Выберите причину</option>
+                {statusReasons(statusByName[statusReasonModal.nextStatus]).map(reason => <option key={reason} value={reason}>{reason}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="label">Комментарий</label>
+              <textarea className="input" rows={3} value={statusReasonDraft.comment} onChange={event => setStatusReasonDraft(current => ({ ...current, comment: event.target.value }))} placeholder="Можно добавить короткое пояснение" />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setLeads(statusReasonModal.previousLeads)
+                  setStatusReasonModal(null)
+                }}
+              >
+                {lt('cancel')}
+              </button>
+              <button type="button" className="btn btn-primary" onClick={applyStatusReasonChange} disabled={statusReasonSaving || !statusReasonDraft.reason}>
+                {statusReasonSaving ? lt('saving') : lt('save')}
               </button>
             </div>
           </div>

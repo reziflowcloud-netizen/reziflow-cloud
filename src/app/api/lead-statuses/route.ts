@@ -5,6 +5,11 @@ import { DEFAULT_LEAD_STATUSES } from '@/lib/leads'
 
 export const dynamic = 'force-dynamic'
 
+function normalizeReasons(value: unknown) {
+  if (!Array.isArray(value)) return []
+  return Array.from(new Set(value.map(item => String(item || '').trim()).filter(Boolean)))
+}
+
 async function ensureLeadStatuses(organizationId: string) {
   const existing = await (prisma as any).leadStatus.findMany({
     where: { organizationId },
@@ -45,6 +50,8 @@ export async function POST(request: NextRequest) {
         name,
         color: body.color || '#2563eb',
         order: Number.isFinite(Number(body.order)) ? Number(body.order) : 999,
+        requireReason: Boolean(body.requireReason),
+        reasons: normalizeReasons(body.reasons),
       },
     })
     return NextResponse.json(status)

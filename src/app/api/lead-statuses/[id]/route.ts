@@ -4,6 +4,11 @@ import { getOrganizationId, getUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
+function normalizeReasons(value: unknown) {
+  if (!Array.isArray(value)) return []
+  return Array.from(new Set(value.map(item => String(item || '').trim()).filter(Boolean)))
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -19,6 +24,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (body.name !== undefined) data.name = nextName
   if (body.color !== undefined) data.color = body.color || existing.color
   if (body.order !== undefined && Number.isFinite(Number(body.order))) data.order = Number(body.order)
+  if (body.requireReason !== undefined) data.requireReason = Boolean(body.requireReason)
+  if (body.reasons !== undefined) data.reasons = normalizeReasons(body.reasons)
 
   try {
     const status = await (prisma as any).$transaction(async (tx: any) => {
@@ -27,6 +34,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         await tx.lead.updateMany({
           where: { organizationId, status: existing.name },
           data: { status: data.name },
+        })
+      }
+      if (data.requireReason === false) {
+        await tx.lead.updateMany({
+          where: { organizationId, status: updated.name },
+          data: { statusReason: null, statusReasonComment: null },
         })
       }
       return updated

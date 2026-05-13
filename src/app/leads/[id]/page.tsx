@@ -74,6 +74,8 @@ export default function LeadDetailPage() {
           serviceInterest: data.serviceInterest || '',
           budget: data.budget || '',
           urgency: data.urgency || '',
+          statusReason: data.statusReason || '',
+          statusReasonComment: data.statusReasonComment || '',
           deadlineAt: data.deadlineAt?.slice(0, 10) || '',
           assignedToId: data.assignedToId ? String(data.assignedToId) : '',
           nextContactAt: data.nextContactAt?.slice(0, 16) || '',
@@ -121,6 +123,11 @@ export default function LeadDetailPage() {
     ]
     return items.sort((a, b) => new Date(b.contactAt).getTime() - new Date(a.contactAt).getTime())
   }, [contactHistory, lead?.createdAt, lang])
+
+  const selectedStatusConfig = leadStatuses.find(status => status.name === form.status)
+  const selectedStatusReasons = Array.isArray(selectedStatusConfig?.reasons)
+    ? selectedStatusConfig.reasons.map((item: any) => String(item || '').trim()).filter(Boolean)
+    : []
 
   function set(key: string) {
     return (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -350,10 +357,34 @@ export default function LeadDetailPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
                   <label className="label">{lt('status')}</label>
-                  <select className="select" value={form.status} onChange={set('status')}>
+                  <select
+                    className="select"
+                    value={form.status}
+                    onChange={event => setForm((current: any) => ({
+                      ...current,
+                      status: event.target.value,
+                      statusReason: '',
+                      statusReasonComment: '',
+                    }))}
+                  >
                     {(leadStatuses.length ? leadStatuses : DEFAULT_LEAD_STATUSES).map(status => <option key={status.name} value={status.name}>{leadStatusLabel(lang, status.name)}</option>)}
                   </select>
                 </div>
+                {selectedStatusConfig?.requireReason && (
+                  <>
+                    <div className="form-group">
+                      <label className="label">Причина статуса</label>
+                      <select className="select" value={form.statusReason || ''} onChange={set('statusReason')}>
+                        <option value="">Выберите причину</option>
+                        {selectedStatusReasons.map((reason: string) => <option key={reason} value={reason}>{reason}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="label">Комментарий к причине</label>
+                      <textarea className="input" rows={3} value={form.statusReasonComment || ''} onChange={set('statusReasonComment')} placeholder="Можно добавить короткое пояснение" />
+                    </div>
+                  </>
+                )}
                 <div className="form-group">
                   <label className="label">{lt('source')}</label>
                   <select className="select" value={form.source} onChange={set('source')}>

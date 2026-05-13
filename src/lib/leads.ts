@@ -80,6 +80,8 @@ export function normalizeLeadBody(body: any) {
     serviceInterest: body.serviceInterest || null,
     budget: body.budget || null,
     urgency: body.urgency || null,
+    statusReason: body.statusReason || null,
+    statusReasonComment: body.statusReasonComment || null,
     notes: body.notes || null,
     assignedToId: body.assignedToId ? Number(body.assignedToId) : null,
     deadlineAt: body.deadlineAt ? new Date(body.deadlineAt) : null,
