@@ -36,6 +36,12 @@ function findPayloadValue(payload: any, names: string[]) {
     const value = payload[name]
     if (value !== undefined && value !== null && String(value).trim()) return String(value).trim()
   }
+  const normalizedNames = names.map(name => String(name).trim().toLowerCase())
+  for (const key of Object.keys(payload)) {
+    if (!normalizedNames.includes(String(key).trim().toLowerCase())) continue
+    const value = payload[key]
+    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim()
+  }
   if (payload.rawSheetRow && typeof payload.rawSheetRow === 'object') {
     return findPayloadValue(payload.rawSheetRow, names)
   }

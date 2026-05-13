@@ -120,10 +120,20 @@ export default function IntegrationsPage() {
     return `const REZIFLOW_WEBHOOK_URL = '${webliumWebhookUrl}';
 const REZIFLOW_SENT_COLUMN = 'ReziFlow sent';
 
+function normalizeColumnName(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 function pick(row, names) {
   for (const name of names) {
     if (row[name] !== undefined && row[name] !== null && String(row[name]).trim() !== '') {
       return row[name];
+    }
+  }
+  const normalizedNames = names.map(normalizeColumnName);
+  for (const key of Object.keys(row)) {
+    if (normalizedNames.indexOf(normalizeColumnName(key)) >= 0 && row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+      return row[key];
     }
   }
   return '';
