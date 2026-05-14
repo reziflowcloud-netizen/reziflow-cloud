@@ -5,6 +5,42 @@ import { normalizeLeadBody } from '@/lib/leads'
 
 export const dynamic = 'force-dynamic'
 
+function parseTaskMeta(description?: string | null) {
+  try {
+    return JSON.parse(description || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function leadName(lead: any) {
+  return lead.fullName || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.phone || 'Лид'
+}
+
+async function createNextContactTask(lead: any, organizationId: string, assignedToId?: number | null) {
+  if (!lead.nextContactAt) return
+  const note = lead.nextContactNote || 'Следующий контакт'
+  await prisma.task.create({
+    data: {
+      organizationId,
+      title: `Следующий контакт: ${leadName(lead)}`,
+      description: JSON.stringify({
+        reminderAt: new Date(lead.nextContactAt).toISOString(),
+        reminderNote: note,
+        leadReminder: {
+          leadId: lead.id,
+          kind: 'nextContact',
+          note,
+        },
+      }),
+      priority: 'Нормально',
+      dueDate: new Date(lead.nextContactAt),
+      clientName: leadName(lead),
+      assignedToId: assignedToId || lead.assignedToId || null,
+    },
+  })
+}
+
 export async function GET(request: NextRequest) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -24,7 +60,35 @@ export async function GET(request: NextRequest) {
     orderBy: { updatedAt: 'desc' },
   })
 
-  return NextResponse.json(leads)
+  const leadIds = new Set(leads.map((lead: any) => lead.id))
+  const tasks = await prisma.task.findMany({
+    where: {
+      organizationId,
+      status: { not: 'done' },
+      description: { contains: '"leadId":"' },
+    },
+    include: { assignedTo: { select: { id: true, name: true } } },
+    orderBy: { dueDate: 'asc' },
+  })
+
+  const remindersByLead: Record<string, any[]> = {}
+  for (const task of tasks) {
+    const meta = parseTaskMeta(task.description)
+    const leadId = meta.leadReminder?.leadId
+    if (!leadId || !leadIds.has(leadId)) continue
+    if (meta.leadReminder?.kind === 'nextContact') continue
+    remindersByLead[leadId] = [
+      ...(remindersByLead[leadId] || []),
+      {
+        ...task,
+        reminderKind: meta.leadReminder?.kind || 'manual',
+        reminderNote: meta.reminderNote || meta.leadReminder?.note || task.title,
+        reminderAt: meta.reminderAt || task.dueDate,
+      },
+    ]
+  }
+
+  return NextResponse.json(leads.map((lead: any) => ({ ...lead, leadReminders: remindersByLead[lead.id] || [] })))
 }
 
 export async function POST(request: NextRequest) {
@@ -41,6 +105,7 @@ export async function POST(request: NextRequest) {
   const lead = await (prisma as any).lead.create({
     data: { organizationId, ...data },
   })
+  await createNextContactTask(lead, organizationId, Number(user.id))
 
   return NextResponse.json(lead)
 }

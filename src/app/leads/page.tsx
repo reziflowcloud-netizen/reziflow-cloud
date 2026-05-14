@@ -230,6 +230,16 @@ export default function LeadsPage() {
         if (lead.deadlineAt && !isConvertedLead(lead)) {
           items.push({ ...lead, reminderId: `${lead.id}:deadline`, reminderKind: 'deadline', reminderAt: lead.deadlineAt, reminderNote: lt('deadline_hint') })
         }
+        for (const reminder of lead.leadReminders || []) {
+          if (!reminder.reminderAt && !reminder.dueDate) continue
+          items.push({
+            ...lead,
+            reminderId: reminder.id,
+            reminderKind: reminder.reminderKind || 'manual',
+            reminderAt: reminder.reminderAt || reminder.dueDate,
+            reminderNote: reminder.reminderNote || reminder.title,
+          })
+        }
         return items
       })
       .sort((a, b) => new Date(a.reminderAt).getTime() - new Date(b.reminderAt).getTime())
@@ -913,7 +923,7 @@ export default function LeadsPage() {
                     <button
                       key={lead.reminderId || lead.id}
                       type="button"
-                      onClick={() => lead.reminderKind === 'deadline' ? router.push(`/leads/${lead.id}`) : openReminder(lead)}
+                      onClick={() => lead.reminderKind === 'deadline' || lead.reminderKind === 'manual' ? router.push(`/leads/${lead.id}`) : openReminder(lead)}
                       style={{ textAlign: 'left', border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 8, padding: 10, cursor: 'pointer' }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>

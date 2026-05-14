@@ -788,7 +788,7 @@ export default function LeadDetailPage() {
                           <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
                             {reminder.assignedTo?.name || lt('no_value')}
                           </div>
-                          {!done && (
+                          {!done && !reminder.synthetic && (
                             <button
                               type="button"
                               className="btn btn-secondary"

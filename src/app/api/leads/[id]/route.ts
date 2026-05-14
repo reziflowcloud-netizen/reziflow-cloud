@@ -5,6 +5,53 @@ import { normalizeLeadBody } from '@/lib/leads'
 
 export const dynamic = 'force-dynamic'
 
+function leadName(lead: any) {
+  return lead.fullName || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.phone || 'Лид'
+}
+
+async function syncNextContactTask(tx: any, lead: any, organizationId: string, assignedToId?: number | null) {
+  const existingTask = await tx.task.findFirst({
+    where: {
+      organizationId,
+      description: { contains: `"leadId":"${lead.id}","kind":"nextContact"` },
+    },
+  })
+
+  if (!lead.nextContactAt) {
+    if (existingTask) {
+      await tx.task.update({ where: { id: existingTask.id }, data: { status: 'done' } })
+    }
+    return
+  }
+
+  const note = lead.nextContactNote || 'Следующий контакт'
+  const meta = {
+    reminderAt: new Date(lead.nextContactAt).toISOString(),
+    reminderNote: note,
+    leadReminder: {
+      leadId: lead.id,
+      kind: 'nextContact',
+      note,
+    },
+  }
+  const data = {
+    organizationId,
+    title: `Следующий контакт: ${leadName(lead)}`,
+    description: JSON.stringify(meta),
+    priority: 'Нормально',
+    status: 'todo',
+    dueDate: new Date(lead.nextContactAt),
+    clientName: leadName(lead),
+    assignedToId: assignedToId || lead.assignedToId || null,
+  }
+
+  if (existingTask) {
+    await tx.task.update({ where: { id: existingTask.id }, data })
+  } else {
+    await tx.task.create({ data })
+  }
+}
+
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -112,6 +159,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
           },
         })
       }
+      await syncNextContactTask(tx, updated, organizationId, Number(user.id))
     }
     return updated
   })

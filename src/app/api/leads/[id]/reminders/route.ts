@@ -20,6 +20,7 @@ function formatReminder(task: any) {
   const meta = parseMeta(task.description)
   return {
     ...task,
+    reminderKind: meta.leadReminder?.kind || 'manual',
     reminderNote: meta.reminderNote || meta.leadReminder?.note || task.title,
     reminderAt: meta.reminderAt || task.dueDate,
   }
@@ -30,7 +31,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
 
-  const lead = await (prisma as any).lead.findFirst({ where: { id: params.id, organizationId }, select: { id: true } })
+  const lead = await (prisma as any).lead.findFirst({ where: { id: params.id, organizationId } })
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const tasks = await prisma.task.findMany({
@@ -42,7 +43,22 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     orderBy: [{ dueDate: 'asc' }],
   })
 
-  return NextResponse.json(tasks.map(formatReminder))
+  const reminders = tasks.map(formatReminder).filter((item: any) => item.reminderKind !== 'nextContact')
+  if (lead.nextContactAt) {
+    reminders.push({
+      id: `${lead.id}:next-contact`,
+      synthetic: true,
+      reminderKind: 'nextContact',
+      title: 'Следующий контакт',
+      reminderNote: lead.nextContactNote || 'Следующий контакт',
+      reminderAt: lead.nextContactAt,
+      dueDate: lead.nextContactAt,
+      status: 'todo',
+      assignedTo: null,
+    })
+  }
+
+  return NextResponse.json(reminders.sort((a: any, b: any) => new Date(a.reminderAt || a.dueDate).getTime() - new Date(b.reminderAt || b.dueDate).getTime()))
 }
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
@@ -64,6 +80,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     reminderNote: note,
     leadReminder: {
       leadId: params.id,
+      kind: 'manual',
       note,
     },
   }
