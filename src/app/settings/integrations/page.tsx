@@ -122,7 +122,7 @@ export default function IntegrationsPage() {
   const googleSheetsScript = useMemo(() => {
     if (!webliumWebhookUrl) return ''
     return `const REZIFLOW_WEBHOOK_URL = '${webliumWebhookUrl}';
-const REZIFLOW_SENT_COLUMN = 'ReziFlow sent';
+const REZIFLOW_SENT_PREFIX = 'reziflow_sent_';
 
 function normalizeColumnName(value) {
   return String(value || '').trim().toLowerCase();
@@ -210,22 +210,18 @@ function postToReziFlow(row) {
   return true;
 }
 
-function ensureSentColumn(sheet, headers) {
-  let index = headers.indexOf(REZIFLOW_SENT_COLUMN);
-  if (index >= 0) return index;
-
-  index = headers.length;
-  sheet.getRange(1, index + 1).setValue(REZIFLOW_SENT_COLUMN);
-  headers.push(REZIFLOW_SENT_COLUMN);
-  return index;
-}
-
 function rowToObject(headers, row) {
   const rowObject = {};
   headers.forEach((header, index) => {
-    if (header && header !== REZIFLOW_SENT_COLUMN) rowObject[header] = row[index];
+    if (header) rowObject[header] = row[index];
   });
   return rowObject;
+}
+
+function rowSentKey(rowObject) {
+  const json = JSON.stringify(rowObject);
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, json);
+  return REZIFLOW_SENT_PREFIX + Utilities.base64EncodeWebSafe(digest);
 }
 
 function sendLastRowToReziFlow() {
@@ -242,19 +238,16 @@ function sendNewRowsToReziFlow() {
     if (values.length < 2) return;
 
     const headers = values[0].map(String);
-    const hadSentColumn = headers.indexOf(REZIFLOW_SENT_COLUMN) >= 0;
-    const sentColumnIndex = ensureSentColumn(sheet, headers);
-
-    if (!hadSentColumn) return;
+    const properties = PropertiesService.getDocumentProperties();
 
     for (let rowIndex = 1; rowIndex < values.length; rowIndex++) {
       const row = values[rowIndex];
-      const alreadySent = String(row[sentColumnIndex] || '').trim();
-      if (alreadySent) continue;
-
       const rowObject = rowToObject(headers, row);
+      const key = rowSentKey(rowObject);
+      if (properties.getProperty(key)) continue;
+
       if (postToReziFlow(rowObject)) {
-        sheet.getRange(rowIndex + 1, sentColumnIndex + 1).setValue(new Date());
+        properties.setProperty(key, new Date().toISOString());
       }
     }
   } finally {
@@ -268,14 +261,13 @@ function markExistingRowsAsSent() {
   if (values.length < 2) return;
 
   const headers = values[0].map(String);
-  const sentColumnIndex = ensureSentColumn(sheet, headers);
+  const properties = PropertiesService.getDocumentProperties();
   const now = new Date();
-  const marks = values.slice(1).map((row) => {
-    const existingMark = String(row[sentColumnIndex] || '').trim();
-    return [existingMark || now];
-  });
 
-  sheet.getRange(2, sentColumnIndex + 1, marks.length, 1).setValues(marks);
+  values.slice(1).forEach((row) => {
+    const rowObject = rowToObject(headers, row);
+    properties.setProperty(rowSentKey(rowObject), now.toISOString());
+  });
 }
 
 function onFormSubmit(e) {
@@ -715,7 +707,7 @@ ${samplePayload}`}
             <div className="form-group">
               <label className="label">Apps Script</label>
               <div style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, marginBottom: 8 }}>
-                First setup: run markExistingRowsAsSent once for old rows. Trigger: sendLastRowToReziFlow, source From spreadsheet, event On change. New rows can be appended or inserted anywhere in the sheet.
+                First setup: run markExistingRowsAsSent once for old rows. Trigger: sendLastRowToReziFlow, source From spreadsheet, event On change. The script no longer adds visible columns and stores sent marks inside Apps Script properties.
               </div>
               <pre style={{ whiteSpace: 'pre-wrap', background: '#0f172a', color: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 12, lineHeight: 1.5, overflowX: 'auto', maxHeight: 360 }}>
 {googleSheetsScript}
