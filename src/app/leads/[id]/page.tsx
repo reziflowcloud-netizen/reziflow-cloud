@@ -20,6 +20,7 @@ export default function LeadDetailPage() {
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
   const [contactHistory, setContactHistory] = useState<any[]>([])
   const [messages, setMessages] = useState<any[]>([])
+  const [reminders, setReminders] = useState<any[]>([])
   const [messageForm, setMessageForm] = useState({
     text: '',
     direction: 'outgoing',
@@ -35,6 +36,7 @@ export default function LeadDetailPage() {
   const [quickNote, setQuickNote] = useState('')
   const [quickNextContactAt, setQuickNextContactAt] = useState('')
   const [quickNextContactNote, setQuickNextContactNote] = useState('')
+  const [reminderForm, setReminderForm] = useState({ reminderAt: '', note: '' })
   const [quickSaving, setQuickSaving] = useState(false)
   const [showConvert, setShowConvert] = useState(false)
   const [convertForm, setConvertForm] = useState({
@@ -53,6 +55,7 @@ export default function LeadDetailPage() {
   const [saving, setSaving] = useState(false)
   const [savingContact, setSavingContact] = useState(false)
   const [savingMessage, setSavingMessage] = useState(false)
+  const [savingReminder, setSavingReminder] = useState(false)
   const [converting, setConverting] = useState(false)
   const [error, setError] = useState('')
 
@@ -62,6 +65,7 @@ export default function LeadDetailPage() {
     fetch('/api/lead-statuses').then(r => r.json()).then(data => setLeadStatuses(Array.isArray(data) ? data : []))
     loadContactHistory()
     loadMessages()
+    loadReminders()
     fetch(`/api/leads/${id}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
@@ -123,6 +127,11 @@ export default function LeadDetailPage() {
   async function loadMessages() {
     const data = await fetch(`/api/leads/${id}/messages`, { cache: 'no-store' }).then(r => r.json())
     setMessages(Array.isArray(data) ? data : [])
+  }
+
+  async function loadReminders() {
+    const data = await fetch(`/api/leads/${id}/reminders`, { cache: 'no-store' }).then(r => r.json())
+    setReminders(Array.isArray(data) ? data : [])
   }
 
   const activityItems = useMemo(() => {
@@ -311,6 +320,47 @@ export default function LeadDetailPage() {
     } finally {
       setQuickSaving(false)
     }
+  }
+
+  async function addReminder() {
+    if (!reminderForm.reminderAt || !reminderForm.note.trim()) return
+    setSavingReminder(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/leads/${id}/reminders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reminderForm),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Не удалось добавить напоминание')
+        return
+      }
+      setReminders(current => [...current, data].sort((a, b) => new Date(a.reminderAt || a.dueDate).getTime() - new Date(b.reminderAt || b.dueDate).getTime()))
+      setReminderForm({ reminderAt: '', note: '' })
+    } finally {
+      setSavingReminder(false)
+    }
+  }
+
+  async function completeReminder(reminder: any) {
+    const meta = (() => {
+      try { return JSON.parse(reminder.description || '{}') } catch { return {} }
+    })()
+    const res = await fetch(`/api/tasks/${reminder.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: reminder.title,
+        description: JSON.stringify(meta),
+        priority: reminder.priority,
+        status: 'done',
+        dueDate: reminder.dueDate,
+        clientName: reminder.clientName,
+      }),
+    })
+    if (res.ok) setReminders(current => current.map(item => item.id === reminder.id ? { ...item, status: 'done' } : item))
   }
 
   async function save() {
@@ -665,6 +715,94 @@ export default function LeadDetailPage() {
                 <button type="button" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={scheduleQuickContact} disabled={quickSaving || (!quickNextContactAt && !quickNextContactNote.trim())}>
                   {quickSaving ? lt('saving') : lt('quick_schedule')}
                 </button>
+              </div>
+            </div>
+
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="section-title"><span>🔔</span>Напоминания лида</div>
+              <div className="form-group">
+                <label className="label">Дата и время</label>
+                <input
+                  className="input"
+                  type="datetime-local"
+                  value={reminderForm.reminderAt}
+                  onChange={event => setReminderForm(current => ({ ...current, reminderAt: event.target.value }))}
+                />
+              </div>
+              <div className="form-group">
+                <label className="label">О чем напомнить</label>
+                <textarea
+                  className="input"
+                  rows={3}
+                  value={reminderForm.note}
+                  onChange={event => setReminderForm(current => ({ ...current, note: event.target.value }))}
+                  placeholder="Например: проверить документы, напомнить об оплате, перезвонить по решению"
+                />
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={addReminder}
+                disabled={savingReminder || !reminderForm.reminderAt || !reminderForm.note.trim()}
+              >
+                {savingReminder ? lt('saving') : 'Добавить напоминание'}
+              </button>
+
+              <div style={{ borderTop: '1px solid var(--border)', marginTop: 14, paddingTop: 14 }}>
+                <div className="section-title" style={{ marginBottom: 10 }}><span>☑</span>Все напоминания</div>
+                {reminders.length === 0 ? (
+                  <div style={{ color: 'var(--muted)', fontSize: 13 }}>Напоминаний пока нет</div>
+                ) : (
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {reminders.map(reminder => {
+                      const reminderDate = reminder.reminderAt || reminder.dueDate
+                      const done = reminder.status === 'done'
+                      return (
+                        <div
+                          key={reminder.id}
+                          style={{
+                            border: '1px solid var(--border)',
+                            borderRadius: 8,
+                            padding: 10,
+                            background: done ? 'var(--surface)' : 'white',
+                            opacity: done ? 0.65 : 1,
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                            <strong style={{ fontSize: 13 }}>
+                              {reminderDate ? new Date(reminderDate).toLocaleString(locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Без даты'}
+                            </strong>
+                            <span style={{
+                              borderRadius: 999,
+                              padding: '2px 7px',
+                              background: done ? '#dcfce7' : '#dbeafe',
+                              color: done ? '#166534' : '#1d4ed8',
+                              fontSize: 11,
+                              fontWeight: 700,
+                            }}>
+                              {done ? 'Выполнено' : 'Активно'}
+                            </span>
+                          </div>
+                          <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, marginTop: 6 }}>{reminder.reminderNote || reminder.title}</div>
+                          <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
+                            {reminder.assignedTo?.name || lt('no_value')}
+                          </div>
+                          {!done && (
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
+                              onClick={() => completeReminder(reminder)}
+                            >
+                              Отметить выполненным
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
