@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { deleteCloudinaryResources } from '@/lib/cloudinary'
+import { deleteDropboxFile, getDropboxSettings } from '@/lib/dropbox'
 
 function taskBelongsToCase(
   task: { title: string | null; description: string | null },
@@ -43,7 +44,7 @@ function isArchiveStatus(status?: string | null) {
 }
 
 function serializeCaseDocument(doc: any) {
-  if (doc?.storageProvider === 'dropbox') return { ...doc, url: `/api/documents/${doc.id}/file` }
+  if (doc?.storageProvider === 'dropbox' && !doc.url) return { ...doc, url: `/api/documents/${doc.id}/file` }
   return doc
 }
 
@@ -185,7 +186,15 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
 
   const documents = await (prisma as any).caseDocument.findMany({
     where: { caseId: params.id },
-    select: { publicId: true },
+    select: {
+      publicId: true,
+      storageProvider: true,
+      storageId: true,
+      storagePath: true,
+      dropboxStorageId: true,
+      dropboxPath: true,
+      case: { select: { organization: { select: { settings: true } } } },
+    },
   })
 
   const tasks = await prisma.task.findMany({
@@ -196,7 +205,18 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     .filter(task => taskBelongsToCase(task, existing.id, existing.caseNumber))
     .map(task => task.id)
 
-  const deletedCloudinaryFiles = await deleteCloudinaryResources(documents.map((doc: any) => doc.publicId))
+  const cloudinaryPublicIds = documents
+    .filter((doc: any) => doc.publicId && doc.storageProvider !== 'dropbox' && !String(doc.publicId).startsWith('local:'))
+    .map((doc: any) => doc.publicId)
+  const deletedCloudinaryFiles = await deleteCloudinaryResources(cloudinaryPublicIds)
+
+  for (const doc of documents as any[]) {
+    const dropboxPathOrId = doc.dropboxStorageId || doc.dropboxPath || doc.storageId || doc.storagePath || (doc.storageProvider === 'dropbox' ? doc.publicId : null)
+    if (!dropboxPathOrId) continue
+    const dropbox = getDropboxSettings(doc.case?.organization?.settings)
+    if (!dropbox.accessToken) continue
+    try { await deleteDropboxFile(dropbox.accessToken, dropboxPathOrId) } catch (error) { console.error('Dropbox delete error:', error) }
+  }
 
   await prisma.$transaction([
     prisma.task.deleteMany({ where: { id: { in: taskIds } } }),

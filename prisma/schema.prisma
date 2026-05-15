@@ -565,6 +565,11 @@ model CaseDocument {
   storageProvider String   @default("cloudinary")
   storageId       String?
   storagePath     String?
+  dropboxStorageId String?
+  dropboxPath      String?
+  dropboxSyncedAt  DateTime?
+  dropboxSyncStatus String?
+  dropboxSyncError  String?
   mimeType        String?
   size            Int?
   createdAt       DateTime @default(now())

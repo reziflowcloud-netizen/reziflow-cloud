@@ -464,9 +464,9 @@ function onFormSubmit(e) {
             {storageSettings && (
               <div className="card" style={{ gridColumn: '1 / -1' }}>
                 <div className="section-title" style={{ marginBottom: 4 }}><span>📁</span>Хранение документов</div>
-                <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
-                  Для SaaS лучше подключать Dropbox каждой организации отдельно: документы лежат в Dropbox фирмы, а CRM хранит только путь и служебные данные файла.
-                </div>
+                  <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
+                   CRM всегда сохраняет документ в Cloudinary как основное хранилище. Если Dropbox подключен, туда дополнительно отправляется копия для папок организации.
+                  </div>
 
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, fontWeight: 700 }}>
                   <input
@@ -475,8 +475,8 @@ function onFormSubmit(e) {
                     disabled={!storageSettings.canManage || saving}
                     onChange={event => setStorageDraft(current => ({ ...current, enabled: event.target.checked }))}
                   />
-                  Использовать Dropbox для новых документов
-                </label>
+                   Делать копию новых документов в Dropbox
+                  </label>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(260px, 1.3fr) auto', gap: 10, alignItems: 'end' }}>
                   <div className="form-group" style={{ marginBottom: 0 }}>

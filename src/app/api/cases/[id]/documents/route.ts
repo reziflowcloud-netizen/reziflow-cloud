@@ -14,7 +14,7 @@ function safeFileName(name: string) {
   return `${base}${ext}`
 }
 
-async function uploadFileToCloudinary(file: File, caseId: string) {
+async function uploadFileToCloudinary(file: File, caseId: string, bytes?: Buffer) {
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME
   const apiKey = process.env.CLOUDINARY_API_KEY
   const apiSecret = process.env.CLOUDINARY_API_SECRET
@@ -29,11 +29,11 @@ async function uploadFileToCloudinary(file: File, caseId: string) {
     .update(`folder=${folder}&timestamp=${timestamp}${apiSecret}`)
     .digest('hex')
 
-  const bytes = Buffer.from(await file.arrayBuffer())
+  const fileBytes = bytes || Buffer.from(await file.arrayBuffer())
   const mimeType = file.type || 'application/octet-stream'
   const isPdf = mimeType === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
   const resourceType = isPdf ? 'raw' : 'image'
-  const dataUri = `data:${mimeType};base64,${bytes.toString('base64')}`
+  const dataUri = `data:${mimeType};base64,${fileBytes.toString('base64')}`
   const formData = new FormData()
   formData.append('file', dataUri)
   formData.append('folder', folder)
@@ -54,7 +54,7 @@ async function uploadFileToCloudinary(file: File, caseId: string) {
 
 function serializeDocument(doc: any) {
   if (!doc) return doc
-  if (doc.storageProvider === 'dropbox') {
+  if (doc.storageProvider === 'dropbox' && !doc.url) {
     return { ...doc, url: `/api/documents/${doc.id}/file` }
   }
   return doc
@@ -64,6 +64,49 @@ function fileTypeFor(file: File) {
   const isImage = file.type.startsWith('image/')
   const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
   return isImage ? 'image' : isPdf ? 'pdf' : 'file'
+}
+
+async function uploadDropboxCopy(args: {
+  file: File
+  safeName: string
+  scopedCase: any
+  caseId: string
+  bytes: Buffer
+}) {
+  const dropbox = getDropboxSettings(args.scopedCase.organization?.settings)
+  if (!dropbox.enabled || !dropbox.accessToken) {
+    return { status: 'disabled' as const }
+  }
+
+  try {
+    const clientName = sanitizeDropboxSegment(
+      `${args.scopedCase.client?.lastName || ''} ${args.scopedCase.client?.firstName || ''}`.trim() || args.scopedCase.client?.phone,
+      'Client',
+    )
+    const caseName = sanitizeDropboxSegment(args.scopedCase.caseNumber || args.caseId, 'Case')
+    const filePath = joinDropboxPath(
+      dropbox.rootFolder,
+      sanitizeDropboxSegment(args.scopedCase.organization?.name, 'Organization'),
+      'Clients',
+      clientName,
+      'Cases',
+      caseName,
+      `${Date.now()}_${args.safeName}`,
+    )
+    const uploaded = await uploadDropboxFile({ accessToken: dropbox.accessToken, path: filePath, bytes: args.bytes })
+    return {
+      status: 'synced' as const,
+      storageId: uploaded.id || null,
+      path: uploaded.path_display || uploaded.path_lower || filePath,
+      size: uploaded.size || args.file.size,
+    }
+  } catch (error: any) {
+    console.error('Dropbox copy upload error:', error)
+    return {
+      status: 'failed' as const,
+      error: String(error?.message || error || 'Dropbox upload failed').slice(0, 1000),
+    }
+  }
 }
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -107,43 +150,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       const safeName = safeFileName(file.name)
       const mimeType = file.type || 'application/octet-stream'
       const fileType = fileTypeFor(file)
-      const dropbox = getDropboxSettings(scopedCase.organization?.settings)
-
-      if (dropbox.enabled && dropbox.accessToken) {
-        const bytes = Buffer.from(await file.arrayBuffer())
-        const clientName = sanitizeDropboxSegment(
-          `${scopedCase.client?.lastName || ''} ${scopedCase.client?.firstName || ''}`.trim() || scopedCase.client?.phone,
-          'Client',
-        )
-        const caseName = sanitizeDropboxSegment(scopedCase.caseNumber || params.id, 'Case')
-        const filePath = joinDropboxPath(
-          dropbox.rootFolder,
-          sanitizeDropboxSegment(scopedCase.organization?.name, 'Organization'),
-          'Clients',
-          clientName,
-          'Cases',
-          caseName,
-          `${Date.now()}_${safeName}`,
-        )
-        const uploaded = await uploadDropboxFile({ accessToken: dropbox.accessToken, path: filePath, bytes })
-        const doc = await (prisma as any).caseDocument.create({
-          data: {
-            caseId: params.id,
-            url: null,
-            publicId: uploaded.id || uploaded.path_display || filePath,
-            name: safeName,
-            fileType,
-            storageProvider: 'dropbox',
-            storageId: uploaded.id || null,
-            storagePath: uploaded.path_display || uploaded.path_lower || filePath,
-            mimeType,
-            size: uploaded.size || file.size,
-          },
-        })
-        return NextResponse.json(serializeDocument(doc))
-      }
-
-      const uploaded = await uploadFileToCloudinary(file, params.id)
+      const bytes = Buffer.from(await file.arrayBuffer())
+      const uploaded = await uploadFileToCloudinary(file, params.id, bytes)
+      const dropboxCopy = await uploadDropboxCopy({ file, safeName, scopedCase, caseId: params.id, bytes })
       const doc = await (prisma as any).caseDocument.create({
         data: {
           caseId: params.id,
@@ -152,6 +161,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           name: safeName,
           fileType,
           storageProvider: 'cloudinary',
+          dropboxStorageId: dropboxCopy.status === 'synced' ? dropboxCopy.storageId : null,
+          dropboxPath: dropboxCopy.status === 'synced' ? dropboxCopy.path : null,
+          dropboxSyncedAt: dropboxCopy.status === 'synced' ? new Date() : null,
+          dropboxSyncStatus: dropboxCopy.status,
+          dropboxSyncError: dropboxCopy.status === 'failed' ? dropboxCopy.error : null,
           mimeType,
           size: file.size,
         },

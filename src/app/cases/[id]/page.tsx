@@ -681,17 +681,16 @@ export default function CaseDetailPage() {
   }
 
   async function uploadFile(file: File) {
-    // Проверка размера — Cloudinary бесплатный план: макс 10MB
     const MAX_SIZE = 150 * 1024 * 1024
     if (file.size > MAX_SIZE) {
-      alert(`Файл "${file.name}" слишком большой (${(file.size/1024/1024).toFixed(1)}MB). Максимум 10MB. Сожмите файл или уменьшите качество фото.`)
+      alert(`Файл "${file.name}" слишком большой (${(file.size/1024/1024).toFixed(1)}MB). Максимум 150MB.`)
       return
     }
     setUploading(true)
     try {
-      const serverFormData = new FormData()
-      serverFormData.append('file', file)
-      const docRes = await fetch(`/api/cases/${id}/documents`, { method: 'POST', body: serverFormData })
+      const formData = new FormData()
+      formData.append('file', file)
+      const docRes = await fetch(`/api/cases/${id}/documents`, { method: 'POST', body: formData })
       if (!docRes.ok) {
         const err = await docRes.json().catch(() => ({}))
         alert('Ошибка загрузки документа: ' + (err.error || docRes.status))
@@ -700,57 +699,6 @@ export default function CaseDetailPage() {
       }
       const doc = await docRes.json()
       setDocuments(p => [doc, ...p])
-      setUploading(false)
-      return
-      // Получаем параметры для unsigned upload
-      const { cloudName, uploadPreset } = await fetch('/api/cloudinary', { method: 'POST' }).then(r => r.json())
-      if (!cloudName || !uploadPreset) {
-        const fd = new FormData()
-        fd.append('file', file)
-        const docRes = await fetch(`/api/cases/${id}/documents`, { method: 'POST', body: fd })
-        if (!docRes.ok) {
-          const err = await docRes.json().catch(() => ({}))
-          alert('Ошибка загрузки документа: ' + (err.error || docRes.status))
-          setUploading(false)
-          return
-        }
-        const doc = await docRes.json()
-        setDocuments(p => [doc, ...p])
-        setUploading(false)
-        return
-      }
-      // Папка: reziflow-cloud/Фамилия_Имя/НомерДела
-      const clientName = c?.client
-        ? `${c.client.lastName || 'Клиент'}_${c.client.firstName || ''}`.replace(/[^a-zA-Zа-яА-ЯёЁ0-9_-]/g, '_')
-        : 'Без_клиента'
-      const caseFolder = (c?.caseNumber || 'DRAFT').replace(/[./\s]/g, '-')
-      const folder = `reziflow-cloud/${clientName}/${caseFolder}`
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('upload_preset', uploadPreset)
-      fd.append('folder', folder)
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: 'POST', body: fd })
-      if (!res.ok) {
-        const err = await res.json()
-        alert('Ошибка Cloudinary: ' + (err.error?.message || res.status))
-        setUploading(false)
-        return
-      }
-      const data = await res.json()
-      if (data.secure_url) {
-        const isImage = file.type.startsWith('image/')
-        const docRes = await fetch(`/api/cases/${id}/documents`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: data.secure_url, publicId: data.public_id, name: file.name, fileType: isImage ? 'image' : 'pdf' }),
-        })
-        if (!docRes.ok) {
-          alert('Файл загружен в Cloudinary, но не сохранён в базе. Попробуйте ещё раз.')
-          setUploading(false)
-          return
-        }
-        const doc = await docRes.json()
-        setDocuments(p => [...p, doc])
-      }
     } catch (e: any) { alert('Ошибка загрузки: ' + e.message) }
     setUploading(false)
   }

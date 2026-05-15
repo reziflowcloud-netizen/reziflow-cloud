@@ -27,14 +27,17 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string;
         const filePath = path.join(process.cwd(), 'public', publicPath)
         try { await unlink(filePath) } catch {}
       }
-      if (doc.storageProvider === 'dropbox') {
-        const dropbox = getDropboxSettings(doc.case?.organization?.settings)
-        const pathOrId = doc.storageId || doc.storagePath || doc.publicId
-        if (dropbox.accessToken && pathOrId) {
-          try { await deleteDropboxFile(dropbox.accessToken, pathOrId) } catch (error) { console.error('Dropbox delete error:', error) }
-        }
-      } else if (!isLocalFile) {
+      const isDropboxOnly = doc.storageProvider === 'dropbox'
+      if (!isLocalFile && doc.publicId && !isDropboxOnly) {
         await deleteCloudinaryResource(doc.publicId)
+      }
+
+      const dropboxPathOrId = doc.dropboxStorageId || doc.dropboxPath || doc.storageId || doc.storagePath || (isDropboxOnly ? doc.publicId : null)
+      if (dropboxPathOrId) {
+        const dropbox = getDropboxSettings(doc.case?.organization?.settings)
+        if (dropbox.accessToken) {
+          try { await deleteDropboxFile(dropbox.accessToken, dropboxPathOrId) } catch (error) { console.error('Dropbox delete error:', error) }
+        }
       }
       await (prisma as any).caseDocument.delete({ where: { id: parseInt(params.docId) } })
     }

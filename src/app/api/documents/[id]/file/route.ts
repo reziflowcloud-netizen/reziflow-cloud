@@ -19,15 +19,17 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       storageProvider: true,
       storageId: true,
       storagePath: true,
+      dropboxStorageId: true,
+      dropboxPath: true,
       mimeType: true,
       case: { select: { organization: { select: { settings: true } } } },
     },
   })
   if (!doc) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  if (doc.storageProvider === 'dropbox') {
+  if (!doc.url && (doc.storageProvider === 'dropbox' || doc.dropboxStorageId || doc.dropboxPath)) {
     const dropbox = getDropboxSettings(doc.case?.organization?.settings)
-    const pathOrId = doc.storageId || doc.storagePath || doc.publicId
+    const pathOrId = doc.dropboxStorageId || doc.storageId || doc.dropboxPath || doc.storagePath || doc.publicId
     if (!dropbox.accessToken || !pathOrId) return NextResponse.json({ error: 'Dropbox is not configured' }, { status: 409 })
 
     const response = await downloadDropboxFile(dropbox.accessToken, pathOrId)
