@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { findScopedCase } from '@/lib/apiScope'
+import { getDropboxSettings, joinDropboxPath, sanitizeDropboxSegment, uploadDropboxFile } from '@/lib/dropbox'
 import crypto from 'crypto'
 import path from 'path'
 
@@ -51,6 +52,20 @@ async function uploadFileToCloudinary(file: File, caseId: string) {
   return data as { secure_url: string; public_id: string; resource_type?: string }
 }
 
+function serializeDocument(doc: any) {
+  if (!doc) return doc
+  if (doc.storageProvider === 'dropbox') {
+    return { ...doc, url: `/api/documents/${doc.id}/file` }
+  }
+  return doc
+}
+
+function fileTypeFor(file: File) {
+  const isImage = file.type.startsWith('image/')
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+  return isImage ? 'image' : isPdf ? 'pdf' : 'file'
+}
+
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -62,7 +77,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       where: { caseId: params.id },
       orderBy: { createdAt: 'desc' }
     })
-    return NextResponse.json(docs)
+    return NextResponse.json(docs.map(serializeDocument))
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
@@ -72,8 +87,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
-  const scopedCase = await findScopedCase(params.id, organizationId, { id: true })
-  if (!scopedCase) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    const scopedCase = await (prisma as any).case.findFirst({
+      where: { id: params.id, organizationId },
+      select: {
+        id: true,
+        caseNumber: true,
+        organization: { select: { name: true, settings: true } },
+        client: { select: { firstName: true, lastName: true, phone: true } },
+      },
+    })
+    if (!scopedCase) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   try {
     const contentType = req.headers.get('content-type') || ''
     if (contentType.includes('multipart/form-data')) {
@@ -81,19 +104,59 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       const file = formData.get('file')
       if (!(file instanceof File)) return NextResponse.json({ error: 'File is required' }, { status: 400 })
 
+      const safeName = safeFileName(file.name)
+      const mimeType = file.type || 'application/octet-stream'
+      const fileType = fileTypeFor(file)
+      const dropbox = getDropboxSettings(scopedCase.organization?.settings)
+
+      if (dropbox.enabled && dropbox.accessToken) {
+        const bytes = Buffer.from(await file.arrayBuffer())
+        const clientName = sanitizeDropboxSegment(
+          `${scopedCase.client?.lastName || ''} ${scopedCase.client?.firstName || ''}`.trim() || scopedCase.client?.phone,
+          'Client',
+        )
+        const caseName = sanitizeDropboxSegment(scopedCase.caseNumber || params.id, 'Case')
+        const filePath = joinDropboxPath(
+          dropbox.rootFolder,
+          sanitizeDropboxSegment(scopedCase.organization?.name, 'Organization'),
+          'Clients',
+          clientName,
+          'Cases',
+          caseName,
+          `${Date.now()}_${safeName}`,
+        )
+        const uploaded = await uploadDropboxFile({ accessToken: dropbox.accessToken, path: filePath, bytes })
+        const doc = await (prisma as any).caseDocument.create({
+          data: {
+            caseId: params.id,
+            url: null,
+            publicId: uploaded.id || uploaded.path_display || filePath,
+            name: safeName,
+            fileType,
+            storageProvider: 'dropbox',
+            storageId: uploaded.id || null,
+            storagePath: uploaded.path_display || uploaded.path_lower || filePath,
+            mimeType,
+            size: uploaded.size || file.size,
+          },
+        })
+        return NextResponse.json(serializeDocument(doc))
+      }
+
       const uploaded = await uploadFileToCloudinary(file, params.id)
-      const isImage = file.type.startsWith('image/')
-      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
       const doc = await (prisma as any).caseDocument.create({
         data: {
           caseId: params.id,
           url: uploaded.secure_url,
           publicId: uploaded.public_id,
-          name: safeFileName(file.name),
-          fileType: isImage ? 'image' : isPdf ? 'pdf' : 'file',
+          name: safeName,
+          fileType,
+          storageProvider: 'cloudinary',
+          mimeType,
+          size: file.size,
         },
       })
-      return NextResponse.json(doc)
+      return NextResponse.json(serializeDocument(doc))
     }
 
     const body = await req.json()
@@ -104,9 +167,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         publicId: body.publicId,
         name: body.name,
         fileType: body.fileType || 'image',
+        storageProvider: 'cloudinary',
       }
     })
-    return NextResponse.json(doc)
+    return NextResponse.json(serializeDocument(doc))
   } catch (e: any) {
     console.error('Document create error:', e)
     return NextResponse.json({ error: e.message }, { status: 500 })

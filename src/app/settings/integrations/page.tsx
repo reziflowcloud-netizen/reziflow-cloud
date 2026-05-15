@@ -29,6 +29,17 @@ type FacebookLeadSettings = {
   apiVersion: string
 }
 
+type StorageSettings = {
+  provider: 'cloudinary' | 'dropbox'
+  dropbox: {
+    enabled: boolean
+    rootFolder: string
+    hasAccessToken: boolean
+    accessToken?: string
+  }
+  canManage: boolean
+}
+
 type UserOption = {
   id: number
   name: string
@@ -98,6 +109,9 @@ export default function IntegrationsPage() {
   const [assignmentDraft, setAssignmentDraft] = useState<AssignmentSettings>({ mode: 'off', userId: null, userIds: [] })
   const [facebookDraft, setFacebookDraft] = useState<FacebookLeadSettings>({ enabled: false, verifyToken: '', pageAccessToken: '', apiVersion: 'v23.0' })
   const [showFacebookToken, setShowFacebookToken] = useState(false)
+  const [storageSettings, setStorageSettings] = useState<StorageSettings | null>(null)
+  const [storageDraft, setStorageDraft] = useState<StorageSettings['dropbox']>({ enabled: false, rootFolder: '/ReziFlow CRM', hasAccessToken: false, accessToken: '' })
+  const [showDropboxToken, setShowDropboxToken] = useState(false)
 
   const webhookUrl = useMemo(() => {
     if (!settings || typeof window === 'undefined') return ''
@@ -287,6 +301,7 @@ function onFormSubmit(e) {
     loadSettings()
     loadLogs()
     loadUsers()
+    loadStorageSettings()
   }, [])
 
   async function loadSettings() {
@@ -350,6 +365,36 @@ function onFormSubmit(e) {
     const res = await fetch('/api/users', { cache: 'no-store' })
     const data = await res.json().catch(() => [])
     if (res.ok) setUsers(Array.isArray(data) ? data : [])
+  }
+
+  async function loadStorageSettings() {
+    const res = await fetch('/api/storage-settings', { cache: 'no-store' })
+    const data = await res.json().catch(() => null)
+    if (res.ok && data?.dropbox) {
+      setStorageSettings(data)
+      setStorageDraft({ ...data.dropbox, accessToken: '' })
+    }
+  }
+
+  async function saveStorageSettings() {
+    setSaving(true)
+    setError('')
+    try {
+      const res = await fetch('/api/storage-settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dropbox: storageDraft }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Failed to save document storage')
+        return
+      }
+      setStorageSettings(data)
+      setStorageDraft({ ...data.dropbox, accessToken: '' })
+    } finally {
+      setSaving(false)
+    }
   }
 
   function leadName(lead: WebhookLog['lead']) {
@@ -416,6 +461,56 @@ function onFormSubmit(e) {
           <div className="card">Загрузка...</div>
         ) : settings ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(320px, 0.9fr)', gap: 16, alignItems: 'start' }}>
+            {storageSettings && (
+              <div className="card" style={{ gridColumn: '1 / -1' }}>
+                <div className="section-title" style={{ marginBottom: 4 }}><span>📁</span>Хранение документов</div>
+                <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
+                  Для SaaS лучше подключать Dropbox каждой организации отдельно: документы лежат в Dropbox фирмы, а CRM хранит только путь и служебные данные файла.
+                </div>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, fontWeight: 700 }}>
+                  <input
+                    type="checkbox"
+                    checked={storageDraft.enabled}
+                    disabled={!storageSettings.canManage || saving}
+                    onChange={event => setStorageDraft(current => ({ ...current, enabled: event.target.checked }))}
+                  />
+                  Использовать Dropbox для новых документов
+                </label>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(260px, 1.3fr) auto', gap: 10, alignItems: 'end' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="label">Папка в Dropbox</label>
+                    <input
+                      className="input"
+                      value={storageDraft.rootFolder}
+                      disabled={!storageSettings.canManage || saving}
+                      onChange={event => setStorageDraft(current => ({ ...current, rootFolder: event.target.value }))}
+                      placeholder="/ReziFlow CRM"
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="label">Dropbox Access Token</label>
+                    <input
+                      className="input"
+                      type={showDropboxToken ? 'text' : 'password'}
+                      value={storageDraft.accessToken || ''}
+                      disabled={!storageSettings.canManage || saving}
+                      onChange={event => setStorageDraft(current => ({ ...current, accessToken: event.target.value }))}
+                      placeholder={storageDraft.hasAccessToken ? 'Токен уже сохранен. Вставьте новый только для замены.' : 'sl....'}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-secondary" type="button" onClick={() => setShowDropboxToken(value => !value)}>
+                      {showDropboxToken ? 'Скрыть' : 'Показать'}
+                    </button>
+                    <button className="btn btn-primary" type="button" onClick={saveStorageSettings} disabled={!storageSettings.canManage || saving}>
+                      {saving ? 'Сохраняю...' : 'Сохранить'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="card">
               <div className="section-title"><span>🔌</span>Webhook для лидов</div>
               <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 16 }}>

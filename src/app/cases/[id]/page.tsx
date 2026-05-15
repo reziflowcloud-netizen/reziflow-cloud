@@ -682,13 +682,26 @@ export default function CaseDetailPage() {
 
   async function uploadFile(file: File) {
     // Проверка размера — Cloudinary бесплатный план: макс 10MB
-    const MAX_SIZE = 10 * 1024 * 1024 // 10MB
+    const MAX_SIZE = 150 * 1024 * 1024
     if (file.size > MAX_SIZE) {
       alert(`Файл "${file.name}" слишком большой (${(file.size/1024/1024).toFixed(1)}MB). Максимум 10MB. Сожмите файл или уменьшите качество фото.`)
       return
     }
     setUploading(true)
     try {
+      const serverFormData = new FormData()
+      serverFormData.append('file', file)
+      const docRes = await fetch(`/api/cases/${id}/documents`, { method: 'POST', body: serverFormData })
+      if (!docRes.ok) {
+        const err = await docRes.json().catch(() => ({}))
+        alert('Ошибка загрузки документа: ' + (err.error || docRes.status))
+        setUploading(false)
+        return
+      }
+      const doc = await docRes.json()
+      setDocuments(p => [doc, ...p])
+      setUploading(false)
+      return
       // Получаем параметры для unsigned upload
       const { cloudName, uploadPreset } = await fetch('/api/cloudinary', { method: 'POST' }).then(r => r.json())
       if (!cloudName || !uploadPreset) {

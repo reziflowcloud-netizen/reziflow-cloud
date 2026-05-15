@@ -19,6 +19,25 @@ function toDate(val: any): string {
   try { return new Date(val).toLocaleDateString('ru') } catch { return '' }
 }
 
+function formatPhone(phone: any): string {
+  if (!phone?.phone) return ''
+  const details = [
+    phone.isPrimary ? 'основной' : '',
+    phone.label || '',
+    phone.whatsapp ? 'WhatsApp' : '',
+    phone.telegram ? 'Telegram' : '',
+    phone.viber ? 'Viber' : '',
+    phone.note || '',
+  ].filter(Boolean)
+  return details.length ? `${phone.phone} (${details.join('; ')})` : phone.phone
+}
+
+function formatAllPhones(record: any): string {
+  const phones = Array.isArray(record?.phones) ? record.phones : []
+  if (phones.length > 0) return phones.map(formatPhone).filter(Boolean).join(' | ')
+  return record?.phone || ''
+}
+
 function customHeader(scopeLabel: string, sectionTitle: string, fieldLabel: string): string {
   return `${scopeLabel}: ${sectionTitle} / ${fieldLabel}`
 }
@@ -91,7 +110,11 @@ export async function GET(request: NextRequest) {
 
     if (type === 'all') {
       // Step 1: get all clients
-      const clients = await prisma.client.findMany({ where: { organizationId }, orderBy: { lastName: 'asc' } })
+      const clients = await prisma.client.findMany({
+        where: { organizationId },
+        include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
+        orderBy: { lastName: 'asc' },
+      })
 
       // Step 2: get all cases (simple, no nested includes)
       const allCases = await prisma.case.findMany({ where: { organizationId }, orderBy: { createdAt: 'desc' } })
@@ -147,6 +170,7 @@ export async function GET(request: NextRequest) {
         'Клиент добавлен', 'Дело создано',
       ]
 
+      headers.splice(3, 0, 'Все телефоны')
       let csv = '\uFEFF' + headers.join(',') + '\n'
 
       for (const client of clients) {
@@ -154,7 +178,7 @@ export async function GET(request: NextRequest) {
 
         if (clientCases.length === 0) {
           const row = [
-            client.lastName, client.firstName, client.phone, client.email, client.city, client.pesel,
+            client.lastName, client.firstName, client.phone, formatAllPhones(client), client.email, client.city, client.pesel,
             client.passportSeries, client.passportNumber, client.passportIssuedBy,
             toDate(client.passportIssuedAt), toDate(client.passportExpiresAt),
             client.addressInPoland, client.stayBasis,
@@ -179,7 +203,7 @@ export async function GET(request: NextRequest) {
             }
 
             const row = [
-              client.lastName, client.firstName, client.phone, client.email, client.city, client.pesel,
+              client.lastName, client.firstName, client.phone, formatAllPhones(client), client.email, client.city, client.pesel,
               client.passportSeries, client.passportNumber, client.passportIssuedBy,
               toDate(client.passportIssuedAt), toDate(client.passportExpiresAt),
               client.addressInPoland, client.stayBasis,
@@ -210,11 +234,16 @@ export async function GET(request: NextRequest) {
     // --- Отдельные экспорты ---
 
     if (type === 'clients') {
-      const clients = await prisma.client.findMany({ where: { organizationId }, orderBy: { lastName: 'asc' } })
+      const clients = await prisma.client.findMany({
+        where: { organizationId },
+        include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
+        orderBy: { lastName: 'asc' },
+      })
       const headers = ['Фамилия','Имя','Телефон','Email','Город','PESEL','Адрес в Польше','Основание пребывания','Добавлен']
+      headers.splice(3, 0, 'Все телефоны')
       let csv = '\uFEFF' + headers.join(',') + '\n'
       for (const c of clients) {
-        csv += [c.lastName,c.firstName,c.phone,c.email,c.city,c.pesel,c.addressInPoland,c.stayBasis,toDate(c.createdAt)].map(esc).join(',') + '\n'
+        csv += [c.lastName,c.firstName,c.phone,formatAllPhones(c),c.email,c.city,c.pesel,c.addressInPoland,c.stayBasis,toDate(c.createdAt)].map(esc).join(',') + '\n'
       }
       return new NextResponse(csv, {
         headers: {
@@ -226,9 +255,13 @@ export async function GET(request: NextRequest) {
 
     if (type === 'cases') {
       const cases = await prisma.case.findMany({ where: { organizationId }, orderBy: { createdAt: 'desc' } })
-      const clients = await prisma.client.findMany({ where: { organizationId }, select: { id: true, firstName: true, lastName: true, phone: true } })
+      const clients = await prisma.client.findMany({
+        where: { organizationId },
+        include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
+      })
       const clientMap = Object.fromEntries(clients.map(c => [c.id, c]))
       const headers = ['Номер дела','Клиент','Телефон','Статус','Стоимость','Оплачено','Долг','Номер MOS','Дата подачи в MOS','Логин кабинета','Пароль кабинета','Прийти на отпечатки пальцев','Przewidywana data wydania decyzji','Создано']
+      headers.splice(3, 0, 'Все телефоны')
       let csv = '\uFEFF' + headers.join(',') + '\n'
       for (const c of cases) {
         const cl = clientMap[c.clientId]
@@ -237,6 +270,7 @@ export async function GET(request: NextRequest) {
           c.caseNumber,
           cl ? `${cl.lastName} ${cl.firstName}` : '',
           cl?.phone || '',
+          cl ? formatAllPhones(cl) : '',
           c.status,
           c.totalValue.toFixed(2),
           c.totalPaid.toFixed(2),

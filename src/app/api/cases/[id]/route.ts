@@ -42,6 +42,11 @@ function isArchiveStatus(status?: string | null) {
   return value.includes('архив') || value.includes('archive') || value.includes('archiw') || status === 'РђСЂС…РёРІ'
 }
 
+function serializeCaseDocument(doc: any) {
+  if (doc?.storageProvider === 'dropbox') return { ...doc, url: `/api/documents/${doc.id}/file` }
+  return doc
+}
+
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -61,7 +66,10 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       }
     })
     if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json(c)
+    return NextResponse.json({
+      ...c,
+      caseDocuments: Array.isArray(c.caseDocuments) ? c.caseDocuments.map(serializeCaseDocument) : [],
+    })
   } catch (e: any) {
     const c = await prisma.case.findFirst({
       where: { id: params.id, organizationId },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { downloadDropboxFile, getDropboxSettings } from '@/lib/dropbox'
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
@@ -10,9 +11,37 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const documentId = parseInt(params.id)
   const doc = await (prisma as any).caseDocument.findFirst({
     where: { id: documentId, case: { organizationId } },
-    select: { url: true, name: true, fileType: true },
+    select: {
+      url: true,
+      publicId: true,
+      name: true,
+      fileType: true,
+      storageProvider: true,
+      storageId: true,
+      storagePath: true,
+      mimeType: true,
+      case: { select: { organization: { select: { settings: true } } } },
+    },
   })
-  if (!doc?.url) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!doc) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (doc.storageProvider === 'dropbox') {
+    const dropbox = getDropboxSettings(doc.case?.organization?.settings)
+    const pathOrId = doc.storageId || doc.storagePath || doc.publicId
+    if (!dropbox.accessToken || !pathOrId) return NextResponse.json({ error: 'Dropbox is not configured' }, { status: 409 })
+
+    const response = await downloadDropboxFile(dropbox.accessToken, pathOrId)
+    const encodedName = encodeURIComponent(doc.name || 'document')
+    return new NextResponse(response.body, {
+      headers: {
+        'Content-Type': doc.mimeType || response.headers.get('content-type') || 'application/octet-stream',
+        'Content-Disposition': `inline; filename*=UTF-8''${encodedName}`,
+        'Cache-Control': 'private, max-age=300',
+      },
+    })
+  }
+
+  if (!doc.url) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const urls = [doc.url]
   if (doc.fileType === 'pdf') {
