@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, POLISH_VOIVODESHIPS, leadDisplayName } from '@/lib/leads'
 import { useLanguage } from '@/context/LanguageContext'
 import { LEAD_LOCALES, leadSourceLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
+import PhoneListEditor, { ensurePhoneRows } from '@/components/PhoneListEditor'
 
 export default function LeadDetailPage() {
   const { id } = useParams()
@@ -77,6 +78,7 @@ export default function LeadDetailPage() {
           firstName: data.firstName || '',
           lastName: data.lastName || '',
           phone: data.phone || '',
+          phones: ensurePhoneRows(data.phones, data.phone || ''),
           email: data.email || '',
           instagram: data.instagram || '',
           facebook: data.facebook || '',
@@ -379,7 +381,12 @@ export default function LeadDetailPage() {
         return
       }
       setLead(data)
-      setForm((current: any) => ({ ...current, assignedToId: data.assignedToId ? String(data.assignedToId) : '' }))
+      setForm((current: any) => ({
+        ...current,
+        phone: data.phone || current.phone || '',
+        phones: ensurePhoneRows(data.phones, data.phone || current.phone || ''),
+        assignedToId: data.assignedToId ? String(data.assignedToId) : '',
+      }))
       if (form.status && form.status !== previousStatus) {
         loadContactHistory()
       }
@@ -434,7 +441,7 @@ export default function LeadDetailPage() {
           <button onClick={() => router.push('/leads')} className="btn btn-ghost" style={{ padding: '6px 10px' }}>←</button>
           <div>
             <div className="page-title">{leadDisplayName(lead)}</div>
-            <div className="page-subtitle">{lead.phone || lead.email || lead.instagram || lt('contact_not_set')}</div>
+            <div className="page-subtitle">{form.phone || lead.phone || lead.email || lead.instagram || lt('contact_not_set')}</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -532,7 +539,16 @@ export default function LeadDetailPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group"><label className="label">{lt('first_name')}</label><input className="input" value={form.firstName || ''} onChange={set('firstName')} /></div>
                 <div className="form-group"><label className="label">{lt('last_name')}</label><input className="input" value={form.lastName || ''} onChange={set('lastName')} /></div>
-                <div className="form-group"><label className="label">{lt('phone')}</label><input className="input" value={form.phone} onChange={set('phone')} /></div>
+                <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                  <label className="label">{lt('phone')}</label>
+                  <PhoneListEditor
+                    phones={form.phones || ensurePhoneRows([], form.phone || '')}
+                    onChange={phones => {
+                      const primary = phones.find(item => item.isPrimary)?.phone || phones[0]?.phone || ''
+                      setForm((current: any) => ({ ...current, phones, phone: primary }))
+                    }}
+                  />
+                </div>
                 <div className="form-group"><label className="label">{lt('email')}</label><input className="input" type="email" value={form.email} onChange={set('email')} /></div>
                 <div className="form-group"><label className="label">Instagram</label><input className="input" value={form.instagram} onChange={set('instagram')} /></div>
                 <div className="form-group"><label className="label">Facebook</label><input className="input" value={form.facebook} onChange={set('facebook')} /></div>

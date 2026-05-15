@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { normalizePhones, phonesWithLegacy, primaryPhone } from '@/lib/phones'
 
 export async function GET() {
   try {
@@ -12,6 +13,7 @@ export async function GET() {
     // Загружаем клиентов — сначала без связей
     const clients = await prisma.client.findMany({
       where: { organizationId },
+      include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
       orderBy: { createdAt: 'desc' },
     })
 
@@ -65,6 +67,7 @@ export async function GET() {
 
       return {
         ...client,
+        phones: phonesWithLegacy(client),
         cases: clientCases,
         activeCase: clientCases.find((c: any) => ['В работе', 'Ожидание документов', 'Новый'].includes(c.status)) || clientCases[0] || null,
         upcomingTask: clientTask || null,
@@ -86,12 +89,14 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const organizationId = getOrganizationId(user)
     const body = await request.json()
+    const phones = normalizePhones(body.phones, body.phone)
+    const mainPhone = primaryPhone(phones, body.phone)
     const client = await prisma.client.create({
       data: {
         organizationId,
         firstName: body.firstName,
         lastName: body.lastName,
-        phone: body.phone || null,
+        phone: mainPhone,
         email: body.email || null,
         city: body.city || null,
         pesel: body.pesel || null,
@@ -107,6 +112,7 @@ export async function POST(request: NextRequest) {
         height: body.height || null,
         eyeColor: body.eyeColor || null,
         specialSigns: body.specialSigns || null,
+        phones: phones.length ? { create: phones.map(phone => ({ organizationId, ...phone })) } : undefined,
       }
     })
     return NextResponse.json(client)

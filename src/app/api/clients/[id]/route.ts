@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { deleteCloudinaryResources } from '@/lib/cloudinary'
+import { normalizePhones, phonesWithLegacy, primaryPhone } from '@/lib/phones'
 
 function isOrganizationAdmin(user: any) {
   return user?.role === 'admin' || user?.role === 'owner'
@@ -57,6 +58,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       include: {
         cases: { include: { service: true }, orderBy: { createdAt: 'desc' } },
         travelHistory: { orderBy: { entryDate: 'desc' } },
+        phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
         familyLinks: {
           include: {
             relativeClient: {
@@ -69,7 +71,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     })
     if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const familyLinks = await getFamilyLinksForClient(params.id, organizationId)
-    return NextResponse.json({ ...client, familyLinks })
+    return NextResponse.json({ ...client, phones: phonesWithLegacy(client), familyLinks })
   } catch (e) {
     // fallback
     const client = await prisma.client.findFirst({
@@ -77,7 +79,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       include: { cases: { orderBy: { createdAt: 'desc' } } }
     })
     if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json({ ...client, travelHistory: [] })
+    return NextResponse.json({ ...client, phones: phonesWithLegacy(client), travelHistory: [] })
   }
 }
 
@@ -89,6 +91,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const body = await request.json()
     const existingClient = await prisma.client.findFirst({ where: { id: params.id, organizationId } })
     if (!existingClient) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    const shouldUpdatePhones = Array.isArray(body.phones)
+    const phones = shouldUpdatePhones ? normalizePhones(body.phones, body.phone) : []
+    const mainPhone = shouldUpdatePhones ? primaryPhone(phones, body.phone) : (body.phone || null)
 
     const shouldUpdateFamily = Array.isArray(body.familyClientIds)
     const familyClientIds = shouldUpdateFamily
@@ -105,7 +110,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         data: {
         firstName: body.firstName,
         lastName: body.lastName,
-        phone: body.phone || null,
+        phone: mainPhone,
         email: body.email || null,
         city: body.city || null,
         pesel: body.pesel || null,
@@ -150,6 +155,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         }
       })
 
+      if (shouldUpdatePhones) {
+        await (tx as any).clientPhone.deleteMany({ where: { clientId: params.id, organizationId } })
+        if (phones.length) {
+          await (tx as any).clientPhone.createMany({
+            data: phones.map(phone => ({ organizationId, clientId: params.id, ...phone })),
+          })
+        }
+      }
+
       if (shouldUpdateFamily) {
         const existingFamilyLinks = await (tx as any).clientFamilyLink.findMany({
           where: {
@@ -187,7 +201,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         }
       }
 
-      return updated
+      return shouldUpdatePhones
+        ? await (tx as any).client.findUnique({
+            where: { id: params.id },
+            include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
+          })
+        : updated
     })
     // Если указана дата окончания паспорта — создаём задачу в календаре
     if (body.passportExpiresAt) {
@@ -233,7 +252,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       } catch (e) { console.error('Calendar task error:', e) }
     }
 
-    return NextResponse.json(client)
+    return NextResponse.json({ ...client, phones: phonesWithLegacy(client) })
   } catch (e: any) {
     console.error(e)
     return NextResponse.json({ error: e.message }, { status: 500 })

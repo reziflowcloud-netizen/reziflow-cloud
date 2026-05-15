@@ -6,6 +6,7 @@ import { useLanguage } from '@/context/LanguageContext'
 import CollapsibleCardsBehavior from '@/components/CollapsibleCardsBehavior'
 import SectionVisibilityBehavior from '@/components/SectionVisibilityBehavior'
 import CustomSectionsRenderer, { type CustomSectionsHandle } from '@/components/CustomSectionsRenderer'
+import PhoneListEditor, { ensurePhoneRows } from '@/components/PhoneListEditor'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -321,7 +322,7 @@ export default function ClientDetailPage() {
         birthDate: data.birthDate?.slice(0,10) || '',
         birthPlace: data.birthPlace || '',
         pesel: data.pesel || '',
-        phone: data.phone || '', email: data.email || '',
+        phone: data.phone || '', phones: ensurePhoneRows(data.phones, data.phone || ''), email: data.email || '',
         citizenship: data.citizenship || '', nationality: data.nationality || '',
         maritalStatus: data.maritalStatus || '', education: data.education || '',
         statusUKR: data.statusUKR || false,
@@ -369,6 +370,7 @@ export default function ClientDetailPage() {
       const selectedFamilyLinks = availableClients
         .filter(item => (form.familyClientIds || []).includes(item.id))
         .map(item => ({ relativeClientId: item.id, relativeClient: item }))
+      setForm((prev: any) => ({ ...prev, phone: updated.phone || prev.phone || '', phones: ensurePhoneRows(updated.phones, updated.phone || prev.phone || '') }))
       setClient((prev: any) => ({ ...prev, ...updated, familyLinks: selectedFamilyLinks }))
       setShowFamilyPicker(false)
       const customOk = await customSectionsRef.current?.save()
@@ -436,7 +438,7 @@ export default function ClientDetailPage() {
             <div className="avatar" style={{ width: 44, height: 44, fontSize: 16 }}>{client.firstName[0]}{client.lastName[0]}</div>
             <div>
               <div className="page-title">{client.firstName} {client.lastName}</div>
-              <div className="page-subtitle">{client.phone}{client.email ? ` · ${client.email}` : ''}</div>
+              <div className="page-subtitle">{form.phone || client.phone}{client.email ? ` · ${client.email}` : ''}</div>
             </div>
           </div>
         </div>
@@ -489,9 +491,16 @@ export default function ClientDetailPage() {
                 <F label="PESEL">
                   <input className="input" value={form.pesel} onChange={e => set('pesel', e.target.value)} placeholder="12345678901" style={{ fontFamily: 'monospace' }} />
                 </F>
-                <F label={text.phone}>
-                  <input className="input" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+48111222333" />
-                </F>
+                <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                  <label className="label">{text.phone}</label>
+                  <PhoneListEditor
+                    phones={form.phones || ensurePhoneRows([], form.phone || '')}
+                    onChange={phones => {
+                      const primary = phones.find(item => item.isPrimary)?.phone || phones[0]?.phone || ''
+                      setForm((current: any) => ({ ...current, phones, phone: primary }))
+                    }}
+                  />
+                </div>
                 <F label="E-mail">
                   <input className="input" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@example.com" />
                 </F>

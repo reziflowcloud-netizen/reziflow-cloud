@@ -1,13 +1,14 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import PhoneListEditor, { ensurePhoneRows } from '@/components/PhoneListEditor'
 
 export default function NewClientPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [form, setForm] = useState({
-    firstName: '', lastName: '', phone: '', email: '', city: '', pesel: '',
+    firstName: '', lastName: '', phone: '', phones: ensurePhoneRows([], ''), email: '', city: '', pesel: '',
     passportSeries: '', passportNumber: '', passportIssuedBy: '',
     passportIssuedAt: '', passportExpiresAt: '',
     addressInPoland: '', stayBasis: '',
@@ -71,9 +72,15 @@ export default function NewClientPage() {
               <label className="label">Фамилия *</label>
               <input className="input" type="text" value={form.lastName} onChange={set('lastName')} required />
             </div>
-            <div className="form-group">
+            <div className="form-group" style={{ gridColumn: '1/-1' }}>
               <label className="label">Телефон</label>
-              <input className="input" type="tel" value={form.phone} onChange={set('phone')} />
+              <PhoneListEditor
+                phones={form.phones}
+                onChange={phones => {
+                  const primary = phones.find(item => item.isPrimary)?.phone || phones[0]?.phone || ''
+                  setForm(prev => ({ ...prev, phones, phone: primary }))
+                }}
+              />
             </div>
             <div className="form-group">
               <label className="label">Email</label>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { normalizeLeadBody } from '@/lib/leads'
+import { normalizePhones, phonesWithLegacy, primaryPhone } from '@/lib/phones'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,10 +62,11 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     where: { id: params.id, organizationId },
     include: {
       assignedTo: { select: { id: true, name: true } },
+      phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
     },
   })
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json(lead)
+  return NextResponse.json({ ...lead, phones: phonesWithLegacy(lead) })
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
@@ -74,12 +76,18 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   const existing = await (prisma as any).lead.findFirst({
     where: { id: params.id, organizationId },
-    include: { assignedTo: { select: { id: true, name: true } } },
+    include: {
+      assignedTo: { select: { id: true, name: true } },
+      phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
+    },
   })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await request.json()
   const data = normalizeLeadBody({ ...existing, ...body })
+  const shouldUpdatePhones = Array.isArray(body.phones)
+  const phones = shouldUpdatePhones ? normalizePhones(body.phones, data.phone) : []
+  if (shouldUpdatePhones) data.phone = primaryPhone(phones, data.phone)
   if (body.status !== undefined && data.status && data.status !== existing.status) {
     const targetStatus = await (prisma as any).leadStatus.findFirst({
       where: { organizationId, name: data.status },
@@ -101,7 +109,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const updated = await tx.lead.update({
       where: { id: params.id },
       data,
+      include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
     })
+    if (shouldUpdatePhones) {
+      await tx.leadPhone.deleteMany({ where: { leadId: params.id, organizationId } })
+      if (phones.length) {
+        await tx.leadPhone.createMany({
+          data: phones.map(phone => ({ organizationId, leadId: params.id, ...phone })),
+        })
+      }
+    }
     if (body.status !== undefined && data.status && data.status !== existing.status) {
       await tx.leadContactHistory.create({
         data: {
@@ -161,10 +178,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       }
       await syncNextContactTask(tx, updated, organizationId, Number(user.id))
     }
-    return updated
+    return shouldUpdatePhones
+      ? await tx.lead.findUnique({
+          where: { id: params.id },
+          include: { assignedTo: { select: { id: true, name: true } }, phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
+        })
+      : updated
   })
 
-  return NextResponse.json(lead)
+  return NextResponse.json({ ...lead, phones: phonesWithLegacy(lead) })
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {

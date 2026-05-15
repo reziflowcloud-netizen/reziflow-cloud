@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { leadDisplayName } from '@/lib/leads'
+import { normalizePhones, primaryPhone } from '@/lib/phones'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +36,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const organizationId = getOrganizationId(user)
   const body = await request.json().catch(() => ({}))
 
-  const lead = await (prisma as any).lead.findFirst({ where: { id: params.id, organizationId } })
+  const lead = await (prisma as any).lead.findFirst({
+    where: { id: params.id, organizationId },
+    include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
+  })
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (lead.convertedClientId) {
     return NextResponse.json({ error: 'Лид уже переведён в клиента', clientId: lead.convertedClientId }, { status: 409 })
@@ -47,6 +51,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     lastName: String(body.lastName || '').trim() || fallbackName.lastName,
   }
   const convertedStatus = await convertedStatusName(organizationId)
+  const leadPhoneInput = lead.phones?.length ? lead.phones : []
+  const leadPhones = normalizePhones(
+    body.phone ? [{ phone: body.phone, isPrimary: true }, ...leadPhoneInput] : leadPhoneInput,
+    body.phone || lead.phone
+  )
+  const clientPrimaryPhone = body.phone || primaryPhone(leadPhones, lead.phone)
 
   const result = await (prisma as any).$transaction(async (tx: any) => {
     const client = await tx.client.create({
@@ -54,10 +64,17 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         organizationId,
         firstName: name.firstName,
         lastName: name.lastName,
-        phone: body.phone || lead.phone || null,
+        phone: clientPrimaryPhone || null,
         email: body.email || lead.email || null,
         city: body.city || lead.city || null,
         citizenship: body.country || lead.country || null,
+        phones: leadPhones.length ? {
+          create: leadPhones.map((phone: any) => ({
+            organizationId,
+            ...phone,
+            isPrimary: phone.phone === clientPrimaryPhone,
+          })),
+        } : undefined,
       },
     })
 

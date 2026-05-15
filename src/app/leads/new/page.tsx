@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, POLISH_VOIVODESHIPS } from '@/lib/leads'
 import { useLanguage } from '@/context/LanguageContext'
 import { leadSourceLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
+import PhoneListEditor, { ensurePhoneRows } from '@/components/PhoneListEditor'
 
 const initialForm = {
   status: 'Новый',
@@ -14,6 +15,7 @@ const initialForm = {
   firstName: '',
   lastName: '',
   phone: '',
+  phones: ensurePhoneRows([], ''),
   email: '',
   instagram: '',
   facebook: '',
@@ -140,7 +142,16 @@ export default function NewLeadPage() {
           <div className="card" style={{ marginBottom: 16 }}>
             <div className="section-title"><span>☎</span>{lt('contacts')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="form-group"><label className="label">{lt('phone')}</label><input className="input" value={form.phone} onChange={set('phone')} /></div>
+              <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                <label className="label">{lt('phone')}</label>
+                <PhoneListEditor
+                  phones={form.phones}
+                  onChange={phones => {
+                    const primary = phones.find(item => item.isPrimary)?.phone || phones[0]?.phone || ''
+                    setForm(current => ({ ...current, phones, phone: primary }))
+                  }}
+                />
+              </div>
               <div className="form-group"><label className="label">{lt('email')}</label><input className="input" type="email" value={form.email} onChange={set('email')} /></div>
               <div className="form-group"><label className="label">Instagram</label><input className="input" value={form.instagram} onChange={set('instagram')} placeholder="@username" /></div>
               <div className="form-group"><label className="label">Facebook</label><input className="input" value={form.facebook} onChange={set('facebook')} /></div>

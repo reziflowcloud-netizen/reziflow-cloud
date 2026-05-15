@@ -56,6 +56,8 @@ model Organization {
   leadContactHistory LeadContactHistory[]
   leadMessages LeadMessage[]
   leadWebhookLogs LeadWebhookLog[]
+  leadPhones LeadPhone[]
+  clientPhones ClientPhone[]
 }
 
 model LeadStatus {
@@ -112,11 +114,32 @@ model Lead {
   contactHistory LeadContactHistory[]
   messages       LeadMessage[]
   webhookLogs    LeadWebhookLog[]
+  phones         LeadPhone[]
 
   @@index([organizationId, status])
   @@index([organizationId, source])
   @@index([organizationId, assignedToId])
   @@index([organizationId, deadlineAt])
+}
+
+model LeadPhone {
+  id             String        @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leadId         String
+  lead           Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  phone          String
+  label          String?
+  note           String?
+  isPrimary      Boolean       @default(false)
+  whatsapp       Boolean       @default(false)
+  telegram       Boolean       @default(false)
+  viber          Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([organizationId])
+  @@index([leadId])
 }
 
 model LeadWebhookLog {
@@ -310,6 +333,27 @@ model Client {
   travelHistory      TravelHistory[]
   familyLinks         ClientFamilyLink[] @relation("ClientFamilySource")
   familyLinkedBy      ClientFamilyLink[] @relation("ClientFamilyRelative")
+  phones              ClientPhone[]
+}
+
+model ClientPhone {
+  id             String        @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clientId       String
+  client         Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  phone          String
+  label          String?
+  note           String?
+  isPrimary      Boolean       @default(false)
+  whatsapp       Boolean       @default(false)
+  telegram       Boolean       @default(false)
+  viber          Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([organizationId])
+  @@index([clientId])
 }
 
 model ClientFamilyLink {

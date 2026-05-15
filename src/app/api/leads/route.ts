@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { normalizeLeadBody } from '@/lib/leads'
+import { normalizePhones, phonesWithLegacy, primaryPhone } from '@/lib/phones'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,6 +57,7 @@ export async function GET(request: NextRequest) {
     where,
     include: {
       assignedTo: { select: { id: true, name: true } },
+      phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
     },
     orderBy: { updatedAt: 'desc' },
   })
@@ -88,7 +90,11 @@ export async function GET(request: NextRequest) {
     ]
   }
 
-  return NextResponse.json(leads.map((lead: any) => ({ ...lead, leadReminders: remindersByLead[lead.id] || [] })))
+  return NextResponse.json(leads.map((lead: any) => ({
+    ...lead,
+    phones: phonesWithLegacy(lead),
+    leadReminders: remindersByLead[lead.id] || [],
+  })))
 }
 
 export async function POST(request: NextRequest) {
@@ -97,13 +103,20 @@ export async function POST(request: NextRequest) {
   const organizationId = getOrganizationId(user)
   const body = await request.json()
   const data = normalizeLeadBody(body)
+  const phones = normalizePhones(body.phones, data.phone)
+  data.phone = primaryPhone(phones, data.phone)
 
   if (!data.fullName && !data.phone && !data.email && !data.instagram && !data.facebook) {
     return NextResponse.json({ error: 'Укажите имя, телефон, email или профиль соцсети' }, { status: 400 })
   }
 
   const lead = await (prisma as any).lead.create({
-    data: { organizationId, ...data },
+    data: {
+      organizationId,
+      ...data,
+      phones: phones.length ? { create: phones.map(phone => ({ organizationId, ...phone })) } : undefined,
+    },
+    include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
   })
   await createNextContactTask(lead, organizationId, Number(user.id))
 
