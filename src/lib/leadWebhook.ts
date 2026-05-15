@@ -9,6 +9,7 @@ export type LeadWebhookSettings = {
   leadWebhookAssignmentUserIds?: number[]
   leadWebhookAssignmentCursor?: number
   facebookLeadEnabled?: boolean
+  facebookMessagesEnabled?: boolean
   facebookLeadVerifyToken?: string
   facebookLeadPageAccessToken?: string
   facebookLeadApiVersion?: string
@@ -102,6 +103,7 @@ export function getLeadWebhookSettings(value: unknown): LeadWebhookSettings {
     leadWebhookAssignmentUserIds: assignmentUserIds,
     leadWebhookAssignmentCursor: Number.isFinite(Number(raw.leadWebhookAssignmentCursor)) ? Number(raw.leadWebhookAssignmentCursor) : 0,
     facebookLeadEnabled: raw.facebookLeadEnabled === true,
+    facebookMessagesEnabled: raw.facebookMessagesEnabled === true,
     facebookLeadVerifyToken: typeof raw.facebookLeadVerifyToken === 'string' ? raw.facebookLeadVerifyToken : '',
     facebookLeadPageAccessToken: typeof raw.facebookLeadPageAccessToken === 'string' ? raw.facebookLeadPageAccessToken : '',
     facebookLeadApiVersion: typeof raw.facebookLeadApiVersion === 'string' && raw.facebookLeadApiVersion ? raw.facebookLeadApiVersion : 'v23.0',

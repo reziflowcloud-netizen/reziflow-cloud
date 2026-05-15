@@ -51,6 +51,7 @@ export async function GET() {
           leadWebhookAssignmentUserIds: settings.leadWebhookAssignmentUserIds || [],
           leadWebhookAssignmentCursor: settings.leadWebhookAssignmentCursor || 0,
           facebookLeadEnabled: settings.facebookLeadEnabled === true,
+          facebookMessagesEnabled: settings.facebookMessagesEnabled === true,
           facebookLeadVerifyToken: settings.facebookLeadVerifyToken,
           facebookLeadPageAccessToken: settings.facebookLeadPageAccessToken || '',
           facebookLeadApiVersion: settings.facebookLeadApiVersion || 'v23.0',
@@ -83,6 +84,7 @@ export async function GET() {
     },
     facebook: {
       enabled: settings.facebookLeadEnabled === true,
+      messagesEnabled: settings.facebookMessagesEnabled === true,
       verifyToken: settings.facebookLeadVerifyToken || '',
       pageAccessToken: settings.facebookLeadPageAccessToken || '',
       apiVersion: settings.facebookLeadApiVersion || 'v23.0',
@@ -121,6 +123,9 @@ export async function PATCH(request: NextRequest) {
   const nextFacebookEnabled = incomingFacebook && typeof incomingFacebook.enabled === 'boolean'
     ? incomingFacebook.enabled
     : previous.facebookLeadEnabled === true
+  const nextFacebookMessagesEnabled = incomingFacebook && typeof incomingFacebook.messagesEnabled === 'boolean'
+    ? incomingFacebook.messagesEnabled
+    : previous.facebookMessagesEnabled === true
   const nextFacebookVerifyToken = body.regenerateFacebookVerifyToken
     ? generateFacebookVerifyToken()
     : incomingFacebook && typeof incomingFacebook.verifyToken === 'string'
@@ -145,6 +150,7 @@ export async function PATCH(request: NextRequest) {
         leadWebhookAssignmentUserId: Number.isFinite(nextAssignmentUserId) ? nextAssignmentUserId : null,
         leadWebhookAssignmentUserIds: nextAssignmentUserIds,
         facebookLeadEnabled: nextFacebookEnabled,
+        facebookMessagesEnabled: nextFacebookMessagesEnabled,
         facebookLeadVerifyToken: nextFacebookVerifyToken,
         facebookLeadPageAccessToken: nextFacebookPageAccessToken,
         facebookLeadApiVersion: nextFacebookApiVersion,
@@ -164,6 +170,7 @@ export async function PATCH(request: NextRequest) {
     },
     facebook: {
       enabled: nextFacebookEnabled,
+      messagesEnabled: nextFacebookMessagesEnabled,
       verifyToken: nextFacebookVerifyToken,
       pageAccessToken: nextFacebookPageAccessToken,
       apiVersion: nextFacebookApiVersion,

@@ -24,6 +24,7 @@ type AssignmentSettings = {
 
 type FacebookLeadSettings = {
   enabled: boolean
+  messagesEnabled: boolean
   verifyToken: string
   pageAccessToken: string
   apiVersion: string
@@ -107,7 +108,7 @@ export default function IntegrationsPage() {
   const [fieldMapDraft, setFieldMapDraft] = useState<FieldMapRow[]>([])
   const [users, setUsers] = useState<UserOption[]>([])
   const [assignmentDraft, setAssignmentDraft] = useState<AssignmentSettings>({ mode: 'off', userId: null, userIds: [] })
-  const [facebookDraft, setFacebookDraft] = useState<FacebookLeadSettings>({ enabled: false, verifyToken: '', pageAccessToken: '', apiVersion: 'v23.0' })
+  const [facebookDraft, setFacebookDraft] = useState<FacebookLeadSettings>({ enabled: false, messagesEnabled: false, verifyToken: '', pageAccessToken: '', apiVersion: 'v23.0' })
   const [showFacebookToken, setShowFacebookToken] = useState(false)
   const [storageSettings, setStorageSettings] = useState<StorageSettings | null>(null)
   const [storageDraft, setStorageDraft] = useState<StorageSettings['dropbox']>({ enabled: false, rootFolder: '/ReziFlow CRM', hasAccessToken: false, accessToken: '' })
@@ -317,7 +318,7 @@ function onFormSubmit(e) {
       setSettings(data)
       setFieldMapDraft(Array.isArray(data.fieldMap) ? data.fieldMap : [])
       setAssignmentDraft(data.assignment || { mode: 'off', userId: null, userIds: [] })
-      setFacebookDraft(data.facebook || { enabled: false, verifyToken: '', pageAccessToken: '', apiVersion: 'v23.0' })
+      setFacebookDraft(data.facebook || { enabled: false, messagesEnabled: false, verifyToken: '', pageAccessToken: '', apiVersion: 'v23.0' })
     } finally {
       setLoading(false)
     }
@@ -705,6 +706,15 @@ ${samplePayload}`}
               Принимать лиды из Facebook Lead Ads
             </label>
 
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, fontWeight: 700 }}>
+              <input
+                type="checkbox"
+                checked={facebookDraft.messagesEnabled}
+                onChange={event => setFacebookDraft(current => ({ ...current, messagesEnabled: event.target.checked }))}
+              />
+              Принимать сообщения из Instagram Direct и Facebook Messenger
+            </label>
+
             <div className="form-group">
               <label className="label">Callback URL для Meta</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
@@ -866,13 +876,14 @@ ${samplePayload}`}
                     {logs.map(log => {
                       const isCreated = log.status === 'created'
                       const isPing = log.status === 'ping'
+                      const isMessage = log.status === 'message'
                       const payload = log.payload ? Object.entries(log.payload).slice(0, 4).map(([key, value]) => `${key}: ${String(value)}`).join(', ') : ''
                       return (
                         <tr key={log.id}>
                           <td style={{ fontSize: 13 }}>{new Date(log.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                           <td>
-                            <span style={{ display: 'inline-flex', borderRadius: 999, padding: '4px 8px', fontSize: 12, fontWeight: 800, background: isCreated ? '#dcfce7' : isPing ? '#dbeafe' : '#fee2e2', color: isCreated ? '#166534' : isPing ? '#1d4ed8' : '#991b1b' }}>
-                              {isCreated ? 'Создан' : isPing ? 'Тест' : log.status === 'failed' ? 'Ошибка' : 'Отклонен'}
+                            <span style={{ display: 'inline-flex', borderRadius: 999, padding: '4px 8px', fontSize: 12, fontWeight: 800, background: isCreated ? '#dcfce7' : isPing ? '#dbeafe' : isMessage ? '#ede9fe' : '#fee2e2', color: isCreated ? '#166534' : isPing ? '#1d4ed8' : isMessage ? '#6d28d9' : '#991b1b' }}>
+                              {isCreated ? 'Создан' : isPing ? 'Тест' : isMessage ? 'Сообщение' : log.status === 'failed' ? 'Ошибка' : 'Отклонен'}
                             </span>
                           </td>
                           <td style={{ fontSize: 13 }}>{log.source || '—'}</td>

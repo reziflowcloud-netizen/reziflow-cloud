@@ -111,17 +111,17 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
   const channel = inferChannel(body)
   const source = channel
 
-  if (!settings.facebookLeadEnabled) {
+  if (!settings.facebookMessagesEnabled) {
     await (prisma as any).leadWebhookLog.create({
       data: {
         organizationId: organization.id,
         status: 'rejected',
         source,
         payload: safePayload,
-        error: 'Meta integration is disabled',
+        error: 'Meta messages integration is disabled',
       },
     })
-    return NextResponse.json({ error: 'Meta integration is disabled' }, { status: 403 })
+    return NextResponse.json({ error: 'Meta messages integration is disabled' }, { status: 403 })
   }
 
   const events = collectMessagingEvents(body)
