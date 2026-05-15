@@ -392,14 +392,15 @@ export default function CaseDetailPage() {
   async function syncPredictedDecisionReminder(decisionDate: string, caseData = c) {
     if (!caseData?.id) return
     const tasks = await fetch('/api/tasks').then(r => r.json()).catch(() => [])
-    const existing = Array.isArray(tasks)
-      ? tasks
-        .map((task: any) => ({ task, meta: parseTaskDescription(task.description) }))
-        .find(({ meta }: any) => meta.predictedDecision?.caseId === caseData.id)
-      : null
+    const parsedTasks = Array.isArray(tasks)
+      ? tasks.map((task: any) => ({ task, meta: parseTaskDescription(task.description) }))
+      : []
+    const existing = parsedTasks.find(({ meta }: any) => meta.predictedDecision?.caseId === caseData.id)
+    const existingDocumentsReminder = parsedTasks.find(({ meta }: any) => meta.predictedDecisionDocuments?.caseId === caseData.id)
 
     if (!decisionDate) {
       if (existing?.task?.id) await fetch(`/api/tasks/${existing.task.id}`, { method: 'DELETE' })
+      if (existingDocumentsReminder?.task?.id) await fetch(`/api/tasks/${existingDocumentsReminder.task.id}`, { method: 'DELETE' })
       return
     }
 
@@ -429,6 +430,41 @@ export default function CaseDetailPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+      })
+    }
+
+    const documentsReminderDate = new Date(`${decisionDate}T00:00:00`)
+    documentsReminderDate.setDate(documentsReminderDate.getDate() - 45)
+    const documentsReminderDateOnly = documentsReminderDate.toISOString().slice(0, 10)
+    const documentsPayload = {
+      title: 'Донести дополнительные документы в Уженд',
+      priority: existingDocumentsReminder?.task?.priority || 'Нормально',
+      dueDate: documentsReminderDateOnly,
+      clientName,
+      status: existingDocumentsReminder?.task?.status || 'todo',
+      description: JSON.stringify({
+        reminderAt: `${documentsReminderDateOnly}T09:00`,
+        reminderNote: `Потрібно донести додаткові документи до Уженду по делу ${caseLabel}`,
+        predictedDecisionDocuments: {
+          caseId: caseData.id,
+          caseNumber: caseData.caseNumber || null,
+          predictedDecisionDate: decisionDate,
+          daysBefore: 45,
+        },
+      }),
+    }
+
+    if (existingDocumentsReminder?.task?.id) {
+      await fetch(`/api/tasks/${existingDocumentsReminder.task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(documentsPayload),
+      })
+    } else {
+      await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(documentsPayload),
       })
     }
   }
