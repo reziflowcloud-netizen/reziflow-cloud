@@ -103,6 +103,14 @@ export async function POST(request: NextRequest) {
   const organizationId = getOrganizationId(user)
   const body = await request.json()
   const data = normalizeLeadBody(body)
+  if (!body.status) {
+    const defaultStatus = await (prisma as any).leadStatus.findFirst({
+      where: { organizationId },
+      orderBy: [{ order: 'asc' }, { id: 'asc' }],
+      select: { name: true },
+    })
+    data.status = defaultStatus?.name || data.status
+  }
   const phones = normalizePhones(body.phones, data.phone)
   data.phone = primaryPhone(phones, data.phone)
 

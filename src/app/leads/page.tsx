@@ -18,6 +18,8 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
 }
 
 type QuickFilter = 'all' | 'today' | 'overdue' | 'unassigned' | 'no_next_contact'
+type SortKey = 'lead' | 'status' | 'source' | 'interest' | 'nextContact' | 'responsible'
+type SortDirection = 'asc' | 'desc'
 
 function temperatureMeta(value?: string) {
   return LEAD_TEMPERATURES.find(item => item.value === value)
@@ -109,14 +111,21 @@ export default function LeadsPage() {
   const [statusReasonModal, setStatusReasonModal] = useState<null | { leadIds: string[], nextStatus: string, previousLeads: any[] }>(null)
   const [statusReasonDraft, setStatusReasonDraft] = useState({ reason: '', comment: '' })
   const [statusReasonSaving, setStatusReasonSaving] = useState(false)
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'status', direction: 'asc' })
 
   const orderedStatuses = leadStatuses.length ? leadStatuses : DEFAULT_LEAD_STATUSES
   const statusNames = orderedStatuses.map(status => status.name)
+  const defaultStatusName = statusNames[0] || DEFAULT_LEAD_STATUSES[0]?.name || 'Новый'
   const statusByName = useMemo(() => {
     const map: Record<string, any> = {}
     for (const item of orderedStatuses) map[item.name] = item
     return map
   }, [leadStatuses])
+  const normalizedStatus = (value?: string) => {
+    const raw = String(value || '').trim()
+    if (!raw) return defaultStatusName
+    return statusByName[raw] ? raw : defaultStatusName
+  }
   const selectedStatusConfig = status ? statusByName[status] : null
   const selectedStatusReasons = statusReasons(selectedStatusConfig)
   const showStatusReasons = Boolean(status && selectedStatusConfig?.requireReason && selectedStatusReasons.length > 0)
@@ -145,11 +154,29 @@ export default function LeadsPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     const rank = (lead: any) => {
-      const index = statusNames.indexOf(lead.status)
+      const index = statusNames.indexOf(normalizedStatus(lead.status))
       return index === -1 ? 999 : index
     }
+    const compareText = (a: unknown, b: unknown) => String(a || '').localeCompare(String(b || ''), locale)
+    const compareDate = (a?: string, b?: string) => {
+      const aTime = a ? new Date(a).getTime() : Number.POSITIVE_INFINITY
+      const bTime = b ? new Date(b).getTime() : Number.POSITIVE_INFINITY
+      return aTime - bTime
+    }
+    const compareLeads = (a: any, b: any) => {
+      let result = 0
+      if (sortConfig.key === 'lead') result = compareText(leadDisplayName(a), leadDisplayName(b))
+      if (sortConfig.key === 'status') result = rank(a) - rank(b)
+      if (sortConfig.key === 'source') result = compareText(leadSourceLabel(lang, a.source), leadSourceLabel(lang, b.source))
+      if (sortConfig.key === 'interest') result = compareText(a.serviceInterest, b.serviceInterest)
+      if (sortConfig.key === 'nextContact') result = compareDate(a.nextContactAt, b.nextContactAt)
+      if (sortConfig.key === 'responsible') result = compareText(a.assignedTo?.name, b.assignedTo?.name)
+      if (sortConfig.direction === 'desc') result *= -1
+      return result || rank(a) - rank(b) || new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
+    }
     const byFilters = leads.filter(lead => {
-      if (status && lead.status !== status) return false
+      const leadStatus = normalizedStatus(lead.status)
+      if (status && leadStatus !== status) return false
       if (showStatusReasons && statusReasonFilter && lead.statusReason !== statusReasonFilter) return false
       if (source && lead.source !== source) return false
       if (temperature && lead.urgency !== temperature) return false
@@ -171,8 +198,8 @@ export default function LeadsPage() {
       lead.voivodeship,
       lead.notes,
     ].filter(Boolean).join(' ').toLowerCase().includes(q)) : byFilters
-    return [...searched].sort((a, b) => rank(a) - rank(b) || new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
-  }, [leads, search, status, statusReasonFilter, source, temperature, quickFilter, showStatusReasons, statusNames.join('|')])
+    return [...searched].sort(compareLeads)
+  }, [leads, search, status, statusReasonFilter, source, temperature, quickFilter, showStatusReasons, statusNames.join('|'), sortConfig, lang])
 
   const visibleLeadIds = useMemo(() => filtered.map(lead => lead.id), [filtered])
   const allVisibleSelected = visibleLeadIds.length > 0 && visibleLeadIds.every(id => selectedLeadIds.includes(id))
@@ -203,20 +230,23 @@ export default function LeadsPage() {
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {}
-    for (const lead of leads) counts[lead.status] = (counts[lead.status] || 0) + 1
+    for (const lead of leads) {
+      const leadStatus = normalizedStatus(lead.status)
+      counts[leadStatus] = (counts[leadStatus] || 0) + 1
+    }
     return counts
-  }, [leads])
+  }, [leads, statusNames.join('|')])
 
   const statusReasonCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     if (!status) return counts
     for (const lead of leads) {
-      if (lead.status !== status) continue
+      if (normalizedStatus(lead.status) !== status) continue
       const reason = lead.statusReason || 'Без причины'
       counts[reason] = (counts[reason] || 0) + 1
     }
     return counts
-  }, [leads, status])
+  }, [leads, status, statusNames.join('|')])
 
   const activeLeadCount = useMemo(() => leads.filter(lead => !isConvertedLead(lead)).length, [leads])
 
@@ -261,8 +291,9 @@ export default function LeadsPage() {
     const groups: Record<string, any[]> = {}
     for (const item of statusNames) groups[item] = []
     for (const lead of filtered) {
-      if (!groups[lead.status]) groups[lead.status] = []
-      groups[lead.status].push(lead)
+      const leadStatus = normalizedStatus(lead.status)
+      if (!groups[leadStatus]) groups[leadStatus] = []
+      groups[leadStatus].push(lead)
     }
     return groups
   }, [filtered, statusNames.join('|')])
@@ -287,7 +318,7 @@ export default function LeadsPage() {
   }
 
   async function updateLeadStatus(lead: any, nextStatus: string) {
-    if (!lead || lead.status === nextStatus) return
+    if (!lead || normalizedStatus(lead.status) === nextStatus) return
     const targetStatus = statusByName[nextStatus]
     if (targetStatus?.requireReason) {
       setStatusReasonDraft({ reason: statusReasons(targetStatus)[0] || '', comment: '' })
@@ -302,6 +333,26 @@ export default function LeadsPage() {
       body: JSON.stringify({ status: nextStatus, statusReason: null, statusReasonComment: null }),
     })
     if (!res.ok) setLeads(previousLeads)
+  }
+
+  function requestSort(key: SortKey) {
+    setSortConfig(current => ({
+      key,
+      direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
+    }))
+  }
+
+  function sortHeader(key: SortKey, label: string) {
+    const active = sortConfig.key === key
+    return (
+      <button
+        type="button"
+        onClick={() => requestSort(key)}
+        style={{ border: 'none', background: 'transparent', padding: 0, font: 'inherit', fontWeight: 800, color: active ? 'var(--primary)' : 'inherit', cursor: 'pointer', textTransform: 'inherit', letterSpacing: 'inherit' }}
+      >
+        {label} {active ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+      </button>
+    )
   }
 
   async function applyStatusReasonChange() {
@@ -724,13 +775,13 @@ export default function LeadsPage() {
                         aria-label={lt('selected_count')}
                       />
                     </th>
-                    <th>{lt('lead')}</th>
-                    <th>{lt('status')}</th>
+                    <th>{sortHeader('lead', lt('lead'))}</th>
+                    <th>{sortHeader('status', lt('status'))}</th>
                     {showStatusReasons && <th>Причина</th>}
-                    <th>{lt('source')}</th>
-                    <th>{lt('interest')}</th>
-                    <th>{lt('next_contact')}</th>
-                    <th>{lt('responsible')}</th>
+                    <th>{sortHeader('source', lt('source'))}</th>
+                    <th>{sortHeader('interest', lt('interest'))}</th>
+                    <th>{sortHeader('nextContact', lt('next_contact'))}</th>
+                    <th>{sortHeader('responsible', lt('responsible'))}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -743,7 +794,8 @@ export default function LeadsPage() {
                       {!search && !status && !source && !temperature && <Link href="/leads/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>{lt('add_first_lead')}</Link>}
                     </td></tr>
                   ) : filtered.map(lead => {
-                    const colors = statusColors(statusByName[lead.status])
+                    const leadStatus = normalizedStatus(lead.status)
+                    const colors = statusColors(statusByName[leadStatus])
                     const temp = temperatureMeta(lead.urgency)
                     const overdue = isOverdue(lead.nextContactAt) && !isConvertedLead(lead)
                     const dueToday = isToday(lead.nextContactAt) && !isConvertedLead(lead)
@@ -772,7 +824,7 @@ export default function LeadsPage() {
                         <td onClick={event => event.stopPropagation()}>
                           <select
                             className="select"
-                            value={lead.status}
+                            value={leadStatus}
                             onChange={event => updateLeadStatus(lead, event.target.value)}
                             style={{ minWidth: 150, height: 32, padding: '4px 8px', background: colors.bg, color: colors.color, fontWeight: 700, borderColor: colors.bg }}
                           >

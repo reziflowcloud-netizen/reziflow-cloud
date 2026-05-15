@@ -180,6 +180,14 @@ export async function handleLeadWebhookPost(request: NextRequest, slug: string, 
     source: mappedBody.source || body.source || 'website',
     nextContactAt: mappedBody.nextContactAt || body.nextContactAt || inferNextContactAtFromPreferredHours({ ...body, ...mappedBody }),
   })
+  if (!mappedBody.status && !body.status) {
+    const defaultStatus = await (prisma as any).leadStatus.findFirst({
+      where: { organizationId: organization.id },
+      orderBy: [{ order: 'asc' }, { id: 'asc' }],
+      select: { name: true },
+    })
+    data.status = defaultStatus?.name || data.status
+  }
 
   if (!data.fullName && !data.phone && !data.email && !data.instagram && !data.facebook) {
     await (prisma as any).leadWebhookLog.create({

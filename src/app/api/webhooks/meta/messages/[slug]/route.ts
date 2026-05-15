@@ -168,6 +168,11 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       settings.facebookLeadApiVersion || 'v23.0'
     )
     const displayName = profileName(profile, channel)
+    const defaultStatus = await (prisma as any).leadStatus.findFirst({
+      where: { organizationId: organization.id },
+      orderBy: [{ order: 'asc' }, { id: 'asc' }],
+      select: { name: true },
+    })
 
     const result = await (prisma as any).$transaction(async (tx: any) => {
       let lead = await tx.lead.findFirst({
@@ -179,6 +184,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         lead = await tx.lead.create({
           data: {
             organizationId: organization.id,
+            status: defaultStatus?.name || undefined,
             source,
             messengerId,
             fullName: displayName,
