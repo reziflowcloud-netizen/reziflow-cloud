@@ -48,6 +48,81 @@ function serializeCaseDocument(doc: any) {
   return doc
 }
 
+function clientNameFromCase(caseRecord: any) {
+  return `${caseRecord?.client?.firstName || ''} ${caseRecord?.client?.lastName || ''}`.trim()
+}
+
+async function syncCaseImportantDateTask(args: {
+  organizationId: string
+  caseRecord: any
+  kind: string
+  title: string
+  date?: string | Date | null
+}) {
+  const existing = await prisma.task.findFirst({
+    where: {
+      organizationId: args.organizationId,
+      AND: [
+        { description: { contains: `"caseId":"${args.caseRecord.id}"` } },
+        { description: { contains: `"kind":"${args.kind}"` } },
+      ],
+    },
+  })
+  const meta = existing ? (() => {
+    try { return JSON.parse(existing.description || '{}') } catch { return {} }
+  })() : {}
+
+  if (!args.date) {
+    if (existing) await prisma.task.delete({ where: { id: existing.id } })
+    return
+  }
+
+  const dueDate = new Date(args.date)
+  if (Number.isNaN(dueDate.getTime())) return
+  const dateOnly = dueDate.toISOString().slice(0, 10)
+  const caseLabel = args.caseRecord.caseNumber || 'без номера'
+  const data = {
+    organizationId: args.organizationId,
+    title: args.title,
+    priority: existing?.priority || 'Нормально',
+    dueDate,
+    clientName: clientNameFromCase(args.caseRecord) || null,
+    status: existing?.status || 'todo',
+    description: JSON.stringify({
+      reminderAt: `${dateOnly}T09:00`,
+      reminderNote: `${args.title} по делу ${caseLabel}`,
+      caseImportantDate: { caseId: args.caseRecord.id, caseNumber: args.caseRecord.caseNumber || null, kind: args.kind },
+    }),
+  }
+
+  if (existing) await prisma.task.update({ where: { id: existing.id }, data })
+  else await prisma.task.create({ data })
+}
+
+async function syncFixedImportantDateTasks(organizationId: string, caseRecord: any) {
+  await syncCaseImportantDateTask({
+    organizationId,
+    caseRecord,
+    kind: 'filingDate',
+    title: 'Дата подачи',
+    date: caseRecord.filingDate,
+  })
+  await syncCaseImportantDateTask({
+    organizationId,
+    caseRecord,
+    kind: 'personalAppearDate',
+    title: 'Личная явка',
+    date: caseRecord.personalAppearDate,
+  })
+  await syncCaseImportantDateTask({
+    organizationId,
+    caseRecord,
+    kind: 'legalStayDeadline',
+    title: 'Срок легального пребывания',
+    date: caseRecord.legalStayDeadline,
+  })
+}
+
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -159,6 +234,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         }
       })
     }
+
+    const caseForCalendar = await prisma.case.findFirst({
+      where: { id: params.id, organizationId },
+      include: { client: true },
+    })
+    if (caseForCalendar) await syncFixedImportantDateTasks(organizationId, caseForCalendar)
 
     return NextResponse.json(updated)
   } catch (e: any) {

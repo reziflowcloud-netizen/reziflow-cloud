@@ -88,6 +88,12 @@ export default function CasesPage() {
     </span>
   }
 
+  function getCaseStatusStyle(name: string) {
+    const custom = statuses.find((status: any) => status.name === name)
+    if (custom?.color) return { bg: `${custom.color}18`, color: custom.color }
+    return STATUS_COLORS[name] || { bg: '#f3f4f6', color: '#374151' }
+  }
+
   const filtered = cases
     .filter(c => {
       // Фильтр
@@ -146,7 +152,7 @@ export default function CasesPage() {
           {statuses.map(s => {
             const count = cases.filter(c => c.status === s.name).length
             const isActive = activeFilter === s.name
-            const sc = STATUS_COLORS[s.name] || { bg: '#f3f4f6', color: '#374151' }
+            const sc = getCaseStatusStyle(s.name)
             return (
               <button key={s.id} onClick={() => setActiveFilter(s.name)}
                 style={{ padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: 'none',
@@ -203,7 +209,7 @@ export default function CasesPage() {
                   </td></tr>
                 ) : filtered.map(c => {
                   const debt = Math.max(0, c.totalValue - c.totalPaid)
-                  const sc = STATUS_COLORS[c.status] || { bg: '#f3f4f6', color: '#374151' }
+                  const sc = getCaseStatusStyle(c.status)
                   return (
                     <tr key={c.id} onClick={() => router.push(`/cases/${c.id}`)} style={{ cursor: 'pointer' }}>
                       <td>
@@ -234,7 +240,7 @@ export default function CasesPage() {
                             minWidth: 200, padding: '6px 0',
                           }}>
                             {statuses.map(s => {
-                              const sColor = STATUS_COLORS[s.name] || { bg: '#f3f4f6', color: '#374151' }
+                              const sColor = getCaseStatusStyle(s.name)
                               return (
                                 <div key={s.id}
                                   onClick={e => quickChangeStatus(c.id, s.name, e)}

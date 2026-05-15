@@ -41,6 +41,11 @@ export default function UpcomingEvents() {
     try { return JSON.parse(task?.description || '{}') || {} } catch { return {} }
   }
 
+  function isLeadTask(task: any) {
+    const meta = taskMeta(task)
+    return !!(meta.leadReminder?.leadId || meta.leadId)
+  }
+
   function taskRelatedCaseId(task: any) {
     if (!task) return ''
     const meta = taskMeta(task)
@@ -63,6 +68,7 @@ export default function UpcomingEvents() {
     const result: any[] = []
 
     for (const t of taskList) {
+      if (isLeadTask(t)) continue
       if (t.status === 'done') continue
       if (t.dueDate) {
         const due = new Date(t.dueDate)

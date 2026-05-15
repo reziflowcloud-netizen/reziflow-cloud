@@ -125,8 +125,17 @@ export default function CalendarPage() {
     return `${client?.firstName || ''} ${client?.lastName || ''}`.trim()
   }
 
+  function taskMeta(task: any) {
+    try { return JSON.parse(task?.description || '{}') } catch { return {} }
+  }
+
+  function isLeadTask(task: any) {
+    const meta = taskMeta(task)
+    return !!(meta.leadReminder?.leadId || meta.leadId)
+  }
+
   const selectedClient = clients.find((client: any) => client.id === selectedClientId)
-  const activeTasks = tasks.filter((task: any) => task.status !== 'done')
+  const activeTasks = tasks.filter((task: any) => task.status !== 'done' && !isLeadTask(task))
   const visibleTasks = selectedClient
     ? activeTasks.filter((task: any) => String(task.clientName || '').toLowerCase() === getClientName(selectedClient).toLowerCase())
     : activeTasks
@@ -184,10 +193,6 @@ export default function CalendarPage() {
     selectedCell && c.day === selectedCell.day && c.month === selectedCell.month && c.year === selectedCell.year
 
   const selectedItems = selectedCell ? getAllForDate(selectedCell.year, selectedCell.month, selectedCell.day) : []
-
-  function taskMeta(task: any) {
-    try { return JSON.parse(task?.description || '{}') } catch { return {} }
-  }
 
   function taskRelatedCaseId(task: any) {
     if (!task) return ''
