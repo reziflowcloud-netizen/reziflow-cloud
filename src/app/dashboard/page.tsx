@@ -301,19 +301,31 @@ function RecentCasesFallback() {
 }
 
 async function RecentCasesTable({ organizationId }: { organizationId: string }) {
-  const recentCases = await prisma.case.findMany({
-    where: { organizationId },
-    select: {
-      id: true,
-      caseNumber: true,
-      status: true,
-      totalValue: true,
-      totalPaid: true,
-      client: { select: { firstName: true, lastName: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 6,
-  })
+  const [recentCases, statuses] = await Promise.all([
+    prisma.case.findMany({
+      where: { organizationId },
+      select: {
+        id: true,
+        caseNumber: true,
+        status: true,
+        totalValue: true,
+        totalPaid: true,
+        client: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+    }),
+    prisma.caseStatus.findMany({
+      where: { organizationId },
+      select: { name: true, color: true },
+    }),
+  ])
+  const statusColors = new Map(statuses.map(status => [status.name, status.color]))
+  const getCaseStatusStyle = (name: string) => {
+    const color = statusColors.get(name)
+    if (color) return { bg: `${color}18`, color }
+    return STATUS_COLORS[name] || { bg: '#f3f4f6', color: '#374151' }
+  }
 
   return (
     <div className="table-container">
@@ -339,7 +351,7 @@ async function RecentCasesTable({ organizationId }: { organizationId: string }) 
                 <Link href="/cases/new" style={{ color: 'var(--brand)' }}><Tr k="new_case" /></Link>
               </td></tr>
             ) : recentCases.map(c => {
-              const sc = STATUS_COLORS[c.status] || { bg: '#f3f4f6', color: '#374151' }
+              const sc = getCaseStatusStyle(c.status)
               return (
                 <tr key={c.id}>
                   <td>
