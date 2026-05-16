@@ -66,27 +66,37 @@ export default function UpcomingEvents() {
     const now = new Date()
     const in14 = new Date(now); in14.setDate(now.getDate() + 14)
     const result: any[] = []
+    const dateKey = (date: Date) => date.toISOString().slice(0, 10)
 
     for (const t of taskList) {
       if (isLeadTask(t)) continue
       if (t.status === 'done') continue
-      if (t.dueDate) {
-        const due = new Date(t.dueDate)
-        const isOverdue = due < now
-        if (due <= in14 || isOverdue) {
-          result.push({ task: t, date: due, type: 'task', isOverdue, sortKey: due.getTime() - (isOverdue ? 1e13 : 0) })
-        }
-      }
+      let reminderAt: Date | null = null
+      let reminderNote = ''
       try {
         const desc = JSON.parse(t.description || '{}')
         if (desc.reminderAt) {
           const rem = new Date(desc.reminderAt)
-          const isOverdue = rem < now
-          if (rem <= in14 || isOverdue) {
-            result.push({ task: t, date: rem, type: 'reminder', reminderNote: desc.reminderNote || '', isOverdue, sortKey: rem.getTime() - (isOverdue ? 1e13 : 0) })
+          if (!Number.isNaN(rem.getTime())) {
+            reminderAt = rem
+            reminderNote = desc.reminderNote || ''
           }
         }
       } catch {}
+      if (t.dueDate) {
+        const due = new Date(t.dueDate)
+        const isOverdue = due < now
+        const sameDayReminder = reminderAt && dateKey(reminderAt) === dateKey(due)
+        if (!sameDayReminder && (due <= in14 || isOverdue)) {
+          result.push({ task: t, date: due, type: 'task', isOverdue, sortKey: due.getTime() - (isOverdue ? 1e13 : 0) })
+        }
+      }
+      if (reminderAt) {
+        const isOverdue = reminderAt < now
+        if (reminderAt <= in14 || isOverdue) {
+          result.push({ task: t, date: reminderAt, type: 'reminder', reminderNote, isOverdue, sortKey: reminderAt.getTime() - (isOverdue ? 1e13 : 0) })
+        }
+      }
     }
 
     result.sort((a, b) => a.sortKey - b.sortKey)
