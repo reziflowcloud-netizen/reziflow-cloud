@@ -537,6 +537,11 @@ export function leadSourceLabel(lang: Lang, value: string) {
   return LEAD_SOURCE_TRANSLATIONS[lang]?.[value] || LEAD_SOURCE_TRANSLATIONS.ru[value] || value
 }
 
+export function leadSourceOptionLabel(lang: Lang, source: { value: string; label: string }) {
+  const translated = leadSourceLabel(lang, source.value)
+  return translated === source.value ? source.label : translated
+}
+
 export function leadTemperatureLabel(lang: Lang, value: string) {
   return LEAD_TEMPERATURE_TRANSLATIONS[lang]?.[value] || LEAD_TEMPERATURE_TRANSLATIONS.ru[value] || value
 }

@@ -13,6 +13,12 @@ export default function SettingsPage() {
       desc: t('statuses_sub'),
     },
     {
+      href: '/settings/lead-sources',
+      icon: '◎',
+      title: 'Источники лидов',
+      desc: 'Список источников для фильтров, карточек и создания лидов',
+    },
+    {
       href: '/settings/services',
       icon: '🛠',
       title: t('services_title'),

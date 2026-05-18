@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, POLISH_VOIVODESHIPS, leadDisplayName } from '@/lib/leads'
+import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, POLISH_VOIVODESHIPS, leadDisplayName, type LeadSourceOption } from '@/lib/leads'
 import { useLanguage } from '@/context/LanguageContext'
-import { LEAD_LOCALES, leadSourceLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
+import { LEAD_LOCALES, leadSourceLabel, leadSourceOptionLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
 import PhoneListEditor, { ensurePhoneRows } from '@/components/PhoneListEditor'
 
 export default function LeadDetailPage() {
@@ -19,6 +19,7 @@ export default function LeadDetailPage() {
   const [services, setServices] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
+  const [leadSources, setLeadSources] = useState<LeadSourceOption[]>(LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true })))
   const [contactHistory, setContactHistory] = useState<any[]>([])
   const [messages, setMessages] = useState<any[]>([])
   const [reminders, setReminders] = useState<any[]>([])
@@ -64,6 +65,9 @@ export default function LeadDetailPage() {
     fetch('/api/services').then(r => r.json()).then(data => setServices(Array.isArray(data) ? data.filter((s: any) => s.active) : []))
     fetch('/api/users').then(r => r.json()).then(data => setUsers(Array.isArray(data) ? data : []))
     fetch('/api/lead-statuses').then(r => r.json()).then(data => setLeadStatuses(Array.isArray(data) ? data : []))
+    fetch('/api/lead-sources', { cache: 'no-store' }).then(r => r.json()).then(data => {
+      if (Array.isArray(data.sources)) setLeadSources(data.sources)
+    })
     loadContactHistory()
     loadMessages()
     loadReminders()
@@ -114,6 +118,25 @@ export default function LeadDetailPage() {
         }))
       })
   }, [id])
+
+  const sourceByValue = useMemo(() => {
+    const map: Record<string, LeadSourceOption> = {}
+    for (const item of leadSources) map[item.value] = item
+    return map
+  }, [leadSources])
+  const sourceLabel = (value?: string | null) => {
+    const source = sourceByValue[String(value || '')]
+    return source ? leadSourceOptionLabel(lang, source) : leadSourceLabel(lang, String(value || 'manual'))
+  }
+  const messageSources = useMemo(() => {
+    const hasMessenger = leadSources.some(source => source.value === 'messenger')
+    const hasManual = leadSources.some(source => source.value === 'manual')
+    return [
+      ...leadSources,
+      ...(hasMessenger ? [] : [{ value: 'messenger', label: 'Messenger', order: leadSources.length, system: true }]),
+      ...(hasManual ? [] : [{ value: 'manual', label: lt('manual'), order: leadSources.length + 1, system: true }]),
+    ]
+  }, [leadSources, lang])
 
   useEffect(() => {
     if (!services.length || !lead?.serviceInterest || convertForm.serviceId) return
@@ -498,7 +521,7 @@ export default function LeadDetailPage() {
                 <div className="form-group">
                   <label className="label">{lt('source')}</label>
                   <select className="select" value={form.source} onChange={set('source')}>
-                    {LEAD_SOURCES.map(source => <option key={source.value} value={source.value}>{leadSourceLabel(lang, source.value)}</option>)}
+                    {leadSources.map(source => <option key={source.value} value={source.value}>{leadSourceOptionLabel(lang, source)}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
@@ -580,7 +603,7 @@ export default function LeadDetailPage() {
                             color: outgoing ? 'white' : 'var(--text)',
                           }}>
                             <div style={{ fontSize: 11, opacity: outgoing ? 0.85 : 0.65, marginBottom: 5 }}>
-                              {sender} · {leadSourceLabel(lang, message.channel || 'manual')} · {new Date(message.sentAt).toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              {sender} · {sourceLabel(message.channel || 'manual')} · {new Date(message.sentAt).toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                             </div>
                             <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.45 }}>{message.text}</div>
                           </div>
@@ -610,9 +633,7 @@ export default function LeadDetailPage() {
                 <div className="form-group">
                   <label className="label">{lt('channel')}</label>
                   <select className="select" value={messageForm.channel} onChange={setMessage('channel')}>
-                    {LEAD_SOURCES.map(source => <option key={source.value} value={source.value}>{leadSourceLabel(lang, source.value)}</option>)}
-                    <option value="messenger">Messenger</option>
-                    <option value="manual">{lt('manual')}</option>
+                    {messageSources.map(source => <option key={source.value} value={source.value}>{leadSourceOptionLabel(lang, source)}</option>)}
                   </select>
                 </div>
                 <div className="form-group" style={{ gridColumn: '1/-1' }}>

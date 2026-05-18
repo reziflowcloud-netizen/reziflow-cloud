@@ -27,6 +27,43 @@ export const LEAD_SOURCES = [
   { value: 'website', label: 'Сайт' },
 ]
 
+export type LeadSourceOption = {
+  value: string
+  label: string
+  order: number
+  system?: boolean
+}
+
+export const DEFAULT_LEAD_SOURCES: LeadSourceOption[] = LEAD_SOURCES.map((source, index) => ({
+  ...source,
+  order: index,
+  system: true,
+}))
+
+export function normalizeLeadSources(value: unknown): LeadSourceOption[] {
+  if (!Array.isArray(value)) return DEFAULT_LEAD_SOURCES
+
+  const seen = new Set<string>()
+  const sources = value
+    .map((item: any, index) => {
+      const label = String(item?.label || '').trim()
+      const value = String(item?.value || '').trim()
+      if (!label || !value || seen.has(value)) return null
+      seen.add(value)
+      return {
+        value,
+        label,
+        order: Number.isFinite(Number(item?.order)) ? Number(item.order) : index,
+        system: Boolean(item?.system),
+      }
+    })
+    .filter(Boolean) as LeadSourceOption[]
+
+  return sources.length
+    ? sources.sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
+    : DEFAULT_LEAD_SOURCES
+}
+
 export const LEAD_TEMPERATURES = [
   { value: 'cold', color: '#2563eb' },
   { value: 'warm', color: '#d97706' },

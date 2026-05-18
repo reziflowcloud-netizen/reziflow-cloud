@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, leadDisplayName } from '@/lib/leads'
+import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, leadDisplayName, type LeadSourceOption } from '@/lib/leads'
 import { useLanguage } from '@/context/LanguageContext'
-import { LEAD_LOCALES, LEAD_WEEKDAYS, leadSourceLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
+import { LEAD_LOCALES, LEAD_WEEKDAYS, leadSourceLabel, leadSourceOptionLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -92,6 +92,7 @@ export default function LeadsPage() {
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
   const [bulkSaving, setBulkSaving] = useState(false)
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
+  const [leadSources, setLeadSources] = useState<LeadSourceOption[]>(LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true })))
   const [editingStatuses, setEditingStatuses] = useState(false)
   const [newStatusName, setNewStatusName] = useState('')
   const [newStatusColor, setNewStatusColor] = useState('#2563eb')
@@ -121,6 +122,15 @@ export default function LeadsPage() {
     for (const item of orderedStatuses) map[item.name] = item
     return map
   }, [leadStatuses])
+  const sourceByValue = useMemo(() => {
+    const map: Record<string, LeadSourceOption> = {}
+    for (const item of leadSources) map[item.value] = item
+    return map
+  }, [leadSources])
+  const sourceLabel = (value?: string | null) => {
+    const source = sourceByValue[String(value || '')]
+    return source ? leadSourceOptionLabel(lang, source) : leadSourceLabel(lang, String(value || 'manual'))
+  }
   const normalizedStatus = (value?: string) => {
     const raw = String(value || '').trim()
     if (!raw) return defaultStatusName
@@ -149,6 +159,9 @@ export default function LeadsPage() {
     fetch('/api/users')
       .then(res => res.json())
       .then(data => setUsers(Array.isArray(data) ? data : []))
+    fetch('/api/lead-sources', { cache: 'no-store' })
+      .then(res => res.json())
+      .then(data => setLeadSources(Array.isArray(data.sources) ? data.sources : LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true }))))
   }, [])
 
   const filtered = useMemo(() => {
@@ -167,7 +180,7 @@ export default function LeadsPage() {
       let result = 0
       if (sortConfig.key === 'lead') result = compareText(leadDisplayName(a), leadDisplayName(b))
       if (sortConfig.key === 'status') result = rank(a) - rank(b)
-      if (sortConfig.key === 'source') result = compareText(leadSourceLabel(lang, a.source), leadSourceLabel(lang, b.source))
+      if (sortConfig.key === 'source') result = compareText(sourceLabel(a.source), sourceLabel(b.source))
       if (sortConfig.key === 'interest') result = compareText(a.serviceInterest, b.serviceInterest)
       if (sortConfig.key === 'nextContact') result = compareDate(a.nextContactAt, b.nextContactAt)
       if (sortConfig.key === 'responsible') result = compareText(a.assignedTo?.name, b.assignedTo?.name)
@@ -728,7 +741,7 @@ export default function LeadsPage() {
           </select>
           <select className="select" value={source} onChange={e => setSource(e.target.value)}>
             <option value="">{lt('all_sources')}</option>
-            {LEAD_SOURCES.map(item => <option key={item.value} value={item.value}>{leadSourceLabel(lang, item.value)}</option>)}
+            {leadSources.map(item => <option key={item.value} value={item.value}>{leadSourceOptionLabel(lang, item)}</option>)}
           </select>
           <div style={{ display: 'flex', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}>
             <button type="button" className={viewMode === 'table' ? 'btn btn-primary' : 'btn btn-ghost'} style={{ padding: '7px 10px' }} onClick={() => setViewMode('table')}>{lt('table')}</button>
@@ -751,7 +764,7 @@ export default function LeadsPage() {
               </select>
               <select className="select" defaultValue="" disabled={bulkSaving} onChange={event => event.target.value && bulkPatch({ source: event.target.value })}>
                 <option value="">{lt('bulk_source')}</option>
-                {LEAD_SOURCES.map(item => <option key={item.value} value={item.value}>{leadSourceLabel(lang, item.value)}</option>)}
+                {leadSources.map(item => <option key={item.value} value={item.value}>{leadSourceOptionLabel(lang, item)}</option>)}
               </select>
               <button type="button" className="btn btn-secondary" disabled={bulkSaving} onClick={() => setSelectedLeadIds([])}>{lt('clear_selection')}</button>
               <button type="button" className="btn btn-danger" disabled={bulkSaving} onClick={bulkDelete}>{bulkSaving ? lt('processing') : lt('bulk_delete')}</button>
@@ -841,7 +854,7 @@ export default function LeadsPage() {
                             ) : lt('no_value')}
                           </td>
                         )}
-                        <td style={{ fontSize: 13 }}>{leadSourceLabel(lang, lead.source)}</td>
+                        <td style={{ fontSize: 13 }}>{sourceLabel(lead.source)}</td>
                         <td style={{ fontSize: 13 }}>{lead.serviceInterest || lt('no_value')}</td>
                         <td style={{ fontSize: 13 }}>
                           {lead.nextContactAt ? (

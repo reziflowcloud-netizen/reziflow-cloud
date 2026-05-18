@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, POLISH_VOIVODESHIPS } from '@/lib/leads'
+import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, POLISH_VOIVODESHIPS, type LeadSourceOption } from '@/lib/leads'
 import { useLanguage } from '@/context/LanguageContext'
-import { leadSourceLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
+import { leadSourceOptionLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
 import PhoneListEditor, { ensurePhoneRows } from '@/components/PhoneListEditor'
 
 const initialForm = {
@@ -41,12 +41,16 @@ export default function NewLeadPage() {
   const [services, setServices] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
+  const [leadSources, setLeadSources] = useState<LeadSourceOption[]>(LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true })))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     fetch('/api/services').then(r => r.json()).then(data => setServices(Array.isArray(data) ? data.filter((s: any) => s.active) : []))
     fetch('/api/users').then(r => r.json()).then(data => setUsers(Array.isArray(data) ? data : []))
+    fetch('/api/lead-sources', { cache: 'no-store' }).then(r => r.json()).then(data => {
+      if (Array.isArray(data.sources)) setLeadSources(data.sources)
+    })
     fetch('/api/lead-statuses').then(r => r.json()).then(data => {
       const statuses = Array.isArray(data) ? data : []
       setLeadStatuses(statuses)
@@ -126,7 +130,7 @@ export default function NewLeadPage() {
               <div className="form-group">
                 <label className="label">{lt('source')}</label>
                 <select className="select" value={form.source} onChange={set('source')}>
-                  {LEAD_SOURCES.map(source => <option key={source.value} value={source.value}>{leadSourceLabel(lang, source.value)}</option>)}
+                  {leadSources.map(source => <option key={source.value} value={source.value}>{leadSourceOptionLabel(lang, source)}</option>)}
                 </select>
               </div>
               <div className="form-group" style={{ gridColumn: '1/-1' }}>
