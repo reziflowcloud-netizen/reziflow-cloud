@@ -806,6 +806,9 @@ ${samplePayload}`}
                 <input
                   className="input"
                   type={showFacebookToken ? 'text' : 'password'}
+                  name="legalhub-facebook-page-access-token"
+                  autoComplete="off"
+                  spellCheck={false}
                   value={facebookDraft.pageAccessToken}
                   onChange={event => setFacebookDraft(current => ({ ...current, pageAccessToken: event.target.value }))}
                   placeholder="Токен страницы Facebook для Lead Ads и Messenger"
@@ -825,6 +828,9 @@ ${samplePayload}`}
                 <input
                   className="input"
                   type={showInstagramToken ? 'text' : 'password'}
+                  name="legalhub-instagram-page-access-token"
+                  autoComplete="off"
+                  spellCheck={false}
                   value={facebookDraft.instagramPageAccessToken || ''}
                   onChange={event => setFacebookDraft(current => ({ ...current, instagramPageAccessToken: event.target.value }))}
                   placeholder="Токен для Instagram Direct"

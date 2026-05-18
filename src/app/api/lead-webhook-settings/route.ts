@@ -13,6 +13,12 @@ function normalizeAssignmentMode(value: unknown) {
   return value === 'single' || value === 'round_robin' ? value : 'off'
 }
 
+function normalizeAccessToken(value: unknown) {
+  return typeof value === 'string'
+    ? value.trim().replace(/^["']|["']$/g, '').replace(/\s+/g, '')
+    : ''
+}
+
 async function getOrganizationForUser(user: any) {
   const organizationId = getOrganizationId(user)
   return prisma.organization.findUnique({
@@ -134,10 +140,10 @@ export async function PATCH(request: NextRequest) {
       ? incomingFacebook.verifyToken.trim() || previous.facebookLeadVerifyToken || generateFacebookVerifyToken()
       : previous.facebookLeadVerifyToken || generateFacebookVerifyToken()
   const nextFacebookPageAccessToken = incomingFacebook && typeof incomingFacebook.pageAccessToken === 'string'
-    ? incomingFacebook.pageAccessToken.trim()
+    ? normalizeAccessToken(incomingFacebook.pageAccessToken)
     : previous.facebookLeadPageAccessToken || ''
   const nextInstagramPageAccessToken = incomingFacebook && typeof incomingFacebook.instagramPageAccessToken === 'string'
-    ? incomingFacebook.instagramPageAccessToken.trim()
+    ? normalizeAccessToken(incomingFacebook.instagramPageAccessToken)
     : previous.instagramMessagesPageAccessToken || ''
   const nextFacebookApiVersion = incomingFacebook && typeof incomingFacebook.apiVersion === 'string'
     ? incomingFacebook.apiVersion.trim() || 'v23.0'
