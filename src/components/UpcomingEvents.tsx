@@ -187,6 +187,30 @@ export default function UpcomingEvents() {
         [data-theme="dark"] .upcoming-item.upcoming-overdue:hover {
           background: rgba(220, 38, 38, 0.25) !important;
         }
+        [data-theme="slate"] .upcoming-item.upcoming-overdue {
+          background: linear-gradient(90deg, rgba(127, 29, 29, 0.86), rgba(69, 10, 10, 0.74));
+          border: 1px solid rgba(248, 113, 113, 0.38);
+          box-shadow: inset 0 0 0 1px rgba(254, 226, 226, 0.04);
+        }
+        [data-theme="slate"] .upcoming-item.upcoming-overdue:hover {
+          background: linear-gradient(90deg, rgba(153, 27, 27, 0.94), rgba(91, 10, 10, 0.82)) !important;
+        }
+        [data-theme="slate"] .upcoming-item.upcoming-overdue .upcoming-title {
+          color: #ffffff !important;
+        }
+        [data-theme="slate"] .upcoming-item.upcoming-overdue .upcoming-meta,
+        [data-theme="slate"] .upcoming-item.upcoming-overdue .upcoming-chevron {
+          color: #fecaca !important;
+        }
+        [data-theme="slate"] .upcoming-item.upcoming-overdue .upcoming-date-badge {
+          background: rgba(254, 226, 226, 0.16) !important;
+          border: 1px solid rgba(254, 226, 226, 0.22);
+          color: #ffffff !important;
+        }
+        [data-theme="slate"] .upcoming-item.upcoming-overdue .upcoming-priority-badge {
+          background: rgba(254, 226, 226, 0.12) !important;
+          color: #fecaca !important;
+        }
       `}</style>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -211,25 +235,25 @@ export default function UpcomingEvents() {
             >
               <span style={{ fontSize: 15, flexShrink: 0 }}>{isRem ? '⏰' : item.isOverdue ? '⚠️' : '✓'}</span>
 
-              <span style={{ fontWeight: 500, fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>
+              <span className="upcoming-title" style={{ fontWeight: 500, fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>
                 {item.task.title}
               </span>
 
               {item.task.clientName && (
-                <span style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0, maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span className="upcoming-meta" style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0, maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   👤 {item.task.clientName}
                 </span>
               )}
 
-              <span style={{ fontSize: 11, fontWeight: 600, color, background: color + '18', padding: '2px 8px', borderRadius: 10, flexShrink: 0, whiteSpace: 'nowrap' }}>
+              <span className="upcoming-date-badge" style={{ fontSize: 11, fontWeight: 600, color, background: color + '18', padding: '2px 8px', borderRadius: 10, flexShrink: 0, whiteSpace: 'nowrap' }}>
                 {label}{timeStr ? ` · ${timeStr}` : ''}
               </span>
 
-              <span style={{ fontSize: 11, background: accent + '18', color: accent, padding: '2px 7px', borderRadius: 10, flexShrink: 0, display: isRem ? 'none' : 'inline' }}>
+              <span className="upcoming-priority-badge" style={{ fontSize: 11, background: accent + '18', color: accent, padding: '2px 7px', borderRadius: 10, flexShrink: 0, display: isRem ? 'none' : 'inline' }}>
                 {item.task.priority}
               </span>
 
-              <span style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>›</span>
+              <span className="upcoming-chevron" style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>›</span>
             </div>
           )
         })}

@@ -6,8 +6,8 @@
     <path d="M32 33L32 10" stroke="#F2A100" />
     <path d="M32 33L12.1 21.5" stroke="#FFFFFF" />
     <path d="M32 33L51.9 21.5" stroke="#FFFFFF" />
-    <path d="M32 33L12.1 44.5" stroke="#10A7A0" />
-    <path d="M32 33L51.9 44.5" stroke="#10A7A0" />
+    <path d="M32 33L12.1 44.5" stroke="#06B6D4" />
+    <path d="M32 33L51.9 44.5" stroke="#06B6D4" />
 
     <circle cx="32" cy="33" r="12.2" fill="#08264A" stroke="#FFFFFF" />
     <circle cx="32" cy="33" r="5.7" fill="#08264A" stroke="#FFFFFF" stroke-width="2.5" />
@@ -15,7 +15,7 @@
     <circle cx="32" cy="10" r="4.2" fill="#F2A100" stroke="none" />
     <circle cx="12.1" cy="21.5" r="4.2" fill="#FFFFFF" stroke="none" />
     <circle cx="51.9" cy="21.5" r="4.2" fill="#FFFFFF" stroke="none" />
-    <circle cx="12.1" cy="44.5" r="4.2" fill="#10A7A0" stroke="none" />
-    <circle cx="51.9" cy="44.5" r="4.2" fill="#10A7A0" stroke="none" />
+    <circle cx="12.1" cy="44.5" r="4.2" fill="#06B6D4" stroke="none" />
+    <circle cx="51.9" cy="44.5" r="4.2" fill="#06B6D4" stroke="none" />
   </g>
 </svg>

@@ -12,7 +12,7 @@ export default function DataDeletionPage() {
   return (
     <main style={{ minHeight: '100vh', background: '#f8fafc', color: '#0f172a', padding: '40px 18px' }}>
       <article style={{ maxWidth: 900, margin: '0 auto', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 32, lineHeight: 1.65 }}>
-        <Link href="/" style={{ color: '#0f766e', fontWeight: 700, textDecoration: 'none' }}>LegalHub</Link>
+        <Link href="/" style={{ color: '#0891b2', fontWeight: 700, textDecoration: 'none' }}>LegalHub</Link>
         <h1 style={{ fontSize: 34, lineHeight: 1.15, margin: '18px 0 8px' }}>Data Deletion Instructions</h1>
         <p style={{ color: '#64748b', marginBottom: 28 }}>Last updated: {updatedAt}</p>
 
@@ -67,7 +67,7 @@ export default function DataDeletionPage() {
         <h2>6. Privacy Policy</h2>
         <p>
           More information about how LegalHub processes data is available in the{' '}
-          <Link href="/privacy" style={{ color: '#0f766e', fontWeight: 700 }}>Privacy Policy</Link>.
+          <Link href="/privacy" style={{ color: '#0891b2', fontWeight: 700 }}>Privacy Policy</Link>.
         </p>
       </article>
     </main>

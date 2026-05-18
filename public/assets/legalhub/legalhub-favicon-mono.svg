@@ -1,21 +1,21 @@
 <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">LegalHub mono favicon</title>
-  <desc id="desc">One-color LegalHub favicon on a navy rounded square with evenly spaced nodes.</desc>
+  <desc id="desc">High-contrast one-color LegalHub favicon on a navy rounded square.</desc>
   <rect width="64" height="64" rx="14" fill="#08264A" />
-  <g stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M32 33L32 10" stroke="#FFFFFF" />
-    <path d="M32 33L12.1 21.5" stroke="#FFFFFF" />
-    <path d="M32 33L51.9 21.5" stroke="#FFFFFF" />
-    <path d="M32 33L12.1 44.5" stroke="#FFFFFF" />
-    <path d="M32 33L51.9 44.5" stroke="#FFFFFF" />
-
-    <circle cx="32" cy="33" r="12.2" fill="#08264A" stroke="#FFFFFF" />
-    <circle cx="32" cy="33" r="5.7" fill="#08264A" stroke="#FFFFFF" stroke-width="2.5" />
-
-    <circle cx="32" cy="10" r="4.2" fill="#FFFFFF" stroke="none" />
-    <circle cx="12.1" cy="21.5" r="4.2" fill="#FFFFFF" stroke="none" />
-    <circle cx="51.9" cy="21.5" r="4.2" fill="#FFFFFF" stroke="none" />
-    <circle cx="12.1" cy="44.5" r="4.2" fill="#FFFFFF" stroke="none" />
-    <circle cx="51.9" cy="44.5" r="4.2" fill="#FFFFFF" stroke="none" />
+  <g stroke="#FFFFFF" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M32 33L32 8" />
+    <path d="M32 33L9.8 20.2" />
+    <path d="M32 33L54.2 20.2" />
+    <path d="M32 33L9.8 45.8" />
+    <path d="M32 33L54.2 45.8" />
+    <circle cx="32" cy="33" r="13.8" fill="#08264A" />
+    <circle cx="32" cy="33" r="6.2" fill="#08264A" stroke-width="3.2" />
+  </g>
+  <g fill="#FFFFFF">
+    <circle cx="32" cy="8" r="4.9" />
+    <circle cx="9.8" cy="20.2" r="4.9" />
+    <circle cx="54.2" cy="20.2" r="4.9" />
+    <circle cx="9.8" cy="45.8" r="4.9" />
+    <circle cx="54.2" cy="45.8" r="4.9" />
   </g>
 </svg>

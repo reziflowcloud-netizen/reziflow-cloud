@@ -259,7 +259,7 @@ async function DashboardCharts({ organizationId }: { organizationId: string }) {
 
   return (
     <div className="grid-2" style={{ marginBottom: 16 }}>
-      {([['new_cases','cases','#06b6d4',maxCases,'/dashboard/new-cases'],['new_clients','clients','#14b8a6',maxClients,'/dashboard/new-clients']] as const).map(([labelKey, key, color, max, href]) => {
+      {([['new_cases','cases','#06b6d4',maxCases,'/dashboard/new-cases'],['new_clients','clients','#0891b2',maxClients,'/dashboard/new-clients']] as const).map(([labelKey, key, color, max, href]) => {
         const bars = makeBars(key as 'cases' | 'clients', max as number)
         return (
           <Link key={key} href={href} className="dash-stat-link">
