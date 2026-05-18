@@ -141,6 +141,14 @@ export default function IntegrationsPage() {
     if (!settings || typeof window === 'undefined') return ''
     return `${window.location.origin}/api/webhooks/meta/messages/${settings.slug}`
   }, [settings])
+  const privacyPolicyUrl = useMemo(() => {
+    if (typeof window === 'undefined') return ''
+    return `${window.location.origin}/privacy`
+  }, [])
+  const dataDeletionUrl = useMemo(() => {
+    if (typeof window === 'undefined') return ''
+    return `${window.location.origin}/data-deletion`
+  }, [])
   const telegramWebhookUrl = useMemo(() => {
     if (!settings || typeof window === 'undefined' || !settings.key) return ''
     return `${window.location.origin}/api/webhooks/telegram/leads/${settings.slug}/${encodeURIComponent(settings.key)}`
@@ -706,6 +714,27 @@ ${samplePayload}`}
             <div className="section-title" style={{ marginBottom: 4 }}><span>📣</span>Facebook Lead Ads</div>
             <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
               Подключение лид-форм Meta/Facebook. В Meta App укажите Callback URL и Verify Token, а в CRM сохраните Page Access Token страницы.
+            </div>
+
+            <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, marginBottom: 8 }}>Публичные страницы для публикации Meta App</div>
+              <div style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, marginBottom: 10 }}>
+                Эти ссылки можно вставить в Meta Developers в поля Privacy Policy URL и Data Deletion URL. Страницы открываются без входа в CRM.
+              </div>
+              <div style={{ display: 'grid', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr auto auto', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 700 }}>Privacy Policy</span>
+                  <input className="input" readOnly value={privacyPolicyUrl} />
+                  <a className="btn btn-secondary" href="/privacy" target="_blank" rel="noreferrer">Открыть</a>
+                  <button className="btn btn-secondary" type="button" onClick={() => copy(privacyPolicyUrl)}>Копировать</button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr auto auto', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 700 }}>Data Deletion</span>
+                  <input className="input" readOnly value={dataDeletionUrl} />
+                  <a className="btn btn-secondary" href="/data-deletion" target="_blank" rel="noreferrer">Открыть</a>
+                  <button className="btn btn-secondary" type="button" onClick={() => copy(dataDeletionUrl)}>Копировать</button>
+                </div>
+              </div>
             </div>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, fontWeight: 700 }}>
