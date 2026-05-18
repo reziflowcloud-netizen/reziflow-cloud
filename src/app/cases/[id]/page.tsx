@@ -6,13 +6,16 @@ import { useLanguage } from '@/context/LanguageContext'
 import CollapsibleCardsBehavior from '@/components/CollapsibleCardsBehavior'
 import SectionVisibilityBehavior from '@/components/SectionVisibilityBehavior'
 import CustomSectionsRenderer, { type CustomSectionsHandle } from '@/components/CustomSectionsRenderer'
+import { caseStatusLabel } from '@/lib/caseI18n'
 
 const WORK_TYPE = 'Выконывание пацы (Работа)'
+const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
 
 export default function CaseDetailPage() {
   const { id } = useParams()
   const router = useRouter()
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
+  const locale = LOCALES[lang] || 'ru-RU'
   const [c, setC] = useState<any>(null)
   const [statuses, setStatuses] = useState<any[]>([])
   const [services, setServices] = useState<any[]>([])
@@ -145,7 +148,7 @@ export default function CaseDetailPage() {
       await syncPredictedDecisionReminder(form.predictedDecisionDate, { ...c, ...updated })
       await loadCaseTasks({ ...c, ...updated })
       const customOk = await customSectionsRef.current?.save()
-      if (customOk === false) alert('Не удалось сохранить дополнительные поля')
+      if (customOk === false) alert(t('custom_fields_save_failed'))
     } finally {
       setSaving(false)
     }
@@ -185,7 +188,7 @@ export default function CaseDetailPage() {
         if (task.status === 'done') return false
         if (meta.paymentPlan?.caseId === caseData.id) return true
         return !!caseNumber
-          && String(task.title || '').startsWith('Получить платеж')
+          && (String(task.title || '').startsWith('Получить платеж') || String(task.title || '').startsWith(t('receive_payment')))
           && String(meta.reminderNote || '').includes(caseNumber)
       })
       .map(({ task, meta }: any) => ({
@@ -288,7 +291,7 @@ export default function CaseDetailPage() {
     await createTaskWithMeta(
       `MOS: ${newMosDocName.trim()}`,
       newMosDocDueDate,
-      `Отправить документ в MOS по делу ${c.caseNumber}`,
+      `${t('send_document_to_mos')} ${c.caseNumber}`,
       { mosDocument: { caseId: c.id, caseNumber: c.caseNumber, sentAt: null } }
     )
     setNewMosDocName('')
@@ -301,11 +304,11 @@ export default function CaseDetailPage() {
     if (!title) return
     const today = new Date().toISOString().slice(0, 10)
     const submittedAt = newMosDocDueDate || today
-    if (submittedAt > today) return alert('Нельзя указать будущую дату для уже поданного документа')
+    if (submittedAt > today) return alert(t('mos_future_date_error'))
     const res = await createTaskWithMeta(
       `MOS: ${title}`,
       submittedAt,
-      `Документ подан в MOS по делу ${c.caseNumber}`,
+      `${t('document_submitted_to_mos')} ${c.caseNumber}`,
       { mosDocument: { caseId: c.id, caseNumber: c.caseNumber, sentAt: submittedAt } }
     )
     const task = await res.json().catch(() => null)
@@ -340,7 +343,7 @@ export default function CaseDetailPage() {
         status: next.status,
         description: JSON.stringify({
           reminderAt: next.dueDate ? `${next.dueDate}T09:00` : null,
-          reminderNote: next.note || `Отправить документ в MOS по делу ${c.caseNumber}`,
+          reminderNote: next.note || `${t('send_document_to_mos')} ${c.caseNumber}`,
           mosDocument: { caseId: c.id, caseNumber: c.caseNumber, sentAt: next.sentAt || null },
         }),
       }),
@@ -355,7 +358,7 @@ export default function CaseDetailPage() {
   }
 
   async function deleteMosDocument(docId: string) {
-    if (!confirm('Удалить документ из списка MOS?')) return
+    if (!confirm(t('delete_mos_document_confirm'))) return
     await fetch(`/api/tasks/${docId}`, { method: 'DELETE' })
     await loadMosDocuments()
     await loadCaseTasks()
@@ -373,10 +376,10 @@ export default function CaseDetailPage() {
         : []
     )
     const reminders = [
-      { kind: 'documents_2w', days: 14, title: 'Донести документы', note: `Через 2 недели после подачи по делу ${c.caseNumber}` },
-      { kind: 'id_1m', days: 30, title: 'Получить ID и вписать его в поле MOS', note: `Через 1 месяц после подачи по делу ${c.caseNumber}` },
-      { kind: 'cabinet_login_2m', days: 60, title: 'Попросить логин и пароль от кабинета', note: `Через 2 месяца после подачи по делу ${c.caseNumber}` },
-      { kind: 'check_status_4m', days: 120, title: 'Проверить статус в кабинете', note: `Через 4 месяца после подачи по делу ${c.caseNumber}` },
+      { kind: 'documents_2w', days: 14, title: t('deliver_documents'), note: `${t('after_filing_2w')} ${c.caseNumber}` },
+      { kind: 'id_1m', days: 30, title: t('get_id_to_mos'), note: `${t('after_filing_1m')} ${c.caseNumber}` },
+      { kind: 'cabinet_login_2m', days: 60, title: t('ask_cabinet_credentials'), note: `${t('after_filing_2m')} ${c.caseNumber}` },
+      { kind: 'check_status_4m', days: 120, title: t('check_cabinet_status'), note: `${t('after_filing_4m')} ${c.caseNumber}` },
     ]
     for (const reminder of reminders) {
       if (existing.has(reminder.kind)) continue
@@ -405,7 +408,7 @@ export default function CaseDetailPage() {
     }
 
     const clientName = `${caseData.client?.firstName || ''} ${caseData.client?.lastName || ''}`.trim()
-    const caseLabel = caseData.caseNumber || 'без номера'
+    const caseLabel = caseData.caseNumber || t('no_number')
     const payload = {
       title: 'Przewidywana data wydania decyzji',
       priority: existing?.task?.priority || 'Нормально',
@@ -414,7 +417,7 @@ export default function CaseDetailPage() {
       status: existing?.task?.status || 'todo',
       description: JSON.stringify({
         reminderAt: `${decisionDate}T09:00`,
-        reminderNote: `Ожидаемая дата выдачи решения по делу ${caseLabel}`,
+        reminderNote: `${t('expected_decision_note')} ${caseLabel}`,
         predictedDecision: { caseId: caseData.id, caseNumber: caseData.caseNumber || null },
       }),
     }
@@ -437,14 +440,14 @@ export default function CaseDetailPage() {
     documentsReminderDate.setDate(documentsReminderDate.getDate() - 45)
     const documentsReminderDateOnly = documentsReminderDate.toISOString().slice(0, 10)
     const documentsPayload = {
-      title: 'Донести дополнительные документы в Уженд',
+      title: t('deliver_extra_documents_office'),
       priority: existingDocumentsReminder?.task?.priority || 'Нормально',
       dueDate: documentsReminderDateOnly,
       clientName,
       status: existingDocumentsReminder?.task?.status || 'todo',
       description: JSON.stringify({
         reminderAt: `${documentsReminderDateOnly}T09:00`,
-        reminderNote: `Потрібно донести додаткові документи до Уженду по делу ${caseLabel}`,
+        reminderNote: `${t('deliver_extra_documents_note')} ${caseLabel}`,
         predictedDecisionDocuments: {
           caseId: caseData.id,
           caseNumber: caseData.caseNumber || null,
@@ -484,16 +487,16 @@ export default function CaseDetailPage() {
     }
 
     const clientName = `${caseData.client?.firstName || ''} ${caseData.client?.lastName || ''}`.trim()
-    const caseLabel = caseData.caseNumber || 'без номера'
+    const caseLabel = caseData.caseNumber || t('no_number')
     const payload = {
-      title: 'Прийти на отпечатки пальцев',
+      title: t('fingerprints_task_title'),
       priority: existing?.task?.priority || 'Нормально',
       dueDate: fingerprintsDate,
       clientName,
       status: existing?.task?.status || 'todo',
       description: JSON.stringify({
         reminderAt: `${fingerprintsDate}T09:00`,
-        reminderNote: `Прийти на отпечатки пальцев по делу ${caseLabel}`,
+        reminderNote: `${t('fingerprints_task_note')} ${caseLabel}`,
         fingerprintsAppointment: { caseId: caseData.id, caseNumber: caseData.caseNumber || null },
       }),
     }
@@ -522,7 +525,7 @@ export default function CaseDetailPage() {
       const res = await createTaskWithMeta(
         title,
         customReminderDate,
-        `Напоминание по делу ${c.caseNumber}`,
+      `${t('case_reminder_title')} ${c.caseNumber}`,
         { customCaseReminder: { caseId: c.id, caseNumber: c.caseNumber } }
       )
       if (!res.ok) {
@@ -532,9 +535,9 @@ export default function CaseDetailPage() {
       setCustomReminderTitle('')
       setCustomReminderDate('')
       await loadCaseTasks()
-      alert('Напоминание добавлено в задачи и календарь')
+      alert(t('reminder_added'))
     } catch (err: any) {
-      alert(`Не удалось добавить напоминание: ${err.message}`)
+      alert(`${t('reminder_add_failed')}: ${err.message}`)
     }
     setCustomReminderSaving(false)
   }
@@ -579,7 +582,7 @@ export default function CaseDetailPage() {
   }
 
   async function deletePayment(paymentId: string) {
-    if (!confirm('Удалить оплату?')) return
+    if (!confirm(t('delete_payment_confirm'))) return
     await fetch(`/api/cases/${id}/payments/${paymentId}`, { method: 'DELETE' })
     await refreshCase()
   }
@@ -590,23 +593,23 @@ export default function CaseDetailPage() {
 
   async function createPaymentPlanTasks() {
     const rows = paymentPlan.filter(row => row.amount && row.dueDate)
-    if (rows.length === 0) return alert('Укажите сумму и дату хотя бы для одного платежа')
+    if (rows.length === 0) return alert(t('payment_plan_missing'))
     setCreatingPlan(true)
     const clientName = `${c.client?.firstName || ''} ${c.client?.lastName || ''}`.trim()
-    const caseLabel = c.caseNumber || 'без номера'
+    const caseLabel = c.caseNumber || t('no_number')
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]
       await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: `Получить платеж ${row.amount} zł`,
+        title: `${t('receive_payment')} ${row.amount} zł`,
           priority: 'Нормально',
           dueDate: row.dueDate,
           clientName,
           description: JSON.stringify({
             reminderAt: `${row.dueDate}T09:00`,
-            reminderNote: `Платеж ${i + 1} из ${rows.length} по делу ${caseLabel}`,
+          reminderNote: `${t('payment_number_note')} ${i + 1} ${t('payment_from_total')} ${rows.length}: ${caseLabel}`,
             paymentPlan: {
               caseId: c.id,
               caseNumber: c.caseNumber || null,
@@ -622,7 +625,7 @@ export default function CaseDetailPage() {
     await loadPlannedPayments()
     await loadCaseTasks()
     setCreatingPlan(false)
-    alert('План платежей добавлен в задачи и календарь')
+    alert(t('payment_plan_added'))
   }
 
   async function convertPlannedPayment(plan: any) {
@@ -632,13 +635,13 @@ export default function CaseDetailPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         amount: plan.amount,
-        note: `Оплата по плану${plan.dueDate ? ` от ${new Date(plan.dueDate).toLocaleDateString('ru')}` : ''}`,
+      note: `${t('payment_plan')}${plan.dueDate ? ` ${new Date(plan.dueDate).toLocaleDateString(locale)}` : ''}`,
         date: new Date().toISOString().slice(0, 10),
       }),
     })
     if (!paymentRes.ok) {
       const err = await paymentRes.json().catch(() => ({}))
-      alert('Не удалось перевести платеж в оплаченные: ' + (err.error || paymentRes.status))
+      alert(`${t('payment_convert_failed')}: ${err.error || paymentRes.status}`)
       return
     }
     await fetch(`/api/tasks/${plan.id}`, { method: 'DELETE' })
@@ -650,7 +653,7 @@ export default function CaseDetailPage() {
     if (!taskTitle.trim()) return
     setTaskSaving(true)
     const clientName = `${c.client?.firstName || ''} ${c.client?.lastName || ''}`.trim()
-    const caseLabel = c.caseNumber || 'без номера'
+    const caseLabel = c.caseNumber || t('no_number')
     await fetch('/api/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -661,7 +664,7 @@ export default function CaseDetailPage() {
         clientName,
         description: JSON.stringify({
           reminderAt: taskDueDate ? `${taskDueDate}T09:00` : null,
-          reminderNote: `Задача по делу ${caseLabel}`,
+          reminderNote: `${t('case_task_note')} ${caseLabel}`,
           quickCaseTask: { caseId: c.id, caseNumber: c.caseNumber || null },
         }),
       }),
@@ -670,7 +673,7 @@ export default function CaseDetailPage() {
     setTaskDueDate('')
     await loadCaseTasks()
     setTaskSaving(false)
-    alert('Задача создана и добавлена в календарь')
+    alert(t('task_created'))
   }
 
   async function addComment() {
@@ -678,7 +681,7 @@ export default function CaseDetailPage() {
     const res = await fetch(`/api/cases/${id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: comment }) })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
-      alert('Не удалось сохранить комментарий: ' + (err.error || res.status))
+      alert(`${t('comment_save_failed')}: ${err.error || res.status}`)
       return
     }
     await refreshCase(); setComment('')
@@ -719,7 +722,7 @@ export default function CaseDetailPage() {
   async function uploadFile(file: File) {
     const MAX_SIZE = 150 * 1024 * 1024
     if (file.size > MAX_SIZE) {
-      alert(`Файл "${file.name}" слишком большой (${(file.size/1024/1024).toFixed(1)}MB). Максимум 150MB.`)
+      alert(`${t('file_too_large')}: "${file.name}" (${(file.size/1024/1024).toFixed(1)}MB). ${t('max_file_size')}.`)
       return
     }
     setUploading(true)
@@ -729,18 +732,18 @@ export default function CaseDetailPage() {
       const docRes = await fetch(`/api/cases/${id}/documents`, { method: 'POST', body: formData })
       if (!docRes.ok) {
         const err = await docRes.json().catch(() => ({}))
-        alert('Ошибка загрузки документа: ' + (err.error || docRes.status))
+        alert(`${t('document_upload_failed')}: ${err.error || docRes.status}`)
         setUploading(false)
         return
       }
       const doc = await docRes.json()
       setDocuments(p => [doc, ...p])
-    } catch (e: any) { alert('Ошибка загрузки: ' + e.message) }
+    } catch (e: any) { alert(`${t('upload_failed')}: ${e.message}`) }
     setUploading(false)
   }
 
   async function deleteDocument(docId: number) {
-    if (!confirm('Удалить документ?')) return
+    if (!confirm(t('delete_document_confirm'))) return
     await fetch(`/api/cases/${id}/documents/${docId}`, { method: 'DELETE' })
     setDocuments(p => p.filter((d: any) => d.id !== docId))
   }
@@ -751,7 +754,7 @@ export default function CaseDetailPage() {
       const res = await fetch(`/api/cases/${id}/generate-document?templateId=${template.id}`)
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        alert(data.error || 'Не удалось сформировать документ')
+      alert(data.error || t('document_generate_failed'))
         return
       }
       const blob = await res.blob()
@@ -789,7 +792,7 @@ export default function CaseDetailPage() {
     }
   }
 
-  if (!c) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Загрузка...</div>
+  if (!c) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>{t('loading')}</div>
 
   const debt = Math.max(0, c.totalValue - c.totalPaid)
   const currentService = services.find(s => s.id === parseInt(form.serviceId)) || c.service
@@ -868,8 +871,8 @@ export default function CaseDetailPage() {
                     <div className="form-group">
                       <label className="label">{t('status')}</label>
                       <select className="select" value={form.status} onChange={e => set('status', e.target.value)}>
-                        {statuses.map(s => <option key={s.id}>{s.name}</option>)}
-                        {statuses.length === 0 && ['Новый','В работе','Ожидание документов','Решение получено','Архив','Отказ'].map(s => <option key={s}>{s}</option>)}
+                        {statuses.map(s => <option key={s.id} value={s.name}>{caseStatusLabel(lang, s.name)}</option>)}
+                        {statuses.length === 0 && ['Новый','В работе','Ожидание документов','Решение получено','Архив','Отказ'].map(s => <option key={s} value={s}>{caseStatusLabel(lang, s)}</option>)}
                       </select>
                     </div>
                     <div className="form-group" style={{ gridColumn: '1/-1' }}>
@@ -1028,7 +1031,7 @@ export default function CaseDetailPage() {
                     </div>
                     <div className="form-group">
                       <label className="label">ID</label>
-                      <input className="input" value={mosId} onChange={e => setMosId(e.target.value)} placeholder="ID из MOS / ужонда" />
+                      <input className="input" value={mosId} onChange={e => setMosId(e.target.value)} placeholder={t('mos_id_placeholder')} />
                     </div>
                     <div className="form-group">
                       <label className="label">{t('mos_sent_date')}</label>
@@ -1052,7 +1055,7 @@ export default function CaseDetailPage() {
                                 <div>
                                   <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 3 }}>{cleanMosDocTitle(doc.title)}</div>
                                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                                    {t('submitted')}: {doc.sentAt ? new Date(doc.sentAt).toLocaleDateString('ru') : t('date_not_set')}
+                                    {t('submitted')}: {doc.sentAt ? new Date(doc.sentAt).toLocaleDateString(locale) : t('date_not_set')}
                                   </div>
                                 </div>
                                 <button onClick={() => deleteMosDocument(doc.id)} className="btn" style={{ padding: '6px 10px', background: '#fef2f2', color: '#dc2626' }}>{t('delete')}</button>
@@ -1197,7 +1200,7 @@ export default function CaseDetailPage() {
                       {customDates.map((d: any) => (
                         <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
                           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', minWidth: 140 }}>{d.label}</span>
-                          <span style={{ fontSize: 13, flex: 1 }}>{new Date(d.date).toLocaleDateString('ru')}</span>
+                          <span style={{ fontSize: 13, flex: 1 }}>{new Date(d.date).toLocaleDateString(locale)}</span>
                           <button onClick={() => removeCustomDate(d.id)} style={{ background: '#fef2f2', border: 'none', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 12, color: '#dc2626' }}>🗑</button>
                         </div>
                       ))}
@@ -1225,7 +1228,7 @@ export default function CaseDetailPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
                       {[...docUpdates].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((d: any) => (
                         <div key={d.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                          <div style={{ minWidth: 90, fontSize: 12, color: 'var(--muted)', fontWeight: 600, paddingTop: 1 }}>{new Date(d.date).toLocaleDateString('ru')}</div>
+                          <div style={{ minWidth: 90, fontSize: 12, color: 'var(--muted)', fontWeight: 600, paddingTop: 1 }}>{new Date(d.date).toLocaleDateString(locale)}</div>
                           <div style={{ flex: 1, fontSize: 13 }}>{d.description}</div>
                           <button onClick={() => removeDocUpdate(d.id)} style={{ background: '#fef2f2', border: 'none', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 12, color: '#dc2626', flexShrink: 0 }}>🗑</button>
                         </div>
@@ -1297,7 +1300,7 @@ export default function CaseDetailPage() {
                         <tr><td colSpan={4} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>{t('no_planned_payments')}</td></tr>
                       ) : plannedPayments.map((plan: any) => (
                         <tr key={plan.id}>
-                          <td>{plan.dueDate ? new Date(plan.dueDate).toLocaleDateString('ru') : '—'}</td>
+                          <td>{plan.dueDate ? new Date(plan.dueDate).toLocaleDateString(locale) : '—'}</td>
                           <td style={{ fontWeight: 700 }}>{parseFloat(plan.amount || '0').toFixed(2)} zł</td>
                           <td>{plan.note || plan.title}</td>
                           <td style={{ textAlign: 'right' }}>
@@ -1331,7 +1334,7 @@ export default function CaseDetailPage() {
                             </>
                           ) : (
                             <>
-                              <td>{new Date(p.date).toLocaleDateString('ru')}</td>
+                              <td>{new Date(p.date).toLocaleDateString(locale)}</td>
                               <td style={{ color: '#16a34a', fontWeight: 600 }}>+{p.amount.toFixed(2)} zł</td>
                               <td>{p.note || '—'}</td>
                               <td style={{ whiteSpace: 'nowrap' }}>
@@ -1363,7 +1366,7 @@ export default function CaseDetailPage() {
                     <div key={cm.id} className="card">
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                         <span style={{ fontWeight: 600, fontSize: 13 }}>{cm.author}</span>
-                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>{new Date(cm.createdAt).toLocaleString('ru')}</span>
+                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>{new Date(cm.createdAt).toLocaleString(locale)}</span>
                       </div>
                       <div style={{ fontSize: 14 }}>{cm.text}</div>
                     </div>
@@ -1377,10 +1380,10 @@ export default function CaseDetailPage() {
                 <div className="card" style={{ borderRadius: '0 0 10px 10px', marginBottom: 16 }}>
                   <div className="section-title"><span>📁</span>{t('client_documents')}</div>
                   <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 16, background: 'var(--bg)' }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Сформировать документ</div>
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>{t('generate_document')}</div>
                     {documentTemplates.length === 0 ? (
                       <div style={{ fontSize: 13, color: 'var(--muted)' }}>
-                        Сначала загрузите DOCX-шаблон в настройках: <Link href="/settings/document-templates" style={{ color: 'var(--brand)', fontWeight: 600 }}>Шаблоны документов</Link>.
+                        {t('template_upload_hint')}: <Link href="/settings/document-templates" style={{ color: 'var(--brand)', fontWeight: 600 }}>{t('document_templates')}</Link>.
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -1391,7 +1394,7 @@ export default function CaseDetailPage() {
                             onClick={() => generateDocument(template)}
                             disabled={generatingTemplate === template.id}
                           >
-                            {generatingTemplate === template.id ? 'Формирую...' : template.name}
+                            {generatingTemplate === template.id ? t('generating') : template.name}
                           </button>
                         ))}
                       </div>
@@ -1576,7 +1579,7 @@ export default function CaseDetailPage() {
             {/* Ответственный сотрудник */}
             {selectedEmployee && (
               <div className="card" style={{ marginBottom: 16 }}>
-                <div className="section-title"><span>🧑‍💼</span>Ответственный</div>
+                <div className="section-title"><span>🧑‍💼</span>{t('responsible_employee')}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div className="avatar" style={{ width: 28, height: 28, fontSize: 11 }}>{selectedEmployee.name[0]}</div>
                   <span style={{ fontWeight: 600, fontSize: 14 }}>{selectedEmployee.name}</span>
@@ -1618,7 +1621,7 @@ export default function CaseDetailPage() {
                       </div>
                       {task.dueDate && (
                         <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                          {t('date')}: {new Date(task.dueDate).toLocaleDateString('ru')}
+                          {t('date')}: {new Date(task.dueDate).toLocaleDateString(locale)}
                         </div>
                       )}
                       {task.note && (
@@ -1638,9 +1641,9 @@ export default function CaseDetailPage() {
                 <div style={{ color: 'var(--muted)', fontSize: 13 }}>{t('no_history')}</div>
               ) : (c.statusHistory||[]).map((h: any, i: number) => (
                 <div key={h.id} style={{ fontSize: 12, paddingBottom: 10, marginBottom: 10, borderBottom: i < c.statusHistory.length-1 ? '1px solid var(--border)' : 'none' }}>
-                  <div style={{ fontWeight: 500 }}>{h.toStatus}</div>
-                  {h.fromStatus && <div style={{ color: 'var(--muted)' }}>из «{h.fromStatus}»</div>}
-                  <div style={{ color: 'var(--muted)' }}>{h.changedBy} · {new Date(h.changedAt).toLocaleString('ru')}</div>
+                  <div style={{ fontWeight: 500 }}>{caseStatusLabel(lang, h.toStatus)}</div>
+                  {h.fromStatus && <div style={{ color: 'var(--muted)' }}>{t('from_status')} «{caseStatusLabel(lang, h.fromStatus)}»</div>}
+                  <div style={{ color: 'var(--muted)' }}>{h.changedBy} · {new Date(h.changedAt).toLocaleString(locale)}</div>
                 </div>
               ))}
             </div>
@@ -1650,11 +1653,11 @@ export default function CaseDetailPage() {
               <div style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--muted)' }}>{t('created')}</span>
-                  <span>{new Date(c.createdAt).toLocaleDateString('ru')}</span>
+                  <span>{new Date(c.createdAt).toLocaleDateString(locale)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--muted)' }}>{t('updated')}</span>
-                  <span>{new Date(c.updatedAt).toLocaleDateString('ru')}</span>
+                  <span>{new Date(c.updatedAt).toLocaleDateString(locale)}</span>
                 </div>
               </div>
             </div>

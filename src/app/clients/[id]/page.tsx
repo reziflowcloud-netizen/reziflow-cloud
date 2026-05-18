@@ -7,6 +7,7 @@ import CollapsibleCardsBehavior from '@/components/CollapsibleCardsBehavior'
 import SectionVisibilityBehavior from '@/components/SectionVisibilityBehavior'
 import CustomSectionsRenderer, { type CustomSectionsHandle } from '@/components/CustomSectionsRenderer'
 import PhoneListEditor, { ensurePhoneRows } from '@/components/PhoneListEditor'
+import { caseStatusLabel } from '@/lib/caseI18n'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -23,6 +24,8 @@ const MARITAL_STATUS = ['Холост/Не замужем','Женат/Заму�
 const EDUCATION = ['Начальное','Среднее','Среднее специальное','Высшее','Учёная степень']
 const LEGAL_TITLE = ['Wynajem (Аренда)','Własność (Собственность)','Użyczenie (Безвозмездное пользование)','Zamieszkanie u rodziny (У родственников)','Inne (Другое)']
 const STAY_BASIS = ['Без основания','Виза','Карта побыту','Побыт временный','Побыт постоянный','Безвизовый режим']
+const ACTIVE_STATUSES = ['В работе', 'Ожидание документов', 'Новый']
+const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
 
 const F = ({ label, children, col = false }: any) => (
   <div className="form-group" style={col ? { gridColumn: '1/-1' } : {}}>
@@ -62,15 +65,20 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     statusUkrHint: 'Клиент имеет статус беженца из Украины',
     family: 'Семья',
     fatherName: 'Имя отца',
+    fatherNamePlaceholder: 'Имя отца',
     motherName: 'Имя матери',
+    motherNamePlaceholder: 'Имя матери',
     motherMaidenName: 'Девичья фамилия матери',
+    motherMaidenNamePlaceholder: 'Девичья фамилия матери',
     dependents: 'Лица на содержании',
+    dependentsPlaceholder: 'Информация о лицах на содержании...',
     familyCheckbox: 'Клиент состоит в семье с другим клиентом',
     editFamily: 'Изменить состав семьи',
     familySearch: 'Поиск по имени, телефону или email...',
     familyNotFound: 'Клиенты не найдены',
     done: 'Готово',
     passportTitle: 'Паспортные данные',
+    passportSubtitle: 'Информация из паспорта',
     passportSeries: 'Серия и номер',
     passportIssuedBy: 'Выдан кем',
     passportIssuedAt: 'Дата выдачи',
@@ -79,6 +87,7 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     passportSoon: '⚠️ Паспорт истекает менее чем через 90 дней',
     passportValid: '✅ Паспорт действителен',
     physicalTitle: 'Физические признаки',
+    physicalSubtitle: 'Внешние признаки для документов',
     height: 'Рост (см)',
     eyeColor: 'Цвет глаз',
     specialSigns: 'Особые приметы',
@@ -89,6 +98,7 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     previousAddressSubtitle: 'При условии проживания 365 дней +',
     addressPlaceholder: 'Страна, город, улица, дом, квартира...',
     polandStayTitle: 'Пребывание в Польше',
+    polandStaySubtitle: 'Адрес, основание пребывания и карта побыту',
     addressInPoland: 'Адрес в Польше',
     legalTitle: 'Правовой титул на жильё',
     rentalEndDate: 'Конец аренды',
@@ -101,6 +111,8 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     finesInPoland: 'Были штрафы в Польше (Mandaty w Polsce)',
     finesDescription: 'Опишите штрафы...',
     travelTitle: 'История путешествий',
+    travelSubtitle: 'Зарубежные выезды и пребывания',
+    countryPlaceholder: 'Украина',
     add: '+ Добавить',
     country: 'Страна *',
     entryDate: 'Дата въезда',
@@ -148,15 +160,20 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     statusUkrHint: 'Клієнт має статус біженця з України',
     family: 'Сім’я',
     fatherName: 'Ім’я батька',
+    fatherNamePlaceholder: 'Ім’я батька',
     motherName: 'Ім’я матері',
+    motherNamePlaceholder: 'Ім’я матері',
     motherMaidenName: 'Дівоче прізвище матері',
+    motherMaidenNamePlaceholder: 'Дівоче прізвище матері',
     dependents: 'Особи на утриманні',
+    dependentsPlaceholder: 'Інформація про осіб на утриманні...',
     familyCheckbox: 'Клієнт перебуває в сім’ї з іншим клієнтом',
     editFamily: 'Змінити склад сім’ї',
     familySearch: 'Пошук за ім’ям, телефоном або email...',
     familyNotFound: 'Клієнтів не знайдено',
     done: 'Готово',
     passportTitle: 'Паспортні дані',
+    passportSubtitle: 'Інформація з паспорта',
     passportSeries: 'Серія і номер',
     passportIssuedBy: 'Ким виданий',
     passportIssuedAt: 'Дата видачі',
@@ -165,6 +182,7 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     passportSoon: '⚠️ Паспорт закінчується менш ніж за 90 днів',
     passportValid: '✅ Паспорт дійсний',
     physicalTitle: 'Фізичні ознаки',
+    physicalSubtitle: 'Зовнішні ознаки для документів',
     height: 'Зріст (см)',
     eyeColor: 'Колір очей',
     specialSigns: 'Особливі прикмети',
@@ -175,6 +193,7 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     previousAddressSubtitle: 'За умови проживання 365 днів +',
     addressPlaceholder: 'Країна, місто, вулиця, будинок, квартира...',
     polandStayTitle: 'Перебування у Польщі',
+    polandStaySubtitle: 'Адреса, підстава перебування і карта побиту',
     addressInPoland: 'Адреса в Польщі',
     legalTitle: 'Правова підстава на житло',
     rentalEndDate: 'Кінець оренди',
@@ -187,6 +206,8 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     finesInPoland: 'Були штрафи в Польщі (Mandaty w Polsce)',
     finesDescription: 'Опишіть штрафи...',
     travelTitle: 'Історія подорожей',
+    travelSubtitle: 'Закордонні виїзди і перебування',
+    countryPlaceholder: 'Україна',
     add: '+ Додати',
     country: 'Країна *',
     entryDate: 'Дата в’їзду',
@@ -234,15 +255,20 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     statusUkrHint: 'Klient ma status uchodźcy z Ukrainy',
     family: 'Rodzina',
     fatherName: 'Imię ojca',
+    fatherNamePlaceholder: 'Imię ojca',
     motherName: 'Imię matki',
+    motherNamePlaceholder: 'Imię matki',
     motherMaidenName: 'Nazwisko panieńskie matki',
+    motherMaidenNamePlaceholder: 'Nazwisko panieńskie matki',
     dependents: 'Osoby na utrzymaniu',
+    dependentsPlaceholder: 'Informacje o osobach na utrzymaniu...',
     familyCheckbox: 'Klient jest w rodzinie z innym klientem',
     editFamily: 'Zmień skład rodziny',
     familySearch: 'Szukaj po imieniu, telefonie lub emailu...',
     familyNotFound: 'Nie znaleziono klientów',
     done: 'Gotowe',
     passportTitle: 'Dane paszportowe',
+    passportSubtitle: 'Informacje z paszportu',
     passportSeries: 'Seria i numer',
     passportIssuedBy: 'Wydany przez',
     passportIssuedAt: 'Data wydania',
@@ -251,6 +277,7 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     passportSoon: '⚠️ Paszport wygasa za mniej niż 90 dni',
     passportValid: '✅ Paszport jest ważny',
     physicalTitle: 'Cechy fizyczne',
+    physicalSubtitle: 'Cechy zewnętrzne do dokumentów',
     height: 'Wzrost (cm)',
     eyeColor: 'Kolor oczu',
     specialSigns: 'Znaki szczególne',
@@ -261,6 +288,7 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     previousAddressSubtitle: 'Jeśli pobyt trwał 365 dni +',
     addressPlaceholder: 'Kraj, miasto, ulica, dom, mieszkanie...',
     polandStayTitle: 'Pobyt w Polsce',
+    polandStaySubtitle: 'Adres, podstawa pobytu i karta pobytu',
     addressInPoland: 'Adres w Polsce',
     legalTitle: 'Tytuł prawny do lokalu',
     rentalEndDate: 'Koniec najmu',
@@ -273,6 +301,8 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     finesInPoland: 'Były mandaty w Polsce',
     finesDescription: 'Opisz mandaty...',
     travelTitle: 'Historia podróży',
+    travelSubtitle: 'Wyjazdy zagraniczne i pobyty',
+    countryPlaceholder: 'Ukraina',
     add: '+ Dodaj',
     country: 'Kraj *',
     entryDate: 'Data wjazdu',
@@ -410,8 +440,8 @@ export default function ClientDetailPage() {
   if (!client) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>{text.loading}</div>
 
   const cases = client.cases || []
-  const activeCases = cases.filter((c: any) => ['В работе','Ожидание документов','Новый'].includes(c.status))
-  const closedCases = cases.filter((c: any) => !['В работе','Ожидание документов','Новый'].includes(c.status))
+  const activeCases = cases.filter((c: any) => ACTIVE_STATUSES.includes(c.status))
+  const closedCases = cases.filter((c: any) => !ACTIVE_STATUSES.includes(c.status))
 
   const canDeleteClient = currentUser?.role === 'admin' || currentUser?.role === 'owner'
   const familySelectedIds = form.familyClientIds || []
@@ -559,16 +589,16 @@ export default function ClientDetailPage() {
                   <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, color: 'var(--text)' }}>{text.family}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <F label={text.fatherName}>
-                      <input className="input" value={form.fatherName} onChange={e => set('fatherName', e.target.value)} placeholder="Imię ojca" />
+                      <input className="input" value={form.fatherName} onChange={e => set('fatherName', e.target.value)} placeholder={text.fatherNamePlaceholder} />
                     </F>
                     <F label={text.motherName}>
-                      <input className="input" value={form.motherName} onChange={e => set('motherName', e.target.value)} placeholder="Imię matki" />
+                      <input className="input" value={form.motherName} onChange={e => set('motherName', e.target.value)} placeholder={text.motherNamePlaceholder} />
                     </F>
                     <F label={text.motherMaidenName} col>
-                      <input className="input" value={form.motherMaidenName} onChange={e => set('motherMaidenName', e.target.value)} placeholder="Nazwisko panieńskie matki" />
+                      <input className="input" value={form.motherMaidenName} onChange={e => set('motherMaidenName', e.target.value)} placeholder={text.motherMaidenNamePlaceholder} />
                     </F>
                     <F label={text.dependents} col>
-                      <textarea className="input" value={form.dependents} onChange={e => set('dependents', e.target.value)} rows={2} placeholder="Informacje o osobach na utrzymaniu..." />
+                      <textarea className="input" value={form.dependents} onChange={e => set('dependents', e.target.value)} rows={2} placeholder={text.dependentsPlaceholder} />
                     </F>
                     <div style={{ gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 12 }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
@@ -665,7 +695,7 @@ export default function ClientDetailPage() {
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📋</div>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{text.passportTitle}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>Informacje z paszportu</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{text.passportSubtitle}</div>
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -696,7 +726,7 @@ export default function ClientDetailPage() {
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: '#f5f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>👁</div>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{text.physicalTitle}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>Cechy zewnętrzne do dokumentów</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{text.physicalSubtitle}</div>
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -748,7 +778,7 @@ export default function ClientDetailPage() {
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📍</div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{text.polandStayTitle}</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>Adres, podstawa pobytu i karta pobytu</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{text.polandStaySubtitle}</div>
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -823,7 +853,7 @@ export default function ClientDetailPage() {
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✈️</div>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{text.travelTitle}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>Wyjazdy zagraniczne i pobyty</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{text.travelSubtitle}</div>
                   </div>
                 </div>
                 <button onClick={() => setShowAddTravel(v => !v)} className="btn btn-primary" style={{ fontSize: 13 }}>{text.add}</button>
@@ -834,7 +864,7 @@ export default function ClientDetailPage() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
                     <div className="form-group">
                       <label className="label">{text.country}</label>
-                      <input className="input" value={newTravel.country} onChange={e => setNewTravel(p => ({ ...p, country: e.target.value }))} placeholder="Украина" />
+                      <input className="input" value={newTravel.country} onChange={e => setNewTravel(p => ({ ...p, country: e.target.value }))} placeholder={text.countryPlaceholder} />
                     </div>
                     <div className="form-group">
                       <label className="label">{text.entryDate}</label>
@@ -866,9 +896,9 @@ export default function ClientDetailPage() {
                       <div style={{ flex: 1 }}>
                         <span style={{ fontWeight: 600, fontSize: 13 }}>{t.country}</span>
                         <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>
-                          {t.entryDate && `${text.entry}: ${new Date(t.entryDate).toLocaleDateString(lang === 'pl' ? 'pl-PL' : lang === 'uk' ? 'uk-UA' : 'ru-RU')}`}
+                          {t.entryDate && `${text.entry}: ${new Date(t.entryDate).toLocaleDateString(LOCALES[lang])}`}
                           {t.entryDate && t.exitDate && ' → '}
-                          {t.exitDate && `${text.exit}: ${new Date(t.exitDate).toLocaleDateString(lang === 'pl' ? 'pl-PL' : lang === 'uk' ? 'uk-UA' : 'ru-RU')}`}
+                          {t.exitDate && `${text.exit}: ${new Date(t.exitDate).toLocaleDateString(LOCALES[lang])}`}
                         </div>
                       </div>
                       <button onClick={() => removeTravel(t.id)} style={{ background: '#fef2f2', border: 'none', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 12, color: '#dc2626' }}>🗑</button>
@@ -897,7 +927,7 @@ export default function ClientDetailPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                         {c.service && <div style={{ width: 8, height: 8, borderRadius: '50%', background: c.service.color || '#3b82f6', flexShrink: 0 }} />}
                         <span style={{ fontSize: 12, fontWeight: 500, flex: 1 }}>{c.service?.name || c.caseNumber}</span>
-                        <span className="badge" style={{ background: sc.bg, color: sc.color, fontSize: 10 }}>{c.status}</span>
+                        <span className="badge" style={{ background: sc.bg, color: sc.color, fontSize: 10 }}>{caseStatusLabel(lang, c.status)}</span>
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>{c.caseNumber}</div>
                     </div>
@@ -920,7 +950,7 @@ export default function ClientDetailPage() {
                       <div style={{ padding: '6px 0', borderBottom: '1px solid var(--border)', opacity: 0.7 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ fontSize: 11, flex: 1, color: 'var(--text)' }}>{c.service?.name || c.caseNumber}</span>
-                          <span className="badge" style={{ background: sc.bg, color: sc.color, fontSize: 10 }}>{c.status}</span>
+                          <span className="badge" style={{ background: sc.bg, color: sc.color, fontSize: 10 }}>{caseStatusLabel(lang, c.status)}</span>
                         </div>
                       </div>
                     </Link>
@@ -934,8 +964,8 @@ export default function ClientDetailPage() {
               <div className="section-title"><span>ℹ️</span>{text.info}</div>
               <div style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {[
-                  [text.created, new Date(client.createdAt).toLocaleDateString(lang === 'pl' ? 'pl-PL' : lang === 'uk' ? 'uk-UA' : 'ru-RU')],
-                  [text.updated, new Date(client.updatedAt).toLocaleDateString(lang === 'pl' ? 'pl-PL' : lang === 'uk' ? 'uk-UA' : 'ru-RU')],
+                  [text.created, new Date(client.createdAt).toLocaleDateString(LOCALES[lang])],
+                  [text.updated, new Date(client.updatedAt).toLocaleDateString(LOCALES[lang])],
                   client.citizenship && [text.citizenship, client.citizenship],
                   client.branch && [text.department, client.branch],
                 ].filter(Boolean).map(([label, value]: any) => (

@@ -40,7 +40,7 @@ function isOrganizationAdmin(user: any) {
 
 function isArchiveStatus(status?: string | null) {
   const value = String(status || '').trim().toLowerCase()
-  return value.includes('архив') || value.includes('archive') || value.includes('archiw') || status === 'РђСЂС…РёРІ'
+  return value.includes('архив') || value.includes('archive') || value.includes('archiw') || status === 'Архив'
 }
 
 function serializeCaseDocument(doc: any) {

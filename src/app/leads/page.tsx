@@ -242,7 +242,7 @@ export default function LeadsPage() {
     if (!status) return counts
     for (const lead of leads) {
       if (normalizedStatus(lead.status) !== status) continue
-      const reason = lead.statusReason || 'Без причины'
+      const reason = lead.statusReason || lt('without_reason')
       counts[reason] = (counts[reason] || 0) + 1
     }
     return counts
@@ -639,14 +639,14 @@ export default function LeadsPage() {
                   <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
                     <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, fontWeight: 700 }}>
                       <input type="checkbox" checked={Boolean(item.requireReason)} onChange={event => saveLeadStatus(item, { requireReason: event.target.checked })} />
-                      Причина при переводе
+                      {lt('reason_required_on_status')}
                     </label>
                     {item.requireReason && (
                       <textarea
                         className="textarea"
                         defaultValue={statusReasons(item).join('\n')}
                         onBlur={event => saveLeadStatus(item, { reasons: parseReasonList(event.target.value) })}
-                        placeholder="Причины, каждая с новой строки"
+                        placeholder={lt('reasons_placeholder')}
                         style={{ minHeight: 72, fontSize: 12 }}
                       />
                     )}
@@ -702,7 +702,7 @@ export default function LeadsPage() {
           <div className="card" style={{ marginBottom: 12, padding: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 8 }}>
               <strong>Причины: {leadStatusLabel(lang, status)}</strong>
-              <button type="button" className="btn btn-secondary" style={{ padding: '5px 8px' }} onClick={() => setStatusReasonFilter('')}>Все причины</button>
+                  <button type="button" className="btn btn-secondary" style={{ padding: '5px 8px' }} onClick={() => setStatusReasonFilter('')}>{lt('all_reasons')}</button>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {Array.from(new Set([...selectedStatusReasons, ...Object.keys(statusReasonCounts)])).map(reason => (
@@ -777,7 +777,7 @@ export default function LeadsPage() {
                     </th>
                     <th>{sortHeader('lead', lt('lead'))}</th>
                     <th>{sortHeader('status', lt('status'))}</th>
-                    {showStatusReasons && <th>Причина</th>}
+                    {showStatusReasons && <th>{lt('reason')}</th>}
                     <th>{sortHeader('source', lt('source'))}</th>
                     <th>{sortHeader('interest', lt('interest'))}</th>
                     <th>{sortHeader('nextContact', lt('next_contact'))}</th>
@@ -914,7 +914,7 @@ export default function LeadsPage() {
                               </div>
                             </div>
                             {lead.serviceInterest && <div style={{ fontSize: 12, marginBottom: 6 }}>{lead.serviceInterest}</div>}
-                            {lead.statusReason && <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--muted)' }}>Причина: {lead.statusReason}</div>}
+                            {lead.statusReason && <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--muted)' }}>{lt('reason_prefix')}: {lead.statusReason}</div>}
                             {lead.nextContactAt && (
                               <div style={{ color: isOverdue(lead.nextContactAt) && !isConvertedLead(lead) ? '#b91c1c' : 'var(--muted)', fontSize: 12, fontWeight: isOverdue(lead.nextContactAt) && !isConvertedLead(lead) ? 800 : 500 }}>
                                 {formatLeadDateTime(lead.nextContactAt, locale)}
@@ -1074,20 +1074,20 @@ export default function LeadsPage() {
           }}
         >
           <div className="card" style={{ width: 'min(520px, 100%)' }} onClick={event => event.stopPropagation()}>
-            <div className="section-title" style={{ marginBottom: 12 }}><span>!</span>Причина смены статуса</div>
+            <div className="section-title" style={{ marginBottom: 12 }}><span>!</span>{lt('status_change_reason')}</div>
             <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 14 }}>
-              Статус: <strong>{leadStatusLabel(lang, statusReasonModal.nextStatus)}</strong>. Лидов: {statusReasonModal.leadIds.length}
+              {lt('status_label')}: <strong>{leadStatusLabel(lang, statusReasonModal.nextStatus)}</strong>. {lt('leads_count')}: {statusReasonModal.leadIds.length}
             </div>
             <div className="form-group">
-              <label className="label">Причина</label>
+              <label className="label">{lt('reason')}</label>
               <select className="select" value={statusReasonDraft.reason} onChange={event => setStatusReasonDraft(current => ({ ...current, reason: event.target.value }))}>
-                <option value="">Выберите причину</option>
+                <option value="">{lt('choose_reason')}</option>
                 {statusReasons(statusByName[statusReasonModal.nextStatus]).map(reason => <option key={reason} value={reason}>{reason}</option>)}
               </select>
             </div>
             <div className="form-group">
-              <label className="label">Комментарий</label>
-              <textarea className="input" rows={3} value={statusReasonDraft.comment} onChange={event => setStatusReasonDraft(current => ({ ...current, comment: event.target.value }))} placeholder="Можно добавить короткое пояснение" />
+              <label className="label">{lt('comment')}</label>
+              <textarea className="input" rows={3} value={statusReasonDraft.comment} onChange={event => setStatusReasonDraft(current => ({ ...current, comment: event.target.value }))} placeholder={lt('comment_placeholder')} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
               <button

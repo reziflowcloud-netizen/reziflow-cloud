@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
+import { caseStatusLabel } from '@/lib/caseI18n'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый':               { bg: '#eff6ff', color: '#1d4ed8' },
@@ -14,6 +15,8 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 }
 
 const ACTIVE_STATUSES = ['Новый', 'В работе', 'Ожидание документов']
+const ALL_FILTER = 'all'
+const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
 
 type SortKey = 'client' | 'status' | 'service' | 'value' | 'debt' | 'date'
 type SortDir = 'asc' | 'desc'
@@ -21,7 +24,8 @@ type SortDir = 'asc' | 'desc'
 export default function CasesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
+  const locale = LOCALES[lang] || 'ru-RU'
   const [cases, setCases] = useState<any[]>([])
   const [statuses, setStatuses] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -35,7 +39,7 @@ export default function CasesPage() {
   // filter=active → активные дела
   // filter=no_pay → договора без оплаты
   // filter=Новый  → конкретный статус
-  const urlFilter = searchParams.get('filter') || 'Все'
+  const urlFilter = searchParams.get('filter') || ALL_FILTER
   const [activeFilter, setActiveFilter] = useState(urlFilter)
 
   useEffect(() => {
@@ -67,11 +71,11 @@ export default function CasesPage() {
 
   async function deleteCase(caseId: string, e: React.MouseEvent) {
     e.stopPropagation()
-    if (!confirm('Удалить дело навсегда? Это действие нельзя отменить.')) return
+    if (!confirm(t('delete_case_confirm'))) return
     const res = await fetch(`/api/cases/${caseId}`, { method: 'DELETE' })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert(data.error || 'Не удалось удалить дело')
+      alert(data.error || t('delete_case_failed'))
       return
     }
     setCases(prev => prev.filter(c => c.id !== caseId))
@@ -97,7 +101,7 @@ export default function CasesPage() {
   const filtered = cases
     .filter(c => {
       // Фильтр
-      if (activeFilter === 'Все') return true
+      if (activeFilter === ALL_FILTER || activeFilter === 'Все') return true
       if (activeFilter === 'active') return ACTIVE_STATUSES.includes(c.status)
       if (activeFilter === 'no_pay') return c.contractSigned && c.totalPaid === 0 && c.totalValue > 0
       return c.status === activeFilter
@@ -123,9 +127,9 @@ export default function CasesPage() {
   const canDeleteCases = currentUser?.role === 'admin' || currentUser?.role === 'owner'
 
   // Заголовок активного фильтра
-  const filterTitle = activeFilter === 'active' ? `Активные дела (${activeCasesCount})`
-    : activeFilter === 'no_pay' ? `Договора без оплаты (${noPayCount})`
-    : activeFilter === 'Все' ? `Все дела (${cases.length})`
+  const filterTitle = activeFilter === 'active' ? `${t('active_cases_title')} (${activeCasesCount})`
+    : activeFilter === 'no_pay' ? `${t('contracts_without_payment_title')} (${noPayCount})`
+    : activeFilter === ALL_FILTER || activeFilter === 'Все' ? `${t('all_cases_title')} (${cases.length})`
     : `${activeFilter} (${cases.filter(c => c.status === activeFilter).length})`
 
   return (
@@ -142,10 +146,10 @@ export default function CasesPage() {
         <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
           {/* Все */}
           <button
-            onClick={() => setActiveFilter('Все')}
+            onClick={() => setActiveFilter(ALL_FILTER)}
             style={{ padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: 'none',
-              background: activeFilter === 'Все' ? 'var(--brand)' : 'var(--bg)',
-              color: activeFilter === 'Все' ? 'white' : 'var(--muted)' }}>
+              background: (activeFilter === ALL_FILTER || activeFilter === 'Все') ? 'var(--brand)' : 'var(--bg)',
+              color: (activeFilter === ALL_FILTER || activeFilter === 'Все') ? 'white' : 'var(--muted)' }}>
             {t('total')} ({cases.length})
           </button>
           {/* Статусы */}
@@ -157,7 +161,7 @@ export default function CasesPage() {
               <button key={s.id} onClick={() => setActiveFilter(s.name)}
                 style={{ padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: 'none',
                   background: isActive ? sc.color : sc.bg, color: isActive ? 'white' : sc.color }}>
-                {s.name} ({count})
+                {caseStatusLabel(lang, s.name)} ({count})
               </button>
             )
           })}
@@ -172,16 +176,16 @@ export default function CasesPage() {
               border: `1px solid ${activeFilter === 'active' ? '#fbbf24' : '#fca5a5'}`,
               display: 'flex', alignItems: 'center', gap: 8 }}>
               {activeFilter === 'active' ? '⚡' : '📄'}
-              {activeFilter === 'active' ? `Активные дела: ${activeCasesCount}` : `Договора без оплаты: ${noPayCount}`}
+              {activeFilter === 'active' ? `${t('active_cases_title')}: ${activeCasesCount}` : `${t('contracts_without_payment_title')}: ${noPayCount}`}
             </div>
-            <button onClick={() => setActiveFilter('Все')} className="btn btn-ghost" style={{ fontSize: 12 }}>
-              ✕ Сбросить фильтр
+            <button onClick={() => setActiveFilter(ALL_FILTER)} className="btn btn-ghost" style={{ fontSize: 12 }}>
+              ✕ {t('reset_filter')}
             </button>
           </div>
         )}
 
         <div style={{ marginBottom: 16 }}>
-          <input className="input" placeholder="🔍 Поиск по клиенту или телефону..."
+          <input className="input" placeholder={`🔍 ${t('search_cases_phone')}`}
             value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 380 }} />
         </div>
 
@@ -228,9 +232,9 @@ export default function CasesPage() {
                           className="badge"
                           onClick={e => { e.stopPropagation(); setStatusPopup(statusPopup === c.id ? null : c.id) }}
                           style={{ background: sc.bg, color: sc.color, cursor: 'pointer', userSelect: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                          title="Нажмите для смены статуса"
+                          title={t('change_status_hint')}
                         >
-                          {c.status} <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
+                          {caseStatusLabel(lang, c.status)} <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
                         </span>
                         {statusPopup === c.id && (
                           <div style={{
@@ -253,7 +257,7 @@ export default function CasesPage() {
                                   onMouseLeave={e => (e.currentTarget.style.background = c.status === s.name ? '#f9fafb' : 'transparent')}
                                 >
                                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
-                                  <span style={{ fontSize: 13 }}>{s.name}</span>
+                                  <span style={{ fontSize: 13 }}>{caseStatusLabel(lang, s.name)}</span>
                                   {c.status === s.name && <span style={{ marginLeft: 'auto', color: s.color }}>✓</span>}
                                 </div>
                               )
@@ -273,13 +277,13 @@ export default function CasesPage() {
                         {debt > 0 ? `-${debt.toFixed(2)} zł` : '✓'}
                       </td>
                       <td style={{ color: 'var(--muted)', fontSize: 13 }}>
-                        {new Date(c.createdAt).toLocaleDateString('ru')}
+                        {new Date(c.createdAt).toLocaleDateString(locale)}
                       </td>
                       <td onClick={e => e.stopPropagation()}>
                         {canDeleteCases && c.status === 'Архив' && (
                           <button
                             onClick={e => deleteCase(c.id, e)}
-                            title="Удалить дело"
+                            title={t('delete_case')}
                             style={{ background: '#fef2f2', border: 'none', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', color: '#dc2626', fontSize: 13 }}
                           >🗑</button>
                         )}

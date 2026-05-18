@@ -210,7 +210,7 @@ export default function LeadDetailPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Не удалось добавить контакт')
+        setError(data.error || lt('add_contact_failed'))
         return
       }
       setContactHistory(current => [data, ...current])
@@ -239,7 +239,7 @@ export default function LeadDetailPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Не удалось добавить сообщение')
+        setError(data.error || lt('add_message_failed'))
         return
       }
       setMessages(current => [...current, data])
@@ -336,7 +336,7 @@ export default function LeadDetailPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Не удалось добавить напоминание')
+        setError(data.error || lt('add_reminder_failed'))
         return
       }
       setReminders(current => [...current, data].sort((a, b) => new Date(a.reminderAt || a.dueDate).getTime() - new Date(b.reminderAt || b.dueDate).getTime()))
@@ -483,15 +483,15 @@ export default function LeadDetailPage() {
                 {selectedStatusConfig?.requireReason && (
                   <>
                     <div className="form-group">
-                      <label className="label">Причина статуса</label>
+                      <label className="label">{lt('status_reason')}</label>
                       <select className="select" value={form.statusReason || ''} onChange={set('statusReason')}>
-                        <option value="">Выберите причину</option>
+                        <option value="">{lt('choose_reason')}</option>
                         {selectedStatusReasons.map((reason: string) => <option key={reason} value={reason}>{reason}</option>)}
                       </select>
                     </div>
                     <div className="form-group">
-                      <label className="label">Комментарий к причине</label>
-                      <textarea className="input" rows={3} value={form.statusReasonComment || ''} onChange={set('statusReasonComment')} placeholder="Можно добавить короткое пояснение" />
+                      <label className="label">{lt('reason_comment')}</label>
+                      <textarea className="input" rows={3} value={form.statusReasonComment || ''} onChange={set('statusReasonComment')} placeholder={lt('comment_placeholder')} />
                     </div>
                   </>
                 )}
@@ -556,19 +556,19 @@ export default function LeadDetailPage() {
             </div>
 
             <div className="card" style={{ marginBottom: 16 }}>
-              <div className="section-title"><span>💬</span>Диалог</div>
+              <div className="section-title"><span>💬</span>{lt('dialog')}</div>
               <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', padding: 12, minHeight: 160, maxHeight: 360, overflow: 'auto', marginBottom: 12 }}>
                 {messages.length === 0 ? (
-                  <div style={{ color: 'var(--muted)', fontSize: 13 }}>Сообщений пока нет. Здесь будет переписка с лидами из Instagram, Facebook или добавленная вручную.</div>
+                  <div style={{ color: 'var(--muted)', fontSize: 13 }}>{lt('no_messages')}</div>
                 ) : (
                   <div style={{ display: 'grid', gap: 10 }}>
                     {messages.map(message => {
                       const outgoing = message.direction === 'outgoing'
                       const sender = message.senderType === 'bot'
-                        ? 'Бот'
+                        ? lt('bot')
                         : message.senderType === 'employee'
-                          ? (message.author?.name || 'Сотрудник')
-                          : 'Лид'
+                          ? (message.author?.name || lt('employee'))
+                          : lt('lead')
                       return (
                         <div key={message.id} style={{ display: 'flex', justifyContent: outgoing ? 'flex-end' : 'flex-start' }}>
                           <div style={{
@@ -592,36 +592,36 @@ export default function LeadDetailPage() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '160px 160px 1fr', gap: 10, alignItems: 'start' }}>
                 <div className="form-group">
-                  <label className="label">Тип</label>
+                  <label className="label">{lt('message_type')}</label>
                   <select className="select" value={messageForm.direction} onChange={setMessage('direction')}>
-                    <option value="outgoing">Ответ фирмы</option>
-                    <option value="incoming">Сообщение лида</option>
+                    <option value="outgoing">{lt('company_reply')}</option>
+                    <option value="incoming">{lt('lead_message')}</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="label">Автор</label>
+                  <label className="label">{lt('author')}</label>
                   <select className="select" value={messageForm.senderType} onChange={setMessage('senderType')}>
-                    <option value="employee">Сотрудник</option>
-                    <option value="lead">Лид</option>
-                    <option value="bot">Бот</option>
-                    <option value="system">Система</option>
+                    <option value="employee">{lt('employee')}</option>
+                    <option value="lead">{lt('lead')}</option>
+                    <option value="bot">{lt('bot')}</option>
+                    <option value="system">{lt('system')}</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="label">Канал</label>
+                  <label className="label">{lt('channel')}</label>
                   <select className="select" value={messageForm.channel} onChange={setMessage('channel')}>
                     {LEAD_SOURCES.map(source => <option key={source.value} value={source.value}>{leadSourceLabel(lang, source.value)}</option>)}
                     <option value="messenger">Messenger</option>
-                    <option value="manual">Вручную</option>
+                    <option value="manual">{lt('manual')}</option>
                   </select>
                 </div>
                 <div className="form-group" style={{ gridColumn: '1/-1' }}>
-                  <label className="label">Сообщение</label>
-                  <textarea className="input" rows={3} value={messageForm.text} onChange={setMessage('text')} placeholder="Текст сообщения или ответа..." />
+                  <label className="label">{lt('message')}</label>
+                  <textarea className="input" rows={3} value={messageForm.text} onChange={setMessage('text')} placeholder={lt('message_placeholder')} />
                 </div>
                 <div style={{ gridColumn: '1/-1', display: 'flex', justifyContent: 'flex-end' }}>
                   <button className="btn btn-primary" onClick={addMessage} disabled={savingMessage || !messageForm.text.trim()}>
-                    {savingMessage ? lt('saving') : 'Добавить сообщение'}
+                    {savingMessage ? lt('saving') : lt('add_message')}
                   </button>
                 </div>
               </div>
@@ -735,9 +735,9 @@ export default function LeadDetailPage() {
             </div>
 
             <div className="card" style={{ marginBottom: 16 }}>
-              <div className="section-title"><span>🔔</span>Напоминания лида</div>
+              <div className="section-title"><span>🔔</span>{lt('lead_reminders')}</div>
               <div className="form-group">
-                <label className="label">Дата и время</label>
+                <label className="label">{lt('date_time')}</label>
                 <input
                   className="input"
                   type="datetime-local"
@@ -746,13 +746,13 @@ export default function LeadDetailPage() {
                 />
               </div>
               <div className="form-group">
-                <label className="label">О чем напомнить</label>
+                <label className="label">{lt('remind_about')}</label>
                 <textarea
                   className="input"
                   rows={3}
                   value={reminderForm.note}
                   onChange={event => setReminderForm(current => ({ ...current, note: event.target.value }))}
-                  placeholder="Например: проверить документы, напомнить об оплате, перезвонить по решению"
+                  placeholder={lt('reminder_placeholder')}
                 />
               </div>
               <button
@@ -762,13 +762,13 @@ export default function LeadDetailPage() {
                 onClick={addReminder}
                 disabled={savingReminder || !reminderForm.reminderAt || !reminderForm.note.trim()}
               >
-                {savingReminder ? lt('saving') : 'Добавить напоминание'}
+                {savingReminder ? lt('saving') : lt('add_reminder')}
               </button>
 
               <div style={{ borderTop: '1px solid var(--border)', marginTop: 14, paddingTop: 14 }}>
-                <div className="section-title" style={{ marginBottom: 10 }}><span>☑</span>Все напоминания</div>
+                <div className="section-title" style={{ marginBottom: 10 }}><span>☑</span>{lt('all_reminders')}</div>
                 {reminders.length === 0 ? (
-                  <div style={{ color: 'var(--muted)', fontSize: 13 }}>Напоминаний пока нет</div>
+                  <div style={{ color: 'var(--muted)', fontSize: 13 }}>{lt('no_reminders')}</div>
                 ) : (
                   <div style={{ display: 'grid', gap: 8 }}>
                     {reminders.map(reminder => {
@@ -787,7 +787,7 @@ export default function LeadDetailPage() {
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
                             <strong style={{ fontSize: 13 }}>
-                              {reminderDate ? new Date(reminderDate).toLocaleString(locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Без даты'}
+                              {reminderDate ? new Date(reminderDate).toLocaleString(locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : lt('no_date')}
                             </strong>
                             <span style={{
                               borderRadius: 999,
@@ -797,7 +797,7 @@ export default function LeadDetailPage() {
                               fontSize: 11,
                               fontWeight: 700,
                             }}>
-                              {done ? 'Выполнено' : 'Активно'}
+                              {done ? lt('reminder_done') : lt('reminder_active')}
                             </span>
                           </div>
                           <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, marginTop: 6 }}>{reminder.reminderNote || reminder.title}</div>
@@ -811,7 +811,7 @@ export default function LeadDetailPage() {
                               style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
                               onClick={() => completeReminder(reminder)}
                             >
-                              Отметить выполненным
+                              {lt('mark_completed')}
                             </button>
                           )}
                         </div>

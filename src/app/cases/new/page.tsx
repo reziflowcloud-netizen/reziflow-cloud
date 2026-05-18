@@ -2,15 +2,21 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useLanguage } from '@/context/LanguageContext'
+import { caseStatusLabel } from '@/lib/caseI18n'
 
 function ClientCombobox({
   clients,
   value,
   onSelect,
+  placeholder,
+  noResultsText,
 }: {
   clients: any[]
   value: string
   onSelect: (clientId: string) => void
+  placeholder: string
+  noResultsText: string
 }) {
   const selectedClient = clients.find(client => client.id === value)
   const [query, setQuery] = useState('')
@@ -55,14 +61,14 @@ function ClientCombobox({
           setOpen(true)
           if (!e.target.value.trim()) onSelect('')
         }}
-        placeholder="Начните вводить имя или фамилию"
+        placeholder={placeholder}
         autoComplete="off"
         style={{ borderColor: !value ? 'var(--brand)' : undefined }}
       />
       {open && (
         <div style={{ position: 'absolute', left: 0, right: 0, top: 'calc(100% + 4px)', zIndex: 60, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 10px 24px rgba(15, 23, 42, 0.14)', maxHeight: 260, overflowY: 'auto' }}>
           {results.length === 0 ? (
-            <div style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 13 }}>Клиенты не найдены</div>
+            <div style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 13 }}>{noResultsText}</div>
           ) : results.map(client => (
             <button
               key={client.id}
@@ -84,6 +90,7 @@ function ClientCombobox({
 export default function NewCasePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { t, lang } = useLanguage()
   const [clients, setClients] = useState<any[]>([])
   const [statuses, setStatuses] = useState<any[]>([])
   const [services, setServices] = useState<any[]>([])
@@ -125,7 +132,7 @@ export default function NewCasePage() {
   }
 
   async function createClient() {
-    if (!newClient.firstName.trim() || !newClient.lastName.trim()) return alert('Введите имя и фамилию клиента')
+    if (!newClient.firstName.trim() || !newClient.lastName.trim()) return alert(t('client_name_required'))
     setCreatingClient(true)
     const res = await fetch('/api/clients', {
       method: 'POST',
@@ -134,7 +141,7 @@ export default function NewCasePage() {
     })
     const data = await res.json()
     setCreatingClient(false)
-    if (!res.ok) return alert(data.error || 'Не удалось создать клиента')
+    if (!res.ok) return alert(data.error || t('create_client_failed'))
 
     setClients(prev => [data, ...prev])
     setForm(prev => ({ ...prev, clientId: data.id }))
@@ -144,7 +151,7 @@ export default function NewCasePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.clientId) return alert('Выберите клиента')
+    if (!form.clientId) return alert(t('client_required'))
     setLoading(true)
     const res = await fetch('/api/cases', {
       method: 'POST',
@@ -153,7 +160,7 @@ export default function NewCasePage() {
     })
     const data = await res.json()
     if (res.ok) router.push(`/cases/${data.id}`)
-    else { alert(data.error || 'Ошибка'); setLoading(false) }
+    else { alert(data.error || t('save_failed')); setLoading(false) }
   }
 
   // Хелпер: показывать fallback опции если база пустая
@@ -169,13 +176,13 @@ export default function NewCasePage() {
     <div className="fade-in">
       <div className="page-header">
         <div>
-          <div className="page-title">Новое дело</div>
-          <div className="page-subtitle">Создайте дело для клиента</div>
+          <div className="page-title">{t('new_case').replace('+ ', '')}</div>
+          <div className="page-subtitle">{t('new_case_subtitle')}</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={() => router.back()} className="btn btn-secondary">Отмена</button>
+          <button type="button" onClick={() => router.back()} className="btn btn-secondary">{t('cancel')}</button>
           <button type="button" onClick={handleSubmit} className="btn btn-primary" disabled={loading}>
-            {loading ? 'Создание...' : '💾 Создать дело'}
+            {loading ? t('creating_case') : `💾 ${t('create_case')}`}
           </button>
         </div>
       </div>
@@ -184,38 +191,40 @@ export default function NewCasePage() {
         <form onSubmit={handleSubmit}>
           {/* Клиент */}
           <div className="card" style={{ marginBottom: 16 }}>
-            <div className="section-title"><span>👤</span>Клиент</div>
+            <div className="section-title"><span>👤</span>{t('client')}</div>
             <div className="form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 6 }}>
-                <label className="label" style={{ margin: 0 }}>Выберите клиента *</label>
+                <label className="label" style={{ margin: 0 }}>{t('choose_client')} *</label>
                 <button
                   type="button"
                   onClick={() => setShowNewClient(v => !v)}
                   className="btn btn-secondary"
                   style={{ padding: '6px 10px', fontSize: 12 }}
                 >
-                  {showNewClient ? 'Закрыть' : '+ Новый клиент'}
+                  {showNewClient ? t('close') : t('new_client')}
                 </button>
               </div>
               <ClientCombobox
                 clients={clients}
                 value={form.clientId}
                 onSelect={clientId => setForm(prev => ({ ...prev, clientId }))}
+                placeholder={t('client_search_placeholder')}
+                noResultsText={t('clients_not_found')}
               />
               {showNewClient && (
                 <div style={{ marginTop: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg)' }}>
-                  <div className="section-title" style={{ marginBottom: 10 }}>Быстро создать клиента</div>
+                  <div className="section-title" style={{ marginBottom: 10 }}>{t('quick_create_client')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <div className="form-group" style={{ margin: 0 }}>
-                      <label className="label">Имя *</label>
+                      <label className="label">{t('first_name')} *</label>
                       <input className="input" value={newClient.firstName} onChange={setNewClientField('firstName')} />
                     </div>
                     <div className="form-group" style={{ margin: 0 }}>
-                      <label className="label">Фамилия *</label>
+                      <label className="label">{t('last_name')} *</label>
                       <input className="input" value={newClient.lastName} onChange={setNewClientField('lastName')} />
                     </div>
                     <div className="form-group" style={{ margin: 0 }}>
-                      <label className="label">Телефон</label>
+                      <label className="label">{t('phone')}</label>
                       <input className="input" value={newClient.phone} onChange={setNewClientField('phone')} />
                     </div>
                     <div className="form-group" style={{ margin: 0 }}>
@@ -225,15 +234,15 @@ export default function NewCasePage() {
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                     <button type="button" onClick={createClient} className="btn btn-primary" disabled={creatingClient}>
-                      {creatingClient ? 'Создание...' : '+ Создать и выбрать'}
+                      {creatingClient ? t('creating_case') : t('create_and_select')}
                     </button>
-                    <button type="button" onClick={() => setShowNewClient(false)} className="btn btn-secondary">Отмена</button>
+                    <button type="button" onClick={() => setShowNewClient(false)} className="btn btn-secondary">{t('cancel')}</button>
                   </div>
                 </div>
               )}
               {clients.length === 0 && (
                 <div style={{ marginTop: 8, fontSize: 13, color: 'var(--muted)' }}>
-                  Нет клиентов. <a href="/clients/new" style={{ color: 'var(--brand)' }}>Создайте сначала клиента →</a>
+                  {t('no_clients_create_first')} <a href="/clients/new" style={{ color: 'var(--brand)' }}>{t('create_client_first')}</a>
                 </div>
               )}
             </div>
@@ -241,13 +250,13 @@ export default function NewCasePage() {
 
           {/* Данные дела */}
           <div className="card" style={{ marginBottom: 16 }}>
-            <div className="section-title"><span>⚖️</span>Данные дела</div>
+            <div className="section-title"><span>⚖️</span>{t('case_data')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
 
               <div className="form-group" style={{ gridColumn: '1/-1' }}>
-                <label className="label">🛠 Услуга</label>
+                <label className="label">🛠 {t('service')}</label>
                 <select className="select" value={form.serviceId} onChange={set('serviceId')}>
-                  <option value="">— Выберите услугу —</option>
+                  <option value="">{t('choose_service')}</option>
                   {services.map(s => (
                     <option key={s.id} value={s.id}>
                       {s.name}{s.price ? ` · ${s.price.toFixed(0)} zł` : ''}
@@ -256,37 +265,37 @@ export default function NewCasePage() {
                 </select>
                 {services.length === 0 && (
                   <div style={{ marginTop: 6, fontSize: 12, color: 'var(--muted)' }}>
-                    Нет услуг. <a href="/settings/services" style={{ color: 'var(--brand)' }}>Добавить в настройках →</a>
+                    {t('no_services')} <a href="/settings/services" style={{ color: 'var(--brand)' }}>{t('add_in_settings')}</a>
                   </div>
                 )}
               </div>
 
               <div className="form-group" style={{ gridColumn: '1/-1' }}>
-                <label className="label">Номер дела <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(можно заполнить позже)</span></label>
-                <input className="input" value={form.caseNumber} onChange={set('caseNumber')} placeholder="Например: SC-II.1234.567/2026" style={{ fontFamily: 'monospace' }} />
+                <label className="label">{t('case_number_later')} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>({t('can_fill_later')})</span></label>
+                <input className="input" value={form.caseNumber} onChange={set('caseNumber')} placeholder={t('example_case_number')} style={{ fontFamily: 'monospace' }} />
               </div>
 
               <div className="form-group">
-                <label className="label">Статус</label>
+                <label className="label">{t('status')}</label>
                 <select className="select" value={form.status} onChange={set('status')}>
-                  {statuses.map(s => <option key={s.id}>{s.name}</option>)}
-                  {statuses.length === 0 && <option>Новый</option>}
+                  {statuses.map(s => <option key={s.id} value={s.name}>{caseStatusLabel(lang, s.name)}</option>)}
+                  {statuses.length === 0 && <option value="Новый">{caseStatusLabel(lang, 'Новый')}</option>}
                 </select>
               </div>
 
               <div className="form-group">
-                <label className="label">Стоимость услуги (zł)</label>
+                <label className="label">{t('service_cost')} (zł)</label>
                 <input className="input" type="number" value={form.totalValue} onChange={set('totalValue')} placeholder="0.00" step="0.01" />
               </div>
 
               {/* Цель пребывания — из базы */}
               <div className="form-group">
                 <label className="label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Цель пребывания</span>
-                  <a href="/settings/case-options" style={{ fontSize: 11, color: 'var(--brand)' }}>+ настроить</a>
+                  <span>{t('stay_purpose')}</span>
+                  <a href="/settings/case-options" style={{ fontSize: 11, color: 'var(--brand)' }}>+ {t('configure')}</a>
                 </label>
                 <select className="select" value={form.stayPurpose} onChange={set('stayPurpose')}>
-                  <option value="">Выберите</option>
+                  <option value="">{t('choose')}</option>
                   {renderOptions('stayPurpose', [
                     'Побыт часовый (Временный)',
                     'Побыт сталый (Постоянный)',
@@ -298,11 +307,11 @@ export default function NewCasePage() {
               {/* Тип занятости — из базы */}
               <div className="form-group">
                 <label className="label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Тип занятости</span>
-                  <a href="/settings/case-options" style={{ fontSize: 11, color: 'var(--brand)' }}>+ настроить</a>
+                  <span>{t('stay_type')}</span>
+                  <a href="/settings/case-options" style={{ fontSize: 11, color: 'var(--brand)' }}>+ {t('configure')}</a>
                 </label>
                 <select className="select" value={form.stayType} onChange={set('stayType')}>
-                  <option value="">Выберите</option>
+                  <option value="">{t('choose')}</option>
                   {renderOptions('stayType', [
                     'Выконывание пацы (Работа)',
                     'Обучение',
@@ -316,11 +325,11 @@ export default function NewCasePage() {
               {/* Тип договора — из базы */}
               <div className="form-group">
                 <label className="label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Тип договора</span>
-                  <a href="/settings/case-options" style={{ fontSize: 11, color: 'var(--brand)' }}>+ настроить</a>
+                  <span>{t('contract_type')}</span>
+                  <a href="/settings/case-options" style={{ fontSize: 11, color: 'var(--brand)' }}>+ {t('configure')}</a>
                 </label>
                 <select className="select" value={form.contractType} onChange={set('contractType')}>
-                  <option value="">Выберите</option>
+                  <option value="">{t('choose')}</option>
                   {renderOptions('contractType', [
                     'Умова злецения (Договор подряда)',
                     'Умова о працу (Трудовой)',
@@ -330,8 +339,8 @@ export default function NewCasePage() {
               </div>
 
               <div className="form-group" style={{ gridColumn: '1/-1' }}>
-                <label className="label">Заметки</label>
-                <textarea className="input" value={form.notes} onChange={set('notes')} rows={3} placeholder="Дополнительная информация..." />
+                <label className="label">{t('notes')}</label>
+                <textarea className="input" value={form.notes} onChange={set('notes')} rows={3} placeholder={t('notes_placeholder')} />
               </div>
             </div>
           </div>
