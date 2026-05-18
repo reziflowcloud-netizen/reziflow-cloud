@@ -131,17 +131,7 @@ export default function Sidebar({
   return (
     <div className="sidebar">
       <div className="sidebar-logo">
-        <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
-          <defs>
-            <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#38bdf8"/><stop offset="100%" stopColor="#2563eb"/>
-            </linearGradient>
-          </defs>
-          <rect width="32" height="32" rx="8" fill="url(#rg)"/>
-          <path d="M9 9 L16 16 L9 23" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-          <path d="M16 9 L23 16 L16 23" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.6"/>
-        </svg>
-        <span>ReziFlow <em>CRM</em></span>
+        <img src="/assets/legalhub/legalhub-logo-dark.svg" alt="LegalHub" className="sidebar-brand-logo" />
       </div>
 
       <div style={{ flex: 1 }}>

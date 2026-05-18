@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': 'attachment; filename="ReziFlowCRM_import_template.csv"',
+          'Content-Disposition': 'attachment; filename="LegalHubCRM_import_template.csv"',
         }
       })
     }
@@ -226,7 +226,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="ReziFlowCRM_baza_${new Date().toISOString().slice(0,10)}.csv"`,
+          'Content-Disposition': `attachment; filename="LegalHubCRM_baza_${new Date().toISOString().slice(0,10)}.csv"`,
         }
       })
     }
@@ -248,7 +248,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="ReziFlowCRM_clients_${new Date().toISOString().slice(0,10)}.csv"`,
+          'Content-Disposition': `attachment; filename="LegalHubCRM_clients_${new Date().toISOString().slice(0,10)}.csv"`,
         }
       })
     }
@@ -287,7 +287,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="ReziFlowCRM_cases_${new Date().toISOString().slice(0,10)}.csv"`,
+          'Content-Disposition': `attachment; filename="LegalHubCRM_cases_${new Date().toISOString().slice(0,10)}.csv"`,
         }
       })
     }
@@ -314,7 +314,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="ReziFlowCRM_payments_${new Date().toISOString().slice(0,10)}.csv"`,
+          'Content-Disposition': `attachment; filename="LegalHubCRM_payments_${new Date().toISOString().slice(0,10)}.csv"`,
         }
       })
     }

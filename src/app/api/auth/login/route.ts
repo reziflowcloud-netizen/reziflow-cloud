@@ -10,7 +10,7 @@ async function ensureDefaultOrganization() {
     update: {},
     create: {
       id: 'org_default',
-      name: process.env.ORGANIZATION_NAME || 'ReziFlow CRM',
+      name: process.env.ORGANIZATION_NAME || 'LegalHub',
       slug: process.env.ORGANIZATION_SLUG || 'default',
       status: 'active',
       plan: 'manual',
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       role: user.role,
       avatarUrl: (user as any).avatarUrl || null,
       organizationId: user.organizationId || 'org_default',
-      organizationName: organization?.name || 'ReziFlow CRM',
+      organizationName: organization?.name || 'LegalHub',
     })
 
     const cookieStore = cookies()
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
         email: user.email,
         avatarUrl: (user as any).avatarUrl || null,
         organizationId: user.organizationId || 'org_default',
-        organizationName: organization?.name || 'ReziFlow CRM',
+        organizationName: organization?.name || 'LegalHub',
       },
     })
   } catch (error) {

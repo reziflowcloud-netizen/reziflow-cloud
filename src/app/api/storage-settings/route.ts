@@ -54,7 +54,7 @@ export async function PATCH(req: NextRequest) {
   const currentSettings = asSettings(org.settings)
   const currentDropbox = getDropboxSettings(currentSettings)
   const dropbox = body.dropbox && typeof body.dropbox === 'object' ? body.dropbox as Record<string, unknown> : {}
-  const rootFolder = String(dropbox.rootFolder || currentDropbox.rootFolder || '/ReziFlow CRM').trim() || '/ReziFlow CRM'
+  const rootFolder = String(dropbox.rootFolder || currentDropbox.rootFolder || '/LegalHub').trim() || '/LegalHub'
   const accessTokenInput = typeof dropbox.accessToken === 'string' ? dropbox.accessToken.trim() : ''
   const clearAccessToken = dropbox.clearAccessToken === true
 

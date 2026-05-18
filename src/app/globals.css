@@ -5,8 +5,8 @@ a { color: inherit; }
 
 /* ─── Light Theme (default) ─────────────── */
 :root {
-  --brand: #2563eb;
-  --brand-hover: #1d4ed8;
+  --brand: #0f766e;
+  --brand-hover: #0d5f59;
   --bg: #f4f5f7;
   --surface: #ffffff;
   --border: #e5e7eb;
@@ -17,8 +17,8 @@ a { color: inherit; }
   --sidebar-bg: #08111f;
   --sidebar-text: #f9fafb;
   --sidebar-muted: #9ca3af;
-  --sidebar-active: rgba(37,99,235,0.18);
-  --sidebar-active-text: #93c5fd;
+  --sidebar-active: rgba(16,167,160,0.18);
+  --sidebar-active-text: #5eead4;
   --sidebar-border: #102038;
   --sidebar-btn: rgba(255,255,255,0.07);
   --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
@@ -29,8 +29,8 @@ a { color: inherit; }
 
 /* ─── Dark Theme ─────────────────────────── */
 [data-theme="dark"] {
-  --brand: #38bdf8;
-  --brand-hover: #0ea5e9;
+  --brand: #2dd4bf;
+  --brand-hover: #14b8a6;
   --bg: #111827;
   --surface: #1f2937;
   --border: #374151;
@@ -41,8 +41,8 @@ a { color: inherit; }
   --sidebar-bg: #030712;
   --sidebar-text: #f9fafb;
   --sidebar-muted: #6b7280;
-  --sidebar-active: rgba(56,189,248,0.16);
-  --sidebar-active-text: #7dd3fc;
+  --sidebar-active: rgba(45,212,191,0.16);
+  --sidebar-active-text: #5eead4;
   --sidebar-border: #111827;
   --sidebar-btn: rgba(255,255,255,0.06);
   --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
@@ -93,6 +93,7 @@ body { background: var(--bg); color: var(--text); transition: background 0.2s, c
   padding: 18px 8px 14px; font-size: 18px; font-weight: 800; letter-spacing: -0.5px; color: white;
 }
 .sidebar-logo em { color: var(--brand); font-style: italic; }
+.sidebar-brand-logo { display: block; width: 168px; height: auto; max-height: 45px; object-fit: contain; object-position: left center; }
 
 .sidebar-label {
   font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
@@ -217,7 +218,7 @@ body { background: var(--bg); color: var(--text); transition: background 0.2s, c
   border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text);
   font-size: 13px; outline: none; transition: border-color 0.15s, background 0.2s; font-family: inherit;
 }
-.input:focus, .select:focus { border-color: var(--brand); box-shadow: 0 0 0 2px rgba(37,99,235,0.14); }
+.input:focus, .select:focus { border-color: var(--brand); box-shadow: 0 0 0 2px rgba(15,118,110,0.16); }
 
 /* Compact grids inside expandable case/client sections */
 [data-collapsible-scope] .card > div:has(> .form-group) {
@@ -307,6 +308,12 @@ textarea.input { resize: vertical; }
 .login-page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--bg); }
 .login-card { background: var(--surface); border-radius: 14px; padding: 36px; width: 380px; box-shadow: var(--shadow-md); border: 1px solid var(--border); }
 .login-logo { text-align: center; margin-bottom: 28px; }
+.login-brand-logo { display: block; width: 250px; height: auto; margin: 0 auto 8px; }
+.login-brand-logo-dark { display: none; }
+[data-theme="dark"] .login-brand-logo-light,
+[data-theme="slate"] .login-brand-logo-light { display: none; }
+[data-theme="dark"] .login-brand-logo-dark,
+[data-theme="slate"] .login-brand-logo-dark { display: block; }
 .logo-text { font-size: 28px; font-weight: 800; color: var(--text); }
 .logo-text em { color: var(--brand); }
 .error-msg { background: #fef2f2; border: 1px solid #fecaca; border-radius: 7px; padding: 10px 14px; color: #dc2626; font-size: 13px; margin-bottom: 16px; }

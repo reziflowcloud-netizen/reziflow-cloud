@@ -6,7 +6,7 @@ export type DropboxSettings = {
 
 export function getDropboxSettings(settings: unknown): DropboxSettings {
   const raw = settings && typeof settings === 'object' ? settings as Record<string, unknown> : {}
-  const rootFolder = String(raw.dropboxRootFolder || '/ReziFlow CRM').trim() || '/ReziFlow CRM'
+  const rootFolder = String(raw.dropboxRootFolder || '/LegalHub').trim() || '/LegalHub'
   return {
     enabled: raw.dropboxEnabled === true,
     accessToken: String(raw.dropboxAccessToken || '').trim(),

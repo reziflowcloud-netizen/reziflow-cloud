@@ -1,11 +1,11 @@
 {
-  "name": "ReziFlow CRM",
-  "short_name": "ReziCRM",
+  "name": "LegalHub",
+  "short_name": "LegalHub",
   "description": "Облачная CRM для иммиграционных агентств",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#2563eb",
+  "theme_color": "#0f766e",
   "orientation": "portrait",
   "icons": [
     {

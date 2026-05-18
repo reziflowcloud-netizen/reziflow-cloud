@@ -122,7 +122,7 @@ export default function IntegrationsPage() {
   const [showFacebookToken, setShowFacebookToken] = useState(false)
   const [showInstagramToken, setShowInstagramToken] = useState(false)
   const [storageSettings, setStorageSettings] = useState<StorageSettings | null>(null)
-  const [storageDraft, setStorageDraft] = useState<StorageSettings['dropbox']>({ enabled: false, rootFolder: '/ReziFlow CRM', hasAccessToken: false, accessToken: '' })
+  const [storageDraft, setStorageDraft] = useState<StorageSettings['dropbox']>({ enabled: false, rootFolder: '/LegalHub', hasAccessToken: false, accessToken: '' })
   const [showDropboxToken, setShowDropboxToken] = useState(false)
 
   const webhookUrl = useMemo(() => {
@@ -506,7 +506,7 @@ function onFormSubmit(e) {
                       value={storageDraft.rootFolder}
                       disabled={!storageSettings.canManage || saving}
                       onChange={event => setStorageDraft(current => ({ ...current, rootFolder: event.target.value }))}
-                      placeholder="/ReziFlow CRM"
+                      placeholder="/LegalHub"
                     />
                   </div>
                   <div className="form-group" style={{ marginBottom: 0 }}>
