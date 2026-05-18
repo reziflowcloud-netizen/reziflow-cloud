@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from './lib/auth'
 
-const PUBLIC_PATHS = ['/', '/privacy', '/data-deletion', '/delete-data', '/favicon.svg', '/manifest.json', '/api/auth/login']
+const PUBLIC_PATHS = ['/', '/privacy', '/data-deletion', '/delete-data', '/favicon.svg', '/manifest.json', '/api/auth/login', '/api/meta/data-deletion']
 const PUBLIC_PREFIXES = ['/assets', '/api/webhooks/leads', '/api/webhooks/meta/leads', '/api/webhooks/meta/messages', '/api/webhooks/telegram/leads']
 
 export async function middleware(request: NextRequest) {
