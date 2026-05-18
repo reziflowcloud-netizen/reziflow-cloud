@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
+import MetaMessageNotifier from '@/components/MetaMessageNotifier'
 
 type Lang = 'ru' | 'uk' | 'pl'
 type Theme = 'light' | 'dark' | 'slate'
@@ -130,6 +131,7 @@ export default function Sidebar({
 
   return (
     <div className="sidebar">
+      <MetaMessageNotifier />
       <div className="sidebar-logo">
         <img src="/assets/legalhub/legalhub-logo-dark.svg" alt="LegalHub" className="sidebar-brand-logo" />
       </div>

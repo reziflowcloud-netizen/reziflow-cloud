@@ -128,6 +128,20 @@ export default function LeadDetailPage() {
     const source = sourceByValue[String(value || '')]
     return source ? leadSourceOptionLabel(lang, source) : leadSourceLabel(lang, String(value || 'manual'))
   }
+  const instagramHref = (value?: string | null) => {
+    const text = String(value || '').trim()
+    if (!text) return ''
+    if (/^https?:\/\//i.test(text)) return text
+    const username = text.replace(/^@+/, '').split(/[/?#]/)[0]
+    return username ? `https://www.instagram.com/${encodeURIComponent(username)}` : ''
+  }
+  const facebookHref = (value?: string | null) => {
+    const text = String(value || '').trim()
+    if (!text) return ''
+    if (/^https?:\/\//i.test(text)) return text
+    if (/^(www\.)?facebook\.com\//i.test(text)) return `https://${text.replace(/^https?:\/\//i, '')}`
+    return ''
+  }
   const messageSources = useMemo(() => {
     const hasMessenger = leadSources.some(source => source.value === 'messenger')
     const hasManual = leadSources.some(source => source.value === 'manual')
@@ -573,8 +587,24 @@ export default function LeadDetailPage() {
                   />
                 </div>
                 <div className="form-group"><label className="label">{lt('email')}</label><input className="input" type="email" value={form.email} onChange={set('email')} /></div>
-                <div className="form-group"><label className="label">Instagram</label><input className="input" value={form.instagram} onChange={set('instagram')} /></div>
-                <div className="form-group"><label className="label">Facebook</label><input className="input" value={form.facebook} onChange={set('facebook')} /></div>
+                <div className="form-group">
+                  <label className="label">Instagram</label>
+                  <input className="input" value={form.instagram} onChange={set('instagram')} />
+                  {instagramHref(form.instagram) && (
+                    <a href={instagramHref(form.instagram)} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', marginTop: 6, fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}>
+                      Открыть Instagram
+                    </a>
+                  )}
+                </div>
+                <div className="form-group">
+                  <label className="label">Facebook</label>
+                  <input className="input" value={form.facebook} onChange={set('facebook')} />
+                  {facebookHref(form.facebook) && (
+                    <a href={facebookHref(form.facebook)} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', marginTop: 6, fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}>
+                      Открыть Facebook
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -591,7 +621,7 @@ export default function LeadDetailPage() {
                         ? lt('bot')
                         : message.senderType === 'employee'
                           ? (message.author?.name || lt('employee'))
-                          : lt('lead')
+                          : (message.senderName || lt('lead'))
                       return (
                         <div key={message.id} style={{ display: 'flex', justifyContent: outgoing ? 'flex-end' : 'flex-start' }}>
                           <div style={{

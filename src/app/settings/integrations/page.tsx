@@ -115,6 +115,7 @@ export default function IntegrationsPage() {
   const [showKey, setShowKey] = useState(false)
   const [logs, setLogs] = useState<WebhookLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
+  const [logsCollapsed, setLogsCollapsed] = useState(false)
   const [fieldMapDraft, setFieldMapDraft] = useState<FieldMapRow[]>([])
   const [users, setUsers] = useState<UserOption[]>([])
   const [assignmentDraft, setAssignmentDraft] = useState<AssignmentSettings>({ mode: 'off', userId: null, userIds: [] })
@@ -912,12 +913,26 @@ ${samplePayload}`}
                 <div className="section-title" style={{ marginBottom: 4 }}><span>📥</span>Журнал входящих заявок</div>
                 <div style={{ color: 'var(--muted)', fontSize: 13 }}>Последние 50 запросов из внешних форм и сервисов</div>
               </div>
-              <button type="button" className="btn btn-secondary" onClick={loadLogs} disabled={logsLoading}>
-                {logsLoading ? 'Обновляю...' : 'Обновить'}
-              </button>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setLogsCollapsed(current => !current)}
+                  aria-expanded={!logsCollapsed}
+                >
+                  {logsCollapsed ? 'Показать журнал' : 'Свернуть'}
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={loadLogs} disabled={logsLoading}>
+                  {logsLoading ? 'Обновляю...' : 'Обновить'}
+                </button>
+              </div>
             </div>
 
-            {logs.length === 0 ? (
+            {logsCollapsed ? (
+              <div style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>
+                Журнал свернут. Записей загружено: {logs.length}.
+              </div>
+            ) : logs.length === 0 ? (
               <div style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>Входящих заявок пока нет</div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
