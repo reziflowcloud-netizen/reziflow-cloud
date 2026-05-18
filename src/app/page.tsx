@@ -69,6 +69,11 @@ export default function LoginPage() {
           </button>
         </form>
       </div>
+      <div className="login-legal-links">
+        <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>
+        <span>•</span>
+        <a href="/data-deletion" target="_blank" rel="noreferrer">Data Deletion Instructions</a>
+      </div>
     </div>
   )
 }

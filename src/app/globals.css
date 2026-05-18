@@ -304,12 +304,15 @@ textarea.input { resize: vertical; }
 }
 
 /* ─── Login page ─────────────────────────── */
-.login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }
+.login-page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--bg); }
 .login-card { background: var(--surface); border-radius: 14px; padding: 36px; width: 380px; box-shadow: var(--shadow-md); border: 1px solid var(--border); }
 .login-logo { text-align: center; margin-bottom: 28px; }
 .logo-text { font-size: 28px; font-weight: 800; color: var(--text); }
 .logo-text em { color: var(--brand); }
 .error-msg { background: #fef2f2; border: 1px solid #fecaca; border-radius: 7px; padding: 10px 14px; color: #dc2626; font-size: 13px; margin-bottom: 16px; }
+.login-legal-links { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--muted); font-size: 12px; }
+.login-legal-links a { color: var(--muted); text-decoration: none; font-weight: 600; }
+.login-legal-links a:hover { color: var(--brand); }
 
 /* ─── Misc ───────────────────────────────── */
 .fade-in { animation: fadeIn 0.2s ease; }
