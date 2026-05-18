@@ -51,6 +51,13 @@ function sourceLabel(channel: string) {
   return channel === 'instagram' ? 'Instagram' : 'Facebook'
 }
 
+function pageAccessTokenForChannel(settings: ReturnType<typeof getLeadWebhookSettings>, channel: string) {
+  if (channel === 'instagram') {
+    return settings.instagramMessagesPageAccessToken || settings.facebookLeadPageAccessToken || ''
+  }
+  return settings.facebookLeadPageAccessToken || ''
+}
+
 async function fetchProfile(senderId: string, accessToken: string, apiVersion: string) {
   if (!accessToken) return null
   const version = apiVersion.startsWith('v') ? apiVersion : `v${apiVersion}`
@@ -164,7 +171,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
 
     const profile = await fetchProfile(
       senderId,
-      settings.facebookLeadPageAccessToken || '',
+      pageAccessTokenForChannel(settings, channel),
       settings.facebookLeadApiVersion || 'v23.0'
     )
     const displayName = profileName(profile, channel)

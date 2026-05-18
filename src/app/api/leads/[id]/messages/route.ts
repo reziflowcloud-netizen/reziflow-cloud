@@ -17,6 +17,13 @@ function metaChannelFromMessengerId(value?: string | null) {
   return null
 }
 
+function pageAccessTokenForChannel(settings: ReturnType<typeof getLeadWebhookSettings>, channel: string) {
+  if (channel === 'instagram') {
+    return settings.instagramMessagesPageAccessToken || settings.facebookLeadPageAccessToken || ''
+  }
+  return settings.facebookLeadPageAccessToken || ''
+}
+
 async function sendMetaMessage(params: {
   accessToken: string
   apiVersion: string
@@ -97,13 +104,14 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     if (!settings.facebookMessagesEnabled) {
       return NextResponse.json({ error: 'Интеграция сообщений Facebook/Instagram выключена' }, { status: 400 })
     }
-    if (!settings.facebookLeadPageAccessToken) {
-      return NextResponse.json({ error: 'Не сохранен Page Access Token страницы Facebook' }, { status: 400 })
+    const pageAccessToken = pageAccessTokenForChannel(settings, metaTarget.channel)
+    if (!pageAccessToken) {
+      return NextResponse.json({ error: `Не сохранен Page Access Token для ${metaTarget.channel === 'instagram' ? 'Instagram Direct' : 'Facebook Messenger'}` }, { status: 400 })
     }
 
     try {
       const metaResponse = await sendMetaMessage({
-        accessToken: settings.facebookLeadPageAccessToken,
+        accessToken: pageAccessToken,
         apiVersion: settings.facebookLeadApiVersion || 'v23.0',
         recipientId: metaTarget.recipientId,
         text,

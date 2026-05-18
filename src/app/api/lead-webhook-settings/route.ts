@@ -54,6 +54,7 @@ export async function GET() {
           facebookMessagesEnabled: settings.facebookMessagesEnabled === true,
           facebookLeadVerifyToken: settings.facebookLeadVerifyToken,
           facebookLeadPageAccessToken: settings.facebookLeadPageAccessToken || '',
+          instagramMessagesPageAccessToken: settings.instagramMessagesPageAccessToken || '',
           facebookLeadApiVersion: settings.facebookLeadApiVersion || 'v23.0',
         },
       },
@@ -87,6 +88,7 @@ export async function GET() {
       messagesEnabled: settings.facebookMessagesEnabled === true,
       verifyToken: settings.facebookLeadVerifyToken || '',
       pageAccessToken: settings.facebookLeadPageAccessToken || '',
+      instagramPageAccessToken: settings.instagramMessagesPageAccessToken || '',
       apiVersion: settings.facebookLeadApiVersion || 'v23.0',
     },
   })
@@ -134,6 +136,9 @@ export async function PATCH(request: NextRequest) {
   const nextFacebookPageAccessToken = incomingFacebook && typeof incomingFacebook.pageAccessToken === 'string'
     ? incomingFacebook.pageAccessToken.trim()
     : previous.facebookLeadPageAccessToken || ''
+  const nextInstagramPageAccessToken = incomingFacebook && typeof incomingFacebook.instagramPageAccessToken === 'string'
+    ? incomingFacebook.instagramPageAccessToken.trim()
+    : previous.instagramMessagesPageAccessToken || ''
   const nextFacebookApiVersion = incomingFacebook && typeof incomingFacebook.apiVersion === 'string'
     ? incomingFacebook.apiVersion.trim() || 'v23.0'
     : previous.facebookLeadApiVersion || 'v23.0'
@@ -153,6 +158,7 @@ export async function PATCH(request: NextRequest) {
         facebookMessagesEnabled: nextFacebookMessagesEnabled,
         facebookLeadVerifyToken: nextFacebookVerifyToken,
         facebookLeadPageAccessToken: nextFacebookPageAccessToken,
+        instagramMessagesPageAccessToken: nextInstagramPageAccessToken,
         facebookLeadApiVersion: nextFacebookApiVersion,
       },
     },
@@ -173,6 +179,7 @@ export async function PATCH(request: NextRequest) {
       messagesEnabled: nextFacebookMessagesEnabled,
       verifyToken: nextFacebookVerifyToken,
       pageAccessToken: nextFacebookPageAccessToken,
+      instagramPageAccessToken: nextInstagramPageAccessToken,
       apiVersion: nextFacebookApiVersion,
     },
   })

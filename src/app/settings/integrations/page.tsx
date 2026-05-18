@@ -27,6 +27,7 @@ type FacebookLeadSettings = {
   messagesEnabled: boolean
   verifyToken: string
   pageAccessToken: string
+  instagramPageAccessToken: string
   apiVersion: string
 }
 
@@ -97,6 +98,15 @@ const targetFields = [
   { value: 'nextContactNote', label: 'О чем сконтактироваться' },
 ]
 
+const DEFAULT_FACEBOOK_DRAFT: FacebookLeadSettings = {
+  enabled: false,
+  messagesEnabled: false,
+  verifyToken: '',
+  pageAccessToken: '',
+  instagramPageAccessToken: '',
+  apiVersion: 'v23.0',
+}
+
 export default function IntegrationsPage() {
   const [settings, setSettings] = useState<WebhookSettings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -108,8 +118,9 @@ export default function IntegrationsPage() {
   const [fieldMapDraft, setFieldMapDraft] = useState<FieldMapRow[]>([])
   const [users, setUsers] = useState<UserOption[]>([])
   const [assignmentDraft, setAssignmentDraft] = useState<AssignmentSettings>({ mode: 'off', userId: null, userIds: [] })
-  const [facebookDraft, setFacebookDraft] = useState<FacebookLeadSettings>({ enabled: false, messagesEnabled: false, verifyToken: '', pageAccessToken: '', apiVersion: 'v23.0' })
+  const [facebookDraft, setFacebookDraft] = useState<FacebookLeadSettings>(DEFAULT_FACEBOOK_DRAFT)
   const [showFacebookToken, setShowFacebookToken] = useState(false)
+  const [showInstagramToken, setShowInstagramToken] = useState(false)
   const [storageSettings, setStorageSettings] = useState<StorageSettings | null>(null)
   const [storageDraft, setStorageDraft] = useState<StorageSettings['dropbox']>({ enabled: false, rootFolder: '/ReziFlow CRM', hasAccessToken: false, accessToken: '' })
   const [showDropboxToken, setShowDropboxToken] = useState(false)
@@ -318,7 +329,7 @@ function onFormSubmit(e) {
       setSettings(data)
       setFieldMapDraft(Array.isArray(data.fieldMap) ? data.fieldMap : [])
       setAssignmentDraft(data.assignment || { mode: 'off', userId: null, userIds: [] })
-      setFacebookDraft(data.facebook || { enabled: false, messagesEnabled: false, verifyToken: '', pageAccessToken: '', apiVersion: 'v23.0' })
+      setFacebookDraft({ ...DEFAULT_FACEBOOK_DRAFT, ...(data.facebook || {}) })
     } finally {
       setLoading(false)
     }
@@ -341,7 +352,7 @@ function onFormSubmit(e) {
       setSettings(data)
       if (Array.isArray(data.fieldMap)) setFieldMapDraft(data.fieldMap)
       if (data.assignment) setAssignmentDraft(data.assignment)
-      if (data.facebook) setFacebookDraft(data.facebook)
+      if (data.facebook) setFacebookDraft({ ...DEFAULT_FACEBOOK_DRAFT, ...data.facebook })
     } finally {
       setSaving(false)
     }
@@ -730,7 +741,7 @@ ${samplePayload}`}
                 <button className="btn btn-secondary" type="button" onClick={() => copy(facebookMessagesCallbackUrl)}>Копировать</button>
               </div>
               <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
-                Этот URL добавляем в Meta Webhooks для событий сообщений. Verify Token и Page Access Token используются те же, что и для Facebook Lead Ads.
+                Этот URL добавляем в Meta Webhooks для событий сообщений. Verify Token общий, а Page Access Token можно указать отдельно для Facebook Messenger и Instagram Direct.
               </div>
             </div>
 
@@ -760,21 +771,40 @@ ${samplePayload}`}
             </div>
 
             <div className="form-group">
-              <label className="label">Page Access Token</label>
+              <label className="label">Facebook Page Access Token</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
                 <input
                   className="input"
                   type={showFacebookToken ? 'text' : 'password'}
                   value={facebookDraft.pageAccessToken}
                   onChange={event => setFacebookDraft(current => ({ ...current, pageAccessToken: event.target.value }))}
-                  placeholder="Токен страницы Facebook"
+                  placeholder="Токен страницы Facebook для Lead Ads и Messenger"
                 />
                 <button className="btn btn-secondary" type="button" onClick={() => setShowFacebookToken(value => !value)}>
                   {showFacebookToken ? 'Скрыть' : 'Показать'}
                 </button>
               </div>
               <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
-                Для первой версии вставляем токен вручную. Позже можно добавить вход через Facebook и выбор страницы прямо в CRM.
+                Используется для Facebook Lead Ads и исходящих сообщений Facebook Messenger.
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="label">Instagram Page Access Token</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
+                <input
+                  className="input"
+                  type={showInstagramToken ? 'text' : 'password'}
+                  value={facebookDraft.instagramPageAccessToken || ''}
+                  onChange={event => setFacebookDraft(current => ({ ...current, instagramPageAccessToken: event.target.value }))}
+                  placeholder="Токен для Instagram Direct"
+                />
+                <button className="btn btn-secondary" type="button" onClick={() => setShowInstagramToken(value => !value)}>
+                  {showInstagramToken ? 'Скрыть' : 'Показать'}
+                </button>
+              </div>
+              <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
+                Используется для профиля отправителя и ответов в Instagram Direct. Если поле пустое, CRM временно попробует Facebook token.
               </div>
             </div>
 
