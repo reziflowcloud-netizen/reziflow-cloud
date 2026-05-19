@@ -133,7 +133,7 @@ export default function Sidebar({
     <div className="sidebar">
       <MetaMessageNotifier />
       <div className="sidebar-logo">
-        <img src="/assets/legalhub/legalhub-logo-dark.svg" alt="LegalHub" className="sidebar-brand-logo" />
+        <img src="/assets/legalhub/legalhub-photo-logo-wide-transparent.png" alt="LegalHub" className="sidebar-brand-logo" />
       </div>
 
       <div style={{ flex: 1 }}>

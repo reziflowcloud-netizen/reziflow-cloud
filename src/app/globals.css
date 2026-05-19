@@ -93,7 +93,7 @@ body { background: var(--bg); color: var(--text); transition: background 0.2s, c
   padding: 18px 8px 14px; font-size: 18px; font-weight: 800; letter-spacing: -0.5px; color: white;
 }
 .sidebar-logo em { color: var(--brand); font-style: italic; }
-.sidebar-brand-logo { display: block; width: 168px; height: auto; max-height: 45px; object-fit: contain; object-position: left center; }
+.sidebar-brand-logo { display: block; width: 176px; height: auto; max-height: 68px; object-fit: contain; object-position: left center; }
 
 .sidebar-label {
   font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
@@ -308,7 +308,10 @@ textarea.input { resize: vertical; }
 .login-page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--bg); }
 .login-card { background: var(--surface); border-radius: 14px; padding: 36px; width: 380px; box-shadow: var(--shadow-md); border: 1px solid var(--border); }
 .login-logo { text-align: center; margin-bottom: 28px; }
-.login-brand-logo { display: block; width: 250px; height: auto; margin: 0 auto 8px; }
+.login-brand-logo {
+  display: block; width: min(100%, 310px); height: auto; margin: 0 auto 8px;
+  padding: 14px 18px; box-sizing: border-box; border-radius: 10px; background: #061223;
+}
 .login-brand-logo-dark { display: none; }
 [data-theme="dark"] .login-brand-logo-light,
 [data-theme="slate"] .login-brand-logo-light { display: none; }

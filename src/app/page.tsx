@@ -40,8 +40,7 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="login-card fade-in">
         <div className="login-logo">
-          <img src="/assets/legalhub/legalhub-logo.svg" alt="LegalHub" className="login-brand-logo login-brand-logo-light" />
-          <img src="/assets/legalhub/legalhub-logo-dark.svg" alt="LegalHub" className="login-brand-logo login-brand-logo-dark" />
+          <img src="/assets/legalhub/legalhub-photo-logo-wide-transparent.png" alt="LegalHub" className="login-brand-logo" />
           <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>Система управления делами</p>
         </div>
 

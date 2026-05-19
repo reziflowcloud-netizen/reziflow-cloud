@@ -5,9 +5,9 @@ export const metadata: Metadata = {
   title: 'LegalHub — CRM для агентств легализации',
   description: 'Облачная CRM для иммиграционных агентств',
   icons: {
-    icon: '/favicon.svg',
-    shortcut: '/favicon.svg',
-    apple: '/favicon.svg',
+    icon: '/favicon.png',
+    shortcut: '/favicon.png',
+    apple: '/favicon.png',
   },
 }
 
