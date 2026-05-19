@@ -44,6 +44,60 @@ const caseLabels: Record<string, string> = {
   contractDate: 'Дата договора',
 }
 
+Object.assign(clientLabels, {
+  city: 'Город',
+  previousFirstName: 'Предыдущее имя',
+  previousLastName: 'Предыдущая фамилия',
+  maidenName: 'Девичья фамилия',
+  birthPlace: 'Место рождения',
+  nationality: 'Национальность',
+  maritalStatus: 'Семейное положение',
+  education: 'Образование',
+  fatherName: 'Имя отца',
+  motherName: 'Имя матери',
+  motherMaidenName: 'Девичья фамилия матери',
+  passportSeries: 'Серия паспорта',
+  passportNumber: 'Номер паспорта',
+  passportIssuedBy: 'Паспорт выдан кем',
+  passportIssuedAt: 'Дата выдачи паспорта',
+  passportExpiresAt: 'Паспорт действует до',
+  originCountryAddress: 'Адрес в стране происхождения',
+  previousResidenceAddress: 'Предыдущий адрес проживания',
+  legalTitle: 'Правовой титул на жилье',
+  rentalEndDate: 'Конец аренды',
+  stayBasis: 'Основание пребывания',
+  lastEntryDate: 'Дата последнего въезда',
+  residenceCardExpiry: 'Срок действия карты',
+  finesInPoland: 'Штрафы в Польше',
+  finesDescription: 'Описание штрафов',
+  height: 'Рост',
+  eyeColor: 'Цвет глаз',
+  specialSigns: 'Особые приметы',
+})
+
+Object.assign(caseLabels, {
+  caseNumber: 'Номер дела',
+  service: 'Услуга',
+  stayPurpose: 'Главная цель пребывания',
+  stayType: 'Тип пребывания',
+  trustee: 'Доверитель',
+  personalAppearDate: 'Личная явка',
+  legalStayDeadline: 'Срок легального пребывания',
+  fingerprintsDate: 'Отпечатки пальцев',
+  predictedDecisionDate: 'Ожидаемая дата решения',
+  mosNumber: 'Номер MOS',
+  mosSentAt: 'Дата передачи в MOS',
+  cabinetLogin: 'Логин кабинета',
+  cabinetPassword: 'Пароль кабинета',
+  contractType: 'Тип договора',
+  contractNumber: 'Номер договора',
+  contractSigned: 'Договор подписан',
+  workContractType: 'Тип занятости',
+  workContractNumber: 'Номер договора работы',
+  workContractDate: 'Дата договора работы',
+  workContractSigned: 'Договор работы подписан',
+})
+
 const clientFieldOrder = Object.keys(clientLabels)
 const caseFieldOrder = Object.keys(caseLabels)
 

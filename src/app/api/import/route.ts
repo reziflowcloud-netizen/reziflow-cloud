@@ -35,6 +35,60 @@ const caseColumnAliases: Record<string, string[]> = {
   contractDate: ['дата договора', 'дата договору', 'data umowy'],
 }
 
+Object.assign(clientColumnAliases, {
+  city: ['city', 'miasto', 'город', 'місто'],
+  previousFirstName: ['previous first name', 'poprzednie imie', 'poprzednie imię', 'предыдущее имя'],
+  previousLastName: ['previous last name', 'poprzednie nazwisko', 'предыдущая фамилия'],
+  maidenName: ['maiden name', 'nazwisko panienskie', 'nazwisko panieńskie', 'девичья фамилия'],
+  birthPlace: ['miejsce urodzenia', 'birth place', 'место рождения'],
+  nationality: ['narodowosc', 'narodowość', 'nationality', 'национальность'],
+  maritalStatus: ['stan cywilny', 'marital status', 'семейное положение'],
+  education: ['wyksztalcenie', 'wykształcenie', 'education', 'образование'],
+  fatherName: ['imie ojca', 'imię ojca', 'father name', 'имя отца'],
+  motherName: ['imie matki', 'imię matki', 'mother name', 'имя матери'],
+  motherMaidenName: ['nazwisko panienskie matki', 'nazwisko panieńskie matki', 'mother maiden name', 'девичья фамилия матери'],
+  passportSeries: ['passport series', 'seria paszportu', 'серия паспорта'],
+  passportNumber: ['passport number', 'numer paszportu', 'номер паспорта', 'паспорт'],
+  passportIssuedBy: ['passport issued by', 'wydany przez', 'выдан кем'],
+  passportIssuedAt: ['passport issued at', 'data wydania paszportu', 'дата выдачи паспорта'],
+  passportExpiresAt: ['passport expires at', 'wazny do', 'ważny do', 'действует до', 'срок паспорта'],
+  originCountryAddress: ['adres w kraju pochodzenia', 'origin country address', 'адрес в стране происхождения'],
+  previousResidenceAddress: ['previous residence address', 'poprzedni adres pobytu', 'предыдущий адрес проживания'],
+  legalTitle: ['tytul prawny', 'tytuł prawny', 'legal title', 'правовой титул'],
+  rentalEndDate: ['koniec najmu', 'rental end date', 'конец аренды'],
+  stayBasis: ['podstawa pobytu', 'stay basis', 'основание пребывания'],
+  lastEntryDate: ['data ostatniego wjazdu', 'last entry date', 'дата последнего въезда'],
+  residenceCardExpiry: ['termin waznosci karty', 'termin ważności karty', 'residence card expiry', 'срок карты'],
+  finesInPoland: ['mandaty', 'fines in poland', 'штрафы'],
+  finesDescription: ['opis mandatow', 'opis mandatów', 'fines description', 'описание штрафов'],
+  height: ['wzrost', 'height', 'рост'],
+  eyeColor: ['kolor oczu', 'eye color', 'цвет глаз'],
+  specialSigns: ['znaki szczegolne', 'znaki szczególne', 'special signs', 'особые приметы'],
+})
+
+Object.assign(caseColumnAliases, {
+  caseNumber: ['numer sprawy', 'case number', 'номер дела'],
+  service: ['usluga', 'usługa', 'service', 'услуга', 'послуги'],
+  stayPurpose: ['cel pobytu', 'stay purpose', 'главная цель пребывания', 'тип пребывания'],
+  stayType: ['typ pobytu', 'stay type', 'тип дела', 'тип разрешения'],
+  trustee: ['pelnomocnik', 'pełnomocnik', 'trustee', 'доверитель', 'osoba upowazniona', 'osoba upoważniona'],
+  personalAppearDate: ['osobiste stawiennictwo', 'личная явка', 'personal appear date'],
+  legalStayDeadline: ['termin legalnego pobytu', 'legal stay deadline', 'срок легального пребывания'],
+  fingerprintsDate: ['odciski palcow', 'odciski palców', 'fingerprints', 'отпечатки пальцев', 'прийти на отпечатки пальцев'],
+  predictedDecisionDate: ['przewidywana data wydania decyzji', 'predicted decision date', 'ожидаемая дата решения'],
+  mosNumber: ['mos', 'numer mos', 'mos number', 'номер mos'],
+  mosSentAt: ['data przekazania w mos', 'mos sent at', 'дата передачи в mos'],
+  cabinetLogin: ['login', 'логин', 'cabinet login'],
+  cabinetPassword: ['haslo', 'hasło', 'password', 'пароль', 'cabinet password'],
+  contractType: ['typ umowy', 'contract type', 'тип договора'],
+  contractNumber: ['numer umowy', 'contract number', 'номер договора'],
+  contractSigned: ['umowa podpisana', 'contract signed', 'договор подписан'],
+  workContractType: ['typ zatrudnienia', 'work contract type', 'тип занятости'],
+  workContractNumber: ['numer umowy pracy', 'work contract number'],
+  workContractDate: ['data umowy pracy', 'work contract date'],
+  workContractSigned: ['umowa pracy podpisana', 'work contract signed'],
+})
+
 function canImportData(user: any): boolean {
   return user?.role === 'admin' || user?.role === 'owner'
 }
@@ -211,6 +265,28 @@ function parseMoney(value: string) {
   return Number.isFinite(number) ? number : 0
 }
 
+function parseBoolean(value: string) {
+  const clean = normalizeHeader(value)
+  return ['1', 'true', 'yes', 'y', 'tak', 'да', 'так', 'x', '+'].includes(clean)
+}
+
+async function ensureService(organizationId: string, name: string) {
+  const clean = name.trim()
+  if (!clean) return null
+  const existing = await prisma.service.findFirst({ where: { organizationId, name: clean } })
+  if (existing) return existing
+  return prisma.service.create({
+    data: {
+      organizationId,
+      name: clean,
+      description: null,
+      price: 0,
+      color: '#06b6d4',
+      active: true,
+    },
+  })
+}
+
 function customFieldType(header: string, values: string[]) {
   const normalized = normalizeHeader(header)
   if (normalized.includes('data') || normalized.includes('дата') || normalized.includes('термін') || normalized.includes('termin')) {
@@ -364,10 +440,38 @@ export async function POST(request: NextRequest) {
             lastName,
             phone,
             email,
+            city: read(row, columnMap.client.city) || null,
             pesel: read(row, columnMap.client.pesel) || null,
+            previousFirstName: read(row, columnMap.client.previousFirstName) || null,
+            previousLastName: read(row, columnMap.client.previousLastName) || null,
+            maidenName: read(row, columnMap.client.maidenName) || null,
             birthDate: parseDate(read(row, columnMap.client.birthDate)),
+            birthPlace: read(row, columnMap.client.birthPlace) || null,
             citizenship: read(row, columnMap.client.citizenship) || null,
+            nationality: read(row, columnMap.client.nationality) || null,
+            maritalStatus: read(row, columnMap.client.maritalStatus) || null,
+            education: read(row, columnMap.client.education) || null,
+            fatherName: read(row, columnMap.client.fatherName) || null,
+            motherName: read(row, columnMap.client.motherName) || null,
+            motherMaidenName: read(row, columnMap.client.motherMaidenName) || null,
+            passportSeries: read(row, columnMap.client.passportSeries) || null,
+            passportNumber: read(row, columnMap.client.passportNumber) || null,
+            passportIssuedBy: read(row, columnMap.client.passportIssuedBy) || null,
+            passportIssuedAt: parseDate(read(row, columnMap.client.passportIssuedAt)),
+            passportExpiresAt: parseDate(read(row, columnMap.client.passportExpiresAt)),
             addressInPoland: read(row, columnMap.client.addressInPoland) || null,
+            originCountryAddress: read(row, columnMap.client.originCountryAddress) || null,
+            previousResidenceAddress: read(row, columnMap.client.previousResidenceAddress) || null,
+            legalTitle: read(row, columnMap.client.legalTitle) || null,
+            rentalEndDate: parseDate(read(row, columnMap.client.rentalEndDate)),
+            stayBasis: read(row, columnMap.client.stayBasis) || null,
+            lastEntryDate: parseDate(read(row, columnMap.client.lastEntryDate)),
+            residenceCardExpiry: parseDate(read(row, columnMap.client.residenceCardExpiry)),
+            finesInPoland: parseBoolean(read(row, columnMap.client.finesInPoland)),
+            finesDescription: read(row, columnMap.client.finesDescription) || null,
+            height: read(row, columnMap.client.height) || null,
+            eyeColor: read(row, columnMap.client.eyeColor) || null,
+            specialSigns: read(row, columnMap.client.specialSigns) || null,
           },
         })
         clientsCreated++
@@ -377,18 +481,38 @@ export async function POST(request: NextRequest) {
       const status = await ensureCaseStatus(organizationId, importedStatus)
       const totalValue = parseMoney(read(row, columnMap.case.totalValue))
       const totalPaid = parseMoney(read(row, columnMap.case.totalPaid))
+      const service = await ensureService(organizationId, read(row, columnMap.case.service))
 
       const createdCase = await prisma.case.create({
         data: {
           organizationId,
           clientId: client.id,
+          caseNumber: read(row, columnMap.case.caseNumber) || null,
           status,
+          serviceId: service?.id || null,
+          stayPurpose: read(row, columnMap.case.stayPurpose) || null,
+          stayType: read(row, columnMap.case.stayType) || null,
+          trustee: read(row, columnMap.case.trustee) || null,
           totalValue,
           totalPaid,
           notes: read(row, columnMap.case.notes) || null,
           filingDate: parseDate(read(row, columnMap.case.filingDate)),
+          personalAppearDate: parseDate(read(row, columnMap.case.personalAppearDate)),
+          legalStayDeadline: parseDate(read(row, columnMap.case.legalStayDeadline)),
+          fingerprintsDate: parseDate(read(row, columnMap.case.fingerprintsDate)),
+          predictedDecisionDate: parseDate(read(row, columnMap.case.predictedDecisionDate)),
+          mosNumber: read(row, columnMap.case.mosNumber) || null,
+          mosSentAt: parseDate(read(row, columnMap.case.mosSentAt)),
+          cabinetLogin: read(row, columnMap.case.cabinetLogin) || null,
+          cabinetPassword: read(row, columnMap.case.cabinetPassword) || null,
           contractDate: parseDate(read(row, columnMap.case.contractDate)),
-          contractSigned: Boolean(read(row, columnMap.case.contractDate)),
+          contractType: read(row, columnMap.case.contractType) || null,
+          contractNumber: read(row, columnMap.case.contractNumber) || null,
+          contractSigned: read(row, columnMap.case.contractSigned) ? parseBoolean(read(row, columnMap.case.contractSigned)) : Boolean(read(row, columnMap.case.contractDate)),
+          workContractType: read(row, columnMap.case.workContractType) || null,
+          workContractNumber: read(row, columnMap.case.workContractNumber) || null,
+          workContractDate: parseDate(read(row, columnMap.case.workContractDate)),
+          workContractSigned: parseBoolean(read(row, columnMap.case.workContractSigned)),
         },
       })
       casesCreated++
