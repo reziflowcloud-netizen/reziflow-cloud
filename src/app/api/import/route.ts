@@ -151,6 +151,43 @@ function buildColumnMap(headers: string[]): ColumnMap {
   }
 }
 
+function normalizeSubmittedColumnMap(value: FormDataEntryValue | null, headers: string[], fallback: ColumnMap): ColumnMap {
+  if (typeof value !== 'string' || !value.trim()) return fallback
+
+  const headerSet = new Set(headers)
+  const allowedClientFields = new Set(Object.keys(clientColumnAliases))
+  const allowedCaseFields = new Set(Object.keys(caseColumnAliases))
+  const selected = new Set<string>()
+  const client: Record<string, string> = {}
+  const caseMap: Record<string, string> = {}
+
+  try {
+    const parsed = JSON.parse(value)
+    const submittedClient = parsed?.client && typeof parsed.client === 'object' ? parsed.client : {}
+    const submittedCase = parsed?.case && typeof parsed.case === 'object' ? parsed.case : {}
+
+    for (const [field, header] of Object.entries(submittedClient)) {
+      if (!allowedClientFields.has(field) || typeof header !== 'string' || !headerSet.has(header)) continue
+      client[field] = header
+      selected.add(header)
+    }
+
+    for (const [field, header] of Object.entries(submittedCase)) {
+      if (!allowedCaseFields.has(field) || typeof header !== 'string' || !headerSet.has(header)) continue
+      caseMap[field] = header
+      selected.add(header)
+    }
+
+    return {
+      client,
+      case: caseMap,
+      unknown: headers.filter(header => !selected.has(header)),
+    }
+  } catch {
+    return fallback
+  }
+}
+
 function read(row: Record<string, string>, header?: string) {
   return header ? (row[header] || '').trim() : ''
 }
@@ -282,7 +319,7 @@ export async function POST(request: NextRequest) {
     }
 
     const parsed = parseCsv(await file.text())
-    const columnMap = buildColumnMap(parsed.headers)
+    const autoColumnMap = buildColumnMap(parsed.headers)
     const previewRows = parsed.rows.slice(0, 5)
 
     if (!confirm) {
@@ -290,10 +327,11 @@ export async function POST(request: NextRequest) {
         headers: parsed.headers,
         rowCount: parsed.rows.length,
         previewRows,
-        columnMap,
+        columnMap: autoColumnMap,
       })
     }
 
+    const columnMap = normalizeSubmittedColumnMap(formData.get('columnMap'), parsed.headers, autoColumnMap)
     const rows = parsed.rows.slice(0, limit)
     const customFieldIds = await ensureImportFields(organizationId, columnMap.unknown, rows)
     let clientsCreated = 0

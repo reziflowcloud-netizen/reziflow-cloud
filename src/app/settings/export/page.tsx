@@ -6,11 +6,13 @@ type PreviewData = {
   headers: string[]
   rowCount: number
   previewRows: Record<string, string>[]
-  columnMap: {
-    client: Record<string, string>
-    case: Record<string, string>
-    unknown: string[]
-  }
+  columnMap: ImportColumnMap
+}
+
+type ImportColumnMap = {
+  client: Record<string, string>
+  case: Record<string, string>
+  unknown: string[]
 }
 
 type ImportResult = {
@@ -40,6 +42,17 @@ const caseLabels: Record<string, string> = {
   notes: 'Заметки',
   filingDate: 'Дата подачи',
   contractDate: 'Дата договора',
+}
+
+const clientFieldOrder = Object.keys(clientLabels)
+const caseFieldOrder = Object.keys(caseLabels)
+
+function recalculateUnknown(headers: string[], columnMap: ImportColumnMap): string[] {
+  const selected = new Set([
+    ...Object.values(columnMap.client || {}),
+    ...Object.values(columnMap.case || {}),
+  ].filter(Boolean))
+  return headers.filter(header => !selected.has(header))
 }
 
 export default function ExportPage() {
@@ -116,6 +129,10 @@ export default function ExportPage() {
       formData.append('file', file)
       formData.append('confirm', 'true')
       formData.append('limit', String(limit))
+      formData.append('columnMap', JSON.stringify({
+        client: preview.columnMap.client,
+        case: preview.columnMap.case,
+      }))
       const res = await fetch('/api/import', { method: 'POST', body: formData })
       const data = await res.json()
       if (!res.ok) {
@@ -132,6 +149,23 @@ export default function ExportPage() {
 
   const mappedClient = preview ? Object.entries(preview.columnMap.client) : []
   const mappedCase = preview ? Object.entries(preview.columnMap.case) : []
+
+  function updateColumnMap(scope: 'client' | 'case', field: string, header: string) {
+    setPreview(current => {
+      if (!current) return current
+      const nextMap: ImportColumnMap = {
+        client: { ...current.columnMap.client },
+        case: { ...current.columnMap.case },
+        unknown: [],
+      }
+
+      if (header) nextMap[scope][field] = header
+      else delete nextMap[scope][field]
+
+      nextMap.unknown = recalculateUnknown(current.headers, nextMap)
+      return { ...current, columnMap: nextMap }
+    })
+  }
 
   return (
     <div className="fade-in">
@@ -237,6 +271,55 @@ export default function ExportPage() {
                         {caseLabels[field] || field}: <strong>{header}</strong>
                       </span>
                     ))}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 14, background: 'var(--surface)' }}>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>Ручное сопоставление колонок</div>
+                <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
+                  Если CRM распознала колонку неправильно, выберите нужный столбец вручную. Пустое значение означает, что поле не будет заполняться напрямую.
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div>
+                    <div style={{ fontWeight: 700, marginBottom: 8 }}>Поля клиента</div>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      {clientFieldOrder.map(field => (
+                        <label key={field} style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 8, alignItems: 'center', fontSize: 13 }}>
+                          <span>{clientLabels[field] || field}</span>
+                          <select
+                            className="select"
+                            value={preview.columnMap.client[field] || ''}
+                            onChange={event => updateColumnMap('client', field, event.target.value)}
+                          >
+                            <option value="">— Не импортировать —</option>
+                            {preview.headers.map(header => (
+                              <option key={header} value={header}>{header}</option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, marginBottom: 8 }}>Поля дела</div>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      {caseFieldOrder.map(field => (
+                        <label key={field} style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 8, alignItems: 'center', fontSize: 13 }}>
+                          <span>{caseLabels[field] || field}</span>
+                          <select
+                            className="select"
+                            value={preview.columnMap.case[field] || ''}
+                            onChange={event => updateColumnMap('case', field, event.target.value)}
+                          >
+                            <option value="">— Не импортировать —</option>
+                            {preview.headers.map(header => (
+                              <option key={header} value={header}>{header}</option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
