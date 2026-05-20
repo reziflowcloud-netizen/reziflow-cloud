@@ -109,6 +109,17 @@ function recalculateUnknown(headers: string[], columnMap: ImportColumnMap): stri
   return headers.filter(header => !selected.has(header))
 }
 
+async function readApiJson(res: Response) {
+  const contentType = res.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) return res.json()
+
+  const text = await res.text()
+  const message = text.trim()
+  throw new Error(message
+    ? `Сервер вернул техническую ошибку: ${message.slice(0, 220)}`
+    : `Сервер вернул пустой ответ (${res.status})`)
+}
+
 export default function ExportPage() {
   const [loading, setLoading] = useState<string | null>(null)
   const [lastError, setLastError] = useState<string | null>(null)
@@ -156,7 +167,7 @@ export default function ExportPage() {
       const formData = new FormData()
       formData.append('file', file)
       const res = await fetch('/api/import', { method: 'POST', body: formData })
-      const data = await res.json()
+      const data = await readApiJson(res)
       if (!res.ok) {
         setLastError(data.details || data.error || 'Не удалось прочитать файл')
         return
@@ -188,7 +199,7 @@ export default function ExportPage() {
         case: preview.columnMap.case,
       }))
       const res = await fetch('/api/import', { method: 'POST', body: formData })
-      const data = await res.json()
+      const data = await readApiJson(res)
       if (!res.ok) {
         setLastError(data.details || data.error || 'Не удалось импортировать файл')
         return

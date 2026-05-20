@@ -265,6 +265,10 @@ function parseMoney(value: string) {
   return Number.isFinite(number) ? number : 0
 }
 
+function uniqueFilled(values: string[]) {
+  return Array.from(new Set(values.map(value => value.trim()).filter(Boolean)))
+}
+
 function parseBoolean(value: string) {
   const clean = normalizeHeader(value)
   return ['1', 'true', 'yes', 'y', 'tak', 'да', 'так', 'x', '+'].includes(clean)
@@ -410,6 +414,69 @@ export async function POST(request: NextRequest) {
     const columnMap = normalizeSubmittedColumnMap(formData.get('columnMap'), parsed.headers, autoColumnMap)
     const rows = parsed.rows.slice(0, limit)
     const customFieldIds = await ensureImportFields(organizationId, columnMap.unknown, rows)
+    const fallbackStatus = await defaultCaseStatus(organizationId)
+    const importedStatusNames = uniqueFilled(rows.map(row => read(row, columnMap.case.status)))
+    const existingStatuses = importedStatusNames.length
+      ? await prisma.caseStatus.findMany({ where: { organizationId, name: { in: importedStatusNames } } })
+      : []
+    const statusByName = new Map(existingStatuses.map(status => [status.name, status.name]))
+
+    for (const name of importedStatusNames) {
+      if (statusByName.has(name)) continue
+      try {
+        await prisma.caseStatus.create({
+          data: {
+            organizationId,
+            name,
+            color: '#3b82f6',
+            order: 999,
+          },
+        })
+      } catch {
+        // The status may have been created by another import running at the same time.
+      }
+      statusByName.set(name, name)
+    }
+
+    const serviceNames = uniqueFilled(rows.map(row => read(row, columnMap.case.service)))
+    const existingServices = serviceNames.length
+      ? await prisma.service.findMany({ where: { organizationId, name: { in: serviceNames } } })
+      : []
+    const serviceByName = new Map(existingServices.map(service => [service.name, service]))
+
+    for (const name of serviceNames) {
+      if (serviceByName.has(name)) continue
+      try {
+        const service = await prisma.service.create({
+          data: {
+            organizationId,
+            name,
+            description: null,
+            price: 0,
+            color: '#06b6d4',
+            active: true,
+          },
+        })
+        serviceByName.set(name, service)
+      } catch {
+        const service = await prisma.service.findFirst({ where: { organizationId, name } })
+        if (service) serviceByName.set(name, service)
+      }
+    }
+
+    const emails = uniqueFilled(rows.map(row => read(row, columnMap.client.email)))
+    const phones = uniqueFilled(rows.map(row => read(row, columnMap.client.phone)))
+    const duplicateFilters = [
+      emails.length ? { email: { in: emails } } : null,
+      phones.length ? { phone: { in: phones } } : null,
+    ].filter(Boolean) as any[]
+    const existingClients = duplicateFilters.length
+      ? await prisma.client.findMany({ where: { organizationId, OR: duplicateFilters } })
+      : []
+    const clientByEmail = new Map(existingClients.filter(client => client.email).map(client => [client.email as string, client]))
+    const clientByPhone = new Map(existingClients.filter(client => client.phone).map(client => [client.phone as string, client]))
+    const statusHistoryRows: any[] = []
+    const customValueRows: any[] = []
     let clientsCreated = 0
     let clientsReused = 0
     let casesCreated = 0
@@ -421,14 +488,8 @@ export async function POST(request: NextRequest) {
       const phone = read(row, columnMap.client.phone) || null
       const email = read(row, columnMap.client.email) || null
 
-      const duplicateFilters = [
-        email ? { email } : null,
-        phone ? { phone } : null,
-      ].filter(Boolean) as any[]
-
-      let client = duplicateFilters.length > 0
-        ? await prisma.client.findFirst({ where: { organizationId, OR: duplicateFilters } })
-        : null
+      let client = email ? clientByEmail.get(email) : null
+      if (!client && phone) client = clientByPhone.get(phone)
 
       if (client) {
         clientsReused++
@@ -474,14 +535,17 @@ export async function POST(request: NextRequest) {
             specialSigns: read(row, columnMap.client.specialSigns) || null,
           },
         })
+        if (email) clientByEmail.set(email, client)
+        if (phone) clientByPhone.set(phone, client)
         clientsCreated++
       }
 
       const importedStatus = read(row, columnMap.case.status)
-      const status = await ensureCaseStatus(organizationId, importedStatus)
+      const status = importedStatus.trim() ? (statusByName.get(importedStatus.trim()) || importedStatus.trim()) : fallbackStatus
       const totalValue = parseMoney(read(row, columnMap.case.totalValue))
       const totalPaid = parseMoney(read(row, columnMap.case.totalPaid))
-      const service = await ensureService(organizationId, read(row, columnMap.case.service))
+      const serviceName = read(row, columnMap.case.service)
+      const service = serviceName ? serviceByName.get(serviceName) : null
 
       const createdCase = await prisma.case.create({
         data: {
@@ -517,37 +581,36 @@ export async function POST(request: NextRequest) {
       })
       casesCreated++
 
-      await prisma.statusHistory.create({
-        data: {
-          caseId: createdCase.id,
-          fromStatus: null,
-          toStatus: status,
-          changedBy: String(user?.name || user?.email || 'Import'),
-        },
+      statusHistoryRows.push({
+        caseId: createdCase.id,
+        fromStatus: null,
+        toStatus: status,
+        changedBy: String(user?.name || user?.email || 'Import'),
       })
 
       for (const [header, fieldId] of Array.from(customFieldIds.entries())) {
         const value = read(row, header)
         if (!value) continue
-        await prisma.customFieldValue.upsert({
-          where: {
-            fieldId_recordType_recordId: {
-              fieldId,
-              recordType: 'case',
-              recordId: createdCase.id,
-            },
-          },
-          update: { value },
-          create: {
-            organizationId,
-            fieldId,
-            recordType: 'case',
-            recordId: createdCase.id,
-            value,
-          },
+        customValueRows.push({
+          organizationId,
+          fieldId,
+          recordType: 'case',
+          recordId: createdCase.id,
+          value,
         })
-        customValuesSaved++
       }
+    }
+
+    if (statusHistoryRows.length) {
+      await prisma.statusHistory.createMany({ data: statusHistoryRows })
+    }
+
+    if (customValueRows.length) {
+      const result = await prisma.customFieldValue.createMany({
+        data: customValueRows,
+        skipDuplicates: true,
+      })
+      customValuesSaved = result.count
     }
 
     return NextResponse.json({
