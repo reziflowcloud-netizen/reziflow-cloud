@@ -6,7 +6,7 @@ import { useLanguage } from '@/context/LanguageContext'
 import CollapsibleCardsBehavior from '@/components/CollapsibleCardsBehavior'
 import SectionVisibilityBehavior from '@/components/SectionVisibilityBehavior'
 import CustomSectionsRenderer, { type CustomSectionsHandle } from '@/components/CustomSectionsRenderer'
-import { caseStatusLabel } from '@/lib/caseI18n'
+import { caseStatusLabel, isArchiveCaseStatus } from '@/lib/caseI18n'
 
 const WORK_TYPE = 'Выконывание пацы (Работа)'
 const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
@@ -17,6 +17,7 @@ export default function CaseDetailPage() {
   const { t, lang } = useLanguage()
   const locale = LOCALES[lang] || 'ru-RU'
   const [c, setC] = useState<any>(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [statuses, setStatuses] = useState<any[]>([])
   const [services, setServices] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
@@ -114,6 +115,7 @@ export default function CaseDetailPage() {
     fetch('/api/employees').then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d.filter((e: any) => e.active) : []))
     fetch('/api/case-options').then(r => r.json()).then(d => setCaseOptions(Array.isArray(d) ? d : []))
     fetch('/api/document-templates').then(r => r.json()).then(d => setDocumentTemplates(Array.isArray(d.templates) ? d.templates : [])).catch(() => setDocumentTemplates([]))
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(data => setCurrentUser(data)).catch(() => setCurrentUser(null))
   }, [id])
 
   function optionsByType(type: string) {
@@ -748,6 +750,17 @@ export default function CaseDetailPage() {
     setDocuments(p => p.filter((d: any) => d.id !== docId))
   }
 
+  async function deleteCase() {
+    if (!confirm(t('delete_case_confirm'))) return
+    const res = await fetch(`/api/cases/${id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || t('delete_case_failed'))
+      return
+    }
+    router.push('/cases')
+  }
+
   async function generateDocument(template: any) {
     setGeneratingTemplate(template.id)
     try {
@@ -798,6 +811,7 @@ export default function CaseDetailPage() {
   const currentService = services.find(s => s.id === parseInt(form.serviceId)) || c.service
   const isWorkType = form.stayType === WORK_TYPE || form.stayType?.includes('Работа') || form.stayType?.includes('пацы')
   const selectedEmployee = employees.find(e => e.id === parseInt(form.employeeId))
+  const canDeleteCases = currentUser?.role === 'admin' || currentUser?.role === 'owner'
   const todayDate = new Date().toISOString().slice(0, 10)
   const cleanMosDocTitle = (title: string) => String(title || '').replace(/^MOS:\s*/, '').trim()
   const submittedMosDocuments = mosDocuments.filter((doc: any) => doc.status === 'done' || doc.sentAt)
@@ -815,9 +829,16 @@ export default function CaseDetailPage() {
             <div className="page-subtitle">{c.client?.firstName} {c.client?.lastName}</div>
           </div>
         </div>
-        <button onClick={save} className="btn btn-primary" disabled={saving}>
-          {saving ? t('saving') : t('save')}
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {canDeleteCases && isArchiveCaseStatus(c.status) && (
+            <button onClick={deleteCase} className="btn btn-danger">
+              {t('delete_case')}
+            </button>
+          )}
+          <button onClick={save} className="btn btn-primary" disabled={saving}>
+            {saving ? t('saving') : t('save')}
+          </button>
+        </div>
       </div>
 
       <div className="page-body">

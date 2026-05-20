@@ -15,12 +15,27 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const existing = await prisma.caseStatus.findFirst({ where: { id: parseInt(params.id), organizationId } })
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const data: any = { name: body.name, color: body.color }
+    const data: any = { name: String(body.name || '').trim(), color: body.color }
     if (body.order !== undefined) data.order = body.order
-    const status = await prisma.caseStatus.update({
-      where: { id: parseInt(params.id) },
-      data,
-    })
+    let status: any
+    if (data.name && data.name !== existing.name) {
+      const [updated] = await prisma.$transaction([
+        prisma.caseStatus.update({
+          where: { id: parseInt(params.id) },
+          data,
+        }),
+        prisma.case.updateMany({
+          where: { organizationId, status: existing.name },
+          data: { status: data.name },
+        }),
+      ])
+      status = updated
+    } else {
+      status = await prisma.caseStatus.update({
+        where: { id: parseInt(params.id) },
+        data,
+      })
+    }
     return NextResponse.json(status)
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })

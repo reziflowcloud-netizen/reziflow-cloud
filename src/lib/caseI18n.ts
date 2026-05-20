@@ -31,3 +31,11 @@ export function caseStatusLabel(lang: Lang, name?: string | null) {
   const value = String(name || '')
   return CASE_STATUS_TRANSLATIONS[lang]?.[value] || CASE_STATUS_TRANSLATIONS.ru[value] || value
 }
+
+export function isArchiveCaseStatus(name?: string | null) {
+  const value = String(name || '').trim().toLowerCase()
+  return value.includes('архив')
+    || value.includes('архів')
+    || value.includes('archive')
+    || value.includes('archiw')
+}

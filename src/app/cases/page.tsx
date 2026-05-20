@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
-import { caseStatusLabel } from '@/lib/caseI18n'
+import { caseStatusLabel, isArchiveCaseStatus } from '@/lib/caseI18n'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый':               { bg: '#eff6ff', color: '#1d4ed8' },
@@ -98,13 +98,18 @@ export default function CasesPage() {
     return STATUS_COLORS[name] || { bg: '#f3f4f6', color: '#374151' }
   }
 
+  function caseMatchesStatus(caseStatus: string, filterStatus: string) {
+    if (isArchiveCaseStatus(filterStatus)) return isArchiveCaseStatus(caseStatus)
+    return caseStatus === filterStatus
+  }
+
   const filtered = cases
     .filter(c => {
       // Фильтр
       if (activeFilter === ALL_FILTER || activeFilter === 'Все') return true
       if (activeFilter === 'active') return ACTIVE_STATUSES.includes(c.status)
       if (activeFilter === 'no_pay') return c.contractSigned && c.totalPaid === 0 && c.totalValue > 0
-      return c.status === activeFilter
+      return caseMatchesStatus(c.status, activeFilter)
     })
     .filter(c => search === '' ||
       `${c.client?.firstName} ${c.client?.lastName} ${c.client?.phone||''}`.toLowerCase().includes(search.toLowerCase())
@@ -130,7 +135,7 @@ export default function CasesPage() {
   const filterTitle = activeFilter === 'active' ? `${t('active_cases_title')} (${activeCasesCount})`
     : activeFilter === 'no_pay' ? `${t('contracts_without_payment_title')} (${noPayCount})`
     : activeFilter === ALL_FILTER || activeFilter === 'Все' ? `${t('all_cases_title')} (${cases.length})`
-    : `${activeFilter} (${cases.filter(c => c.status === activeFilter).length})`
+    : `${activeFilter} (${cases.filter(c => caseMatchesStatus(c.status, activeFilter)).length})`
 
   return (
     <div className="fade-in" onClick={() => setStatusPopup(null)}>
@@ -154,7 +159,7 @@ export default function CasesPage() {
           </button>
           {/* Статусы */}
           {statuses.map(s => {
-            const count = cases.filter(c => c.status === s.name).length
+            const count = cases.filter(c => caseMatchesStatus(c.status, s.name)).length
             const isActive = activeFilter === s.name
             const sc = getCaseStatusStyle(s.name)
             return (
@@ -280,7 +285,7 @@ export default function CasesPage() {
                         {new Date(c.createdAt).toLocaleDateString(locale)}
                       </td>
                       <td onClick={e => e.stopPropagation()}>
-                        {canDeleteCases && c.status === 'Архив' && (
+                        {canDeleteCases && isArchiveCaseStatus(c.status) && (
                           <button
                             onClick={e => deleteCase(c.id, e)}
                             title={t('delete_case')}
