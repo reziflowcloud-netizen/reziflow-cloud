@@ -423,6 +423,28 @@ function onFormSubmit(e) {
     return lead.fullName || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.phone || lead.email || 'Лид'
   }
 
+  function payloadSummary(payload?: Record<string, unknown> | null) {
+    const metaEvent = payload && typeof payload === 'object' ? (payload as any).metaEvent : null
+    if (metaEvent && typeof metaEvent === 'object') {
+      return [
+        `Meta event: ${metaEvent.kind || 'unknown'}`,
+        `echo: ${metaEvent.isEcho ? 'yes' : 'no'}`,
+        `text: ${metaEvent.hasText ? 'yes' : 'no'}`,
+        `keys: ${Array.isArray(metaEvent.eventKeys) ? metaEvent.eventKeys.join(', ') : '—'}`,
+      ].join(' · ')
+    }
+    return payload ? Object.entries(payload).slice(0, 4).map(([key, value]) => `${key}: ${typeof value === 'object' && value !== null ? '[object]' : String(value)}`).join(', ') : ''
+  }
+
+  function payloadJson(payload?: Record<string, unknown> | null) {
+    if (!payload) return ''
+    try {
+      return JSON.stringify(payload, null, 2)
+    } catch {
+      return String(payload)
+    }
+  }
+
   function updateFieldMapRow(index: number, patch: Partial<FieldMapRow>) {
     setFieldMapDraft(current => current.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row))
   }
@@ -957,13 +979,15 @@ ${samplePayload}`}
                       const isCreated = log.status === 'created'
                       const isPing = log.status === 'ping'
                       const isMessage = log.status === 'message'
-                      const payload = log.payload ? Object.entries(log.payload).slice(0, 4).map(([key, value]) => `${key}: ${String(value)}`).join(', ') : ''
+                      const isIgnored = log.status === 'ignored'
+                      const payload = payloadSummary(log.payload)
+                      const fullPayload = payloadJson(log.payload)
                       return (
                         <tr key={log.id}>
                           <td style={{ fontSize: 13 }}>{new Date(log.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                           <td>
-                            <span style={{ display: 'inline-flex', borderRadius: 999, padding: '4px 8px', fontSize: 12, fontWeight: 800, background: isCreated ? '#dcfce7' : isPing ? '#dbeafe' : isMessage ? '#ede9fe' : '#fee2e2', color: isCreated ? '#166534' : isPing ? '#1d4ed8' : isMessage ? '#6d28d9' : '#991b1b' }}>
-                              {isCreated ? 'Создан' : isPing ? 'Тест' : isMessage ? 'Сообщение' : log.status === 'failed' ? 'Ошибка' : 'Отклонен'}
+                            <span style={{ display: 'inline-flex', borderRadius: 999, padding: '4px 8px', fontSize: 12, fontWeight: 800, background: isCreated ? '#dcfce7' : isPing ? '#dbeafe' : isMessage ? '#ede9fe' : isIgnored ? '#fef3c7' : '#fee2e2', color: isCreated ? '#166534' : isPing ? '#1d4ed8' : isMessage ? '#6d28d9' : isIgnored ? '#92400e' : '#991b1b' }}>
+                              {isCreated ? 'Создан' : isPing ? 'Тест' : isMessage ? 'Сообщение' : isIgnored ? 'Пропущено' : log.status === 'failed' ? 'Ошибка' : 'Отклонен'}
                             </span>
                           </td>
                           <td style={{ fontSize: 13 }}>{log.source || '—'}</td>
@@ -971,7 +995,15 @@ ${samplePayload}`}
                             {log.lead ? <a href={`/leads/${log.lead.id}`}>{leadName(log.lead)}</a> : '—'}
                           </td>
                           <td style={{ fontSize: 12, color: log.error ? '#991b1b' : 'var(--muted)', maxWidth: 520 }}>
-                            {log.error || payload || '—'}
+                            <div>{log.error || payload || '—'}</div>
+                            {fullPayload && (
+                              <details style={{ marginTop: 6, color: 'var(--muted)' }}>
+                                <summary style={{ cursor: 'pointer', fontWeight: 800 }}>Показать payload</summary>
+                                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 260, overflow: 'auto', marginTop: 8, padding: 10, borderRadius: 6, background: 'var(--bg-soft)', color: 'var(--text)' }}>
+                                  {fullPayload}
+                                </pre>
+                              </details>
+                            )}
                           </td>
                         </tr>
                       )

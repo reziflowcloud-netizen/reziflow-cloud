@@ -95,6 +95,33 @@ function pageSenderName(channel: string) {
   return channel === 'instagram' ? 'Instagram Direct' : 'Facebook Messenger'
 }
 
+function metaEventKind(event: MetaMessagingEvent & Record<string, any>) {
+  if (event.message?.is_echo === true) return 'message_echo'
+  if (event.message) return 'message'
+  if (event.delivery) return 'delivery'
+  if (event.read) return 'read'
+  if (event.reaction) return 'reaction'
+  if (event.postback) return 'postback'
+  if (event.referral) return 'referral'
+  if (event.optin) return 'optin'
+  if (event.standby) return 'standby'
+  return 'unknown'
+}
+
+function metaEventSummary(event: MetaMessagingEvent & Record<string, any>) {
+  return {
+    kind: metaEventKind(event),
+    pageId: String(event.pageId || '').trim() || null,
+    senderId: String(event.sender?.id || '').trim() || null,
+    recipientId: String(event.recipient?.id || '').trim() || null,
+    hasMessage: !!event.message,
+    isEcho: event.message?.is_echo === true,
+    hasText: !!String(event.message?.text || '').trim(),
+    messageKeys: event.message && typeof event.message === 'object' ? Object.keys(event.message) : [],
+    eventKeys: Object.keys(event || {}).filter(key => key !== 'pageId'),
+  }
+}
+
 export async function GET(request: NextRequest, { params }: { params: { slug: string } }) {
   const organization = await prisma.organization.findUnique({
     where: { slug: params.slug },
@@ -159,6 +186,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
   const leadIds: string[] = []
 
   for (const event of events) {
+    const eventSummary = metaEventSummary(event as MetaMessagingEvent & Record<string, any>)
     const isEcho = event.message?.is_echo === true
     const senderId = String(event.sender?.id || '').trim()
     const recipientId = String(event.recipient?.id || '').trim()
@@ -175,7 +203,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
           organizationId: organization.id,
           status: 'ignored',
           source,
-          payload: safePayload,
+          payload: { metaEvent: eventSummary, raw: safePayload },
           error: !participantCandidates.length
             ? 'Meta message skipped: no sender or recipient id'
             : 'Meta message skipped: no text or supported attachment',
@@ -272,7 +300,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
           leadId: lead.id,
           status: 'message',
           source,
-          payload: safePayload,
+          payload: { metaEvent: eventSummary, raw: safePayload },
         },
       })
 
