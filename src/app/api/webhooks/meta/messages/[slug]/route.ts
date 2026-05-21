@@ -85,6 +85,10 @@ function profileName(profile: any, channel: string) {
   return `Лид из ${sourceLabel(channel)}`
 }
 
+function pageSenderName(channel: string) {
+  return channel === 'instagram' ? 'Instagram Direct' : 'Facebook Messenger'
+}
+
 export async function GET(request: NextRequest, { params }: { params: { slug: string } }) {
   const organization = await prisma.organization.findUnique({
     where: { slug: params.slug },
@@ -149,14 +153,13 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
   const leadIds: string[] = []
 
   for (const event of events) {
-    if (event.message?.is_echo) continue
-
-    const senderId = String(event.sender?.id || '').trim()
+    const isEcho = event.message?.is_echo === true
+    const participantId = String((isEcho ? event.recipient?.id : event.sender?.id) || '').trim()
     const text = messageText(event)
-    if (!senderId || !text) continue
+    if (!participantId || !text) continue
 
-    const externalMessageId = String(event.message?.mid || event.postback?.payload || '').trim() || `${senderId}:${event.timestamp || Date.now()}`
-    const messengerId = `${channel}:${senderId}`
+    const externalMessageId = String(event.message?.mid || event.postback?.payload || '').trim() || `${participantId}:${event.timestamp || Date.now()}`
+    const messengerId = `${channel}:${participantId}`
     const sentAt = event.timestamp ? new Date(event.timestamp) : new Date()
 
     const existingMessage = await (prisma as any).leadMessage.findFirst({
@@ -170,7 +173,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     }
 
     const profile = await fetchProfile(
-      senderId,
+      participantId,
       pageAccessTokenForChannel(settings, channel),
       settings.facebookLeadApiVersion || 'v23.0'
     )
@@ -218,9 +221,9 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
           organizationId: organization.id,
           leadId: lead.id,
           channel,
-          direction: 'incoming',
-          senderType: 'lead',
-          senderName: displayName,
+          direction: isEcho ? 'outgoing' : 'incoming',
+          senderType: isEcho ? 'system' : 'lead',
+          senderName: isEcho ? pageSenderName(channel) : displayName,
           externalMessageId,
           text,
           payload: safePayload,
