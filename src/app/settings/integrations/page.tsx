@@ -122,6 +122,8 @@ export default function IntegrationsPage() {
   const [facebookDraft, setFacebookDraft] = useState<FacebookLeadSettings>(DEFAULT_FACEBOOK_DRAFT)
   const [showFacebookToken, setShowFacebookToken] = useState(false)
   const [showInstagramToken, setShowInstagramToken] = useState(false)
+  const [metaSubscriptionLoading, setMetaSubscriptionLoading] = useState(false)
+  const [metaSubscriptionStatus, setMetaSubscriptionStatus] = useState('')
   const [storageSettings, setStorageSettings] = useState<StorageSettings | null>(null)
   const [storageDraft, setStorageDraft] = useState<StorageSettings['dropbox']>({ enabled: false, rootFolder: '/LegalHub', hasAccessToken: false, accessToken: '' })
   const [showDropboxToken, setShowDropboxToken] = useState(false)
@@ -482,6 +484,26 @@ function onFormSubmit(e) {
     updateSettings({ facebook: { ...facebookDraft, ...patch } })
   }
 
+  async function subscribeMetaPage() {
+    setMetaSubscriptionLoading(true)
+    setMetaSubscriptionStatus('')
+    setError('')
+    try {
+      await updateSettings({ facebook: facebookDraft })
+      const res = await fetch('/api/meta/subscriptions', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setMetaSubscriptionStatus(data.error || 'Meta не приняла подписку страницы')
+        return
+      }
+      const app = Array.isArray(data.apps) ? data.apps.find((item: any) => Array.isArray(item.subscribed_fields)) : null
+      const fields = Array.isArray(app?.subscribed_fields) ? app.subscribed_fields.join(', ') : 'messages, message_echoes'
+      setMetaSubscriptionStatus(`Страница ${data.page?.name || data.page?.id || ''} подписана. Поля: ${fields}`)
+    } finally {
+      setMetaSubscriptionLoading(false)
+    }
+  }
+
   const maskedKey = settings?.key ? `${settings.key.slice(0, 8)}••••••••••••${settings.key.slice(-6)}` : ''
 
   return (
@@ -794,6 +816,16 @@ ${samplePayload}`}
               </div>
               <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
                 Этот URL добавляем в Meta Webhooks для событий сообщений. Verify Token общий, а Page Access Token можно указать отдельно для Facebook Messenger и Instagram Direct.
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
+                <button className="btn btn-secondary" type="button" onClick={subscribeMetaPage} disabled={metaSubscriptionLoading || saving}>
+                  {metaSubscriptionLoading ? 'Проверяю Meta...' : 'Подписать страницу на messages / message_echoes'}
+                </button>
+                {metaSubscriptionStatus && (
+                  <span style={{ fontSize: 12, color: metaSubscriptionStatus.includes('не приняла') || metaSubscriptionStatus.includes('failed') ? '#991b1b' : 'var(--muted)' }}>
+                    {metaSubscriptionStatus}
+                  </span>
+                )}
               </div>
             </div>
 
