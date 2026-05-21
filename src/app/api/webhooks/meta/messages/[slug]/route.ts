@@ -21,6 +21,14 @@ type MetaMessagingEvent = {
   }
 }
 
+type MetaConversationMessage = {
+  id?: string
+  message?: string
+  created_time?: string
+  from?: { id?: string; name?: string }
+  to?: { data?: Array<{ id?: string; name?: string }> }
+}
+
 function collectMessagingEvents(body: any): MetaMessagingEvent[] {
   const entries = Array.isArray(body?.entry) ? body.entry : []
   const events: MetaMessagingEvent[] = []
@@ -93,6 +101,149 @@ function profileName(profile: any, channel: string) {
 
 function pageSenderName(channel: string) {
   return channel === 'instagram' ? 'Instagram Direct' : 'Facebook Messenger'
+}
+
+function apiVersion(value: string) {
+  return value.startsWith('v') ? value : `v${value || '23.0'}`
+}
+
+async function fetchFacebookConversationMessages(pageId: string, participantId: string, accessToken: string, version: string) {
+  if (!pageId || !participantId || !accessToken) return []
+  const url = new URL(`https://graph.facebook.com/${apiVersion(version)}/${pageId}/conversations`)
+  url.searchParams.set('user_id', participantId)
+  url.searchParams.set('fields', 'messages.limit(20){id,message,from,to,created_time}')
+  url.searchParams.set('access_token', accessToken)
+
+  const response = await fetch(url, { cache: 'no-store' })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const message = data?.error?.message || `Facebook conversation sync failed with status ${response.status}`
+    throw new Error(message)
+  }
+
+  const conversation = Array.isArray(data?.data) ? data.data[0] : null
+  const messages = Array.isArray(conversation?.messages?.data) ? conversation.messages.data : []
+  return messages as MetaConversationMessage[]
+}
+
+async function syncFacebookConversationMessages(args: {
+  organizationId: string
+  settings: ReturnType<typeof getLeadWebhookSettings>
+  participantId: string
+  pageId: string
+  safePayload: any
+  eventSummary: any
+}) {
+  const token = pageAccessTokenForChannel(args.settings, 'facebook')
+  const version = args.settings.facebookLeadApiVersion || 'v23.0'
+  const messages = await fetchFacebookConversationMessages(args.pageId, args.participantId, token, version)
+  const textMessages = messages
+    .map(message => ({
+      ...message,
+      text: String(message.message || '').trim(),
+      sentAt: message.created_time ? new Date(message.created_time) : new Date(),
+    }))
+    .filter(message => message.text)
+    .sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime())
+
+  if (!textMessages.length) return { created: 0, leadId: null as string | null }
+
+  const messengerId = `facebook:${args.participantId}`
+  const profile = await fetchProfile(args.participantId, token, version)
+  const displayName = profileName(profile, 'facebook')
+  const defaultStatus = await (prisma as any).leadStatus.findFirst({
+    where: { organizationId: args.organizationId },
+    orderBy: [{ order: 'asc' }, { id: 'asc' }],
+    select: { name: true },
+  })
+
+  const result = await (prisma as any).$transaction(async (tx: any) => {
+    let lead = await tx.lead.findFirst({
+      where: { organizationId: args.organizationId, messengerId },
+      select: { id: true },
+    })
+
+    if (!lead) {
+      lead = await tx.lead.create({
+        data: {
+          organizationId: args.organizationId,
+          status: defaultStatus?.name || undefined,
+          source: 'facebook',
+          messengerId,
+          fullName: displayName,
+          facebook: displayName,
+          notes: 'Лид создан из сообщения Facebook',
+        },
+        select: { id: true },
+      })
+    }
+
+    let created = 0
+    let latestMessage: { text: string; sentAt: Date } | null = null
+
+    for (const message of textMessages) {
+      const externalMessageId = String(message.id || '').trim()
+        || `facebook-sync:${args.participantId}:${message.sentAt.getTime()}:${message.text.slice(0, 40)}`
+      const existing = await tx.leadMessage.findFirst({
+        where: { organizationId: args.organizationId, externalMessageId },
+        select: { id: true },
+      })
+      if (existing) continue
+
+      const isOutgoing = String(message.from?.id || '').trim() === args.pageId
+      await tx.leadMessage.create({
+        data: {
+          organizationId: args.organizationId,
+          leadId: lead.id,
+          channel: 'facebook',
+          direction: isOutgoing ? 'outgoing' : 'incoming',
+          senderType: isOutgoing ? 'system' : 'lead',
+          senderName: isOutgoing ? pageSenderName('facebook') : String(message.from?.name || '').trim() || displayName,
+          externalMessageId,
+          text: message.text,
+          payload: {
+            metaEvent: args.eventSummary,
+            conversationSync: true,
+            raw: args.safePayload,
+          },
+          sentAt: message.sentAt,
+        },
+      })
+      latestMessage = { text: message.text, sentAt: message.sentAt }
+      created++
+    }
+
+    if (latestMessage) {
+      await tx.lead.update({
+        where: { id: lead.id },
+        data: {
+          lastContactAt: latestMessage.sentAt,
+          lastContactNote: latestMessage.text,
+        },
+      })
+    }
+
+    if (created > 0) {
+      await tx.leadWebhookLog.create({
+        data: {
+          organizationId: args.organizationId,
+          leadId: lead.id,
+          status: 'message',
+          source: 'facebook',
+          payload: {
+            metaEvent: args.eventSummary,
+            conversationSync: true,
+            syncedMessages: created,
+            raw: args.safePayload,
+          },
+        },
+      })
+    }
+
+    return { created, leadId: lead.id as string }
+  })
+
+  return result
 }
 
 function metaEventKind(event: MetaMessagingEvent & Record<string, any>) {
@@ -200,6 +351,32 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     ])
     const text = messageText(event)
     if (!participantCandidates.length || !text) {
+      let syncError = ''
+      if (
+        channel === 'facebook'
+        && participantCandidates[0]
+        && pageId
+        && (eventSummary.kind === 'read' || eventSummary.kind === 'delivery')
+      ) {
+        try {
+          const syncResult = await syncFacebookConversationMessages({
+            organizationId: organization.id,
+            settings,
+            participantId: participantCandidates[0],
+            pageId,
+            safePayload,
+            eventSummary,
+          })
+          if (syncResult.created > 0) {
+            processed += syncResult.created
+            if (syncResult.leadId && !leadIds.includes(syncResult.leadId)) leadIds.push(syncResult.leadId)
+            continue
+          }
+        } catch (error: any) {
+          syncError = error?.message || 'Facebook conversation sync failed'
+        }
+      }
+
       await (prisma as any).leadWebhookLog.create({
         data: {
           organizationId: organization.id,
@@ -208,7 +385,9 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
           payload: { metaEvent: eventSummary, raw: safePayload },
           error: !participantCandidates.length
             ? 'Meta message skipped: no sender or recipient id'
-            : 'Meta message skipped: no text or supported attachment',
+            : syncError
+              ? `Meta message skipped: no text or supported attachment. Conversation sync failed: ${syncError}`
+              : 'Meta message skipped: no text or supported attachment',
         },
       })
       continue
