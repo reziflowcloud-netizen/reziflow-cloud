@@ -169,7 +169,20 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       ...candidateIds,
     ])
     const text = messageText(event)
-    if (!participantCandidates.length || !text) continue
+    if (!participantCandidates.length || !text) {
+      await (prisma as any).leadWebhookLog.create({
+        data: {
+          organizationId: organization.id,
+          status: 'ignored',
+          source,
+          payload: safePayload,
+          error: !participantCandidates.length
+            ? 'Meta message skipped: no sender or recipient id'
+            : 'Meta message skipped: no text or supported attachment',
+        },
+      })
+      continue
+    }
 
     const externalMessageId = String(event.message?.mid || event.postback?.payload || '').trim() || `${participantCandidates[0]}:${event.timestamp || Date.now()}`
     const messengerIds = participantCandidates.map(id => `${channel}:${id}`)
