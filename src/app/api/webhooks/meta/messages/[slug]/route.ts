@@ -5,6 +5,7 @@ import { getLeadWebhookSettings, sanitizeLeadWebhookPayload } from '@/lib/leadWe
 export const dynamic = 'force-dynamic'
 
 type MetaMessagingEvent = {
+  pageId?: string
   sender?: { id?: string }
   recipient?: { id?: string }
   timestamp?: number
@@ -25,11 +26,16 @@ function collectMessagingEvents(body: any): MetaMessagingEvent[] {
   const events: MetaMessagingEvent[] = []
 
   for (const entry of entries) {
+    const pageId = String(entry?.id || '').trim()
     const messaging = Array.isArray(entry?.messaging) ? entry.messaging : []
-    for (const event of messaging) events.push(event)
+    for (const event of messaging) events.push({ ...event, pageId })
   }
 
   return events
+}
+
+function uniqueValues(values: string[]) {
+  return Array.from(new Set(values.map(value => value.trim()).filter(Boolean)))
 }
 
 function messageText(event: MetaMessagingEvent) {
@@ -154,12 +160,19 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
 
   for (const event of events) {
     const isEcho = event.message?.is_echo === true
-    const participantId = String((isEcho ? event.recipient?.id : event.sender?.id) || '').trim()
+    const senderId = String(event.sender?.id || '').trim()
+    const recipientId = String(event.recipient?.id || '').trim()
+    const pageId = String(event.pageId || '').trim()
+    const candidateIds = isEcho ? uniqueValues([recipientId, senderId]) : uniqueValues([senderId])
+    const participantCandidates = uniqueValues([
+      ...candidateIds.filter(id => id !== pageId),
+      ...candidateIds,
+    ])
     const text = messageText(event)
-    if (!participantId || !text) continue
+    if (!participantCandidates.length || !text) continue
 
-    const externalMessageId = String(event.message?.mid || event.postback?.payload || '').trim() || `${participantId}:${event.timestamp || Date.now()}`
-    const messengerId = `${channel}:${participantId}`
+    const externalMessageId = String(event.message?.mid || event.postback?.payload || '').trim() || `${participantCandidates[0]}:${event.timestamp || Date.now()}`
+    const messengerIds = participantCandidates.map(id => `${channel}:${id}`)
     const sentAt = event.timestamp ? new Date(event.timestamp) : new Date()
 
     const existingMessage = await (prisma as any).leadMessage.findFirst({
@@ -171,6 +184,13 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       if (!leadIds.includes(existingMessage.leadId)) leadIds.push(existingMessage.leadId)
       continue
     }
+
+    const existingLead = await (prisma as any).lead.findFirst({
+      where: { organizationId: organization.id, messengerId: { in: messengerIds } },
+      select: { id: true, messengerId: true },
+    })
+    const messengerId = existingLead?.messengerId || messengerIds[0]
+    const participantId = String(messengerId).replace(`${channel}:`, '')
 
     const profile = await fetchProfile(
       participantId,
@@ -185,10 +205,12 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     })
 
     const result = await (prisma as any).$transaction(async (tx: any) => {
-      let lead = await tx.lead.findFirst({
-        where: { organizationId: organization.id, messengerId },
-        select: { id: true },
-      })
+      let lead = existingLead
+        ? { id: existingLead.id }
+        : await tx.lead.findFirst({
+          where: { organizationId: organization.id, messengerId: { in: messengerIds } },
+          select: { id: true },
+        })
 
       if (!lead) {
         lead = await tx.lead.create({
