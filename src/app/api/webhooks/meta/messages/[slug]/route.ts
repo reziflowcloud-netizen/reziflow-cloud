@@ -108,7 +108,8 @@ function apiVersion(value: string) {
 }
 
 async function fetchFacebookConversationMessages(pageId: string, participantId: string, accessToken: string, version: string) {
-  if (!pageId || !participantId || !accessToken) return []
+  if (!pageId || !participantId) return []
+  if (!accessToken) throw new Error('Facebook Page Access Token is empty')
   const url = new URL(`https://graph.facebook.com/${apiVersion(version)}/${pageId}/conversations`)
   url.searchParams.set('user_id', participantId)
   url.searchParams.set('fields', 'messages.limit(20){id,message,from,to,created_time}')
@@ -178,40 +179,44 @@ async function syncFacebookConversationMessages(args: {
       })
     }
 
-    let created = 0
-    let latestMessage: { text: string; sentAt: Date } | null = null
-
-    for (const message of textMessages) {
+    const candidateRows = textMessages.map(message => {
       const externalMessageId = String(message.id || '').trim()
         || `facebook-sync:${args.participantId}:${message.sentAt.getTime()}:${message.text.slice(0, 40)}`
-      const existing = await tx.leadMessage.findFirst({
-        where: { organizationId: args.organizationId, externalMessageId },
-        select: { id: true },
-      })
-      if (existing) continue
-
       const isOutgoing = String(message.from?.id || '').trim() === args.pageId
-      await tx.leadMessage.create({
-        data: {
-          organizationId: args.organizationId,
-          leadId: lead.id,
-          channel: 'facebook',
-          direction: isOutgoing ? 'outgoing' : 'incoming',
-          senderType: isOutgoing ? 'system' : 'lead',
-          senderName: isOutgoing ? pageSenderName('facebook') : String(message.from?.name || '').trim() || displayName,
-          externalMessageId,
-          text: message.text,
-          payload: {
-            metaEvent: args.eventSummary,
-            conversationSync: true,
-            raw: args.safePayload,
-          },
-          sentAt: message.sentAt,
+      return {
+        organizationId: args.organizationId,
+        leadId: lead.id,
+        channel: 'facebook',
+        direction: isOutgoing ? 'outgoing' : 'incoming',
+        senderType: isOutgoing ? 'system' : 'lead',
+        senderName: isOutgoing ? pageSenderName('facebook') : String(message.from?.name || '').trim() || displayName,
+        externalMessageId,
+        text: message.text,
+        payload: {
+          metaEvent: args.eventSummary,
+          conversationSync: true,
+          raw: args.safePayload,
         },
-      })
-      latestMessage = { text: message.text, sentAt: message.sentAt }
-      created++
-    }
+        sentAt: message.sentAt,
+      }
+    })
+
+    const existingMessages = await tx.leadMessage.findMany({
+      where: {
+        organizationId: args.organizationId,
+        externalMessageId: { in: candidateRows.map(row => row.externalMessageId) },
+      },
+      select: { externalMessageId: true },
+    })
+    const existingIds = new Set(existingMessages.map((message: any) => message.externalMessageId).filter(Boolean))
+    const rowsToCreate = candidateRows.filter(row => !existingIds.has(row.externalMessageId))
+    const createResult = rowsToCreate.length
+      ? await tx.leadMessage.createMany({ data: rowsToCreate, skipDuplicates: true })
+      : { count: 0 }
+    const created = Number(createResult?.count || 0)
+    const latestMessage = created > 0
+      ? rowsToCreate[rowsToCreate.length - 1]
+      : null
 
     if (latestMessage) {
       await tx.lead.update({
@@ -372,6 +377,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
             if (syncResult.leadId && !leadIds.includes(syncResult.leadId)) leadIds.push(syncResult.leadId)
             continue
           }
+          continue
         } catch (error: any) {
           syncError = error?.message || 'Facebook conversation sync failed'
         }
