@@ -8,6 +8,22 @@ function leadName(lead: any) {
   return lead.fullName || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.phone || 'Лид'
 }
 
+function formatContactNoteEntry(contactAt: Date, note: string) {
+  const date = new Intl.DateTimeFormat('ru-RU', {
+    timeZone: 'Europe/Warsaw',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(contactAt)
+  return `${date} - ${note}`
+}
+
+function prependContactNote(previous: string | null | undefined, contactAt: Date, note: string) {
+  return [formatContactNoteEntry(contactAt, note), String(previous || '').trim()].filter(Boolean).join('\n')
+}
+
 async function syncNextContactTask(tx: any, lead: any, organizationId: string, assignedToId?: number | null) {
   const existingTask = await tx.task.findFirst({
     where: {
@@ -102,7 +118,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       where: { id: params.id },
       data: {
         lastContactAt: contactAt,
-        lastContactNote: note,
+        lastContactNote: prependContactNote(lead.lastContactNote, contactAt, note),
         nextContactAt,
         nextContactNote,
       },

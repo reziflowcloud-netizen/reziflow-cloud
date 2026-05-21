@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, POLISH_VOIVODESHIPS, leadDisplayName, type LeadSourceOption } from '@/lib/leads'
@@ -20,7 +20,6 @@ export default function LeadDetailPage() {
   const [users, setUsers] = useState<any[]>([])
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
   const [leadSources, setLeadSources] = useState<LeadSourceOption[]>(LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true })))
-  const [contactHistory, setContactHistory] = useState<any[]>([])
   const [messages, setMessages] = useState<any[]>([])
   const [reminders, setReminders] = useState<any[]>([])
   const [messageForm, setMessageForm] = useState({
@@ -28,12 +27,6 @@ export default function LeadDetailPage() {
     direction: 'outgoing',
     senderType: 'employee',
     channel: 'manual',
-  })
-  const [contactForm, setContactForm] = useState({
-    contactAt: '',
-    note: '',
-    nextContactAt: '',
-    nextContactNote: '',
   })
   const [quickNote, setQuickNote] = useState('')
   const [quickNextContactAt, setQuickNextContactAt] = useState('')
@@ -55,11 +48,12 @@ export default function LeadDetailPage() {
     caseNotes: '',
   })
   const [saving, setSaving] = useState(false)
-  const [savingContact, setSavingContact] = useState(false)
   const [savingMessage, setSavingMessage] = useState(false)
   const [savingReminder, setSavingReminder] = useState(false)
   const [converting, setConverting] = useState(false)
   const [error, setError] = useState('')
+
+  const dialogRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     fetch('/api/services').then(r => r.json()).then(data => setServices(Array.isArray(data) ? data.filter((s: any) => s.active) : []))
@@ -68,7 +62,6 @@ export default function LeadDetailPage() {
     fetch('/api/lead-sources', { cache: 'no-store' }).then(r => r.json()).then(data => {
       if (Array.isArray(data.sources)) setLeadSources(data.sources)
     })
-    loadContactHistory()
     loadMessages()
     loadReminders()
     fetch(`/api/leads/${id}`, { cache: 'no-store' })
@@ -158,34 +151,21 @@ export default function LeadDetailPage() {
     if (service) setConvertForm(current => ({ ...current, serviceId: String(service.id) }))
   }, [services, lead?.serviceInterest, convertForm.serviceId])
 
-  async function loadContactHistory() {
-    const data = await fetch(`/api/leads/${id}/contacts`, { cache: 'no-store' }).then(r => r.json())
-    setContactHistory(Array.isArray(data) ? data : [])
-  }
-
   async function loadMessages() {
     const data = await fetch(`/api/leads/${id}/messages`, { cache: 'no-store' }).then(r => r.json())
     setMessages(Array.isArray(data) ? data : [])
   }
 
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    dialog.scrollTop = dialog.scrollHeight
+  }, [messages])
+
   async function loadReminders() {
     const data = await fetch(`/api/leads/${id}/reminders`, { cache: 'no-store' }).then(r => r.json())
     setReminders(Array.isArray(data) ? data : [])
   }
-
-  const activityItems = useMemo(() => {
-    const items = [
-      ...contactHistory.map(item => ({ ...item, kind: 'history' })),
-      ...(lead?.createdAt ? [{
-        id: 'created',
-        kind: 'created',
-        contactAt: lead.createdAt,
-        note: lt('lead_created'),
-        author: null,
-      }] : []),
-    ]
-    return items.sort((a, b) => new Date(b.contactAt).getTime() - new Date(a.contactAt).getTime())
-  }, [contactHistory, lead?.createdAt, lang])
 
   const selectedStatusConfig = leadStatuses.find(status => status.name === form.status)
   const selectedStatusReasons = Array.isArray(selectedStatusConfig?.reasons)
@@ -195,12 +175,6 @@ export default function LeadDetailPage() {
   function set(key: string) {
     return (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       setForm((current: any) => ({ ...current, [key]: event.target.value }))
-    }
-  }
-
-  function setContact(key: string) {
-    return (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      setContactForm(current => ({ ...current, [key]: event.target.value }))
     }
   }
 
@@ -230,38 +204,12 @@ export default function LeadDetailPage() {
     return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16)
   }
 
-  async function addContactHistory() {
-    if (!contactForm.note.trim()) return
-    setSavingContact(true)
-    setError('')
-    try {
-      const res = await fetch(`/api/leads/${id}/contacts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contactAt: contactForm.contactAt || new Date().toISOString(),
-          note: contactForm.note,
-          nextContactAt: contactForm.nextContactAt,
-          nextContactNote: contactForm.nextContactNote,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error || lt('add_contact_failed'))
-        return
-      }
-      setContactHistory(current => [data, ...current])
-      setForm((current: any) => ({
-        ...current,
-        lastContactAt: toDateTimeLocal(data.contactAt),
-        lastContactNote: data.note || '',
-        nextContactAt: data.nextContactAt ? toDateTimeLocal(data.nextContactAt) : '',
-        nextContactNote: data.nextContactNote || '',
-      }))
-      setContactForm({ contactAt: '', note: '', nextContactAt: '', nextContactNote: '' })
-    } finally {
-      setSavingContact(false)
-    }
+  function formatContactNoteEntry(contactAt: string, note: string) {
+    return `${new Date(contactAt).toLocaleString(locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} - ${note}`
+  }
+
+  function prependContactNote(previous: string, contactAt: string, note: string) {
+    return [formatContactNoteEntry(contactAt, note), String(previous || '').trim()].filter(Boolean).join('\n')
   }
 
   async function addMessage() {
@@ -280,11 +228,6 @@ export default function LeadDetailPage() {
         return
       }
       setMessages(current => [...current, data])
-      setForm((current: any) => ({
-        ...current,
-        lastContactAt: toDateTimeLocal(data.sentAt),
-        lastContactNote: data.text || '',
-      }))
       setMessageForm(current => ({ ...current, text: '' }))
     } finally {
       setSavingMessage(false)
@@ -312,11 +255,10 @@ export default function LeadDetailPage() {
         setError(data.error || lt('save_failed'))
         return
       }
-      setContactHistory(current => [data, ...current])
       setForm((current: any) => ({
         ...current,
         lastContactAt: toDateTimeLocal(data.contactAt),
-        lastContactNote: data.note || '',
+        lastContactNote: prependContactNote(current.lastContactNote || '', data.contactAt, data.note || ''),
         nextContactAt: data.nextContactAt ? toDateTimeLocal(data.nextContactAt) : '',
         nextContactNote: data.nextContactNote || '',
       }))
@@ -355,7 +297,6 @@ export default function LeadDetailPage() {
       }))
       setQuickNextContactAt('')
       setQuickNextContactNote('')
-      await loadContactHistory()
     } finally {
       setQuickSaving(false)
     }
@@ -405,7 +346,6 @@ export default function LeadDetailPage() {
   async function save() {
     setSaving(true)
     setError('')
-    const previousStatus = lead?.status
     try {
       const res = await fetch(`/api/leads/${id}`, {
         method: 'PATCH',
@@ -424,9 +364,6 @@ export default function LeadDetailPage() {
         phones: ensurePhoneRows(data.phones, data.phone || current.phone || ''),
         assignedToId: data.assignedToId ? String(data.assignedToId) : '',
       }))
-      if (form.status && form.status !== previousStatus) {
-        loadContactHistory()
-      }
     } finally {
       setSaving(false)
     }
@@ -610,7 +547,7 @@ export default function LeadDetailPage() {
 
             <div className="card" style={{ marginBottom: 16 }}>
               <div className="section-title"><span>💬</span>{lt('dialog')}</div>
-              <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', padding: 12, minHeight: 160, maxHeight: 360, overflow: 'auto', marginBottom: 12 }}>
+              <div ref={dialogRef} style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', padding: 12, minHeight: 160, maxHeight: 360, overflow: 'auto', marginBottom: 12 }}>
                 {messages.length === 0 ? (
                   <div style={{ color: 'var(--muted)', fontSize: 13 }}>{lt('no_messages')}</div>
                 ) : (
@@ -705,55 +642,6 @@ export default function LeadDetailPage() {
                 </div>
                 <div className="form-group" style={{ gridColumn: '1/-1' }}><label className="label">{lt('notes')}</label><textarea className="input" rows={7} value={form.notes} onChange={set('notes')} /></div>
               </div>
-            </div>
-
-            <div className="card" style={{ marginTop: 16 }}>
-              <div className="section-title"><span>◷</span>{lt('activity')}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                <div className="form-group">
-                  <label className="label">{lt('last_contact_date')}</label>
-                  <input className="input" type="datetime-local" value={contactForm.contactAt} onChange={setContact('contactAt')} />
-                </div>
-                <div className="form-group">
-                  <label className="label">{lt('next_contact')}</label>
-                  <input className="input" type="datetime-local" value={contactForm.nextContactAt} onChange={setContact('nextContactAt')} />
-                </div>
-                <div className="form-group" style={{ gridColumn: '1/-1' }}>
-                  <label className="label">{lt('last_contact_note')}</label>
-                  <textarea className="input" rows={3} value={contactForm.note} onChange={setContact('note')} placeholder={lt('last_contact_note_placeholder')} />
-                </div>
-                <div className="form-group" style={{ gridColumn: '1/-1' }}>
-                  <label className="label">{lt('next_contact_note')}</label>
-                  <textarea className="input" rows={3} value={contactForm.nextContactNote} onChange={setContact('nextContactNote')} placeholder={lt('next_contact_note_placeholder')} />
-                </div>
-                <div style={{ gridColumn: '1/-1', display: 'flex', justifyContent: 'flex-end' }}>
-                  <button className="btn btn-primary" onClick={addContactHistory} disabled={savingContact || !contactForm.note.trim()}>
-                    {savingContact ? lt('saving') : lt('add_record')}
-                  </button>
-                </div>
-              </div>
-
-              {activityItems.length === 0 ? (
-                <div style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>{lt('no_contact_history')}</div>
-              ) : (
-                <div style={{ display: 'grid', gap: 10 }}>
-                  {activityItems.map(item => (
-                    <div key={item.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, background: 'var(--surface)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
-                        <strong>{new Date(item.contactAt).toLocaleString(locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</strong>
-                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>{item.author?.name || (item.kind === 'created' ? lt('lead') : lt('no_value'))}</span>
-                      </div>
-                      <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{item.note}</div>
-                      {(item.nextContactAt || item.nextContactNote) && (
-                        <div style={{ borderTop: '1px solid var(--border)', marginTop: 10, paddingTop: 10, color: 'var(--muted)', fontSize: 12 }}>
-                          {item.nextContactAt && <div><strong>{lt('next_contact')}:</strong> {new Date(item.nextContactAt).toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>}
-                          {item.nextContactNote && <div style={{ marginTop: 4 }}>{item.nextContactNote}</div>}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 

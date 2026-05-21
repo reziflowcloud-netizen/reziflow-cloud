@@ -214,20 +214,6 @@ async function syncFacebookConversationMessages(args: {
       ? await tx.leadMessage.createMany({ data: rowsToCreate, skipDuplicates: true })
       : { count: 0 }
     const created = Number(createResult?.count || 0)
-    const latestMessage = created > 0
-      ? rowsToCreate[rowsToCreate.length - 1]
-      : null
-
-    if (latestMessage) {
-      await tx.lead.update({
-        where: { id: lead.id },
-        data: {
-          lastContactAt: latestMessage.sentAt,
-          lastContactNote: latestMessage.text,
-        },
-      })
-    }
-
     if (created > 0) {
       await tx.leadWebhookLog.create({
         data: {
@@ -450,19 +436,9 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
             fullName: displayName,
             instagram: channel === 'instagram' ? String(profile?.username || '').trim() || null : null,
             facebook: channel === 'facebook' ? displayName : null,
-            lastContactAt: sentAt,
-            lastContactNote: text,
             notes: `Лид создан из сообщения ${sourceLabel(channel)}`,
           },
           select: { id: true },
-        })
-      } else {
-        await tx.lead.update({
-          where: { id: lead.id },
-          data: {
-            lastContactAt: sentAt,
-            lastContactNote: text,
-          },
         })
       }
 

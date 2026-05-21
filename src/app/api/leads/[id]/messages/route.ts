@@ -123,33 +123,21 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
   }
 
-  const message = await (prisma as any).$transaction(async (tx: any) => {
-    const created = await tx.leadMessage.create({
-      data: {
-        organizationId,
-        leadId: params.id,
-        authorId: senderType === 'employee' ? user.id : null,
-        channel,
-        direction,
-        senderType,
-        senderName: body.senderName ? String(body.senderName).trim() : null,
-        externalMessageId,
-        text,
-        payload: outboundPayload,
-        sentAt,
-      },
-      include: { author: { select: { id: true, name: true } } },
-    })
-
-    await tx.lead.update({
-      where: { id: params.id },
-      data: {
-        lastContactAt: sentAt,
-        lastContactNote: text,
-      },
-    })
-
-    return created
+  const message = await (prisma as any).leadMessage.create({
+    data: {
+      organizationId,
+      leadId: params.id,
+      authorId: senderType === 'employee' ? user.id : null,
+      channel,
+      direction,
+      senderType,
+      senderName: body.senderName ? String(body.senderName).trim() : null,
+      externalMessageId,
+      text,
+      payload: outboundPayload,
+      sentAt,
+    },
+    include: { author: { select: { id: true, name: true } } },
   })
 
   return NextResponse.json(message)
