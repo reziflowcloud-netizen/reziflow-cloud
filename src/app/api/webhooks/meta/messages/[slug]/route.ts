@@ -191,7 +191,9 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     const senderId = String(event.sender?.id || '').trim()
     const recipientId = String(event.recipient?.id || '').trim()
     const pageId = String(event.pageId || '').trim()
-    const candidateIds = isEcho ? uniqueValues([recipientId, senderId]) : uniqueValues([senderId])
+    const sentByPage = !!pageId && senderId === pageId
+    const isPageOutgoing = isEcho || sentByPage
+    const candidateIds = isPageOutgoing ? uniqueValues([recipientId, senderId]) : uniqueValues([senderId])
     const participantCandidates = uniqueValues([
       ...candidateIds.filter(id => id !== pageId),
       ...candidateIds,
@@ -284,9 +286,9 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
           organizationId: organization.id,
           leadId: lead.id,
           channel,
-          direction: isEcho ? 'outgoing' : 'incoming',
-          senderType: isEcho ? 'system' : 'lead',
-          senderName: isEcho ? pageSenderName(channel) : displayName,
+          direction: isPageOutgoing ? 'outgoing' : 'incoming',
+          senderType: isPageOutgoing ? 'system' : 'lead',
+          senderName: isPageOutgoing ? pageSenderName(channel) : displayName,
           externalMessageId,
           text,
           payload: safePayload,
