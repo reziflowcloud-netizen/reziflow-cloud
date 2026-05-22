@@ -205,15 +205,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     // Дополнительные поля (появились после миграции 20260105)
-    const extraData: any = {
+    const stableExtraData: any = {
       trustee: body.trustee || null,
       employeeId: body.employeeId ? parseInt(body.employeeId) : null,
       workContractType: body.workContractType || null,
       workContractNumber: body.workContractNumber || null,
       workContractDate: body.workContractDate ? new Date(body.workContractDate) : null,
-      workContractEndDate: body.workContractEndDate ? new Date(body.workContractEndDate) : null,
       workContractSigned: body.workContractSigned ?? false,
       staySubPurpose: body.staySubPurpose || null,
+    }
+    const newestExtraData: any = {
+      workContractEndDate: body.workContractEndDate ? new Date(body.workContractEndDate) : null,
     }
 
     let updated: any
@@ -221,15 +223,23 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       // Сначала пробуем сохранить со всеми полями
       updated = await (prisma as any).case.update({
         where: { id: params.id },
-        data: { ...baseData, ...extraData }
+        data: { ...baseData, ...stableExtraData, ...newestExtraData }
       })
     } catch (e) {
-      // Если новые поля недоступны (миграция не применилась) — сохраняем только базовые
-      console.warn('Extra fields not available, saving base fields only:', (e as any).message)
-      updated = await prisma.case.update({
-        where: { id: params.id },
-        data: baseData
-      })
+      console.warn('Newest case fields not available, retrying stable fields:', (e as any).message)
+      try {
+        updated = await (prisma as any).case.update({
+          where: { id: params.id },
+          data: { ...baseData, ...stableExtraData }
+        })
+      } catch (stableError) {
+        // Если новые поля недоступны (миграция не применилась) — сохраняем только базовые
+        console.warn('Extra fields not available, saving base fields only:', (stableError as any).message)
+        updated = await prisma.case.update({
+          where: { id: params.id },
+          data: baseData
+        })
+      }
     }
 
     // История статусов

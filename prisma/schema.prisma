@@ -384,6 +384,7 @@ model Case {
   status             String          @default("Новый")
   stayPurpose        String?
   stayType           String?
+  staySubPurpose     String?
   contractType       String?
   contractDate       DateTime?
   contractNumber     String?
