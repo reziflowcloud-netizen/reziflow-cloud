@@ -1,0 +1,1 @@
+ALTER TABLE "Case" ADD COLUMN IF NOT EXISTS "workContractEndDate" TIMESTAMP(3);

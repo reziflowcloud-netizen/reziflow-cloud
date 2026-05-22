@@ -86,6 +86,7 @@ Object.assign(caseColumnAliases, {
   workContractType: ['typ zatrudnienia', 'work contract type', 'тип занятости'],
   workContractNumber: ['numer umowy pracy', 'work contract number'],
   workContractDate: ['data umowy pracy', 'work contract date'],
+  workContractEndDate: ['data konca umowy pracy', 'data końca umowy pracy', 'work contract end date', 'дата окончания договора'],
   workContractSigned: ['umowa pracy podpisana', 'work contract signed'],
 })
 
@@ -576,6 +577,7 @@ export async function POST(request: NextRequest) {
           workContractType: read(row, columnMap.case.workContractType) || null,
           workContractNumber: read(row, columnMap.case.workContractNumber) || null,
           workContractDate: parseDate(read(row, columnMap.case.workContractDate)),
+          workContractEndDate: parseDate(read(row, columnMap.case.workContractEndDate)),
           workContractSigned: parseBoolean(read(row, columnMap.case.workContractSigned)),
         },
       })

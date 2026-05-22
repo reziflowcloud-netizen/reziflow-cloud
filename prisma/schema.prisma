@@ -411,6 +411,7 @@ model Case {
   workContractType   String?
   workContractNumber String?
   workContractDate   DateTime?
+  workContractEndDate DateTime?
   workContractSigned Boolean         @default(false)
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt

@@ -106,6 +106,7 @@ export default function CaseDetailPage() {
         workContractType: data.workContractType || '',
         workContractNumber: data.workContractNumber || '',
         workContractDate: data.workContractDate?.slice(0, 10) || '',
+        workContractEndDate: data.workContractEndDate?.slice(0, 10) || '',
         workContractSigned: data.workContractSigned || false,
         staySubPurpose: data.staySubPurpose || '',
       })
@@ -266,6 +267,7 @@ export default function CaseDetailPage() {
           meta.quickCaseTask,
           meta.fingerprintsAppointment,
           meta.predictedDecision,
+          meta.caseImportantDate,
         ]
         if (metaValues.some((item: any) => item?.caseId === caseData.id)) return true
         return caseNumber && (
@@ -1004,6 +1006,10 @@ export default function CaseDetailPage() {
                       <div className="form-group">
                         <label className="label">{t('contract_date')}</label>
                         <input className="input" type="date" value={form.workContractDate} onChange={e => set('workContractDate', e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="label">{t('contract_end_date')}</label>
+                        <input className="input" type="date" value={form.workContractEndDate} onChange={e => set('workContractEndDate', e.target.value)} />
                       </div>
                       <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 22 }}>
                         <input type="checkbox" id="wc_signed" checked={form.workContractSigned} onChange={e => set('workContractSigned', e.target.checked)} style={{ width: 18, height: 18 }} />

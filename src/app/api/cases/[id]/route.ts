@@ -26,6 +26,7 @@ function taskBelongsToCase(
     meta.quickCaseTask,
     meta.fingerprintsAppointment,
     meta.predictedDecision,
+    meta.caseImportantDate,
   ]
 
   if (refs.some((ref: any) => ref?.caseId === caseId)) return true
@@ -121,6 +122,13 @@ async function syncFixedImportantDateTasks(organizationId: string, caseRecord: a
     title: 'Срок легального пребывания',
     date: caseRecord.legalStayDeadline,
   })
+  await syncCaseImportantDateTask({
+    organizationId,
+    caseRecord,
+    kind: 'workContractEndDate',
+    title: 'Дата окончания договора',
+    date: caseRecord.workContractEndDate,
+  })
 }
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -203,6 +211,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       workContractType: body.workContractType || null,
       workContractNumber: body.workContractNumber || null,
       workContractDate: body.workContractDate ? new Date(body.workContractDate) : null,
+      workContractEndDate: body.workContractEndDate ? new Date(body.workContractEndDate) : null,
       workContractSigned: body.workContractSigned ?? false,
       staySubPurpose: body.staySubPurpose || null,
     }

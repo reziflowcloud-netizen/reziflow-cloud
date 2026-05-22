@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
         'notes',
         'filing date',
         'contract date',
+        'work contract end date',
         'employer',
         'position',
         'passport number',
@@ -93,6 +94,7 @@ export async function GET(request: NextRequest) {
         'Sample row. Delete it before real import.',
         '15.05.2026',
         '10.05.2026',
+        '31.12.2026',
         'Example Sp. z o.o.',
         'Pracownik',
         'AB123456',
@@ -157,7 +159,7 @@ export async function GET(request: NextRequest) {
         'Адрес в Польше', 'Основание пребывания',
         'Номер дела', 'Статус дела', 'Тип договора', 'Номер договора',
         'Договор подписан', 'Стоимость (zł)', 'Оплачено (zł)', 'Долг (zł)',
-        'Номер MOS', 'Дата подачи в MOS', 'Логин кабинета', 'Пароль кабинета', 'Прийти на отпечатки пальцев', 'Przewidywana data wydania decyzji',
+        'Номер MOS', 'Дата подачи в MOS', 'Логин кабинета', 'Пароль кабинета', 'Прийти на отпечатки пальцев', 'Przewidywana data wydania decyzji', 'Дата окончания договора',
         'Дата подачи', 'Личная явка', 'Срок пребывания',
         'Ответственный',
         'Оплата 1 (дата)', 'Оплата 1 (zł)',
@@ -183,7 +185,7 @@ export async function GET(request: NextRequest) {
             toDate(client.passportIssuedAt), toDate(client.passportExpiresAt),
             client.addressInPoland, client.stayBasis,
             '', '', '', '', '', '', '', '',
-            '', '', '', '', '', '', '', '', '', '',
+            '', '', '', '', '', '', '', '', '', '', '',
             '', '', '', '', '', '', '', '', '', '',
             ...readCustomValues('client', client.id, clientCustomFields),
             ...caseCustomFields.map(() => ''),
@@ -210,7 +212,7 @@ export async function GET(request: NextRequest) {
               c.caseNumber, c.status, c.contractType, c.contractNumber,
               c.contractSigned ? 'Да' : 'Нет',
               c.totalValue.toFixed(2), c.totalPaid.toFixed(2), debt.toFixed(2),
-              c.mosNumber, toDate(c.mosSentAt), c.cabinetLogin, c.cabinetPassword, toDate(c.fingerprintsDate), toDate(c.predictedDecisionDate),
+              c.mosNumber, toDate(c.mosSentAt), c.cabinetLogin, c.cabinetPassword, toDate(c.fingerprintsDate), toDate(c.predictedDecisionDate), toDate((c as any).workContractEndDate),
               toDate(c.filingDate), toDate(c.personalAppearDate), toDate(c.legalStayDeadline),
               assignedName,
               ...payFields,
@@ -260,7 +262,7 @@ export async function GET(request: NextRequest) {
         include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
       })
       const clientMap = Object.fromEntries(clients.map(c => [c.id, c]))
-      const headers = ['Номер дела','Клиент','Телефон','Статус','Стоимость','Оплачено','Долг','Номер MOS','Дата подачи в MOS','Логин кабинета','Пароль кабинета','Прийти на отпечатки пальцев','Przewidywana data wydania decyzji','Создано']
+      const headers = ['Номер дела','Клиент','Телефон','Статус','Стоимость','Оплачено','Долг','Номер MOS','Дата подачи в MOS','Логин кабинета','Пароль кабинета','Прийти на отпечатки пальцев','Przewidywana data wydania decyzji','Дата окончания договора','Создано']
       headers.splice(3, 0, 'Все телефоны')
       let csv = '\uFEFF' + headers.join(',') + '\n'
       for (const c of cases) {
@@ -281,6 +283,7 @@ export async function GET(request: NextRequest) {
           c.cabinetPassword || '',
           toDate(c.fingerprintsDate),
           toDate(c.predictedDecisionDate),
+          toDate((c as any).workContractEndDate),
           toDate(c.createdAt)
         ].map(esc).join(',') + '\n'
       }

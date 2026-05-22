@@ -95,6 +95,7 @@ Object.assign(caseLabels, {
   workContractType: 'Тип занятости',
   workContractNumber: 'Номер договора работы',
   workContractDate: 'Дата договора работы',
+  workContractEndDate: 'Дата окончания договора',
   workContractSigned: 'Договор работы подписан',
 })
 
