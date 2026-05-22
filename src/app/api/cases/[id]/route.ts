@@ -205,7 +205,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     // Дополнительные поля (появились после миграции 20260105)
-    const stableExtraData: any = {
+    const caseDetailsData: any = {
       trustee: body.trustee || null,
       employeeId: body.employeeId ? parseInt(body.employeeId) : null,
       workContractType: body.workContractType || null,
@@ -213,34 +213,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       workContractDate: body.workContractDate ? new Date(body.workContractDate) : null,
       workContractSigned: body.workContractSigned ?? false,
       staySubPurpose: body.staySubPurpose || null,
-    }
-    const newestExtraData: any = {
       workContractEndDate: body.workContractEndDate ? new Date(body.workContractEndDate) : null,
     }
 
-    let updated: any
-    try {
-      // Сначала пробуем сохранить со всеми полями
-      updated = await (prisma as any).case.update({
-        where: { id: params.id },
-        data: { ...baseData, ...stableExtraData, ...newestExtraData }
-      })
-    } catch (e) {
-      console.warn('Newest case fields not available, retrying stable fields:', (e as any).message)
-      try {
-        updated = await (prisma as any).case.update({
-          where: { id: params.id },
-          data: { ...baseData, ...stableExtraData }
-        })
-      } catch (stableError) {
-        // Если новые поля недоступны (миграция не применилась) — сохраняем только базовые
-        console.warn('Extra fields not available, saving base fields only:', (stableError as any).message)
-        updated = await prisma.case.update({
-          where: { id: params.id },
-          data: baseData
-        })
-      }
-    }
+    const updated = await (prisma as any).case.update({
+      where: { id: params.id },
+      data: { ...baseData, ...caseDetailsData }
+    })
 
     // История статусов
     if (body.status && existing.status !== body.status) {
