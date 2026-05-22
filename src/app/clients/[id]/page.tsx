@@ -7,7 +7,7 @@ import CollapsibleCardsBehavior from '@/components/CollapsibleCardsBehavior'
 import SectionVisibilityBehavior from '@/components/SectionVisibilityBehavior'
 import CustomSectionsRenderer, { type CustomSectionsHandle } from '@/components/CustomSectionsRenderer'
 import PhoneListEditor, { ensurePhoneRows } from '@/components/PhoneListEditor'
-import { caseStatusLabel } from '@/lib/caseI18n'
+import { caseStatusLabel, isActiveCaseStatus } from '@/lib/caseI18n'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -24,7 +24,6 @@ const MARITAL_STATUS = ['Холост/Не замужем','Женат/Заму�
 const EDUCATION = ['Начальное','Среднее','Среднее специальное','Высшее','Учёная степень']
 const LEGAL_TITLE = ['Wynajem (Аренда)','Własność (Собственность)','Użyczenie (Безвозмездное пользование)','Zamieszkanie u rodziny (У родственников)','Inne (Другое)']
 const STAY_BASIS = ['Без основания','Виза','Карта побыту','Побыт временный','Побыт постоянный','Безвизовый режим']
-const ACTIVE_STATUSES = ['В работе', 'Ожидание документов', 'Новый']
 const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
 
 const F = ({ label, children, col = false }: any) => (
@@ -440,8 +439,8 @@ export default function ClientDetailPage() {
   if (!client) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>{text.loading}</div>
 
   const cases = client.cases || []
-  const activeCases = cases.filter((c: any) => ACTIVE_STATUSES.includes(c.status))
-  const closedCases = cases.filter((c: any) => !ACTIVE_STATUSES.includes(c.status))
+  const activeCases = cases.filter((c: any) => isActiveCaseStatus(c.status))
+  const closedCases = cases.filter((c: any) => !isActiveCaseStatus(c.status))
 
   const canDeleteClient = currentUser?.role === 'admin' || currentUser?.role === 'owner'
   const familySelectedIds = form.familyClientIds || []

@@ -40,6 +40,7 @@ export default function CaseDetailPage() {
   const [taskDueDate, setTaskDueDate] = useState('')
   const [taskSaving, setTaskSaving] = useState(false)
   const [mosId, setMosId] = useState('')
+  const [initialMosId, setInitialMosId] = useState('')
   const [pendingMosDocName, setPendingMosDocName] = useState('')
   const [newMosDocName, setNewMosDocName] = useState('')
   const [newMosDocDueDate, setNewMosDocDueDate] = useState('')
@@ -76,7 +77,9 @@ export default function CaseDetailPage() {
       loadCaseTasks(data)
       setCustomDates(data.customDates || [])
       setDocUpdates((data.docUpdates || []).filter((d: any) => !String(d.description || '').startsWith('__MOS_ID__:')))
-      setMosId(((data.docUpdates || []).find((d: any) => String(d.description || '').startsWith('__MOS_ID__:'))?.description || '').replace('__MOS_ID__:', ''))
+      const loadedMosId = ((data.docUpdates || []).find((d: any) => String(d.description || '').startsWith('__MOS_ID__:'))?.description || '').replace('__MOS_ID__:', '')
+      setMosId(loadedMosId)
+      setInitialMosId(loadedMosId)
       setDocuments(data.caseDocuments || [])
       setForm({
         caseNumber: data.caseNumber || '',
@@ -132,26 +135,47 @@ export default function CaseDetailPage() {
 
   function set(k: string, v: any) { setForm((p: any) => ({ ...p, [k]: v })) }
 
+  function dateOnly(value: any) {
+    if (!value) return ''
+    if (typeof value === 'string') return value.slice(0, 10)
+    return new Date(value).toISOString().slice(0, 10)
+  }
+
   async function save() {
     setSaving(true)
     try {
+      const previous = c || {}
       const res = await fetch(`/api/cases/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, employeeId: form.employeeId ? parseInt(form.employeeId) : null, staySubPurpose: form.staySubPurpose || null }),
       })
-      const updated = await res.json()
-      setC((prev: any) => ({ ...prev, ...updated, service: services.find(s => s.id === parseInt(form.serviceId)) || null }))
-      await saveMosId()
-      const reminderBaseDate = form.filingDate || form.mosSentAt
-      if (reminderBaseDate && mosAutoRemindersEnabled) {
-        await createFilingReminders(reminderBaseDate)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `HTTP ${res.status}`)
       }
-      await syncFingerprintsReminder(form.fingerprintsDate, { ...c, ...updated })
-      await syncPredictedDecisionReminder(form.predictedDecisionDate, { ...c, ...updated })
-      await loadCaseTasks({ ...c, ...updated })
-      const customOk = await customSectionsRef.current?.save()
+      const updated = await res.json()
+      const nextCase = { ...previous, ...updated, service: services.find(s => s.id === parseInt(form.serviceId)) || null }
+      setC((prev: any) => ({ ...prev, ...nextCase }))
+      const followUpTasks: Promise<any>[] = []
+      if (mosId.trim() !== initialMosId.trim()) followUpTasks.push(saveMosId())
+      const reminderBaseDate = form.filingDate || form.mosSentAt
+      const filingDateChanged = dateOnly(previous.filingDate) !== form.filingDate || dateOnly(previous.mosSentAt) !== form.mosSentAt
+      if (reminderBaseDate && mosAutoRemindersEnabled && filingDateChanged) {
+        followUpTasks.push(createFilingReminders(reminderBaseDate))
+      }
+      if (dateOnly(previous.fingerprintsDate) !== form.fingerprintsDate) {
+        followUpTasks.push(syncFingerprintsReminder(form.fingerprintsDate, nextCase))
+      }
+      if (dateOnly(previous.predictedDecisionDate) !== form.predictedDecisionDate) {
+        followUpTasks.push(syncPredictedDecisionReminder(form.predictedDecisionDate, nextCase))
+      }
+      const customSave = customSectionsRef.current?.save() || Promise.resolve(true)
+      const [customOk] = await Promise.all([customSave, ...followUpTasks])
+      await loadCaseTasks(nextCase)
       if (customOk === false) alert(t('custom_fields_save_failed'))
+    } catch (err: any) {
+      alert(`${t('save_error') || 'Ошибка сохранения'}: ${err.message}`)
     } finally {
       setSaving(false)
     }
@@ -557,6 +581,7 @@ export default function CaseDetailPage() {
         body: JSON.stringify({ date: new Date().toISOString().slice(0, 10), description: `__MOS_ID__:${mosId.trim()}` }),
       })
     }
+    setInitialMosId(mosId.trim())
   }
 
   async function addPayment() {

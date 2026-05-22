@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
-import { caseStatusLabel } from '@/lib/caseI18n'
+import { caseStatusLabel, isActiveCaseStatus, isClosedCaseStatus } from '@/lib/caseI18n'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый':               { bg: '#eff6ff', color: '#1d4ed8' },
@@ -13,8 +13,6 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Архив':               { bg: '#f3f4f6', color: '#374151' },
   'Отказ':               { bg: '#fef2f2', color: '#991b1b' },
 }
-const ACTIVE_STATUSES = ['В работе', 'Ожидание документов', 'Новый']
-const ARCHIVED_STATUSES = ['Архив', 'Отказ']
 const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
 
 const ALL_COLUMNS = [
@@ -215,7 +213,7 @@ export default function ClientsPage() {
                   </td></tr>
                 ) : filtered.map(client => {
                   const cases: any[] = client.cases || []
-                  const activeCases = cases.filter((c: any) => ACTIVE_STATUSES.includes(c.status))
+                  const activeCases = cases.filter((c: any) => isActiveCaseStatus(c.status))
                   return (
                     <tr key={client.id} onClick={() => router.push(`/clients/${client.id}`)} style={{ cursor: 'pointer' }}>
                       {visibleCols.includes('name') && (
@@ -246,9 +244,9 @@ export default function ClientsPage() {
                             <span style={{ color: 'var(--muted)', fontSize: 13 }}>—</span>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                              {[...activeCases, ...cases.filter((c: any) => !ACTIVE_STATUSES.includes(c.status))].map((c: any) => {
+                              {[...activeCases, ...cases.filter((c: any) => !isActiveCaseStatus(c.status))].map((c: any) => {
                                 const sc = STATUS_COLORS[c.status] || { bg: '#f3f4f6', color: '#374151' }
-                                const isArchived = ARCHIVED_STATUSES.includes(c.status)
+                                const isArchived = isClosedCaseStatus(c.status)
                                 return (
                                   <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 5, opacity: isArchived ? 0.5 : 1 }}>
                                     {c.service ? (

@@ -1,6 +1,5 @@
 // src/app/dashboard/page.tsx
 import { prisma } from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import Link from 'next/link'
 import { Suspense } from 'react'
@@ -30,8 +29,6 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Архив':               { bg: '#f3f4f6', color: '#374151' },
   'Отказ':               { bg: '#fef2f2', color: '#991b1b' },
 }
-
-const ACTIVE_CASE_STATUSES = ['Новый', 'В работе', 'Ожидание документов']
 
 export default async function DashboardPage() {
   const user = await getUser()
@@ -138,7 +135,21 @@ async function DashboardStats({ organizationId }: { organizationId: string }) {
       prisma.$queryRaw<Array<{ totalCases: number; activeCases: number; totalDebt: number; contractsNoPay: number }>>`
         SELECT
           COUNT(*)::int AS "totalCases",
-          COUNT(*) FILTER (WHERE status IN (${Prisma.join(ACTIVE_CASE_STATUSES)}))::int AS "activeCases",
+          COUNT(*) FILTER (
+            WHERE lower(status) NOT LIKE '%архив%'
+              AND lower(status) NOT LIKE '%архів%'
+              AND lower(status) NOT LIKE '%archive%'
+              AND lower(status) NOT LIKE '%archiw%'
+              AND lower(status) NOT LIKE '%отказ%'
+              AND lower(status) NOT LIKE '%відмова%'
+              AND lower(status) NOT LIKE '%odmowa%'
+              AND lower(status) NOT LIKE '%refusal%'
+              AND lower(status) NOT LIKE '%rejected%'
+              AND lower(status) NOT LIKE '%закрыт%'
+              AND lower(status) NOT LIKE '%закрит%'
+              AND lower(status) NOT LIKE '%closed%'
+              AND lower(status) NOT LIKE '%zamkni%'
+          )::int AS "activeCases",
           COALESCE(SUM(GREATEST("totalValue" - "totalPaid", 0)), 0)::double precision AS "totalDebt",
           COUNT(*) FILTER (WHERE "contractSigned" = true AND "totalPaid" = 0 AND "totalValue" > 0)::int AS "contractsNoPay"
         FROM "Case"

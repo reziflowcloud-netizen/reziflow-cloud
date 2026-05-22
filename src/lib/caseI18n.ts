@@ -39,3 +39,21 @@ export function isArchiveCaseStatus(name?: string | null) {
     || value.includes('archive')
     || value.includes('archiw')
 }
+
+export function isClosedCaseStatus(name?: string | null) {
+  const value = String(name || '').trim().toLowerCase()
+  return isArchiveCaseStatus(name)
+    || value.includes('отказ')
+    || value.includes('відмова')
+    || value.includes('odmowa')
+    || value.includes('refusal')
+    || value.includes('rejected')
+    || value.includes('закрыт')
+    || value.includes('закрит')
+    || value.includes('closed')
+    || value.includes('zamkni')
+}
+
+export function isActiveCaseStatus(name?: string | null) {
+  return !isClosedCaseStatus(name)
+}

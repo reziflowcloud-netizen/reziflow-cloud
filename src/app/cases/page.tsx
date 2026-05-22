@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
-import { caseStatusLabel, isArchiveCaseStatus } from '@/lib/caseI18n'
+import { caseStatusLabel, isActiveCaseStatus, isArchiveCaseStatus } from '@/lib/caseI18n'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый':               { bg: '#eff6ff', color: '#1d4ed8' },
@@ -14,7 +14,6 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Отказ':               { bg: '#fef2f2', color: '#991b1b' },
 }
 
-const ACTIVE_STATUSES = ['Новый', 'В работе', 'Ожидание документов']
 const ALL_FILTER = 'all'
 const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
 
@@ -107,7 +106,7 @@ export default function CasesPage() {
     .filter(c => {
       // Фильтр
       if (activeFilter === ALL_FILTER || activeFilter === 'Все') return true
-      if (activeFilter === 'active') return ACTIVE_STATUSES.includes(c.status)
+      if (activeFilter === 'active') return isActiveCaseStatus(c.status)
       if (activeFilter === 'no_pay') return c.contractSigned && c.totalPaid === 0 && c.totalValue > 0
       return caseMatchesStatus(c.status, activeFilter)
     })
@@ -127,7 +126,7 @@ export default function CasesPage() {
       return 0
     })
 
-  const activeCasesCount = cases.filter(c => ACTIVE_STATUSES.includes(c.status)).length
+  const activeCasesCount = cases.filter(c => isActiveCaseStatus(c.status)).length
   const noPayCount = cases.filter(c => c.contractSigned && c.totalPaid === 0 && c.totalValue > 0).length
   const canDeleteCases = currentUser?.role === 'admin' || currentUser?.role === 'owner'
 
