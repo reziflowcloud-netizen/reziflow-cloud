@@ -5,6 +5,7 @@ import {
   formatDate,
   formatMoney,
   selectedMonth,
+  toValidDate,
 } from '@/lib/dashboardAnalytics'
 import { getOrganizationId, getUser } from '@/lib/auth'
 
@@ -17,7 +18,9 @@ type DashboardCaseDate = {
 }
 
 function dashboardCaseDate(item: DashboardCaseDate): Date {
-  return item.contractSigned && item.contractDate ? item.contractDate : item.createdAt
+  const contractDate = toValidDate(item.contractDate)
+  const createdAt = toValidDate(item.createdAt)
+  return (item.contractSigned && contractDate ? contractDate : createdAt) || new Date(0)
 }
 
 function dashboardCaseMonthWhere(organizationId: string, start: Date, end: Date) {
@@ -121,7 +124,9 @@ export default async function NewCasesPage({
                 ) : sortedCases.map((item) => (
                   <tr key={item.id}>
                     <td>{formatDate(dashboardCaseDate(item))}</td>
-                    <td style={{ fontWeight: 600 }}>{item.client.firstName} {item.client.lastName}</td>
+                    <td style={{ fontWeight: 600 }}>
+                      {item.client ? `${item.client.firstName} ${item.client.lastName}`.trim() : 'Клиент не найден'}
+                    </td>
                     <td>
                       <span
                         className="badge"

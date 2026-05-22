@@ -5,7 +5,14 @@ export type MonthOption = {
   end: Date
 }
 
-export function getMonthKey(date: Date) {
+export function toValidDate(value: Date | string | number | null | undefined) {
+  if (!value) return null
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+export function getMonthKey(value: Date | string | number) {
+  const date = toValidDate(value) || new Date()
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
@@ -29,22 +36,29 @@ export function formatMonthLabel(monthKey: string) {
   return start.toLocaleDateString('ru', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 }
 
-export function formatShortMonth(date: Date) {
+export function formatShortMonth(value: Date | string | number | null | undefined) {
+  const date = toValidDate(value)
+  if (!date) return '-'
   return date.toLocaleDateString('ru', { month: 'short', year: '2-digit', timeZone: 'UTC' })
 }
 
-export function formatDate(date: Date | null | undefined) {
+export function formatDate(value: Date | string | number | null | undefined) {
+  const date = toValidDate(value)
   if (!date) return '-'
-  return new Date(date).toLocaleDateString('ru', { timeZone: 'UTC' })
+  return date.toLocaleDateString('ru', { timeZone: 'UTC' })
 }
 
-export function formatMoney(value: number) {
-  return `${value.toFixed(2)} zł`
+export function formatMoney(value: number | string | null | undefined) {
+  const amount = Number(value)
+  return `${Number.isFinite(amount) ? amount.toFixed(2) : '0.00'} zł`
 }
 
-export function buildMonthOptions(dates: Date[], fallbackMonths = 6): MonthOption[] {
+export function buildMonthOptions(dates: Array<Date | string | number | null | undefined>, fallbackMonths = 6): MonthOption[] {
   const keys = new Set<string>()
-  for (const date of dates) keys.add(getMonthKey(new Date(date)))
+  for (const value of dates) {
+    const date = toValidDate(value)
+    if (date) keys.add(getMonthKey(date))
+  }
 
   if (keys.size === 0) {
     const now = new Date()
