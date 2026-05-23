@@ -618,11 +618,55 @@ export default function LeadsPage() {
           }
 
           .leads-page .lead-status-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            display: flex !important;
+            gap: 8px !important;
+            margin: 0 -10px 10px !important;
+            overflow-x: auto;
+            padding: 0 10px 4px;
+            scroll-snap-type: x proximity;
+            -webkit-overflow-scrolling: touch;
+          }
+
+          .leads-page .lead-status-card {
+            flex: 0 0 auto;
+            min-width: 112px;
+            max-width: 150px;
+            padding: 7px 9px !important;
+            scroll-snap-align: start;
+          }
+
+          .leads-page .lead-status-count {
+            font-size: 15px !important;
+            line-height: 1.05;
+          }
+
+          .leads-page .lead-status-label {
+            font-size: 10px !important;
+            line-height: 1.15;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+          }
+
+          .leads-page .lead-quick-filters {
+            flex-wrap: nowrap !important;
+            margin: 0 -10px 10px !important;
+            overflow-x: auto;
+            padding: 0 10px 4px;
+            -webkit-overflow-scrolling: touch;
+          }
+
+          .leads-page .lead-quick-filters .btn {
+            flex: 0 0 auto;
+            padding: 6px 9px !important;
+            white-space: nowrap;
           }
 
           .leads-page .lead-filter-grid {
             grid-template-columns: 1fr !important;
+            gap: 8px !important;
+            margin-bottom: 10px !important;
           }
 
           .leads-page .lead-view-toggle {
@@ -635,20 +679,21 @@ export default function LeadsPage() {
           }
 
           .leads-page .lead-content-grid {
-            display: flex !important;
-            flex-direction: column;
-            gap: 12px !important;
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) minmax(136px, 38vw) !important;
+            gap: 8px !important;
           }
 
           .leads-page .lead-results {
-            order: 1;
             min-width: 0;
             width: 100%;
           }
 
           .leads-page .lead-calendar-card {
-            order: 2;
-            position: static !important;
+            align-self: start;
+            padding: 8px !important;
+            position: sticky !important;
+            top: 8px !important;
             width: 100%;
             max-width: 100%;
           }
@@ -656,25 +701,124 @@ export default function LeadsPage() {
           .leads-page .table-container,
           .leads-page .table-scroll {
             width: 100%;
-            max-width: calc(100vw - 24px);
-            overflow-x: auto;
+            max-width: none;
+            overflow-x: visible;
           }
 
           .leads-page .table {
-            min-width: 760px;
+            min-width: 0;
+            width: 100%;
+            table-layout: fixed;
+          }
+
+          .leads-page .table th,
+          .leads-page .table td {
+            padding: 7px 6px;
+          }
+
+          .leads-page .table th:first-child,
+          .leads-page .table td:first-child,
+          .leads-page .table th:nth-child(n+4),
+          .leads-page .table td:nth-child(n+4) {
+            display: none;
+          }
+
+          .leads-page .table th:nth-child(2) {
+            width: 58%;
+          }
+
+          .leads-page .table th:nth-child(3) {
+            width: 42%;
+          }
+
+          .leads-page .table .avatar {
+            display: none;
+          }
+
+          .leads-page .table td:nth-child(2) > div {
+            gap: 0 !important;
+          }
+
+          .leads-page .table td:nth-child(2) span,
+          .leads-page .table td:nth-child(2) div {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+
+          .leads-page .table td:nth-child(3) .select {
+            min-width: 0 !important;
+            width: 100%;
+            height: 28px !important;
+            padding: 3px 5px !important;
+            font-size: 10px;
           }
 
           .leads-page .lead-board-scroll {
             width: 100%;
-            max-width: calc(100vw - 24px);
+            max-width: none;
             overflow-x: auto;
+          }
+
+          .leads-page .lead-calendar-card .section-title {
+            font-size: 10px;
+            margin-bottom: 6px;
+          }
+
+          .leads-page .lead-calendar-nav {
+            gap: 4px;
+            margin-bottom: 7px !important;
+          }
+
+          .leads-page .lead-calendar-nav .btn {
+            padding: 3px 6px !important;
+          }
+
+          .leads-page .lead-calendar-nav strong {
+            font-size: 11px;
+            line-height: 1.1;
+            text-align: center;
+          }
+
+          .leads-page .lead-calendar-weekdays {
+            gap: 2px !important;
+            font-size: 9px !important;
+            margin-bottom: 4px !important;
+          }
+
+          .leads-page .lead-calendar-grid {
+            gap: 2px !important;
+          }
+
+          .leads-page .lead-calendar-grid button {
+            min-height: 24px !important;
+            border-radius: 5px !important;
+            font-size: 10px;
+          }
+
+          .leads-page .lead-selected-reminders {
+            margin-top: 8px !important;
+            padding-top: 8px !important;
+          }
+
+          .leads-page .lead-selected-reminders button {
+            padding: 6px !important;
+          }
+
+          .leads-page .lead-selected-reminders strong,
+          .leads-page .lead-selected-reminders div {
+            font-size: 10px !important;
           }
         }
 
         @media (max-width: 420px) {
           .leads-page .page-body {
-            padding-left: 10px;
-            padding-right: 10px;
+            padding-left: 8px;
+            padding-right: 8px;
+          }
+
+          .leads-page .lead-content-grid {
+            grid-template-columns: minmax(0, 1fr) 138px !important;
           }
         }
       `}</style>
@@ -700,17 +844,17 @@ export default function LeadsPage() {
           {orderedStatuses.map((item, index) => {
             const colors = statusColors(item)
             return (
-              <div key={item.id || item.name} style={{ border: `1px solid ${status === item.name ? colors.color : 'var(--border)'}`, background: status === item.name ? colors.bg : 'var(--surface)', borderRadius: 8, padding: 10 }}>
+              <div className="lead-status-card" key={item.id || item.name} style={{ border: `1px solid ${status === item.name ? colors.color : 'var(--border)'}`, background: status === item.name ? colors.bg : 'var(--surface)', borderRadius: 8, padding: 10 }}>
                 <button
                   type="button"
                   onClick={() => !editingStatuses && setStatus(current => current === item.name ? '' : item.name)}
                   style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: 0, cursor: editingStatuses ? 'default' : 'pointer' }}
                 >
-                  <div style={{ color: colors.color, fontWeight: 800, fontSize: 18 }}>{statusCounts[item.name] || 0}</div>
+                  <div className="lead-status-count" style={{ color: colors.color, fontWeight: 800, fontSize: 18 }}>{statusCounts[item.name] || 0}</div>
                   {editingStatuses && item.id ? (
                     <input className="input" defaultValue={item.name} onBlur={event => event.target.value.trim() !== item.name && saveLeadStatus(item, { name: event.target.value })} style={{ height: 30, padding: '4px 8px', fontSize: 12, fontWeight: 700 }} />
                   ) : (
-                    <div style={{ fontSize: 12, fontWeight: 700 }}>{leadStatusLabel(lang, item.name)}</div>
+                    <div className="lead-status-label" style={{ fontSize: 12, fontWeight: 700 }}>{leadStatusLabel(lang, item.name)}</div>
                   )}
                 </button>
                 {editingStatuses && item.id && (
@@ -751,7 +895,7 @@ export default function LeadsPage() {
           )}
         </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+        <div className="lead-quick-filters" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
           {([
             ['all', 'quick_all'],
             ['today', 'quick_today'],
@@ -1018,15 +1162,15 @@ export default function LeadsPage() {
 
           <div className="card lead-calendar-card" style={{ position: 'sticky', top: 16 }}>
             <div className="section-title"><span>◷</span>{lt('leads_calendar')}</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div className="lead-calendar-nav" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <button type="button" className="btn btn-secondary" style={{ padding: '6px 10px' }} onClick={() => changeCalendarMonth(-1)}>‹</button>
               <strong>{calendarMonth.toLocaleDateString(locale, { month: 'long', year: 'numeric' })}</strong>
               <button type="button" className="btn btn-secondary" style={{ padding: '6px 10px' }} onClick={() => changeCalendarMonth(1)}>›</button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 8, color: 'var(--muted)', fontSize: 11, textAlign: 'center', fontWeight: 700 }}>
+            <div className="lead-calendar-weekdays" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 8, color: 'var(--muted)', fontSize: 11, textAlign: 'center', fontWeight: 700 }}>
               {LEAD_WEEKDAYS[lang].map(day => <div key={day}>{day}</div>)}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+            <div className="lead-calendar-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
               {calendarDays.map(item => item.day ? (
                 <button
                   key={item.key}
@@ -1048,7 +1192,7 @@ export default function LeadsPage() {
                 </button>
               ) : <div key={item.key} />)}
             </div>
-            <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+            <div className="lead-selected-reminders" style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
               <div style={{ fontWeight: 800, marginBottom: 10 }}>
                 {new Date(`${selectedDate}T00:00:00`).toLocaleDateString(locale, { day: '2-digit', month: 'long', year: 'numeric' })}
               </div>
