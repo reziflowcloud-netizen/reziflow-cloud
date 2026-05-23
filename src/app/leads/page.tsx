@@ -605,7 +605,79 @@ export default function LeadsPage() {
   }
 
   return (
-    <div className="fade-in">
+    <div className="fade-in leads-page">
+      <style>{`
+        @media (max-width: 760px) {
+          .leads-page {
+            overflow-x: hidden;
+          }
+
+          .leads-page .page-header {
+            align-items: flex-start;
+            gap: 10px;
+          }
+
+          .leads-page .lead-status-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+
+          .leads-page .lead-filter-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .leads-page .lead-view-toggle {
+            width: 100%;
+          }
+
+          .leads-page .lead-view-toggle .btn {
+            flex: 1;
+            justify-content: center;
+          }
+
+          .leads-page .lead-content-grid {
+            display: flex !important;
+            flex-direction: column;
+            gap: 12px !important;
+          }
+
+          .leads-page .lead-results {
+            order: 1;
+            min-width: 0;
+            width: 100%;
+          }
+
+          .leads-page .lead-calendar-card {
+            order: 2;
+            position: static !important;
+            width: 100%;
+            max-width: 100%;
+          }
+
+          .leads-page .table-container,
+          .leads-page .table-scroll {
+            width: 100%;
+            max-width: calc(100vw - 24px);
+            overflow-x: auto;
+          }
+
+          .leads-page .table {
+            min-width: 760px;
+          }
+
+          .leads-page .lead-board-scroll {
+            width: 100%;
+            max-width: calc(100vw - 24px);
+            overflow-x: auto;
+          }
+        }
+
+        @media (max-width: 420px) {
+          .leads-page .page-body {
+            padding-left: 10px;
+            padding-right: 10px;
+          }
+        }
+      `}</style>
       <div className="page-header">
         <div>
           <div className="page-title">{lt('leads')}</div>
@@ -624,7 +696,7 @@ export default function LeadsPage() {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 16 }}>
+        <div className="lead-status-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 16 }}>
           {orderedStatuses.map((item, index) => {
             const colors = statusColors(item)
             return (
@@ -733,7 +805,7 @@ export default function LeadsPage() {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 190px 190px auto', gap: 10, marginBottom: 16 }}>
+        <div className="lead-filter-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 190px 190px auto', gap: 10, marginBottom: 16 }}>
           <input className="input" placeholder={`🔍 ${lt('search_placeholder')}`} value={search} onChange={e => setSearch(e.target.value)} />
           <select className="select" value={status} onChange={e => setStatus(e.target.value)}>
             <option value="">{lt('all_statuses')}</option>
@@ -743,7 +815,7 @@ export default function LeadsPage() {
             <option value="">{lt('all_sources')}</option>
             {leadSources.map(item => <option key={item.value} value={item.value}>{leadSourceOptionLabel(lang, item)}</option>)}
           </select>
-          <div style={{ display: 'flex', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}>
+          <div className="lead-view-toggle" style={{ display: 'flex', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}>
             <button type="button" className={viewMode === 'table' ? 'btn btn-primary' : 'btn btn-ghost'} style={{ padding: '7px 10px' }} onClick={() => setViewMode('table')}>{lt('table')}</button>
             <button type="button" className={viewMode === 'board' ? 'btn btn-primary' : 'btn btn-ghost'} style={{ padding: '7px 10px' }} onClick={() => setViewMode('board')}>{lt('board')}</button>
           </div>
@@ -772,9 +844,9 @@ export default function LeadsPage() {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 340px)', gap: 16, alignItems: 'start' }}>
+        <div className="lead-content-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 340px)', gap: 16, alignItems: 'start' }}>
           {viewMode === 'table' ? (
-          <div className="table-container">
+          <div className="table-container lead-results">
             <div className="table-scroll">
               <table className="table">
                 <thead>
@@ -880,7 +952,7 @@ export default function LeadsPage() {
             </div>
           </div>
           ) : (
-            <div style={{ overflowX: 'auto', paddingBottom: 6 }}>
+            <div className="lead-results lead-board-scroll" style={{ overflowX: 'auto', paddingBottom: 6 }}>
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(${statusNames.length}, minmax(230px, 1fr))`, gap: 12, minWidth: Math.max(320, statusNames.length * 240) }}>
                 {orderedStatuses.map(item => {
                   const colors = statusColors(item)
@@ -944,7 +1016,7 @@ export default function LeadsPage() {
             </div>
           )}
 
-          <div className="card" style={{ position: 'sticky', top: 16 }}>
+          <div className="card lead-calendar-card" style={{ position: 'sticky', top: 16 }}>
             <div className="section-title"><span>◷</span>{lt('leads_calendar')}</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <button type="button" className="btn btn-secondary" style={{ padding: '6px 10px' }} onClick={() => changeCalendarMonth(-1)}>‹</button>
