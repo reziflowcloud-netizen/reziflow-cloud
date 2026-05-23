@@ -70,6 +70,32 @@ export default async function DashboardPage() {
           border-radius: 8px;
           padding: 8px 8px 0;
         }
+        @media (max-width: 768px) {
+          .dashboard-chart-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 8px !important;
+          }
+          .dashboard-chart-grid .dash-chart-card {
+            min-height: 142px !important;
+            padding: 12px !important;
+          }
+          .dashboard-chart-grid .dash-mini-chart {
+            height: 76px;
+            gap: 4px;
+            padding: 6px 4px 0;
+          }
+          .dashboard-chart-grid .dash-chart-bar-wrap {
+            height: 68px;
+            grid-template-rows: 16px 1fr 14px;
+          }
+          .dashboard-chart-grid .dash-chart-label,
+          .dashboard-chart-grid .dash-chart-value {
+            font-size: 9px;
+          }
+          .dashboard-chart-grid .dash-chart-value {
+            padding: 1px 4px;
+          }
+        }
       `}</style>
 
       <div className="page-header">
@@ -231,8 +257,8 @@ async function DashboardStats({ organizationId }: { organizationId: string }) {
 
 function dashboardMonthRanges() {
   const now = new Date()
-  return Array.from({ length: 6 }, (_, index) => {
-    const targetDate = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1)
+  return Array.from({ length: 3 }, (_, index) => {
+    const targetDate = new Date(now.getFullYear(), now.getMonth() - (2 - index), 1)
     const start = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), 1))
     const end = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth() + 1, 1))
     return { start, end }
@@ -241,7 +267,7 @@ function dashboardMonthRanges() {
 
 function DashboardChartsFallback() {
   return (
-    <div className="grid-2" style={{ marginBottom: 16 }}>
+    <div className="grid-2 dashboard-chart-grid" style={{ marginBottom: 16 }}>
       <div className="card dash-chart-card" style={{ minHeight: 204, opacity: 0.72 }} />
       <div className="card dash-chart-card" style={{ minHeight: 204, opacity: 0.72 }} />
     </div>
@@ -249,7 +275,7 @@ function DashboardChartsFallback() {
 }
 
 async function DashboardCharts({ organizationId }: { organizationId: string }) {
-  const last6months = await Promise.all(dashboardMonthRanges().map(async ({ start, end }) => {
+  const lastMonths = await Promise.all(dashboardMonthRanges().map(async ({ start, end }) => {
     const [cases, clients] = await Promise.all([
       prisma.case.count({ where: dashboardCaseMonthWhere(organizationId, start, end) }),
       prisma.client.count({ where: { organizationId, createdAt: { gte: start, lt: end } } }),
@@ -260,23 +286,23 @@ async function DashboardCharts({ organizationId }: { organizationId: string }) {
       clients,
     }
   }))
-  const maxCases = Math.max(...last6months.map(m => m.cases), 1)
-  const maxClients = Math.max(...last6months.map(m => m.clients), 1)
-  const makeBars = (metric: 'cases' | 'clients', max: number) => last6months.map(m => ({
+  const maxCases = Math.max(...lastMonths.map(m => m.cases), 1)
+  const maxClients = Math.max(...lastMonths.map(m => m.clients), 1)
+  const makeBars = (metric: 'cases' | 'clients', max: number) => lastMonths.map(m => ({
     value: m[metric],
     month: m.month,
     height: Math.max((m[metric] / max) * 76, m[metric] > 0 ? 12 : 2),
   }))
 
   return (
-    <div className="grid-2" style={{ marginBottom: 16 }}>
+    <div className="grid-2 dashboard-chart-grid" style={{ marginBottom: 16 }}>
       {([['new_cases','cases','#06b6d4',maxCases,'/dashboard/new-cases'],['new_clients','clients','#0891b2',maxClients,'/dashboard/new-clients']] as const).map(([labelKey, key, color, max, href]) => {
         const bars = makeBars(key as 'cases' | 'clients', max as number)
         return (
           <Link key={key} href={href} className="dash-stat-link">
             <div className="card dash-chart-card" style={{ cursor: 'pointer' }}>
               <div style={{ fontWeight: 600, marginBottom: 4 }}><Tr k={labelKey} /></div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}><Tr k="last_6months" /></div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}><Tr k="last_3months" /></div>
               <div className="dash-mini-chart">
                 {bars.map((bar, i) => (
                   <div key={i} className="dash-chart-bar-wrap">
