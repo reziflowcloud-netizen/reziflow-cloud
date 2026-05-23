@@ -88,6 +88,9 @@ export default async function DashboardPage() {
             height: 68px;
             grid-template-rows: 16px 1fr 14px;
           }
+          .dashboard-chart-grid .dash-chart-bar-wrap:nth-child(-n+3) {
+            display: none;
+          }
           .dashboard-chart-grid .dash-chart-label,
           .dashboard-chart-grid .dash-chart-value {
             font-size: 9px;
@@ -257,8 +260,8 @@ async function DashboardStats({ organizationId }: { organizationId: string }) {
 
 function dashboardMonthRanges() {
   const now = new Date()
-  return Array.from({ length: 3 }, (_, index) => {
-    const targetDate = new Date(now.getFullYear(), now.getMonth() - (2 - index), 1)
+  return Array.from({ length: 6 }, (_, index) => {
+    const targetDate = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1)
     const start = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), 1))
     const end = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth() + 1, 1))
     return { start, end }
@@ -302,7 +305,7 @@ async function DashboardCharts({ organizationId }: { organizationId: string }) {
           <Link key={key} href={href} className="dash-stat-link">
             <div className="card dash-chart-card" style={{ cursor: 'pointer' }}>
               <div style={{ fontWeight: 600, marginBottom: 4 }}><Tr k={labelKey} /></div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}><Tr k="last_3months" /></div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}><Tr k="last_6months" /></div>
               <div className="dash-mini-chart">
                 {bars.map((bar, i) => (
                   <div key={i} className="dash-chart-bar-wrap">
