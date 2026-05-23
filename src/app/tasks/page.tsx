@@ -481,7 +481,7 @@ export default function TasksPage() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {priorities.map(p => (
-                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#f9fafb', borderRadius: 8 }}>
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8 }}>
                   {editingPriority?.id === p.id ? (
                     <>
                       <input type="color" value={editingPriority.color}
@@ -571,11 +571,11 @@ export default function TasksPage() {
                 onDragLeave={onDragLeave}
                 onDrop={e => onDrop(e, prio.name)}
                 style={{
-                  background: isDragOver ? prio.color + '12' : '#f9fafb',
+                  background: isDragOver ? prio.color + '18' : 'color-mix(in srgb, var(--surface) 82%, transparent)',
                   borderRadius: 10,
                   padding: 14,
                   minHeight: 200,
-                  border: isDragOver ? `2px dashed ${prio.color}` : '2px dashed transparent',
+                  border: isDragOver ? `2px dashed ${prio.color}` : '1px solid var(--border)',
                   transition: 'all 0.15s',
                 }}>
 

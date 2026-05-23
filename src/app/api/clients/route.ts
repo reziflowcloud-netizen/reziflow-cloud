@@ -30,15 +30,20 @@ export async function GET() {
         orderBy: { createdAt: 'desc' },
       })
       // Загружаем сервисы отдельно
-      const services = await prisma.service.findMany({ where: { organizationId } })
+      const [services, statuses] = await Promise.all([
+        prisma.service.findMany({ where: { organizationId } }),
+        prisma.caseStatus.findMany({ where: { organizationId }, select: { name: true, color: true } }),
+      ])
       const serviceMap: Record<number, any> = {}
       services.forEach(s => { serviceMap[s.id] = s })
+      const statusColorMap = new Map(statuses.map(s => [s.name, s.color]))
 
       allCases.forEach(c => {
         if (!casesMap[c.clientId]) casesMap[c.clientId] = []
         casesMap[c.clientId].push({
           ...c,
           service: c.serviceId ? (serviceMap[c.serviceId] || null) : null,
+          statusColor: statusColorMap.get(c.status) || null,
         })
       })
     } catch (e) {

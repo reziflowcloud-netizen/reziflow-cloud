@@ -399,6 +399,8 @@ export default function CalendarPage() {
         [data-theme="dark"] .cal-cell-selected { background: rgba(56,189,248,0.10) !important; }
         [data-theme="dark"] .cal-cell-today { background: rgba(56,189,248,0.07) !important; }
         [data-theme="dark"] .cal-header-bg { background: var(--bg); }
+        [data-theme="slate"] .cal-header-bg { background: rgba(8,22,37,0.78) !important; }
+        [data-theme="slate"] .cal-cell:hover { background: rgba(6,182,212,0.10) !important; }
       `}</style>
 
       {/* Шапка страницы */}
@@ -477,9 +479,9 @@ export default function CalendarPage() {
                 const isWeekend = dow >= 5
 
                 // Цвета фона ячейки
-                let cellBg = isCurrent ? 'white' : '#fafafa'
-                if (isTod) cellBg = '#fff9f0'
-                if (isSel) cellBg = '#fff5f5'
+                let cellBg = isCurrent ? 'var(--surface)' : 'var(--bg)'
+                if (isTod) cellBg = 'rgba(6,182,212,0.10)'
+                if (isSel) cellBg = 'rgba(6,182,212,0.16)'
 
                 return (
                   <div

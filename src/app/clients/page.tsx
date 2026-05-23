@@ -245,7 +245,9 @@ export default function ClientsPage() {
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                               {[...activeCases, ...cases.filter((c: any) => !isActiveCaseStatus(c.status))].map((c: any) => {
-                                const sc = STATUS_COLORS[c.status] || { bg: '#f3f4f6', color: '#374151' }
+                                const sc = c.statusColor
+                                  ? { bg: `${c.statusColor}22`, color: c.statusColor }
+                                  : (STATUS_COLORS[c.status] || { bg: 'var(--bg)', color: 'var(--muted)' })
                                 const isArchived = isClosedCaseStatus(c.status)
                                 return (
                                   <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 5, opacity: isArchived ? 0.5 : 1 }}>
