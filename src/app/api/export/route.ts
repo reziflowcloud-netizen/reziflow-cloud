@@ -46,6 +46,30 @@ function canExportData(user: any): boolean {
   return user?.role === 'admin' || user?.role === 'owner'
 }
 
+async function getClientMosFieldMap(organizationId: string) {
+  try {
+    const rows = await prisma.$queryRaw<Array<{
+      id: string
+      gender: string | null
+      previousPolandEntryDate: Date | null
+      previousPolandExitDate: Date | null
+      previousPolandBasis: string | null
+    }>>`
+      SELECT "id", "gender", "previousPolandEntryDate", "previousPolandExitDate", "previousPolandBasis"
+      FROM "Client"
+      WHERE "organizationId" = ${organizationId}
+    `
+    return new Map(rows.map(row => [row.id, row]))
+  } catch (error) {
+    console.error('Export MOS fields load error:', error)
+    return new Map<string, any>()
+  }
+}
+
+function withMosFields<T extends { id: string }>(items: T[], mosFields: Map<string, any>) {
+  return items.map(item => ({ ...item, ...(mosFields.get(item.id) || {}) }))
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getUser()
@@ -112,11 +136,12 @@ export async function GET(request: NextRequest) {
 
     if (type === 'all') {
       // Step 1: get all clients
-      const clients = await prisma.client.findMany({
+      const rawClients = await prisma.client.findMany({
         where: { organizationId },
         include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
         orderBy: { lastName: 'asc' },
       })
+      const clients = withMosFields(rawClients, await getClientMosFieldMap(organizationId))
 
       // Step 2: get all cases (simple, no nested includes)
       const allCases = await prisma.case.findMany({ where: { organizationId }, orderBy: { createdAt: 'desc' } })
@@ -154,9 +179,10 @@ export async function GET(request: NextRequest) {
       )
 
       const headers = [
-        'Фамилия', 'Имя', 'Телефон', 'Email', 'Город', 'PESEL',
+        'Фамилия', 'Имя', 'Телефон', 'Email', 'Город', 'PESEL', 'Płeć',
         'Серия паспорта', 'Номер паспорта', 'Паспорт выдан', 'Дата выдачи', 'Действителен до',
         'Адрес в Польше', 'Основание пребывания',
+        'Предыдущее пребывание в Польше: дата въезда', 'Предыдущее пребывание в Польше: дата выезда', 'Предыдущее пребывание в Польше: основание',
         'Номер дела', 'Статус дела', 'Тип договора', 'Номер договора',
         'Договор подписан', 'Стоимость (zł)', 'Оплачено (zł)', 'Долг (zł)',
         'Номер MOS', 'Дата подачи в MOS', 'Логин кабинета', 'Пароль кабинета', 'Прийти на отпечатки пальцев', 'Przewidywana data wydania decyzji', 'Дата окончания договора',
@@ -180,10 +206,11 @@ export async function GET(request: NextRequest) {
 
         if (clientCases.length === 0) {
           const row = [
-            client.lastName, client.firstName, client.phone, formatAllPhones(client), client.email, client.city, client.pesel,
+            client.lastName, client.firstName, client.phone, formatAllPhones(client), client.email, client.city, client.pesel, client.gender,
             client.passportSeries, client.passportNumber, client.passportIssuedBy,
             toDate(client.passportIssuedAt), toDate(client.passportExpiresAt),
             client.addressInPoland, client.stayBasis,
+            toDate(client.previousPolandEntryDate), toDate(client.previousPolandExitDate), client.previousPolandBasis,
             '', '', '', '', '', '', '', '',
             '', '', '', '', '', '', '', '', '', '', '',
             '', '', '', '', '', '', '', '', '', '',
@@ -205,10 +232,11 @@ export async function GET(request: NextRequest) {
             }
 
             const row = [
-              client.lastName, client.firstName, client.phone, formatAllPhones(client), client.email, client.city, client.pesel,
+              client.lastName, client.firstName, client.phone, formatAllPhones(client), client.email, client.city, client.pesel, client.gender,
               client.passportSeries, client.passportNumber, client.passportIssuedBy,
               toDate(client.passportIssuedAt), toDate(client.passportExpiresAt),
               client.addressInPoland, client.stayBasis,
+              toDate(client.previousPolandEntryDate), toDate(client.previousPolandExitDate), client.previousPolandBasis,
               c.caseNumber, c.status, c.contractType, c.contractNumber,
               c.contractSigned ? 'Да' : 'Нет',
               c.totalValue.toFixed(2), c.totalPaid.toFixed(2), debt.toFixed(2),
@@ -236,16 +264,17 @@ export async function GET(request: NextRequest) {
     // --- Отдельные экспорты ---
 
     if (type === 'clients') {
-      const clients = await prisma.client.findMany({
+      const rawClients = await prisma.client.findMany({
         where: { organizationId },
         include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
         orderBy: { lastName: 'asc' },
       })
-      const headers = ['Фамилия','Имя','Телефон','Email','Город','PESEL','Адрес в Польше','Основание пребывания','Добавлен']
+      const clients = withMosFields(rawClients, await getClientMosFieldMap(organizationId))
+      const headers = ['Фамилия','Имя','Телефон','Email','Город','PESEL','Płeć','Адрес в Польше','Основание пребывания','Предыдущее пребывание в Польше: дата въезда','Предыдущее пребывание в Польше: дата выезда','Предыдущее пребывание в Польше: основание','Добавлен']
       headers.splice(3, 0, 'Все телефоны')
       let csv = '\uFEFF' + headers.join(',') + '\n'
       for (const c of clients) {
-        csv += [c.lastName,c.firstName,c.phone,formatAllPhones(c),c.email,c.city,c.pesel,c.addressInPoland,c.stayBasis,toDate(c.createdAt)].map(esc).join(',') + '\n'
+        csv += [c.lastName,c.firstName,c.phone,formatAllPhones(c),c.email,c.city,c.pesel,c.gender,c.addressInPoland,c.stayBasis,toDate(c.previousPolandEntryDate),toDate(c.previousPolandExitDate),c.previousPolandBasis,toDate(c.createdAt)].map(esc).join(',') + '\n'
       }
       return new NextResponse(csv, {
         headers: {

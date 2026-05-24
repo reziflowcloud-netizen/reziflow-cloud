@@ -17,6 +17,7 @@ const clientSections: UiSectionDefinition[] = [
   { scope: 'client', sectionKey: 'client-previous-residence-address', title: 'Адрес предыдущего проживания', description: 'При проживании 365 дней и больше', sortOrder: 60 },
   { scope: 'client', sectionKey: 'client-poland-stay', title: 'Пребывание в Польше', description: 'Адрес, основание пребывания и карта побыта', sortOrder: 70 },
   { scope: 'client', sectionKey: 'client-travel-history', title: 'История путешествий', description: 'Выезды за границу и пребывание', sortOrder: 80 },
+  { scope: 'client', sectionKey: 'client-previous-poland-stays', title: 'Предыдущие пребывания в Польше', description: 'Дата въезда, выезда и основание пребывания', sortOrder: 90 },
 ]
 
 const caseSections: UiSectionDefinition[] = [

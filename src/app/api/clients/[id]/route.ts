@@ -9,6 +9,42 @@ function isOrganizationAdmin(user: any) {
   return user?.role === 'admin' || user?.role === 'owner'
 }
 
+function dateOrNull(value: any) {
+  return value ? new Date(value) : null
+}
+
+async function getClientMosFields(clientId: string, organizationId: string) {
+  try {
+    const rows = await prisma.$queryRaw<Array<{
+      gender: string | null
+      previousPolandEntryDate: Date | null
+      previousPolandExitDate: Date | null
+      previousPolandBasis: string | null
+    }>>`
+      SELECT "gender", "previousPolandEntryDate", "previousPolandExitDate", "previousPolandBasis"
+      FROM "Client"
+      WHERE "id" = ${clientId} AND "organizationId" = ${organizationId}
+      LIMIT 1
+    `
+    return rows[0] || {}
+  } catch (error) {
+    console.error('Client MOS fields load error:', error)
+    return {}
+  }
+}
+
+async function updateClientMosFields(tx: any, clientId: string, organizationId: string, body: any) {
+  await tx.$executeRaw`
+    UPDATE "Client"
+    SET
+      "gender" = ${body.gender || null},
+      "previousPolandEntryDate" = ${dateOrNull(body.previousPolandEntryDate)},
+      "previousPolandExitDate" = ${dateOrNull(body.previousPolandExitDate)},
+      "previousPolandBasis" = ${body.previousPolandBasis || null}
+    WHERE "id" = ${clientId} AND "organizationId" = ${organizationId}
+  `
+}
+
 async function getFamilyLinksForClient(clientId: string, organizationId: string) {
   const links = await (prisma as any).clientFamilyLink.findMany({
     where: { organizationId },
@@ -71,7 +107,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     })
     if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const familyLinks = await getFamilyLinksForClient(params.id, organizationId)
-    return NextResponse.json({ ...client, phones: phonesWithLegacy(client), familyLinks })
+    const mosFields = await getClientMosFields(params.id, organizationId)
+    return NextResponse.json({ ...client, ...mosFields, phones: phonesWithLegacy(client), familyLinks })
   } catch (e) {
     // fallback
     const client = await prisma.client.findFirst({
@@ -79,7 +116,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       include: { cases: { orderBy: { createdAt: 'desc' } } }
     })
     if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json({ ...client, phones: phonesWithLegacy(client), travelHistory: [] })
+    const mosFields = await getClientMosFields(params.id, organizationId)
+    return NextResponse.json({ ...client, ...mosFields, phones: phonesWithLegacy(client), travelHistory: [] })
   }
 }
 
@@ -154,6 +192,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         finesDescription: body.finesDescription || null,
         }
       })
+      await updateClientMosFields(tx, params.id, organizationId, body)
 
       if (shouldUpdatePhones) {
         await (tx as any).clientPhone.deleteMany({ where: { clientId: params.id, organizationId } })
@@ -252,7 +291,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       } catch (e) { console.error('Calendar task error:', e) }
     }
 
-    return NextResponse.json({ ...client, phones: phonesWithLegacy(client) })
+    const mosFields = await getClientMosFields(params.id, organizationId)
+    return NextResponse.json({ ...client, ...mosFields, phones: phonesWithLegacy(client) })
   } catch (e: any) {
     console.error(e)
     return NextResponse.json({ error: e.message }, { status: 500 })

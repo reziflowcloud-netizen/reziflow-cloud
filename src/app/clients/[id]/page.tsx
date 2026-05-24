@@ -18,12 +18,14 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Отказ': { bg: '#fef2f2', color: '#991b1b' },
 }
 
-const COUNTRIES = ['Украина','Россия','Беларусь','Молдова','Грузия','Армения','Казахстан','Узбекистан','Польша','Другое']
-const EYE_COLORS = ['Карие','Голубые','Зелёные','Серые','Чёрные','Смешанные']
-const MARITAL_STATUS = ['Холост/Не замужем','Женат/Замужем','Разведён/Разведена','Вдовец/Вдова']
-const EDUCATION = ['Начальное','Среднее','Среднее специальное','Высшее','Учёная степень']
-const LEGAL_TITLE = ['Wynajem (Аренда)','Własność (Собственность)','Użyczenie (Безвозмездное пользование)','Zamieszkanie u rodziny (У родственников)','Inne (Другое)']
-const STAY_BASIS = ['Без основания','Виза','Карта побыту','Побыт временный','Побыт постоянный','Безвизовый режим']
+const COUNTRIES = ['Ukraina','Rosja','Białoruś','Mołdawia','Gruzja','Armenia','Kazachstan','Uzbekistan','Polska','Inne']
+const GENDERS = ['Mężczyzna','Kobieta']
+const EYE_COLORS = ['brązowe','niebieskie','szare','zielone','piwne','czarne','szaro-niebieskie','szaro-zielone','zielono-niebieskie','wielokolorowe','czerwone','nieokreślone']
+const MARITAL_STATUS = ['Kawaler / Panna','Żonaty / Zamężna','Rozwiedziony / Rozwiedziona','Wdowiec / Wdowa']
+const EDUCATION = ['Wyższe','Średnie','Zawodowe','Podstawowe','Brak']
+const LEGAL_TITLE = ['Najem','Własność','Użyczenie','Zamieszkanie u rodziny','Inne']
+const STAY_BASIS = ['Bez podstawy','Wiza','Karta pobytu','Pobyt czasowy','Pobyt stały','Ruch bezwizowy','Status UKR']
+const PREVIOUS_POLAND_BASIS = ['Karta pobytu','Wiza','Ruch bezwizowy','Status UKR']
 const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
 
 const F = ({ label, children, col = false }: any) => (
@@ -53,6 +55,7 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     birthDate: 'Дата рождения',
     birthPlace: 'Место рождения',
     phone: 'Телефон',
+    gender: 'Пол',
     statusFamilyTitle: 'Статус и семья',
     statusFamilySubtitle: 'Гражданство, семейное положение и данные семьи',
     citizenship: 'Гражданство (Obywatelstwo)',
@@ -111,6 +114,11 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     finesDescription: 'Опишите штрафы...',
     travelTitle: 'История путешествий',
     travelSubtitle: 'Зарубежные выезды и пребывания',
+    previousPolandTitle: 'Предыдущие пребывания в Польше',
+    previousPolandSubtitle: 'Дата въезда, дата выезда и основание пребывания',
+    previousPolandEntryDate: 'Дата въезда',
+    previousPolandExitDate: 'Дата выезда',
+    previousPolandBasis: 'Основание',
     countryPlaceholder: 'Украина',
     add: '+ Добавить',
     country: 'Страна *',
@@ -148,6 +156,7 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     birthDate: 'Дата народження',
     birthPlace: 'Місце народження',
     phone: 'Телефон',
+    gender: 'Стать',
     statusFamilyTitle: 'Статус і сім’я',
     statusFamilySubtitle: 'Громадянство, сімейний стан і дані сім’ї',
     citizenship: 'Громадянство (Obywatelstwo)',
@@ -206,6 +215,11 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     finesDescription: 'Опишіть штрафи...',
     travelTitle: 'Історія подорожей',
     travelSubtitle: 'Закордонні виїзди і перебування',
+    previousPolandTitle: 'Попередні перебування в Польщі',
+    previousPolandSubtitle: 'Дата в’їзду, дата виїзду і підстава перебування',
+    previousPolandEntryDate: 'Дата в’їзду',
+    previousPolandExitDate: 'Дата виїзду',
+    previousPolandBasis: 'Підстава',
     countryPlaceholder: 'Україна',
     add: '+ Додати',
     country: 'Країна *',
@@ -243,6 +257,7 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     birthDate: 'Data urodzenia',
     birthPlace: 'Miejsce urodzenia',
     phone: 'Telefon',
+    gender: 'Płeć',
     statusFamilyTitle: 'Status i rodzina',
     statusFamilySubtitle: 'Obywatelstwo, stan cywilny i dane rodziny',
     citizenship: 'Obywatelstwo',
@@ -301,6 +316,11 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     finesDescription: 'Opisz mandaty...',
     travelTitle: 'Historia podróży',
     travelSubtitle: 'Wyjazdy zagraniczne i pobyty',
+    previousPolandTitle: 'Poprzednie pobyty w Polsce',
+    previousPolandSubtitle: 'Data wjazdu, data wyjazdu i podstawa pobytu',
+    previousPolandEntryDate: 'Data wjazdu',
+    previousPolandExitDate: 'Data wyjazdu',
+    previousPolandBasis: 'Podstawa',
     countryPlaceholder: 'Ukraina',
     add: '+ Dodaj',
     country: 'Kraj *',
@@ -351,6 +371,7 @@ export default function ClientDetailPage() {
         birthDate: data.birthDate?.slice(0,10) || '',
         birthPlace: data.birthPlace || '',
         pesel: data.pesel || '',
+        gender: data.gender || '',
         phone: data.phone || '', phones: ensurePhoneRows(data.phones, data.phone || ''), email: data.email || '',
         citizenship: data.citizenship || '', nationality: data.nationality || '',
         maritalStatus: data.maritalStatus || '', education: data.education || '',
@@ -369,6 +390,9 @@ export default function ClientDetailPage() {
         rentalEndDate: data.rentalEndDate?.slice(0,10) || '',
         stayBasis: data.stayBasis || '',
         lastEntryDate: data.lastEntryDate?.slice(0,10) || '',
+        previousPolandEntryDate: data.previousPolandEntryDate?.slice(0,10) || '',
+        previousPolandExitDate: data.previousPolandExitDate?.slice(0,10) || '',
+        previousPolandBasis: data.previousPolandBasis || '',
         firstResidenceCard: data.firstResidenceCard || false,
         residenceCardExpiry: data.residenceCardExpiry?.slice(0,10) || '',
         finesInPoland: data.finesInPoland || false,
@@ -519,6 +543,12 @@ export default function ClientDetailPage() {
                 </F>
                 <F label="PESEL">
                   <input className="input" value={form.pesel} onChange={e => set('pesel', e.target.value)} placeholder="12345678901" style={{ fontFamily: 'monospace' }} />
+                </F>
+                <F label={`${text.gender} (Płeć)`}>
+                  <select className="select" value={form.gender} onChange={e => set('gender', e.target.value)}>
+                    <option value="">{text.choose}</option>
+                    {GENDERS.map(gender => <option key={gender}>{gender}</option>)}
+                  </select>
                 </F>
                 <div className="form-group" style={{ gridColumn: '1/-1' }}>
                   <label className="label">{text.phone}</label>
@@ -785,12 +815,12 @@ export default function ClientDetailPage() {
                   <textarea className="input" value={form.addressInPoland} onChange={e => set('addressInPoland', e.target.value)} rows={2} placeholder="ul. Przykładowa 1/2, 00-000 Warszawa" />
                 </F>
                 <F label={text.legalTitle}>
-                  <select className="select" value={form.legalTitle} onChange={e => { set('legalTitle', e.target.value); if (!e.target.value.includes('Wynajem')) set('rentalEndDate', '') }}>
+                  <select className="select" value={form.legalTitle} onChange={e => { set('legalTitle', e.target.value); if (!['Najem', 'Wynajem'].some(value => e.target.value.includes(value))) set('rentalEndDate', '') }}>
                     <option value="">{text.choose}</option>
                     {LEGAL_TITLE.map(l => <option key={l}>{l}</option>)}
                   </select>
                 </F>
-                {form.legalTitle?.includes('Wynajem') && (
+                {['Najem', 'Wynajem'].some(value => form.legalTitle?.includes(value)) && (
                   <F label={text.rentalEndDate}>
                     <input className="input" type="date" value={form.rentalEndDate} onChange={e => set('rentalEndDate', e.target.value)} />
                   </F>
@@ -905,6 +935,30 @@ export default function ClientDetailPage() {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="card" data-collapse-key="client-previous-poland-stays" data-section-scope="client" data-section-key="client-previous-poland-stays" style={{ marginTop: 16, marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: '#ecfeff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>↩</div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{text.previousPolandTitle}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{text.previousPolandSubtitle}</div>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+                <F label={text.previousPolandEntryDate}>
+                  <input className="input" type="date" value={form.previousPolandEntryDate} onChange={e => set('previousPolandEntryDate', e.target.value)} />
+                </F>
+                <F label={text.previousPolandExitDate}>
+                  <input className="input" type="date" value={form.previousPolandExitDate} onChange={e => set('previousPolandExitDate', e.target.value)} />
+                </F>
+                <F label={text.previousPolandBasis}>
+                  <select className="select" value={form.previousPolandBasis} onChange={e => set('previousPolandBasis', e.target.value)}>
+                    <option value="">{text.choose}</option>
+                    {PREVIOUS_POLAND_BASIS.map(basis => <option key={basis}>{basis}</option>)}
+                  </select>
+                </F>
+              </div>
             </div>
 
             <CustomSectionsRenderer ref={customSectionsRef} scope="client" recordId={String(id)} standaloneSave={false} />

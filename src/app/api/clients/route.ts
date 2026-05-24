@@ -4,6 +4,26 @@ import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { normalizePhones, phonesWithLegacy, primaryPhone } from '@/lib/phones'
 
+function dateOrNull(value: any) {
+  return value ? new Date(value) : null
+}
+
+async function updateClientMosFields(clientId: string, organizationId: string, body: any) {
+  try {
+    await prisma.$executeRaw`
+      UPDATE "Client"
+      SET
+        "gender" = ${body.gender || null},
+        "previousPolandEntryDate" = ${dateOrNull(body.previousPolandEntryDate)},
+        "previousPolandExitDate" = ${dateOrNull(body.previousPolandExitDate)},
+        "previousPolandBasis" = ${body.previousPolandBasis || null}
+      WHERE "id" = ${clientId} AND "organizationId" = ${organizationId}
+    `
+  } catch (error) {
+    console.error('Client MOS fields save error:', error)
+  }
+}
+
 export async function GET() {
   try {
     const user = await getUser()
@@ -120,6 +140,7 @@ export async function POST(request: NextRequest) {
         phones: phones.length ? { create: phones.map(phone => ({ organizationId, ...phone })) } : undefined,
       }
     })
+    await updateClientMosFields(client.id, organizationId, body)
     return NextResponse.json(client)
   } catch (e: any) {
     console.error(e)
