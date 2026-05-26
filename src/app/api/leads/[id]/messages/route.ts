@@ -29,9 +29,11 @@ async function sendMetaMessage(params: {
   apiVersion: string
   recipientId: string
   text: string
+  senderId?: string | null
 }) {
   const version = params.apiVersion.startsWith('v') ? params.apiVersion : `v${params.apiVersion}`
-  const url = new URL(`https://graph.facebook.com/${version}/me/messages`)
+  const senderId = String(params.senderId || '').trim() || 'me'
+  const url = new URL(`https://graph.facebook.com/${version}/${senderId}/messages`)
   url.searchParams.set('access_token', params.accessToken)
 
   const response = await fetch(url, {
@@ -49,6 +51,29 @@ async function sendMetaMessage(params: {
     throw new Error(error)
   }
   return data
+}
+
+function metaPageIdFromPayload(payload: any) {
+  const summaryPageId = String(payload?.metaEvent?.pageId || '').trim()
+  if (summaryPageId) return summaryPageId
+  const entryId = String(payload?.raw?.entry?.[0]?.id || '').trim()
+  return entryId || ''
+}
+
+async function getMetaSenderIdForLead(organizationId: string, leadId: string, channel: string) {
+  const messages = await (prisma as any).leadMessage.findMany({
+    where: { organizationId, leadId, channel },
+    select: { payload: true },
+    orderBy: { sentAt: 'desc' },
+    take: 20,
+  })
+
+  for (const message of messages) {
+    const pageId = metaPageIdFromPayload(message.payload)
+    if (pageId) return pageId
+  }
+
+  return ''
 }
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -110,14 +135,16 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     try {
+      const metaSenderId = await getMetaSenderIdForLead(organizationId, lead.id, metaTarget.channel)
       const metaResponse = await sendMetaMessage({
         accessToken: pageAccessToken,
         apiVersion: settings.facebookLeadApiVersion || 'v23.0',
         recipientId: metaTarget.recipientId,
         text,
+        senderId: metaSenderId,
       })
       externalMessageId = String(metaResponse?.message_id || externalMessageId || '').trim() || null
-      outboundPayload = { ...(body.payload || {}), metaResponse }
+      outboundPayload = { ...(body.payload || {}), metaResponse, metaSenderId: metaSenderId || null }
     } catch (error: any) {
       return NextResponse.json({ error: error?.message || 'Не удалось отправить сообщение в Meta' }, { status: 502 })
     }
