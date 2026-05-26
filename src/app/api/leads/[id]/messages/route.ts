@@ -71,7 +71,8 @@ async function sendMetaMessage(params: {
     errors.push(`${attempt.label}: ${message}`)
   }
 
-  throw new Error(errors.length ? `Meta не приняла сообщение. Последняя ошибка: ${errors[errors.length - 1]}` : 'Meta did not accept the outgoing message')
+  const visibleErrors = errors.slice(0, 4).join(' | ')
+  throw new Error(visibleErrors ? `Meta не приняла сообщение: ${visibleErrors}` : 'Meta did not accept the outgoing message')
 }
 
 function metaPageIdFromPayload(payload: any) {
