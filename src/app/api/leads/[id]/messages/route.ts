@@ -79,7 +79,8 @@ function metaPageIdFromPayload(payload: any) {
   const summaryPageId = String(payload?.metaEvent?.pageId || '').trim()
   if (summaryPageId) return summaryPageId
   const entryId = String(payload?.raw?.entry?.[0]?.id || '').trim()
-  return entryId || ''
+  if (entryId) return entryId
+  return String(payload?.entry?.[0]?.id || '').trim()
 }
 
 async function getMetaSenderIdForLead(organizationId: string, leadId: string, channel: string) {
