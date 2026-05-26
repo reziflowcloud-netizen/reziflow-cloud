@@ -29,28 +29,49 @@ async function sendMetaMessage(params: {
   apiVersion: string
   recipientId: string
   text: string
+  channel: string
   senderId?: string | null
 }) {
   const version = params.apiVersion.startsWith('v') ? params.apiVersion : `v${params.apiVersion}`
   const senderId = String(params.senderId || '').trim() || 'me'
-  const url = new URL(`https://graph.facebook.com/${version}/${senderId}/messages`)
-  url.searchParams.set('access_token', params.accessToken)
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      recipient: { id: params.recipientId },
-      messaging_type: 'RESPONSE',
-      message: { text: params.text },
-    }),
+  const facebookBody = JSON.stringify({
+    recipient: { id: params.recipientId },
+    messaging_type: 'RESPONSE',
+    message: { text: params.text },
   })
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    const error = data?.error?.message || 'Meta did not accept the outgoing message'
-    throw new Error(error)
+  const instagramBody = JSON.stringify({
+    recipient: { id: params.recipientId },
+    message: { text: params.text },
+  })
+  const attempts = params.channel === 'instagram'
+    ? [
+        { label: 'facebook:/me/messages', url: new URL(`https://graph.facebook.com/${version}/me/messages`), auth: 'query', body: facebookBody },
+        ...(senderId !== 'me' ? [{ label: 'facebook:sender/messages', url: new URL(`https://graph.facebook.com/${version}/${senderId}/messages`), auth: 'query', body: facebookBody }] : []),
+        { label: 'instagram:/me/messages', url: new URL(`https://graph.instagram.com/${version}/me/messages`), auth: 'bearer', body: instagramBody },
+        ...(senderId !== 'me' ? [{ label: 'instagram:sender/messages', url: new URL(`https://graph.instagram.com/${version}/${senderId}/messages`), auth: 'bearer', body: instagramBody }] : []),
+        { label: 'instagram:/me/messages?access_token', url: new URL(`https://graph.instagram.com/${version}/me/messages`), auth: 'query', body: instagramBody },
+        ...(senderId !== 'me' ? [{ label: 'instagram:sender/messages?access_token', url: new URL(`https://graph.instagram.com/${version}/${senderId}/messages`), auth: 'query', body: instagramBody }] : []),
+      ]
+    : [{ label: 'facebook:/me/messages', url: new URL(`https://graph.facebook.com/${version}/me/messages`), auth: 'query', body: facebookBody }]
+
+  const errors: string[] = []
+  for (const attempt of attempts) {
+    if (attempt.auth === 'query') attempt.url.searchParams.set('access_token', params.accessToken)
+    const response = await fetch(attempt.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(attempt.auth === 'bearer' ? { Authorization: `Bearer ${params.accessToken}` } : {}),
+      },
+      body: attempt.body,
+    })
+    const data = await response.json().catch(() => ({}))
+    if (response.ok) return { ...data, requestTarget: attempt.label }
+    const message = data?.error?.message || `Meta Graph API error ${response.status}`
+    errors.push(`${attempt.label}: ${message}`)
   }
-  return data
+
+  throw new Error(errors.length ? `Meta не приняла сообщение. Последняя ошибка: ${errors[errors.length - 1]}` : 'Meta did not accept the outgoing message')
 }
 
 function metaPageIdFromPayload(payload: any) {
@@ -141,6 +162,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         apiVersion: settings.facebookLeadApiVersion || 'v23.0',
         recipientId: metaTarget.recipientId,
         text,
+        channel: metaTarget.channel,
         senderId: metaSenderId,
       })
       externalMessageId = String(metaResponse?.message_id || externalMessageId || '').trim() || null
