@@ -75,12 +75,22 @@ async function sendMetaMessage(params: {
   throw new Error(visibleErrors ? `Meta не приняла сообщение: ${visibleErrors}` : 'Meta did not accept the outgoing message')
 }
 
+function parsedPayload(payload: any) {
+  if (typeof payload !== 'string') return payload
+  try {
+    return JSON.parse(payload)
+  } catch {
+    return null
+  }
+}
+
 function metaPageIdFromPayload(payload: any) {
+  const data = parsedPayload(payload)
   const summaryPageId = String(payload?.metaEvent?.pageId || '').trim()
   if (summaryPageId) return summaryPageId
-  const entryId = String(payload?.raw?.entry?.[0]?.id || '').trim()
+  const entryId = String(data?.raw?.entry?.[0]?.id || '').trim()
   if (entryId) return entryId
-  return String(payload?.entry?.[0]?.id || '').trim()
+  return String(data?.entry?.[0]?.id || '').trim()
 }
 
 async function getMetaSenderIdForLead(organizationId: string, leadId: string, channel: string) {
@@ -93,6 +103,18 @@ async function getMetaSenderIdForLead(organizationId: string, leadId: string, ch
 
   for (const message of messages) {
     const pageId = metaPageIdFromPayload(message.payload)
+    if (pageId) return pageId
+  }
+
+  const logs = await (prisma as any).leadWebhookLog.findMany({
+    where: { organizationId, leadId, source: channel },
+    select: { payload: true },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+  })
+
+  for (const log of logs) {
+    const pageId = metaPageIdFromPayload(log.payload)
     if (pageId) return pageId
   }
 
