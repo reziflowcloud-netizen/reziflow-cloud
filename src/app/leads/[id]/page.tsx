@@ -8,6 +8,10 @@ import { useLanguage } from '@/context/LanguageContext'
 import { LEAD_LOCALES, leadSourceLabel, leadSourceOptionLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
 import PhoneListEditor, { ensurePhoneRows } from '@/components/PhoneListEditor'
 
+function safeLeadBackHref(value: string | null) {
+  return value === '/leads' || value?.startsWith('/leads?') ? value : '/leads'
+}
+
 export default function LeadDetailPage() {
   const { id } = useParams()
   const router = useRouter()
@@ -52,8 +56,14 @@ export default function LeadDetailPage() {
   const [savingReminder, setSavingReminder] = useState(false)
   const [converting, setConverting] = useState(false)
   const [error, setError] = useState('')
+  const [backToLeads, setBackToLeads] = useState('/leads')
 
   const dialogRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setBackToLeads(safeLeadBackHref(new URLSearchParams(window.location.search).get('backTo')))
+  }, [])
 
   useEffect(() => {
     fetch('/api/services').then(r => r.json()).then(data => setServices(Array.isArray(data) ? data.filter((s: any) => s.active) : []))
@@ -403,7 +413,7 @@ export default function LeadDetailPage() {
   async function deleteLead() {
     if (!confirm(lt('delete_confirm'))) return
     await fetch(`/api/leads/${id}`, { method: 'DELETE' })
-    router.push('/leads')
+    router.push(backToLeads)
   }
 
   if (!lead) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>{lt('loading')}</div>
@@ -412,7 +422,7 @@ export default function LeadDetailPage() {
     <div className="fade-in">
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={() => router.push('/leads')} className="btn btn-ghost" style={{ padding: '6px 10px' }}>←</button>
+          <button onClick={() => router.push(backToLeads)} className="btn btn-ghost" style={{ padding: '6px 10px' }}>←</button>
           <div>
             <div className="page-title">{leadDisplayName(lead)}</div>
             <div className="page-subtitle">{form.phone || lead.phone || lead.email || lead.instagram || lt('contact_not_set')}</div>

@@ -18,8 +18,79 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
 }
 
 type QuickFilter = 'all' | 'today' | 'overdue' | 'unassigned' | 'no_next_contact'
-type SortKey = 'lead' | 'status' | 'source' | 'interest' | 'nextContact' | 'responsible'
+type SortKey = 'lead' | 'status' | 'source' | 'interest' | 'createdAt' | 'nextContact' | 'responsible'
 type SortDirection = 'asc' | 'desc'
+type ViewMode = 'table' | 'board'
+type LeadListState = {
+  search: string
+  status: string
+  statusReasonFilter: string
+  source: string
+  temperature: string
+  quickFilter: QuickFilter
+  viewMode: ViewMode
+  sortConfig: { key: SortKey; direction: SortDirection }
+}
+
+const QUICK_FILTER_VALUES: QuickFilter[] = ['all', 'today', 'overdue', 'unassigned', 'no_next_contact']
+const SORT_KEY_VALUES: SortKey[] = ['lead', 'status', 'source', 'interest', 'createdAt', 'nextContact', 'responsible']
+const SORT_DIRECTION_VALUES: SortDirection[] = ['asc', 'desc']
+const VIEW_MODE_VALUES: ViewMode[] = ['table', 'board']
+const DEFAULT_LEAD_LIST_STATE: LeadListState = {
+  search: '',
+  status: '',
+  statusReasonFilter: '',
+  source: '',
+  temperature: '',
+  quickFilter: 'all',
+  viewMode: 'table',
+  sortConfig: { key: 'status', direction: 'asc' },
+}
+
+function parseQueryOption<T extends string>(value: string | null, allowed: T[], fallback: T) {
+  return value && allowed.includes(value as T) ? value as T : fallback
+}
+
+function parseLeadListState(params: URLSearchParams): LeadListState {
+  return {
+    search: params.get('q') || DEFAULT_LEAD_LIST_STATE.search,
+    status: params.get('status') || DEFAULT_LEAD_LIST_STATE.status,
+    statusReasonFilter: params.get('reason') || DEFAULT_LEAD_LIST_STATE.statusReasonFilter,
+    source: params.get('source') || DEFAULT_LEAD_LIST_STATE.source,
+    temperature: params.get('temperature') || DEFAULT_LEAD_LIST_STATE.temperature,
+    quickFilter: parseQueryOption(params.get('quick'), QUICK_FILTER_VALUES, DEFAULT_LEAD_LIST_STATE.quickFilter),
+    viewMode: parseQueryOption(params.get('view'), VIEW_MODE_VALUES, DEFAULT_LEAD_LIST_STATE.viewMode),
+    sortConfig: {
+      key: parseQueryOption(params.get('sort'), SORT_KEY_VALUES, DEFAULT_LEAD_LIST_STATE.sortConfig.key),
+      direction: parseQueryOption(params.get('dir'), SORT_DIRECTION_VALUES, DEFAULT_LEAD_LIST_STATE.sortConfig.direction),
+    },
+  }
+}
+
+function buildLeadListQuery(state: LeadListState) {
+  const params = new URLSearchParams()
+  const search = state.search.trim()
+  if (search) params.set('q', search)
+  if (state.status) params.set('status', state.status)
+  if (state.statusReasonFilter) params.set('reason', state.statusReasonFilter)
+  if (state.source) params.set('source', state.source)
+  if (state.temperature) params.set('temperature', state.temperature)
+  if (state.quickFilter !== DEFAULT_LEAD_LIST_STATE.quickFilter) params.set('quick', state.quickFilter)
+  if (state.viewMode !== DEFAULT_LEAD_LIST_STATE.viewMode) params.set('view', state.viewMode)
+  if (
+    state.sortConfig.key !== DEFAULT_LEAD_LIST_STATE.sortConfig.key ||
+    state.sortConfig.direction !== DEFAULT_LEAD_LIST_STATE.sortConfig.direction
+  ) {
+    params.set('sort', state.sortConfig.key)
+    params.set('dir', state.sortConfig.direction)
+  }
+  return params.toString()
+}
+
+function buildLeadListHref(state: LeadListState) {
+  const query = buildLeadListQuery(state)
+  return query ? `/leads?${query}` : '/leads'
+}
 
 function temperatureMeta(value?: string) {
   return LEAD_TEMPERATURES.find(item => item.value === value)
@@ -42,6 +113,16 @@ function formatLeadDateTime(value: string, locale: string) {
   return new Date(value).toLocaleString(locale, {
     day: '2-digit',
     month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatLeadCreatedAt(value: string, locale: string) {
+  return new Date(value).toLocaleString(locale, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   })
@@ -82,12 +163,12 @@ export default function LeadsPage() {
   const lt = (key: string) => leadText(lang, key)
   const [leads, setLeads] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('')
-  const [statusReasonFilter, setStatusReasonFilter] = useState('')
-  const [source, setSource] = useState('')
-  const [temperature, setTemperature] = useState('')
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all')
+  const [search, setSearch] = useState(DEFAULT_LEAD_LIST_STATE.search)
+  const [status, setStatus] = useState(DEFAULT_LEAD_LIST_STATE.status)
+  const [statusReasonFilter, setStatusReasonFilter] = useState(DEFAULT_LEAD_LIST_STATE.statusReasonFilter)
+  const [source, setSource] = useState(DEFAULT_LEAD_LIST_STATE.source)
+  const [temperature, setTemperature] = useState(DEFAULT_LEAD_LIST_STATE.temperature)
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>(DEFAULT_LEAD_LIST_STATE.quickFilter)
   const [users, setUsers] = useState<any[]>([])
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
   const [bulkSaving, setBulkSaving] = useState(false)
@@ -96,7 +177,7 @@ export default function LeadsPage() {
   const [editingStatuses, setEditingStatuses] = useState(false)
   const [newStatusName, setNewStatusName] = useState('')
   const [newStatusColor, setNewStatusColor] = useState('#2563eb')
-  const [viewMode, setViewMode] = useState<'table' | 'board'>('table')
+  const [viewMode, setViewMode] = useState<ViewMode>(DEFAULT_LEAD_LIST_STATE.viewMode)
   const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null)
   const [calendarMonth, setCalendarMonth] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState(() => dateKey(new Date()))
@@ -112,7 +193,8 @@ export default function LeadsPage() {
   const [statusReasonModal, setStatusReasonModal] = useState<null | { leadIds: string[], nextStatus: string, previousLeads: any[] }>(null)
   const [statusReasonDraft, setStatusReasonDraft] = useState({ reason: '', comment: '' })
   const [statusReasonSaving, setStatusReasonSaving] = useState(false)
-  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'status', direction: 'asc' })
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>(DEFAULT_LEAD_LIST_STATE.sortConfig)
+  const [urlStateReady, setUrlStateReady] = useState(false)
 
   const orderedStatuses = leadStatuses.length ? leadStatuses : DEFAULT_LEAD_STATUSES
   const statusNames = orderedStatuses.map(status => status.name)
@@ -140,6 +222,17 @@ export default function LeadsPage() {
   const selectedStatusReasons = statusReasons(selectedStatusConfig)
   const showStatusReasons = Boolean(status && selectedStatusConfig?.requireReason && selectedStatusReasons.length > 0)
 
+  function applyLeadListState(nextState: LeadListState) {
+    setSearch(nextState.search)
+    setStatus(nextState.status)
+    setStatusReasonFilter(nextState.statusReasonFilter)
+    setSource(nextState.source)
+    setTemperature(nextState.temperature)
+    setQuickFilter(nextState.quickFilter)
+    setViewMode(nextState.viewMode)
+    setSortConfig(nextState.sortConfig)
+  }
+
   function loadLeads() {
     setLoading(true)
     return fetch('/api/leads', { cache: 'no-store' })
@@ -150,6 +243,15 @@ export default function LeadsPage() {
 
   useEffect(() => {
     loadLeads()
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const applyFromLocation = () => applyLeadListState(parseLeadListState(new URLSearchParams(window.location.search)))
+    applyFromLocation()
+    setUrlStateReady(true)
+    window.addEventListener('popstate', applyFromLocation)
+    return () => window.removeEventListener('popstate', applyFromLocation)
   }, [])
 
   useEffect(() => {
@@ -182,6 +284,7 @@ export default function LeadsPage() {
       if (sortConfig.key === 'status') result = rank(a) - rank(b)
       if (sortConfig.key === 'source') result = compareText(sourceLabel(a.source), sourceLabel(b.source))
       if (sortConfig.key === 'interest') result = compareText(a.serviceInterest, b.serviceInterest)
+      if (sortConfig.key === 'createdAt') result = compareDate(a.createdAt, b.createdAt)
       if (sortConfig.key === 'nextContact') result = compareDate(a.nextContactAt, b.nextContactAt)
       if (sortConfig.key === 'responsible') result = compareText(a.assignedTo?.name, b.assignedTo?.name)
       if (sortConfig.direction === 'desc') result *= -1
@@ -238,8 +341,10 @@ export default function LeadsPage() {
   }, [leads])
 
   useEffect(() => {
-    setStatusReasonFilter('')
-  }, [status])
+    if (!statusReasonFilter) return
+    if (status && !selectedStatusConfig && leadStatuses.length === 0) return
+    if (!showStatusReasons || !selectedStatusReasons.includes(statusReasonFilter)) setStatusReasonFilter('')
+  }, [status, selectedStatusConfig, leadStatuses.length, showStatusReasons, statusReasonFilter, selectedStatusReasons.join('|')])
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -299,6 +404,33 @@ export default function LeadsPage() {
   }, [reminders])
 
   const selectedReminders = remindersByDate[selectedDate] || []
+
+  const leadListState = useMemo<LeadListState>(() => ({
+    search,
+    status,
+    statusReasonFilter,
+    source,
+    temperature,
+    quickFilter,
+    viewMode,
+    sortConfig,
+  }), [search, status, statusReasonFilter, source, temperature, quickFilter, viewMode, sortConfig])
+
+  const leadListHref = useMemo(() => buildLeadListHref(leadListState), [leadListState])
+
+  useEffect(() => {
+    if (!urlStateReady || typeof window === 'undefined') return
+    const currentHref = `${window.location.pathname}${window.location.search}`
+    if (currentHref !== leadListHref) window.history.replaceState(null, '', leadListHref)
+  }, [urlStateReady, leadListHref])
+
+  function leadHref(id: string) {
+    return `/leads/${id}?backTo=${encodeURIComponent(leadListHref)}`
+  }
+
+  function openLeadCard(id: string) {
+    router.push(leadHref(id))
+  }
 
   const leadsByStatus = useMemo(() => {
     const groups: Record<string, any[]> = {}
@@ -1009,15 +1141,16 @@ export default function LeadsPage() {
                     {showStatusReasons && <th>{lt('reason')}</th>}
                     <th>{sortHeader('source', lt('source'))}</th>
                     <th>{sortHeader('interest', lt('interest'))}</th>
+                    <th>{sortHeader('createdAt', lt('created'))}</th>
                     <th>{sortHeader('nextContact', lt('next_contact'))}</th>
                     <th>{sortHeader('responsible', lt('responsible'))}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={showStatusReasons ? 8 : 7} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>{lt('loading')}</td></tr>
+                    <tr><td colSpan={showStatusReasons ? 9 : 8} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>{lt('loading')}</td></tr>
                   ) : filtered.length === 0 ? (
-                    <tr><td colSpan={showStatusReasons ? 8 : 7} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
+                    <tr><td colSpan={showStatusReasons ? 9 : 8} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
                       <div style={{ fontSize: 32, marginBottom: 8 }}>◎</div>
                       <div>{search || status || source || temperature ? lt('leads_not_found') : lt('no_leads')}</div>
                       {!search && !status && !source && !temperature && <Link href="/leads/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>{lt('add_first_lead')}</Link>}
@@ -1029,7 +1162,7 @@ export default function LeadsPage() {
                     const overdue = isOverdue(lead.nextContactAt) && !isConvertedLead(lead)
                     const dueToday = isToday(lead.nextContactAt) && !isConvertedLead(lead)
                     return (
-                      <tr key={lead.id} onClick={() => router.push(`/leads/${lead.id}`)} style={{ cursor: 'pointer', background: overdue ? '#fef2f2' : undefined }}>
+                      <tr key={lead.id} onClick={() => openLeadCard(lead.id)} style={{ cursor: 'pointer', background: overdue ? '#fef2f2' : undefined }}>
                         <td onClick={event => event.stopPropagation()}>
                           <input
                             type="checkbox"
@@ -1072,6 +1205,7 @@ export default function LeadsPage() {
                         )}
                         <td style={{ fontSize: 13 }}>{sourceLabel(lead.source)}</td>
                         <td style={{ fontSize: 13 }}>{lead.serviceInterest || lt('no_value')}</td>
+                        <td style={{ fontSize: 13, color: 'var(--muted)' }}>{lead.createdAt ? formatLeadCreatedAt(lead.createdAt, locale) : lt('no_value')}</td>
                         <td style={{ fontSize: 13 }}>
                           {lead.nextContactAt ? (
                             <div>
@@ -1123,7 +1257,7 @@ export default function LeadsPage() {
                             draggable
                             onDragStart={() => setDraggingLeadId(lead.id)}
                             onDragEnd={() => setDraggingLeadId(null)}
-                            onClick={() => router.push(`/leads/${lead.id}`)}
+                            onClick={() => openLeadCard(lead.id)}
                             style={{ background: isOverdue(lead.nextContactAt) && !isConvertedLead(lead) ? '#fef2f2' : 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, cursor: 'grab', boxShadow: 'var(--shadow-sm)' }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -1204,7 +1338,7 @@ export default function LeadsPage() {
                     <button
                       key={lead.reminderId || lead.id}
                       type="button"
-                      onClick={() => lead.reminderKind === 'deadline' || lead.reminderKind === 'manual' ? router.push(`/leads/${lead.id}`) : openReminder(lead)}
+                      onClick={() => lead.reminderKind === 'deadline' || lead.reminderKind === 'manual' ? openLeadCard(lead.id) : openReminder(lead)}
                       style={{ textAlign: 'left', border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 8, padding: 10, cursor: 'pointer' }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
@@ -1245,7 +1379,7 @@ export default function LeadsPage() {
                 <div style={{ fontSize: 18, fontWeight: 800 }}>{leadDisplayName(activeReminder)}</div>
                 <div style={{ color: 'var(--muted)', fontSize: 13 }}>{activeReminder.phone || activeReminder.email || activeReminder.instagram || lt('contact_not_set')}</div>
               </div>
-              <Link href={`/leads/${activeReminder.id}`} className="btn btn-secondary">{lt('open_card')}</Link>
+              <Link href={leadHref(activeReminder.id)} className="btn btn-secondary">{lt('open_card')}</Link>
             </div>
 
             <div style={{ display: 'grid', gap: 12 }}>
