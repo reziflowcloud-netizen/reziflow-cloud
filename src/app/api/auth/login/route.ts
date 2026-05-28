@@ -3,20 +3,7 @@ import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { signToken } from '@/lib/auth'
 import { cookies } from 'next/headers'
-
-async function ensureDefaultOrganization() {
-  return prisma.organization.upsert({
-    where: { slug: process.env.ORGANIZATION_SLUG || 'default' },
-    update: {},
-    create: {
-      id: 'org_default',
-      name: process.env.ORGANIZATION_NAME || 'LegalHub',
-      slug: process.env.ORGANIZATION_SLUG || 'default',
-      status: 'active',
-      plan: 'manual',
-    },
-  })
-}
+import { ensureDefaultOrganization } from '@/lib/organizationProvisioning'
 
 export async function POST(request: NextRequest) {
   try {
@@ -77,6 +64,11 @@ export async function POST(request: NextRequest) {
       avatarUrl: (user as any).avatarUrl || null,
       organizationId: user.organizationId || 'org_default',
       organizationName: organization?.name || 'LegalHub',
+      organizationStatus: organization?.status || 'active',
+      organizationPlan: organization?.plan || 'manual',
+      billingStatus: (organization as any)?.billingStatus || 'manual',
+      trialEndsAt: organization?.trialEndsAt ? organization.trialEndsAt.toISOString() : null,
+      currentPeriodEndsAt: (organization as any)?.currentPeriodEndsAt ? (organization as any).currentPeriodEndsAt.toISOString() : null,
     })
 
     const cookieStore = cookies()
@@ -96,6 +88,11 @@ export async function POST(request: NextRequest) {
         avatarUrl: (user as any).avatarUrl || null,
         organizationId: user.organizationId || 'org_default',
         organizationName: organization?.name || 'LegalHub',
+        organizationStatus: organization?.status || 'active',
+        organizationPlan: organization?.plan || 'manual',
+        billingStatus: (organization as any)?.billingStatus || 'manual',
+        trialEndsAt: organization?.trialEndsAt ? organization.trialEndsAt.toISOString() : null,
+        currentPeriodEndsAt: (organization as any)?.currentPeriodEndsAt ? (organization as any).currentPeriodEndsAt.toISOString() : null,
       },
     })
   } catch (error) {

@@ -21,8 +21,72 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 const COUNTRIES = ['Ukraina','Rosja','Białoruś','Mołdawia','Gruzja','Armenia','Kazachstan','Uzbekistan','Polska','Inne']
 const GENDERS = ['Mężczyzna','Kobieta']
 const EYE_COLORS = ['brązowe','niebieskie','szare','zielone','piwne','czarne','szaro-niebieskie','szaro-zielone','zielono-niebieskie','wielokolorowe','czerwone','nieokreślone']
-const MARITAL_STATUS = ['Kawaler / Panna','Żonaty / Zamężna','Rozwiedziony / Rozwiedziona','Wdowiec / Wdowa']
-const EDUCATION = ['Wyższe','Średnie','Zawodowe','Podstawowe','Brak']
+const MARITAL_STATUS = [
+  'BRAK DANYCH',
+  'KAWALER',
+  'MĘŻATKA',
+  'PANNA',
+  'ROZWIEDZIONA',
+  'ROZWIEDZIONY',
+  'WDOWA',
+  'WDOWIEC',
+  'WOLNA',
+  'WOLNY',
+  'W SEPARACJI',
+  'ŻONATY',
+]
+const EDUCATION = [
+  'BRAK WYKSZTAŁCENIA',
+  'NIEPEŁNE PODSTAWOWE',
+  'NIEPEŁNE ŚREDNIE',
+  'NIEPEŁNE WYŻSZE',
+  'PODSTAWOWE',
+  'ŚREDNIE OGÓLNE',
+  'ŚREDNIE ZAWODOWE',
+  'WYŻSZE',
+  'ZAWODOWE',
+]
+const PROFESSIONS = [
+  'ARCHITEKT',
+  'ARTYSTA',
+  'BANKIER',
+  'BRAK ZAWODU',
+  'CHEMIK/INŻYNIER CHEMI',
+  'CZŁONEK ZARZĄDU FIRMY',
+  'DIPLOMATA',
+  'DUCHOWNY, OSOBA DUCHOWNA',
+  'DZIENNIKARZ',
+  'EMERYT/RENCISTA',
+  'HANDLOWIEC',
+  'INNY',
+  'KIEROWCA',
+  'MARYNARZ',
+  'MENEDŻER',
+  'MODA/KOSMETYKI',
+  'NAUCZYCIEL',
+  'NIE MAJĄCY ZASTOSOWANIA',
+  'POLICJANT / ŻOŁNIERZ',
+  'POLITYK',
+  'PRACOWNIK ADMINISTRACJI DYPLOMATYCZNEJ',
+  'PRACOWNIK FIZYCZNY',
+  'PRACOWNIK NAUKOWY',
+  'PRACOWNIK UMYSŁOWY',
+  'PROWADZĄCY WŁASNE PRZEDSIĘBIORSTWO',
+  'PRZEDSIEBIORSTWO',
+  'PRYWATNY PERSONEL DYPLOMATY',
+  'ROLNIK',
+  'RZEMIEŚLNIK',
+  'SPECJALISTA ELEKTRYK',
+  'SPECJALISTA INFORMATYK',
+  'STUDENT/PRAKTYKANT/STAŻYSTA',
+  'TECHNIK',
+  'URZĘDNIK ADMINISTRACYJNO-SĄDOWY',
+  'URZĘDNIK PAŃSTWOWY',
+  'ZAWÓD MEDYCZNY I PARAMEDYCZNY (LEKARZ, CHIRURG, PIELĘGNIARKA, WETERYNARZ)',
+  'ZAWODOWY SPORTOWIEC / TRENER',
+  'ZAWÓD PRAWNICZY (PRAWNIK, DORADCA PRAWNY)',
+  'Brak',
+]
 const LEGAL_TITLE = ['Najem','Własność','Użyczenie','Zamieszkanie u rodziny','Inne']
 const STAY_BASIS = ['Bez podstawy','Wiza','Karta pobytu','Pobyt czasowy','Pobyt stały','Ruch bezwizowy','Status UKR']
 const PREVIOUS_POLAND_BASIS = ['Karta pobytu','Wiza','Ruch bezwizowy','Status UKR']
@@ -62,6 +126,7 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     nationality: 'Национальность (Narodowość)',
     maritalStatus: 'Семейное положение',
     education: 'Образование',
+    profession: 'Zawód wykonywany',
     chooseCountry: 'Выбрать страну',
     choose: 'Выбрать',
     statusUkrHint: 'Клиент имеет статус беженца из Украины',
@@ -163,6 +228,7 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     nationality: 'Національність (Narodowość)',
     maritalStatus: 'Сімейний стан',
     education: 'Освіта',
+    profession: 'Zawód wykonywany',
     chooseCountry: 'Вибрати країну',
     choose: 'Вибрати',
     statusUkrHint: 'Клієнт має статус біженця з України',
@@ -264,6 +330,7 @@ const CLIENT_DETAIL_TEXT: Record<string, Record<string, string>> = {
     nationality: 'Narodowość',
     maritalStatus: 'Stan cywilny',
     education: 'Wykształcenie',
+    profession: 'Zawód wykonywany',
     chooseCountry: 'Wybierz kraj',
     choose: 'Wybierz',
     statusUkrHint: 'Klient ma status uchodźcy z Ukrainy',
@@ -374,7 +441,7 @@ export default function ClientDetailPage() {
         gender: data.gender || '',
         phone: data.phone || '', phones: ensurePhoneRows(data.phones, data.phone || ''), email: data.email || '',
         citizenship: data.citizenship || '', nationality: data.nationality || '',
-        maritalStatus: data.maritalStatus || '', education: data.education || '',
+        maritalStatus: data.maritalStatus || '', education: data.education || '', profession: data.profession || '',
         statusUKR: data.statusUKR || false,
         fatherName: data.fatherName || '', motherName: data.motherName || '',
         motherMaidenName: data.motherMaidenName || '', dependents: data.dependents || '',
@@ -575,7 +642,7 @@ export default function ClientDetailPage() {
                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>{text.statusFamilySubtitle}</div>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
                 <F label={text.citizenship}>
                   <select className="select" value={form.citizenship} onChange={e => set('citizenship', e.target.value)}>
                     <option value="">{text.chooseCountry}</option>
@@ -598,6 +665,12 @@ export default function ClientDetailPage() {
                   <select className="select" value={form.education} onChange={e => set('education', e.target.value)}>
                     <option value="">{text.choose}</option>
                     {EDUCATION.map(e => <option key={e}>{e}</option>)}
+                  </select>
+                </F>
+                <F label={text.profession}>
+                  <select className="select" value={form.profession} onChange={e => set('profession', e.target.value)}>
+                    <option value="">{text.choose}</option>
+                    {PROFESSIONS.map(profession => <option key={profession}>{profession}</option>)}
                   </select>
                 </F>
                 {/* Status UKR */}

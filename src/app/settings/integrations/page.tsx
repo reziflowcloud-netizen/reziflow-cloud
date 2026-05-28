@@ -66,6 +66,27 @@ type WebhookLog = {
   } | null
 }
 
+type MetaTokenDiagnostic = {
+  label: string
+  configured: boolean
+  ok?: boolean
+  error?: string
+  data?: {
+    id?: string
+    name?: string
+    username?: string
+    instagram_business_account?: { id?: string; username?: string }
+    connected_instagram_account?: { id?: string; username?: string }
+  }
+}
+
+type MetaTokenDiagnostics = {
+  apiVersion?: string
+  facebook?: MetaTokenDiagnostic
+  instagram?: MetaTokenDiagnostic
+  hint?: string
+}
+
 const samplePayload = `{
   "firstName": "Ivan",
   "lastName": "Ivanov",
@@ -107,6 +128,31 @@ const DEFAULT_FACEBOOK_DRAFT: FacebookLeadSettings = {
   apiVersion: 'v23.0',
 }
 
+function metaAccountSummary(account?: { id?: string; name?: string; username?: string } | null) {
+  if (!account) return ''
+  return [
+    account.username ? `@${account.username}` : '',
+    account.name || '',
+    account.id ? `ID ${account.id}` : '',
+  ].filter(Boolean).join(' · ')
+}
+
+function metaDiagnosticDetails(item?: MetaTokenDiagnostic) {
+  if (!item) return 'Нет данных диагностики'
+  if (!item.configured) return 'Токен не сохранен'
+  if (!item.ok) return item.error || 'Meta не приняла токен'
+
+  const page = metaAccountSummary(item.data)
+  const instagramBusiness = metaAccountSummary(item.data?.instagram_business_account)
+  const connectedInstagram = metaAccountSummary(item.data?.connected_instagram_account)
+
+  return [
+    page || 'Meta вернула OK',
+    instagramBusiness ? `Instagram Business: ${instagramBusiness}` : '',
+    connectedInstagram ? `Connected Instagram: ${connectedInstagram}` : '',
+  ].filter(Boolean).join(' | ')
+}
+
 export default function IntegrationsPage() {
   const [settings, setSettings] = useState<WebhookSettings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -124,6 +170,8 @@ export default function IntegrationsPage() {
   const [showInstagramToken, setShowInstagramToken] = useState(false)
   const [metaSubscriptionLoading, setMetaSubscriptionLoading] = useState(false)
   const [metaSubscriptionStatus, setMetaSubscriptionStatus] = useState('')
+  const [metaDiagnosticsLoading, setMetaDiagnosticsLoading] = useState(false)
+  const [metaDiagnostics, setMetaDiagnostics] = useState<MetaTokenDiagnostics | null>(null)
   const [storageSettings, setStorageSettings] = useState<StorageSettings | null>(null)
   const [storageDraft, setStorageDraft] = useState<StorageSettings['dropbox']>({ enabled: false, rootFolder: '/LegalHub', hasAccessToken: false, accessToken: '' })
   const [showDropboxToken, setShowDropboxToken] = useState(false)
@@ -501,6 +549,25 @@ function onFormSubmit(e) {
       setMetaSubscriptionStatus(`Страница ${data.page?.name || data.page?.id || ''} подписана. Поля: ${fields}`)
     } finally {
       setMetaSubscriptionLoading(false)
+    }
+  }
+
+  async function runMetaTokenDiagnostics() {
+    setMetaDiagnosticsLoading(true)
+    setMetaDiagnostics(null)
+    setMetaSubscriptionStatus('')
+    setError('')
+    try {
+      await updateSettings({ facebook: facebookDraft })
+      const res = await fetch('/api/meta/token-diagnostics', { cache: 'no-store' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error || 'Не удалось проверить Meta токены')
+        return
+      }
+      setMetaDiagnostics(data)
+    } finally {
+      setMetaDiagnosticsLoading(false)
     }
   }
 
@@ -896,6 +963,46 @@ ${samplePayload}`}
               <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
                 Используется для профиля отправителя и ответов в Instagram Direct. Если поле пустое, CRM временно попробует Facebook token.
               </div>
+            </div>
+
+            <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginTop: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: metaDiagnostics ? 12 : 0 }}>
+                <div>
+                  <div style={{ fontWeight: 800, marginBottom: 4 }}>Диагностика Meta токенов</div>
+                  <div style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5 }}>
+                    Проверяет сохраненные токены и показывает Page ID / Instagram account, которые Meta возвращает CRM.
+                  </div>
+                </div>
+                <button className="btn btn-secondary" type="button" onClick={runMetaTokenDiagnostics} disabled={metaDiagnosticsLoading || saving}>
+                  {metaDiagnosticsLoading ? 'Проверяю...' : 'Проверить токены'}
+                </button>
+              </div>
+
+              {metaDiagnostics && (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {(['facebook', 'instagram'] as const).map(key => {
+                    const item = metaDiagnostics[key]
+                    const tone = !item?.configured ? '#92400e' : item.ok ? '#166534' : '#991b1b'
+                    const background = !item?.configured ? '#fffbeb' : item.ok ? '#f0fdf4' : '#fef2f2'
+                    return (
+                      <div key={key} style={{ border: `1px solid ${tone}22`, borderRadius: 8, background, padding: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 4 }}>
+                          <strong style={{ color: '#0f172a', fontSize: 13 }}>{item?.label || key}</strong>
+                          <span style={{ color: tone, fontSize: 12, fontWeight: 800 }}>
+                            {!item?.configured ? 'NO TOKEN' : item.ok ? 'OK' : 'ERROR'}
+                          </span>
+                        </div>
+                        <div style={{ color: tone, fontSize: 12, lineHeight: 1.5 }}>{metaDiagnosticDetails(item)}</div>
+                      </div>
+                    )
+                  })}
+                  {metaDiagnostics.apiVersion && (
+                    <div style={{ color: 'var(--muted)', fontSize: 12 }}>
+                      Graph API: {metaDiagnostics.apiVersion}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginTop: 14 }}>

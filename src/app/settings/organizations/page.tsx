@@ -9,6 +9,7 @@ type OrganizationItem = {
   slug: string
   status: string
   plan: string
+  billingStatus?: string
   trialEndsAt: string | null
   createdAt: string
   users?: Array<{
@@ -37,13 +38,27 @@ export default function OrganizationsPage() {
     active: t('org_status_active'),
     paused: t('org_status_paused'),
     trial: t('org_status_trial'),
+    expired: 'Trial истек',
+    past_due: 'Просрочка',
+    canceled: 'Отменена',
   }[status] || status)
   const planLabel = (plan: string) => ({
     manual: t('org_plan_manual'),
     trial: t('org_plan_trial'),
+    free: 'Бесплатный',
+    starter: 'Starter',
     basic: 'Basic',
     pro: 'Pro',
+    agency: 'Agency',
   }[plan] || plan)
+  const billingLabel = (status?: string) => ({
+    manual: 'Ручной',
+    trialing: 'Trial',
+    active: 'Оплачено',
+    past_due: 'Просрочка',
+    canceled: 'Отменено',
+    expired: 'Trial истек',
+  }[status || ''] || status || '—')
   const [organizations, setOrganizations] = useState<OrganizationItem[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -204,8 +219,11 @@ export default function OrganizationsPage() {
                 <select className="select" value={form.plan} onChange={e => setField('plan', e.target.value)}>
                   <option value="manual">Ручной</option>
                   <option value="trial">Пробный</option>
+                  <option value="free">Бесплатный</option>
+                  <option value="starter">Starter</option>
                   <option value="basic">Basic</option>
                   <option value="pro">Pro</option>
+                  <option value="agency">Agency</option>
                 </select>
               </div>
               <div className="form-group">
@@ -256,6 +274,7 @@ export default function OrganizationsPage() {
                   <th>{t('organization')}</th>
                   <th>{t('plan')}</th>
                   <th>{t('status')}</th>
+                  <th>Оплата</th>
                   <th>{t('trial_until')}</th>
                   <th>{t('users_short')}</th>
                   <th>{t('clients_title')}</th>
@@ -266,10 +285,10 @@ export default function OrganizationsPage() {
               </thead>
               <tbody>
                 {loading && (
-                  <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--muted)' }}>Загрузка...</td></tr>
+                  <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--muted)' }}>Загрузка...</td></tr>
                 )}
                 {!loading && organizations.length === 0 && (
-                  <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--muted)' }}>Фирм пока нет</td></tr>
+                  <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--muted)' }}>Фирм пока нет</td></tr>
                 )}
                 {organizations.map(org => {
                   const primaryAdmin = org.users?.[0]
@@ -304,8 +323,11 @@ export default function OrganizationsPage() {
                         <select className="select" value={editForm.plan} onChange={e => setEditForm(p => ({ ...p, plan: e.target.value }))}>
                           <option value="manual">Ручной</option>
                           <option value="trial">Пробный</option>
+                          <option value="free">Бесплатный</option>
+                          <option value="starter">Starter</option>
                           <option value="basic">Basic</option>
                           <option value="pro">Pro</option>
+                          <option value="agency">Agency</option>
                         </select>
                       ) : planLabel(org.plan)}
                     </td>
@@ -323,6 +345,7 @@ export default function OrganizationsPage() {
                         }}>{statusLabel(org.status)}</span>
                       )}
                     </td>
+                    <td>{billingLabel(org.billingStatus)}</td>
                     <td>
                       {editingId === org.id && canManageAll ? (
                         <input className="input" type="date" value={editForm.trialEndsAt} onChange={e => setEditForm(p => ({ ...p, trialEndsAt: e.target.value }))} />

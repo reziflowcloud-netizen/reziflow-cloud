@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'LegalHub — CRM для агентств легализации',
-  description: 'Облачная CRM для иммиграционных агентств',
+  title: 'LegalHub CRM — CRM для компаний по легализации в Польше',
+  description: 'LegalHub помогает компаниям по легализации в Польше вести заявки, клиентов, документы, дедлайны, оплаты и сотрудников в одной CRM. Начните бесплатно без карты.',
   icons: {
     icon: '/favicon.png',
     shortcut: '/favicon.png',

@@ -162,6 +162,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         nationality: body.nationality || null,
         maritalStatus: body.maritalStatus || null,
         education: body.education || null,
+        profession: body.profession || null,
         statusUKR: body.statusUKR || false,
         fatherName: body.fatherName || null,
         motherName: body.motherName || null,

@@ -2,28 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
-
-function isSystemAdmin(user: any) {
-  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@migraflow.pl').toLowerCase()
-  return user?.role === 'owner' || String(user?.email || '').toLowerCase() === adminEmail
-}
-
-const organizationInclude = {
-  users: {
-    where: { role: 'admin' },
-    select: { id: true, name: true, email: true, role: true },
-    orderBy: { createdAt: 'asc' as const },
-    take: 1,
-  },
-  _count: {
-    select: {
-      users: true,
-      clients: true,
-      cases: true,
-      tasks: true,
-    },
-  },
-}
+import { isSystemAdmin, organizationInclude } from '@/lib/organizationProvisioning'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
@@ -42,7 +21,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (canManageAll) {
       if (typeof body.status === 'string') data.status = body.status
       if (typeof body.plan === 'string') data.plan = body.plan
+      if (typeof body.billingStatus === 'string') data.billingStatus = body.billingStatus
       if ('trialEndsAt' in body) data.trialEndsAt = body.trialEndsAt ? new Date(body.trialEndsAt) : null
+      if ('currentPeriodEndsAt' in body) data.currentPeriodEndsAt = body.currentPeriodEndsAt ? new Date(body.currentPeriodEndsAt) : null
+      if ('graceEndsAt' in body) data.graceEndsAt = body.graceEndsAt ? new Date(body.graceEndsAt) : null
     }
 
     const adminName = typeof body.adminName === 'string' ? body.adminName.trim() : ''

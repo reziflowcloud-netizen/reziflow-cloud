@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getUser } from '@/lib/auth'
+import { isSystemAdmin } from '@/lib/organizationProvisioning'
 
 export async function GET() {
   const user = await getUser()
@@ -12,5 +13,11 @@ export async function GET() {
     role: user.role,
     organizationId: user.organizationId,
     organizationName: user.organizationName,
+    organizationStatus: user.organizationStatus,
+    organizationPlan: user.organizationPlan,
+    billingStatus: user.billingStatus,
+    trialEndsAt: user.trialEndsAt,
+    currentPeriodEndsAt: user.currentPeriodEndsAt,
+    canManageAll: isSystemAdmin(user),
   })
 }

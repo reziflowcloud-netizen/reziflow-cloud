@@ -53,6 +53,7 @@ export default function Sidebar({
   const router = useRouter()
   const [theme, setTheme] = useState<Theme>('light')
   const [lang, setLang] = useState<Lang>('ru')
+  const [billingInfo, setBillingInfo] = useState<{ billingStatus?: string, trialEndsAt?: string | null, organizationPlan?: string } | null>(null)
 
   useEffect(() => {
     const savedThemeRaw = localStorage.getItem('rezi_theme') || 'light'
@@ -61,6 +62,18 @@ export default function Sidebar({
     setTheme(savedTheme)
     setLang(savedLang)
     document.documentElement.setAttribute('data-theme', savedTheme)
+    fetch('/api/auth/me')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) {
+          setBillingInfo({
+            billingStatus: data.billingStatus,
+            trialEndsAt: data.trialEndsAt,
+            organizationPlan: data.organizationPlan,
+          })
+        }
+      })
+      .catch(() => {})
   }, [])
 
   function setThemeChoice(next: Theme) {
@@ -82,6 +95,11 @@ export default function Sidebar({
 
   const t = TRANSLATIONS[lang]
   const roleLabel = userRole === 'admin' || userRole === 'owner' ? t.administrator : t.employee
+  const trialEndsAt = billingInfo?.trialEndsAt ? new Date(billingInfo.trialEndsAt) : null
+  const trialDaysLeft = trialEndsAt
+    ? Math.max(0, Math.ceil((trialEndsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : null
+  const showTrial = billingInfo?.billingStatus === 'trialing' && trialEndsAt
 
   const navItems = [
     { href: '/dashboard', key: 'dashboard', icon: (
@@ -182,6 +200,15 @@ export default function Sidebar({
             {organizationName && <div className="sidebar-profile-org">{t.company}: {organizationName}</div>}
           </div>
         </div>
+
+        {showTrial && (
+          <div className="sidebar-trial-box">
+            <div className="sidebar-trial-title">Trial: {trialDaysLeft} дн.</div>
+            <div className="sidebar-trial-text">
+              До {trialEndsAt.toLocaleDateString(lang === 'pl' ? 'pl-PL' : lang === 'uk' ? 'uk-UA' : 'ru-RU')}
+            </div>
+          </div>
+        )}
 
         <button onClick={handleLogout} className="sidebar-logout">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

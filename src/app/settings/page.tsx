@@ -1,11 +1,21 @@
 // src/app/settings/page.tsx
 'use client'
 import Link from 'next/link'
+import { useEffect, useMemo, useState } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
 
 export default function SettingsPage() {
   const { t } = useLanguage()
-  const items = [
+  const [canManageAll, setCanManageAll] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => setCanManageAll(Boolean(data.canManageAll)))
+      .catch(() => setCanManageAll(false))
+  }, [])
+
+  const items = useMemo(() => [
     {
       href: '/settings/statuses',
       icon: '🔵',
@@ -60,6 +70,12 @@ export default function SettingsPage() {
       title: 'Организации',
       desc: 'Фирмы, тарифы и первый администратор для каждой компании',
     },
+    ...(canManageAll ? [{
+      href: '/settings/referrals',
+      icon: '%',
+      title: 'Рефералы',
+      desc: 'Партнерские ссылки, приглашенные организации и начисления',
+    }] : []),
     {
       href: '/settings/export',
       icon: '📦',
@@ -72,7 +88,7 @@ export default function SettingsPage() {
       title: 'Интеграции',
       desc: 'Webhook для заявок с сайта, квиза, рекламы и внешних сервисов',
     },
-  ]
+  ], [canManageAll, t])
 
   return (
     <div className="fade-in">

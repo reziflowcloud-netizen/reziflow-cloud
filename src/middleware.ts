@@ -2,7 +2,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from './lib/auth'
 
-const PUBLIC_PATHS = ['/', '/privacy', '/data-deletion', '/delete-data', '/favicon.svg', '/favicon.png', '/manifest.json', '/api/auth/login', '/api/meta/data-deletion']
+const PUBLIC_PATHS = [
+  '/',
+  '/login',
+  '/register',
+  '/contact',
+  '/partner',
+  '/privacy',
+  '/data-deletion',
+  '/delete-data',
+  '/favicon.svg',
+  '/favicon.png',
+  '/manifest.json',
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/partner/referrals',
+  '/api/meta/data-deletion',
+]
 const PUBLIC_PREFIXES = ['/assets', '/api/webhooks/leads', '/api/webhooks/meta/leads', '/api/webhooks/meta/messages', '/api/webhooks/telegram/leads']
 
 export async function middleware(request: NextRequest) {
@@ -12,8 +28,8 @@ export async function middleware(request: NextRequest) {
   const token = request.cookies.get('auth-token')?.value
 
   if (isPublic) {
-    // If logged in and on login page — redirect to dashboard
-    if (token && pathname === '/') {
+    // If logged in and on public entry pages, continue to the app.
+    if (token && (pathname === '/' || pathname === '/login' || pathname === '/register')) {
       const payload = await verifyToken(token)
       if (payload) return NextResponse.redirect(new URL('/dashboard', request.url))
     }
@@ -21,9 +37,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // Protected route
-  if (!token) return NextResponse.redirect(new URL('/', request.url))
+  if (!token) return NextResponse.redirect(new URL('/login', request.url))
   const payload = await verifyToken(token)
-  if (!payload) return NextResponse.redirect(new URL('/', request.url))
+  if (!payload) return NextResponse.redirect(new URL('/login', request.url))
 
   return NextResponse.next()
 }

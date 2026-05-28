@@ -134,6 +134,7 @@ export async function POST(request: NextRequest) {
         stayBasis: body.stayBasis || null,
         motherMaidenName: body.motherMaidenName || null,
         dependents: body.dependents || null,
+        profession: body.profession || null,
         height: body.height || null,
         eyeColor: body.eyeColor || null,
         specialSigns: body.specialSigns || null,
