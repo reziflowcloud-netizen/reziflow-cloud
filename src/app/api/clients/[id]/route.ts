@@ -13,6 +13,18 @@ function dateOrNull(value: any) {
   return value ? new Date(value) : null
 }
 
+function normalizePreviousPolandStays(value: any) {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item, index) => ({
+      entryDate: dateOrNull(item?.entryDate),
+      exitDate: dateOrNull(item?.exitDate),
+      basis: String(item?.basis || '').trim() || null,
+      order: index,
+    }))
+    .filter(item => item.entryDate || item.exitDate || item.basis)
+}
+
 async function getClientMosFields(clientId: string, organizationId: string) {
   try {
     const rows = await prisma.$queryRaw<Array<{
@@ -34,13 +46,15 @@ async function getClientMosFields(clientId: string, organizationId: string) {
 }
 
 async function updateClientMosFields(tx: any, clientId: string, organizationId: string, body: any) {
+  const hasPreviousStayRows = Array.isArray(body.previousPolandStays)
+  const firstPreviousStay = hasPreviousStayRows ? normalizePreviousPolandStays(body.previousPolandStays)[0] : null
   await tx.$executeRaw`
     UPDATE "Client"
     SET
       "gender" = ${body.gender || null},
-      "previousPolandEntryDate" = ${dateOrNull(body.previousPolandEntryDate)},
-      "previousPolandExitDate" = ${dateOrNull(body.previousPolandExitDate)},
-      "previousPolandBasis" = ${body.previousPolandBasis || null}
+      "previousPolandEntryDate" = ${hasPreviousStayRows ? firstPreviousStay?.entryDate || null : dateOrNull(body.previousPolandEntryDate)},
+      "previousPolandExitDate" = ${hasPreviousStayRows ? firstPreviousStay?.exitDate || null : dateOrNull(body.previousPolandExitDate)},
+      "previousPolandBasis" = ${hasPreviousStayRows ? firstPreviousStay?.basis || null : body.previousPolandBasis || null}
     WHERE "id" = ${clientId} AND "organizationId" = ${organizationId}
   `
 }
@@ -94,6 +108,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       include: {
         cases: { include: { service: true }, orderBy: { createdAt: 'desc' } },
         travelHistory: { orderBy: { entryDate: 'desc' } },
+        previousPolandStays: { orderBy: { order: 'asc' } },
         phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
         familyLinks: {
           include: {
@@ -113,11 +128,14 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     // fallback
     const client = await prisma.client.findFirst({
       where: { id: params.id, organizationId },
-      include: { cases: { orderBy: { createdAt: 'desc' } } }
+      include: {
+        cases: { orderBy: { createdAt: 'desc' } },
+        previousPolandStays: { orderBy: { order: 'asc' } },
+      }
     })
     if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const mosFields = await getClientMosFields(params.id, organizationId)
-    return NextResponse.json({ ...client, ...mosFields, phones: phonesWithLegacy(client), travelHistory: [] })
+    return NextResponse.json({ ...client, ...mosFields, phones: phonesWithLegacy(client), travelHistory: [], previousPolandStays: client.previousPolandStays || [] })
   }
 }
 
@@ -132,6 +150,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const shouldUpdatePhones = Array.isArray(body.phones)
     const phones = shouldUpdatePhones ? normalizePhones(body.phones, body.phone) : []
     const mainPhone = shouldUpdatePhones ? primaryPhone(phones, body.phone) : (body.phone || null)
+    const shouldUpdatePreviousPolandStays = Array.isArray(body.previousPolandStays)
+    const previousPolandStays = shouldUpdatePreviousPolandStays ? normalizePreviousPolandStays(body.previousPolandStays) : []
 
     const shouldUpdateFamily = Array.isArray(body.familyClientIds)
     const familyClientIds = shouldUpdateFamily
@@ -195,6 +215,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       })
       await updateClientMosFields(tx, params.id, organizationId, body)
 
+      if (shouldUpdatePreviousPolandStays) {
+        await (tx as any).previousPolandStay.deleteMany({ where: { clientId: params.id } })
+        if (previousPolandStays.length) {
+          await (tx as any).previousPolandStay.createMany({
+            data: previousPolandStays.map(stay => ({ clientId: params.id, ...stay })),
+          })
+        }
+      }
+
       if (shouldUpdatePhones) {
         await (tx as any).clientPhone.deleteMany({ where: { clientId: params.id, organizationId } })
         if (phones.length) {
@@ -244,9 +273,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return shouldUpdatePhones
         ? await (tx as any).client.findUnique({
             where: { id: params.id },
-            include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
+            include: {
+              phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
+              previousPolandStays: { orderBy: { order: 'asc' } },
+            },
           })
-        : updated
+        : shouldUpdatePreviousPolandStays
+          ? await (tx as any).client.findUnique({
+              where: { id: params.id },
+              include: { previousPolandStays: { orderBy: { order: 'asc' } } },
+            })
+          : updated
     })
     // Если указана дата окончания паспорта — создаём задачу в календаре
     if (body.passportExpiresAt) {

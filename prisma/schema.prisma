@@ -423,6 +423,7 @@ model Client {
   finesInPoland            Boolean            @default(false)
   finesDescription         String?
   travelHistory            TravelHistory[]
+  previousPolandStays      PreviousPolandStay[]
   familyLinks              ClientFamilyLink[] @relation("ClientFamilySource")
   familyLinkedBy           ClientFamilyLink[] @relation("ClientFamilyRelative")
   phones                   ClientPhone[]
@@ -678,4 +679,18 @@ model TravelHistory {
   country   String
   createdAt DateTime  @default(now())
   client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model PreviousPolandStay {
+  id        Int       @id @default(autoincrement())
+  clientId  String
+  entryDate DateTime?
+  exitDate  DateTime?
+  basis     String?
+  order     Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, order])
 }

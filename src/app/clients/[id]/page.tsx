@@ -90,6 +90,30 @@ const PROFESSIONS = [
 const LEGAL_TITLE = ['Najem','Własność','Użyczenie','Zamieszkanie u rodziny','Inne']
 const STAY_BASIS = ['Bez podstawy','Wiza','Karta pobytu','Pobyt czasowy','Pobyt stały','Ruch bezwizowy','Status UKR']
 const PREVIOUS_POLAND_BASIS = ['Karta pobytu','Wiza','Ruch bezwizowy','Status UKR']
+
+function emptyPreviousPolandStay() {
+  return { entryDate: '', exitDate: '', basis: '' }
+}
+
+function previousPolandStayRows(data: any) {
+  const rows = Array.isArray(data.previousPolandStays)
+    ? data.previousPolandStays
+        .map((stay: any) => ({
+          entryDate: stay.entryDate?.slice(0, 10) || '',
+          exitDate: stay.exitDate?.slice(0, 10) || '',
+          basis: stay.basis || '',
+        }))
+    : []
+  if (rows.length > 0) return rows
+  if (data.previousPolandEntryDate || data.previousPolandExitDate || data.previousPolandBasis) {
+    return [{
+      entryDate: data.previousPolandEntryDate?.slice(0, 10) || '',
+      exitDate: data.previousPolandExitDate?.slice(0, 10) || '',
+      basis: data.previousPolandBasis || '',
+    }]
+  }
+  return [emptyPreviousPolandStay()]
+}
 const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
 
 const F = ({ label, children, col = false }: any) => (
@@ -460,6 +484,7 @@ export default function ClientDetailPage() {
         previousPolandEntryDate: data.previousPolandEntryDate?.slice(0,10) || '',
         previousPolandExitDate: data.previousPolandExitDate?.slice(0,10) || '',
         previousPolandBasis: data.previousPolandBasis || '',
+        previousPolandStays: previousPolandStayRows(data),
         firstResidenceCard: data.firstResidenceCard || false,
         residenceCardExpiry: data.residenceCardExpiry?.slice(0,10) || '',
         finesInPoland: data.finesInPoland || false,
@@ -478,6 +503,29 @@ export default function ClientDetailPage() {
   }, [id])
 
   function set(k: string, v: any) { setForm((p: any) => ({ ...p, [k]: v })) }
+
+  function addPreviousPolandStay() {
+    setForm((p: any) => ({
+      ...p,
+      previousPolandStays: [...(Array.isArray(p.previousPolandStays) ? p.previousPolandStays : []), emptyPreviousPolandStay()],
+    }))
+  }
+
+  function updatePreviousPolandStay(index: number, key: string, value: string) {
+    setForm((p: any) => ({
+      ...p,
+      previousPolandStays: (Array.isArray(p.previousPolandStays) ? p.previousPolandStays : [emptyPreviousPolandStay()])
+        .map((stay: any, stayIndex: number) => stayIndex === index ? { ...stay, [key]: value } : stay),
+    }))
+  }
+
+  function removePreviousPolandStay(index: number) {
+    setForm((p: any) => {
+      const next = (Array.isArray(p.previousPolandStays) ? p.previousPolandStays : [])
+        .filter((_: any, stayIndex: number) => stayIndex !== index)
+      return { ...p, previousPolandStays: next.length ? next : [emptyPreviousPolandStay()] }
+    })
+  }
 
   async function save() {
     setSaving(true)
@@ -1011,26 +1059,34 @@ export default function ClientDetailPage() {
             </div>
 
             <div className="card" data-collapse-key="client-previous-poland-stays" data-section-scope="client" data-section-key="client-previous-poland-stays" style={{ marginTop: 16, marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: '#ecfeff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>↩</div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{text.previousPolandTitle}</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{text.previousPolandSubtitle}</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: '#ecfeff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>↩</div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>{text.previousPolandTitle}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{text.previousPolandSubtitle}</div>
+                  </div>
                 </div>
+                <button type="button" onClick={addPreviousPolandStay} className="btn btn-primary" style={{ fontSize: 13 }}>{text.add}</button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-                <F label={text.previousPolandEntryDate}>
-                  <input className="input" type="date" value={form.previousPolandEntryDate} onChange={e => set('previousPolandEntryDate', e.target.value)} />
-                </F>
-                <F label={text.previousPolandExitDate}>
-                  <input className="input" type="date" value={form.previousPolandExitDate} onChange={e => set('previousPolandExitDate', e.target.value)} />
-                </F>
-                <F label={text.previousPolandBasis}>
-                  <select className="select" value={form.previousPolandBasis} onChange={e => set('previousPolandBasis', e.target.value)}>
-                    <option value="">{text.choose}</option>
-                    {PREVIOUS_POLAND_BASIS.map(basis => <option key={basis}>{basis}</option>)}
-                  </select>
-                </F>
+              <div style={{ display: 'grid', gap: 10 }}>
+                {(Array.isArray(form.previousPolandStays) ? form.previousPolandStays : [emptyPreviousPolandStay()]).map((stay: any, index: number) => (
+                  <div key={index} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10, alignItems: 'end', padding: 10, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8 }}>
+                    <F label={text.previousPolandEntryDate}>
+                      <input className="input" type="date" value={stay.entryDate || ''} onChange={e => updatePreviousPolandStay(index, 'entryDate', e.target.value)} />
+                    </F>
+                    <F label={text.previousPolandExitDate}>
+                      <input className="input" type="date" value={stay.exitDate || ''} onChange={e => updatePreviousPolandStay(index, 'exitDate', e.target.value)} />
+                    </F>
+                    <F label={text.previousPolandBasis}>
+                      <select className="select" value={stay.basis || ''} onChange={e => updatePreviousPolandStay(index, 'basis', e.target.value)}>
+                        <option value="">{text.choose}</option>
+                        {PREVIOUS_POLAND_BASIS.map(basis => <option key={basis}>{basis}</option>)}
+                      </select>
+                    </F>
+                    <button type="button" onClick={() => removePreviousPolandStay(index)} style={{ height: 38, width: 42, background: '#fef2f2', border: 'none', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontSize: 12, color: '#dc2626' }}>🗑</button>
+                  </div>
+                ))}
               </div>
             </div>
 
