@@ -38,6 +38,14 @@ export const DOCUMENT_TEMPLATE_VARIABLES = [
   '{{paymentPlan.count}}',
   '{{paymentPlan.totalAmount}}',
   '{{paymentPlan.totalAmountBrutto}}',
+  '{{firstInstallment.amount}}',
+  '{{firstInstallment.amountNetto}}',
+  '{{firstInstallment.amountBrutto}}',
+  '{{firstInstallment.dueDate}}',
+  '{{secondInstallment.amount}}',
+  '{{secondInstallment.amountNetto}}',
+  '{{secondInstallment.amountBrutto}}',
+  '{{secondInstallment.dueDate}}',
   '{{plannedPayment1.amount}}',
   '{{plannedPayment1.amountBrutto}}',
   '{{plannedPayment1.dueDate}}',
@@ -80,6 +88,28 @@ function plannedPaymentData(payment?: any) {
     amountBrutto: payment ? formatMoney(amount * 1.23) : '',
     dueDate: payment ? formatDate(payment.dueDate) : '',
     note: payment?.note || '',
+  }
+}
+
+function remainingInstallmentData(totalValue: number, firstPayment?: any, secondPayment?: any) {
+  if (!firstPayment) {
+    return {
+      amount: '',
+      amountNetto: '',
+      amountBrutto: '',
+      dueDate: '',
+      note: '',
+    }
+  }
+
+  const firstAmount = Number(firstPayment.amount || 0)
+  const amount = Math.max(0, totalValue - firstAmount)
+  return {
+    amount: formatMoney(amount),
+    amountNetto: formatPlainMoney(amount),
+    amountBrutto: formatMoney(amount * 1.23),
+    dueDate: secondPayment ? formatDate(secondPayment.dueDate) : '',
+    note: secondPayment?.note || '',
   }
 }
 
@@ -130,6 +160,8 @@ export function buildDocumentTemplateData(caseRecord: any, plannedPayments: any[
       totalAmount: formatMoney(plannedTotal),
       totalAmountBrutto: formatMoney(plannedTotal * 1.23),
     },
+    firstInstallment: plannedPaymentData(plannedPayments[0]),
+    secondInstallment: remainingInstallmentData(totalValue, plannedPayments[0], plannedPayments[1]),
     plannedPayment1: plannedPaymentData(plannedPayments[0]),
     plannedPayment2: plannedPaymentData(plannedPayments[1]),
     plannedPayment3: plannedPaymentData(plannedPayments[2]),
