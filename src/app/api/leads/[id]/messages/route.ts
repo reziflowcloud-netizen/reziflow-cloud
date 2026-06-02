@@ -38,7 +38,14 @@ function metaOutgoingErrorMessage(channel: string, data: any, status: number) {
   const rawMessage = String(data?.error?.message || `Meta Graph API error ${status}`)
   const lower = rawMessage.toLowerCase()
 
-  if (channel === 'instagram' && lower.includes('advanced access') && lower.includes('instagram_manage_messages')) {
+  if (
+    channel === 'instagram' &&
+    (
+      (lower.includes('advanced access') && lower.includes('instagram_manage_messages')) ||
+      (lower.includes('расширенного доступа') && lower.includes('instagram')) ||
+      (lower.includes('приложение не имеет') && lower.includes('управление сообщениями в instagram'))
+    )
+  ) {
     return [
       'Meta не разрешила отправить Instagram Direct обычному лиду.',
       'У Meta-приложения нет Advanced Access для instagram_manage_messages, либо токен этой организации выдан другим приложением без такого доступа.',
