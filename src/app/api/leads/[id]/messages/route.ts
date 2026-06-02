@@ -17,11 +17,21 @@ function metaChannelFromMessengerId(value?: string | null) {
   return null
 }
 
-function pageAccessTokenForChannel(settings: ReturnType<typeof getLeadWebhookSettings>, channel: string) {
-  if (channel === 'instagram') {
-    return settings.instagramMessagesPageAccessToken || settings.facebookLeadPageAccessToken || ''
-  }
-  return settings.facebookLeadPageAccessToken || ''
+function pageAccessTokensForChannel(settings: ReturnType<typeof getLeadWebhookSettings>, channel: string) {
+  const candidates = channel === 'instagram'
+    ? [
+        { label: 'Instagram Page Access Token', token: settings.instagramMessagesPageAccessToken || '' },
+        { label: 'Facebook Page Access Token', token: settings.facebookLeadPageAccessToken || '' },
+      ]
+    : [{ label: 'Facebook Page Access Token', token: settings.facebookLeadPageAccessToken || '' }]
+  const seen = new Set<string>()
+  return candidates
+    .map(item => ({ ...item, token: item.token.trim() }))
+    .filter(item => {
+      if (!item.token || seen.has(item.token)) return false
+      seen.add(item.token)
+      return true
+    })
 }
 
 function metaOutgoingErrorMessage(channel: string, data: any, status: number) {
@@ -172,22 +182,40 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     if (!settings.facebookMessagesEnabled) {
       return NextResponse.json({ error: 'Интеграция сообщений Facebook/Instagram выключена' }, { status: 400 })
     }
-    const pageAccessToken = pageAccessTokenForChannel(settings, metaTarget.channel)
-    if (!pageAccessToken) {
+    const pageAccessTokens = pageAccessTokensForChannel(settings, metaTarget.channel)
+    if (pageAccessTokens.length === 0) {
       return NextResponse.json({ error: `Не сохранен Page Access Token для ${metaTarget.channel === 'instagram' ? 'Instagram Direct' : 'Facebook Messenger'}` }, { status: 400 })
     }
 
     try {
       const metaSenderId = await getMetaSenderIdForLead(organizationId, lead.id, metaTarget.channel)
-      const metaResponse = await sendMetaMessage({
-        accessToken: pageAccessToken,
-        apiVersion: settings.facebookLeadApiVersion || 'v23.0',
-        recipientId: metaTarget.recipientId,
-        text,
-        channel: metaTarget.channel,
-      })
+      let metaResponse: any = null
+      let metaAccessTokenSource = ''
+      let lastMetaError = ''
+      for (const candidate of pageAccessTokens) {
+        try {
+          metaResponse = await sendMetaMessage({
+            accessToken: candidate.token,
+            apiVersion: settings.facebookLeadApiVersion || 'v23.0',
+            recipientId: metaTarget.recipientId,
+            text,
+            channel: metaTarget.channel,
+          })
+          metaAccessTokenSource = candidate.label
+          break
+        } catch (error: any) {
+          lastMetaError = error?.message || 'Не удалось отправить сообщение в Meta'
+        }
+      }
+      if (!metaResponse) throw new Error(lastMetaError || 'Не удалось отправить сообщение в Meta')
       externalMessageId = String(metaResponse?.message_id || externalMessageId || '').trim() || null
-      outboundPayload = { ...(body.payload || {}), metaResponse, metaSenderId: metaSenderId || null }
+      outboundPayload = {
+        ...(body.payload || {}),
+        metaResponse,
+        metaSenderId: metaSenderId || null,
+        metaAccessTokenSource,
+        metaTokenFallbackUsed: pageAccessTokens.length > 1 && metaAccessTokenSource !== pageAccessTokens[0].label,
+      }
     } catch (error: any) {
       return NextResponse.json({ error: error?.message || 'Не удалось отправить сообщение в Meta' }, { status: 502 })
     }
