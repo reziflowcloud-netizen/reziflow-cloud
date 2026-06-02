@@ -1001,6 +1001,11 @@ ${samplePayload}`}
                       Graph API: {metaDiagnostics.apiVersion}
                     </div>
                   )}
+                  {metaDiagnostics.hint && (
+                    <div style={{ color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 10, fontSize: 12, lineHeight: 1.5 }}>
+                      {metaDiagnostics.hint}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

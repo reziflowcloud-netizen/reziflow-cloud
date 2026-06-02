@@ -65,6 +65,6 @@ export async function GET() {
     apiVersion: version,
     facebook,
     instagram,
-    hint: 'For Instagram replies, the token should resolve to the Facebook Page connected to the same Instagram Business Account that appears as entry.id in Instagram webhook payload.',
+    hint: 'Для ответов реальным Instagram-лидам Page Access Token должен быть выдан тем же Meta-приложением, у которого есть Advanced Access для instagram_manage_messages, и должен относиться к странице, связанной с нужным Instagram Business Account.',
   })
 }

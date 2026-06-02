@@ -24,55 +24,53 @@ function pageAccessTokenForChannel(settings: ReturnType<typeof getLeadWebhookSet
   return settings.facebookLeadPageAccessToken || ''
 }
 
+function metaOutgoingErrorMessage(channel: string, data: any, status: number) {
+  const rawMessage = String(data?.error?.message || `Meta Graph API error ${status}`)
+  const lower = rawMessage.toLowerCase()
+
+  if (channel === 'instagram' && lower.includes('advanced access') && lower.includes('instagram_manage_messages')) {
+    return [
+      'Meta не разрешила отправить Instagram Direct обычному лиду.',
+      'У Meta-приложения нет Advanced Access для instagram_manage_messages, либо токен этой организации выдан другим приложением без такого доступа.',
+      'Поэтому ответы аккаунтам с ролью администратора/разработчика могут работать, а реальные лиды блокируются.',
+      'Нужно получить Advanced Access в Meta App Review и заново подключить Instagram/Page token для этой организации через то же приложение.',
+    ].join(' ')
+  }
+
+  if (lower.includes('cannot parse access token') || lower.includes('invalid oauth access token')) {
+    return 'Meta не приняла токен доступа. Пересоздай Page Access Token для этой организации и сохрани его в настройках интеграции.'
+  }
+
+  if (lower.includes('application does not have the capability')) {
+    return 'Meta не разрешила этот вызов API для текущего токена/приложения. Проверь, что токен выдан правильным Meta-приложением и у приложения есть доступ к Instagram Messaging.'
+  }
+
+  return `Meta не приняла сообщение: ${rawMessage}`
+}
+
 async function sendMetaMessage(params: {
   accessToken: string
   apiVersion: string
   recipientId: string
   text: string
   channel: string
-  senderId?: string | null
 }) {
   const version = params.apiVersion.startsWith('v') ? params.apiVersion : `v${params.apiVersion}`
-  const senderId = String(params.senderId || '').trim() || 'me'
-  const facebookBody = JSON.stringify({
-    recipient: { id: params.recipientId },
-    messaging_type: 'RESPONSE',
-    message: { text: params.text },
+  const url = new URL(`https://graph.facebook.com/${version}/me/messages`)
+  url.searchParams.set('access_token', params.accessToken)
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      recipient: { id: params.recipientId },
+      messaging_type: 'RESPONSE',
+      message: { text: params.text },
+    }),
   })
-  const instagramBody = JSON.stringify({
-    recipient: { id: params.recipientId },
-    message: { text: params.text },
-  })
-  const attempts = params.channel === 'instagram'
-    ? [
-        { label: 'facebook:/me/messages', url: new URL(`https://graph.facebook.com/${version}/me/messages`), auth: 'query', body: facebookBody },
-        ...(senderId !== 'me' ? [{ label: 'facebook:sender/messages', url: new URL(`https://graph.facebook.com/${version}/${senderId}/messages`), auth: 'query', body: facebookBody }] : []),
-        { label: 'instagram:/me/messages', url: new URL(`https://graph.instagram.com/${version}/me/messages`), auth: 'bearer', body: instagramBody },
-        ...(senderId !== 'me' ? [{ label: 'instagram:sender/messages', url: new URL(`https://graph.instagram.com/${version}/${senderId}/messages`), auth: 'bearer', body: instagramBody }] : []),
-        { label: 'instagram:/me/messages?access_token', url: new URL(`https://graph.instagram.com/${version}/me/messages`), auth: 'query', body: instagramBody },
-        ...(senderId !== 'me' ? [{ label: 'instagram:sender/messages?access_token', url: new URL(`https://graph.instagram.com/${version}/${senderId}/messages`), auth: 'query', body: instagramBody }] : []),
-      ]
-    : [{ label: 'facebook:/me/messages', url: new URL(`https://graph.facebook.com/${version}/me/messages`), auth: 'query', body: facebookBody }]
+  const data = await response.json().catch(() => ({}))
+  if (response.ok) return { ...data, requestTarget: 'facebook:/me/messages' }
 
-  const errors: string[] = []
-  for (const attempt of attempts) {
-    if (attempt.auth === 'query') attempt.url.searchParams.set('access_token', params.accessToken)
-    const response = await fetch(attempt.url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(attempt.auth === 'bearer' ? { Authorization: `Bearer ${params.accessToken}` } : {}),
-      },
-      body: attempt.body,
-    })
-    const data = await response.json().catch(() => ({}))
-    if (response.ok) return { ...data, requestTarget: attempt.label }
-    const message = data?.error?.message || `Meta Graph API error ${response.status}`
-    errors.push(`${attempt.label}: ${message}`)
-  }
-
-  const visibleErrors = errors.slice(0, 4).join(' | ')
-  throw new Error(visibleErrors ? `Meta не приняла сообщение: ${visibleErrors}` : 'Meta did not accept the outgoing message')
+  throw new Error(metaOutgoingErrorMessage(params.channel, data, response.status))
 }
 
 function parsedPayload(payload: any) {
@@ -187,7 +185,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         recipientId: metaTarget.recipientId,
         text,
         channel: metaTarget.channel,
-        senderId: metaSenderId,
       })
       externalMessageId = String(metaResponse?.message_id || externalMessageId || '').trim() || null
       outboundPayload = { ...(body.payload || {}), metaResponse, metaSenderId: metaSenderId || null }
