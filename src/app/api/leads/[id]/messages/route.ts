@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic'
 const DIRECTIONS = new Set(['incoming', 'outgoing'])
 const SENDER_TYPES = new Set(['lead', 'bot', 'employee', 'system'])
 const META_CHANNELS = new Set(['facebook', 'instagram', 'messenger'])
+type MetaSendMode = 'response' | 'human_agent'
 
 function metaChannelFromMessengerId(value?: string | null) {
   const [channel, recipientId] = String(value || '').split(':')
@@ -37,6 +38,16 @@ function pageAccessTokensForChannel(settings: ReturnType<typeof getLeadWebhookSe
 function metaOutgoingErrorMessage(channel: string, data: any, status: number) {
   const rawMessage = String(data?.error?.message || `Meta Graph API error ${status}`)
   const lower = rawMessage.toLowerCase()
+  const trace = data?.error?.fbtrace_id ? ` FB trace: ${data.error.fbtrace_id}` : ''
+
+  if (isOutsideWindowMetaError(data, status)) {
+    return [
+      'Meta закрыла стандартное окно ответа: прошло больше 24 часов с последнего сообщения лида.',
+      'CRM попробует отправку как ручной ответ HUMAN_AGENT, если эта функция доступна приложению.',
+      'Если прошло больше 7 дней или Human Agent не одобрен Meta, нужно чтобы лид снова написал в Instagram/Facebook.',
+      `Meta Graph: ${rawMessage}${trace}`,
+    ].join(' ')
+  }
 
   if (
     channel === 'instagram' &&
@@ -51,18 +62,30 @@ function metaOutgoingErrorMessage(channel: string, data: any, status: number) {
       'У Meta-приложения нет Advanced Access для instagram_manage_messages, либо токен этой организации выдан другим приложением без такого доступа.',
       'Поэтому ответы аккаунтам с ролью администратора/разработчика могут работать, а реальные лиды блокируются.',
       'Нужно получить Advanced Access в Meta App Review и заново подключить Instagram/Page token для этой организации через то же приложение.',
+      `Meta Graph: ${rawMessage}${trace}`,
     ].join(' ')
   }
 
   if (lower.includes('cannot parse access token') || lower.includes('invalid oauth access token')) {
-    return 'Meta не приняла токен доступа. Пересоздай Page Access Token для этой организации и сохрани его в настройках интеграции.'
+    return `Meta не приняла токен доступа. Пересоздай Page Access Token для этой организации и сохрани его в настройках интеграции. Meta Graph: ${rawMessage}${trace}`
   }
 
   if (lower.includes('application does not have the capability')) {
-    return 'Meta не разрешила этот вызов API для текущего токена/приложения. Проверь, что токен выдан правильным Meta-приложением и у приложения есть доступ к Instagram Messaging.'
+    return `Meta не разрешила этот вызов API для текущего токена/приложения. Проверь, что токен выдан правильным Meta-приложением и у приложения есть доступ к Instagram/Facebook Messaging и Human Agent, если ответ идет после 24 часов. Meta Graph: ${rawMessage}${trace}`
   }
 
-  return `Meta не приняла сообщение: ${rawMessage}`
+  return `Meta не приняла сообщение: ${rawMessage}${trace}`
+}
+
+function isOutsideWindowMetaError(data: any, status: number) {
+  const rawMessage = String(data?.error?.message || `Meta Graph API error ${status}`).toLowerCase()
+  return (
+    rawMessage.includes('outside of allowed window') ||
+    rawMessage.includes('outside the allowed window') ||
+    (rawMessage.includes('24') && rawMessage.includes('window')) ||
+    (rawMessage.includes('24') && rawMessage.includes('hour')) ||
+    (rawMessage.includes('7') && rawMessage.includes('day') && rawMessage.includes('window'))
+  )
 }
 
 async function sendMetaMessage(params: {
@@ -71,23 +94,35 @@ async function sendMetaMessage(params: {
   recipientId: string
   text: string
   channel: string
+  sendMode?: MetaSendMode
 }) {
   const version = params.apiVersion.startsWith('v') ? params.apiVersion : `v${params.apiVersion}`
   const url = new URL(`https://graph.facebook.com/${version}/me/messages`)
   url.searchParams.set('access_token', params.accessToken)
+  const sendMode = params.sendMode || 'response'
+  const payload: any = {
+    recipient: { id: params.recipientId },
+    message: { text: params.text },
+  }
+  if (sendMode === 'human_agent') {
+    payload.messaging_type = 'MESSAGE_TAG'
+    payload.tag = 'HUMAN_AGENT'
+  } else {
+    payload.messaging_type = 'RESPONSE'
+  }
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      recipient: { id: params.recipientId },
-      messaging_type: 'RESPONSE',
-      message: { text: params.text },
-    }),
+    body: JSON.stringify(payload),
   })
   const data = await response.json().catch(() => ({}))
-  if (response.ok) return { ...data, requestTarget: 'facebook:/me/messages' }
+  if (response.ok) return { ...data, requestTarget: 'facebook:/me/messages', sendMode }
 
-  throw new Error(metaOutgoingErrorMessage(params.channel, data, response.status))
+  const error = new Error(metaOutgoingErrorMessage(params.channel, data, response.status))
+  ;(error as any).outsideWindow = isOutsideWindowMetaError(data, response.status)
+  ;(error as any).metaError = data?.error || data
+  ;(error as any).sendMode = sendMode
+  throw error
 }
 
 function parsedPayload(payload: any) {
@@ -199,6 +234,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       let metaResponse: any = null
       let metaAccessTokenSource = ''
       let lastMetaError = ''
+      let metaSendMode: MetaSendMode = 'response'
       for (const candidate of pageAccessTokens) {
         try {
           metaResponse = await sendMetaMessage({
@@ -207,11 +243,30 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
             recipientId: metaTarget.recipientId,
             text,
             channel: metaTarget.channel,
+            sendMode: 'response',
           })
           metaAccessTokenSource = candidate.label
+          metaSendMode = 'response'
           break
         } catch (error: any) {
           lastMetaError = error?.message || 'Не удалось отправить сообщение в Meta'
+          if (error?.outsideWindow) {
+            try {
+              metaResponse = await sendMetaMessage({
+                accessToken: candidate.token,
+                apiVersion: settings.facebookLeadApiVersion || 'v23.0',
+                recipientId: metaTarget.recipientId,
+                text,
+                channel: metaTarget.channel,
+                sendMode: 'human_agent',
+              })
+              metaAccessTokenSource = candidate.label
+              metaSendMode = 'human_agent'
+              break
+            } catch (humanAgentError: any) {
+              lastMetaError = humanAgentError?.message || lastMetaError
+            }
+          }
         }
       }
       if (!metaResponse) throw new Error(lastMetaError || 'Не удалось отправить сообщение в Meta')
@@ -221,6 +276,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         metaResponse,
         metaSenderId: metaSenderId || null,
         metaAccessTokenSource,
+        metaSendMode,
         metaTokenFallbackUsed: pageAccessTokens.length > 1 && metaAccessTokenSource !== pageAccessTokens[0].label,
       }
     } catch (error: any) {
