@@ -483,6 +483,13 @@ function onFormSubmit(e) {
         `keys: ${Array.isArray(metaEvent.eventKeys) ? metaEvent.eventKeys.join(', ') : '—'}`,
       ].join(' · ')
     }
+    const metaChange = payload && typeof payload === 'object' ? (payload as any).metaChange : null
+    if (metaChange && typeof metaChange === 'object') {
+      const author = metaChange.username ? `@${metaChange.username}` : metaChange.fromId || 'unknown'
+      const text = metaChange.text ? `: ${metaChange.text}` : ''
+      const media = metaChange.mediaProductType ? ` · ${metaChange.mediaProductType}` : ''
+      return `Meta change: ${metaChange.kind || 'change'} · ${author}${media}${text}`
+    }
     return payload ? Object.entries(payload).slice(0, 4).map(([key, value]) => `${key}: ${typeof value === 'object' && value !== null ? '[object]' : String(value)}`).join(', ') : ''
   }
 
@@ -1124,14 +1131,16 @@ ${samplePayload}`}
                       const isPing = log.status === 'ping'
                       const isMessage = log.status === 'message'
                       const isIgnored = log.status === 'ignored'
+                      const isComment = log.status === 'comment'
+                      const isService = log.status === 'service'
                       const payload = payloadSummary(log.payload)
                       const fullPayload = payloadJson(log.payload)
                       return (
                         <tr key={log.id}>
                           <td style={{ fontSize: 13 }}>{new Date(log.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                           <td>
-                            <span style={{ display: 'inline-flex', borderRadius: 999, padding: '4px 8px', fontSize: 12, fontWeight: 800, background: isCreated ? '#dcfce7' : isPing ? '#dbeafe' : isMessage ? '#ede9fe' : isIgnored ? '#fef3c7' : '#fee2e2', color: isCreated ? '#166534' : isPing ? '#1d4ed8' : isMessage ? '#6d28d9' : isIgnored ? '#92400e' : '#991b1b' }}>
-                              {isCreated ? 'Создан' : isPing ? 'Тест' : isMessage ? 'Сообщение' : isIgnored ? 'Пропущено' : log.status === 'failed' ? 'Ошибка' : 'Отклонен'}
+                            <span style={{ display: 'inline-flex', borderRadius: 999, padding: '4px 8px', fontSize: 12, fontWeight: 800, background: isCreated ? '#dcfce7' : isPing ? '#dbeafe' : isMessage ? '#ede9fe' : isIgnored ? '#fef3c7' : isComment ? '#e0f2fe' : isService ? '#f1f5f9' : '#fee2e2', color: isCreated ? '#166534' : isPing ? '#1d4ed8' : isMessage ? '#6d28d9' : isIgnored ? '#92400e' : isComment ? '#0369a1' : isService ? '#475569' : '#991b1b' }}>
+                              {isCreated ? 'Создан' : isPing ? 'Тест' : isMessage ? 'Сообщение' : isIgnored ? 'Пропущено' : isComment ? 'Комментарий' : isService ? 'Сервис' : log.status === 'failed' ? 'Ошибка' : 'Отклонен'}
                             </span>
                           </td>
                           <td style={{ fontSize: 13 }}>{log.source || '—'}</td>

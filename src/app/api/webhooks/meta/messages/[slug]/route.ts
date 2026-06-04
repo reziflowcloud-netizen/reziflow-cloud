@@ -29,6 +29,12 @@ type MetaConversationMessage = {
   to?: { data?: Array<{ id?: string; name?: string }> }
 }
 
+type MetaChangeEvent = {
+  pageId?: string
+  field?: string
+  value?: any
+}
+
 function collectMessagingEvents(body: any): MetaMessagingEvent[] {
   const entries = Array.isArray(body?.entry) ? body.entry : []
   const events: MetaMessagingEvent[] = []
@@ -37,6 +43,25 @@ function collectMessagingEvents(body: any): MetaMessagingEvent[] {
     const pageId = String(entry?.id || '').trim()
     const messaging = Array.isArray(entry?.messaging) ? entry.messaging : []
     for (const event of messaging) events.push({ ...event, pageId })
+  }
+
+  return events
+}
+
+function collectChangeEvents(body: any): MetaChangeEvent[] {
+  const entries = Array.isArray(body?.entry) ? body.entry : []
+  const events: MetaChangeEvent[] = []
+
+  for (const entry of entries) {
+    const pageId = String(entry?.id || '').trim()
+    const changes = Array.isArray(entry?.changes) ? entry.changes : []
+    for (const change of changes) {
+      events.push({
+        pageId,
+        field: String(change?.field || '').trim(),
+        value: change?.value || null,
+      })
+    }
   }
 
   return events
@@ -298,6 +323,18 @@ function isSilentMetaEvent(kind: string) {
   return kind === 'read' || kind === 'delivery' || kind === 'reaction'
 }
 
+function metaChangeSummary(change: MetaChangeEvent) {
+  return {
+    kind: change.field || 'change',
+    pageId: change.pageId || null,
+    fromId: String(change.value?.from?.id || '').trim() || null,
+    username: String(change.value?.from?.username || '').trim() || null,
+    text: String(change.value?.text || '').trim() || null,
+    mediaId: String(change.value?.media?.id || '').trim() || null,
+    mediaProductType: String(change.value?.media?.media_product_type || '').trim() || null,
+  }
+}
+
 export async function GET(request: NextRequest, { params }: { params: { slug: string } }) {
   const organization = await prisma.organization.findUnique({
     where: { slug: params.slug },
@@ -346,13 +383,28 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
 
   const events = collectMessagingEvents(body)
   if (events.length === 0) {
+    const changes = collectChangeEvents(body)
+    if (changes.length > 0) {
+      for (const change of changes) {
+        await (prisma as any).leadWebhookLog.create({
+          data: {
+            organizationId: organization.id,
+            status: change.field === 'comments' ? 'comment' : 'service',
+            source,
+            payload: { metaChange: metaChangeSummary(change), raw: safePayload },
+          },
+        })
+      }
+      return NextResponse.json({ ok: true, processed: 0, changes: changes.length })
+    }
+
     await (prisma as any).leadWebhookLog.create({
       data: {
         organizationId: organization.id,
-        status: 'failed',
+        status: 'service',
         source,
         payload: safePayload,
-        error: 'No messaging events in Meta webhook payload',
+        error: 'Meta webhook payload did not contain messaging events',
       },
     })
     return NextResponse.json({ ok: true, processed: 0 })
@@ -404,7 +456,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         }
       }
 
-      if (isSilentMetaEvent(eventSummary.kind) && !syncError) continue
+      if (isSilentMetaEvent(eventSummary.kind)) continue
 
       await (prisma as any).leadWebhookLog.create({
         data: {
