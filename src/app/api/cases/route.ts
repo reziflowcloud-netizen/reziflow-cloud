@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
-import { caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
+import { caseWhereForScope, findScopedClient, getDataAccessScope } from '@/lib/apiScope'
 
 export async function GET() {
   const user = await getUser()
@@ -33,6 +33,10 @@ export async function POST(request: NextRequest) {
   const scope = await getDataAccessScope(user, organizationId)
   try {
     const body = await request.json()
+    if (scope.restricted) {
+      const scopedClient = await findScopedClient(body.clientId, organizationId, { id: true })
+      if (!scopedClient) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+    }
 
     const caseNumber = body.caseNumber?.trim() || null
 
