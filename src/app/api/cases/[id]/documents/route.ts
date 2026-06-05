@@ -130,14 +130,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
-    const scopedCase = await (prisma as any).case.findFirst({
-      where: { id: params.id, organizationId },
-      select: {
+    const scopedCase = await findScopedCase(params.id, organizationId, {
         id: true,
         caseNumber: true,
         organization: { select: { name: true, settings: true } },
         client: { select: { firstName: true, lastName: true, phone: true } },
-      },
     })
     if (!scopedCase) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   try {

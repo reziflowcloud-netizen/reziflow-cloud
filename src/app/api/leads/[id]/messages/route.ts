@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { getLeadWebhookSettings } from '@/lib/leadWebhook'
+import { findScopedLead } from '@/lib/apiScope'
 
 export const dynamic = 'force-dynamic'
 
@@ -176,7 +177,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
 
-  const lead = await (prisma as any).lead.findFirst({ where: { id: params.id, organizationId }, select: { id: true } })
+  const lead = await findScopedLead(params.id, organizationId, { id: true })
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const messages = await (prisma as any).leadMessage.findMany({
@@ -193,10 +194,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
 
-  const lead = await (prisma as any).lead.findFirst({
-    where: { id: params.id, organizationId },
-    select: { id: true, source: true, messengerId: true },
-  })
+  const lead = await findScopedLead(params.id, organizationId, { id: true, source: true, messengerId: true })
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await request.json()

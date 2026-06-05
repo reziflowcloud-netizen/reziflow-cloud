@@ -17,10 +17,12 @@ model User {
   avatarUrl          String?
   avatarPublicId     String?
   preferences        Json?
+  restrictedAccess   Boolean              @default(false)
   organizationId     String?
   organization       Organization?        @relation(fields: [organizationId], references: [id])
   createdAt          DateTime             @default(now())
   cases              Case[]
+  clients            Client[]
   tasks              Task[]
   leads              Lead[]
   leadContactHistory LeadContactHistory[]
@@ -378,6 +380,8 @@ model Client {
   id                       String             @id @default(cuid())
   organizationId           String?
   organization             Organization?      @relation(fields: [organizationId], references: [id])
+  assignedToId             Int?
+  assignedTo               User?              @relation(fields: [assignedToId], references: [id])
   firstName                String
   lastName                 String
   phone                    String?
@@ -427,6 +431,8 @@ model Client {
   familyLinks              ClientFamilyLink[] @relation("ClientFamilySource")
   familyLinkedBy           ClientFamilyLink[] @relation("ClientFamilyRelative")
   phones                   ClientPhone[]
+
+  @@index([organizationId, assignedToId])
 }
 
 model ClientPhone {
@@ -518,6 +524,7 @@ model Case {
   docUpdates            DocUpdate[]
 
   @@unique([organizationId, caseNumber])
+  @@index([organizationId, assignedToId])
 }
 
 model Payment {

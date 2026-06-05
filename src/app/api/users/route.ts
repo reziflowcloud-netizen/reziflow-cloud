@@ -15,7 +15,7 @@ export async function GET() {
   try {
     const users = await prisma.user.findMany({
       where: canManageUsers(user) ? { organizationId } : { id: Number(user.id), organizationId },
-      select: { id: true, name: true, email: true, role: true, avatarUrl: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, restrictedAccess: true, avatarUrl: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     })
     return NextResponse.json(users, {
@@ -39,9 +39,17 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.user.findUnique({ where: { email: body.email } })
     if (existing) return NextResponse.json({ error: 'Пользователь с таким email уже существует' }, { status: 400 })
     const hashed = await bcrypt.hash(body.password, 10)
+    const role = body.role || 'employee'
     const newUser = await prisma.user.create({
-      data: { name: body.name, email: body.email, password: hashed, role: body.role || 'employee', organizationId },
-      select: { id: true, name: true, email: true, role: true, avatarUrl: true, createdAt: true },
+      data: {
+        name: body.name,
+        email: body.email,
+        password: hashed,
+        role,
+        restrictedAccess: role === 'employee' && body.restrictedAccess === true,
+        organizationId,
+      },
+      select: { id: true, name: true, email: true, role: true, restrictedAccess: true, avatarUrl: true, createdAt: true },
     })
     return NextResponse.json(newUser)
   } catch (e: any) {

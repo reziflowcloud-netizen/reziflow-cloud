@@ -4,6 +4,7 @@ import PizZip from 'pizzip'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { buildDocumentTemplateData, getTemplateLabel, safeGeneratedFileName } from '@/lib/documentTemplates'
+import { caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -63,11 +64,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
   const templateId = Number(request.nextUrl.searchParams.get('templateId') || 0)
   const type = request.nextUrl.searchParams.get('type') || ''
 
   const caseRecord = await (prisma as any).case.findFirst({
-    where: { id: params.id, organizationId },
+    where: caseWhereForScope(scope, organizationId, { id: params.id }),
     include: {
       client: true,
       service: true,

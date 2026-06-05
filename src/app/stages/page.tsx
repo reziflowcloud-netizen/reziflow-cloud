@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { caseWhereForScope, clientWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 import StagesClient from './StagesClient'
 
 export const dynamic = 'force-dynamic'
@@ -7,12 +8,14 @@ export const dynamic = 'force-dynamic'
 export default async function StagesPage() {
   const user = await getUser()
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
   const [statuses, clients] = await Promise.all([
     prisma.caseStatus.findMany({ where: { organizationId }, orderBy: { order: 'asc' } }),
     prisma.client.findMany({
-      where: { organizationId },
+      where: clientWhereForScope(scope, organizationId),
       include: {
         cases: {
+          where: caseWhereForScope(scope, organizationId),
           select: {
             id: true,
             caseNumber: true,

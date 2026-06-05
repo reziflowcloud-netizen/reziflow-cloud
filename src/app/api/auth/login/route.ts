@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
       email: user.email,
       name: user.name,
       role: user.role,
+      restrictedAccess: (user as any).restrictedAccess === true,
       avatarUrl: (user as any).avatarUrl || null,
       organizationId: user.organizationId || 'org_default',
       organizationName: organization?.name || 'LegalHub',

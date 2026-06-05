@@ -8,6 +8,7 @@ import {
   toValidDate,
 } from '@/lib/dashboardAnalytics'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { DataAccessScope, caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,9 +24,8 @@ function dashboardCaseDate(item: DashboardCaseDate): Date {
   return (item.contractSigned && contractDate ? contractDate : createdAt) || new Date(0)
 }
 
-function dashboardCaseMonthWhere(organizationId: string, start: Date, end: Date) {
-  return {
-    organizationId,
+function dashboardCaseMonthWhere(organizationId: string, start: Date, end: Date, scope: DataAccessScope) {
+  return caseWhereForScope(scope, organizationId, {
     OR: [
       { contractSigned: true, contractDate: { gte: start, lt: end } },
       {
@@ -33,7 +33,7 @@ function dashboardCaseMonthWhere(organizationId: string, start: Date, end: Date)
         OR: [{ contractSigned: false }, { contractDate: null }],
       },
     ],
-  }
+  })
 }
 
 export default async function NewCasesPage({
@@ -43,8 +43,9 @@ export default async function NewCasesPage({
 }) {
   const user = await getUser()
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
   const allCases = await prisma.case.findMany({
-    where: { organizationId },
+    where: caseWhereForScope(scope, organizationId),
     select: { createdAt: true, contractDate: true, contractSigned: true },
     orderBy: { createdAt: 'desc' },
   })
@@ -56,7 +57,7 @@ export default async function NewCasesPage({
 
   const cases = month
     ? await prisma.case.findMany({
-        where: dashboardCaseMonthWhere(organizationId, month.start, month.end),
+        where: dashboardCaseMonthWhere(organizationId, month.start, month.end, scope),
         include: { client: true, service: true },
         orderBy: { createdAt: 'desc' },
       })
@@ -66,7 +67,7 @@ export default async function NewCasesPage({
   const monthTotals = await Promise.all(
     months.map(async (item) => ({
       ...item,
-      count: await prisma.case.count({ where: dashboardCaseMonthWhere(organizationId, item.start, item.end) }),
+      count: await prisma.case.count({ where: dashboardCaseMonthWhere(organizationId, item.start, item.end, scope) }),
     }))
   )
 

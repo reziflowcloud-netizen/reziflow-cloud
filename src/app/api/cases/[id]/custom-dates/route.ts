@@ -10,6 +10,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const scopedCase = await findScopedCase(params.id, organizationId, {
     id: true,
     caseNumber: true,
+    assignedToId: true,
     client: { select: { firstName: true, lastName: true } },
   })
   if (!scopedCase) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         priority: 'Нормально',
         dueDate: d.date,
         clientName: clientName || null,
+        assignedToId: caseRecord.assignedToId || null,
         description: JSON.stringify({
           reminderAt: `${dateOnly}T09:00`,
           reminderNote: `${d.label} по делу ${caseRecord.caseNumber || 'без номера'}`,

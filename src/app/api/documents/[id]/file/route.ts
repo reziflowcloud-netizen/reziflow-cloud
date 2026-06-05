@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { downloadDropboxFile, getDropboxSettings } from '@/lib/dropbox'
+import { caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
   const documentId = parseInt(params.id)
   const doc = await (prisma as any).caseDocument.findFirst({
-    where: { id: documentId, case: { organizationId } },
+    where: { id: documentId, case: caseWhereForScope(scope, organizationId) },
     select: {
       url: true,
       publicId: true,

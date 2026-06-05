@@ -1,6 +1,7 @@
 // src/app/dashboard/page.tsx
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { DataAccessScope, caseWhereForScope, clientWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import UpcomingEvents from '@/components/UpcomingEvents'
@@ -8,9 +9,8 @@ import Tr from '@/components/Tr'
 
 export const dynamic = 'force-dynamic'
 
-function dashboardCaseMonthWhere(organizationId: string, start: Date, end: Date) {
-  return {
-    organizationId,
+function dashboardCaseMonthWhere(organizationId: string, start: Date, end: Date, scope: DataAccessScope) {
+  return caseWhereForScope(scope, organizationId, {
     OR: [
       { contractSigned: true, contractDate: { gte: start, lt: end } },
       {
@@ -18,7 +18,7 @@ function dashboardCaseMonthWhere(organizationId: string, start: Date, end: Date)
         OR: [{ contractSigned: false }, { contractDate: null }],
       },
     ],
-  }
+  })
 }
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
@@ -33,6 +33,7 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 export default async function DashboardPage() {
   const user = await getUser()
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
 
   return (
     <div className="fade-in">
@@ -111,11 +112,11 @@ export default async function DashboardPage() {
       <div className="page-body">
 
         <Suspense fallback={<DashboardStatsFallback />}>
-          <DashboardStats organizationId={organizationId} />
+          <DashboardStats organizationId={organizationId} scope={scope} />
         </Suspense>
 
         <Suspense fallback={<DashboardChartsFallback />}>
-          <DashboardCharts organizationId={organizationId} />
+          <DashboardCharts organizationId={organizationId} scope={scope} />
         </Suspense>
 
         {/* Предстоящие события */}
@@ -130,7 +131,7 @@ export default async function DashboardPage() {
         </div>
 
         <Suspense fallback={<RecentCasesFallback />}>
-          <RecentCasesTable organizationId={organizationId} />
+          <RecentCasesTable organizationId={organizationId} scope={scope} />
         </Suspense>
 
       </div>
@@ -148,7 +149,7 @@ function DashboardStatsFallback() {
   )
 }
 
-async function DashboardStats({ organizationId }: { organizationId: string }) {
+async function DashboardStats({ organizationId, scope }: { organizationId: string; scope: DataAccessScope }) {
   let totalClients = 0
   let totalCases = 0
   let activeCases = 0
@@ -159,8 +160,10 @@ async function DashboardStats({ organizationId }: { organizationId: string }) {
   const startOfMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1))
 
   try {
+    const scopedUserId = scope.restricted ? scope.userId : null
+    const caseWhere = caseWhereForScope(scope, organizationId)
     const [clientCount, caseStats, payments] = await Promise.all([
-      prisma.client.count({ where: { organizationId } }),
+      prisma.client.count({ where: clientWhereForScope(scope, organizationId) }),
       prisma.$queryRaw<Array<{ totalCases: number; activeCases: number; totalDebt: number; contractsNoPay: number }>>`
         SELECT
           COUNT(*)::int AS "totalCases",
@@ -183,9 +186,10 @@ async function DashboardStats({ organizationId }: { organizationId: string }) {
           COUNT(*) FILTER (WHERE "contractSigned" = true AND "totalPaid" = 0 AND "totalValue" > 0)::int AS "contractsNoPay"
         FROM "Case"
         WHERE "organizationId" = ${organizationId}
+          AND (${scopedUserId}::int IS NULL OR "assignedToId" = ${scopedUserId})
       `,
       prisma.payment.aggregate({
-        where: { date: { gte: startOfMonth }, case: { organizationId } },
+        where: { date: { gte: startOfMonth }, case: caseWhere },
         _sum: { amount: true },
       }),
     ])
@@ -277,11 +281,11 @@ function DashboardChartsFallback() {
   )
 }
 
-async function DashboardCharts({ organizationId }: { organizationId: string }) {
+async function DashboardCharts({ organizationId, scope }: { organizationId: string; scope: DataAccessScope }) {
   const lastMonths = await Promise.all(dashboardMonthRanges().map(async ({ start, end }) => {
     const [cases, clients] = await Promise.all([
-      prisma.case.count({ where: dashboardCaseMonthWhere(organizationId, start, end) }),
-      prisma.client.count({ where: { organizationId, createdAt: { gte: start, lt: end } } }),
+      prisma.case.count({ where: dashboardCaseMonthWhere(organizationId, start, end, scope) }),
+      prisma.client.count({ where: clientWhereForScope(scope, organizationId, { createdAt: { gte: start, lt: end } }) }),
     ])
     return {
       month: start.toLocaleDateString('ru', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
@@ -340,10 +344,10 @@ function RecentCasesFallback() {
   return <div className="table-container" style={{ minHeight: 190, opacity: 0.72 }} />
 }
 
-async function RecentCasesTable({ organizationId }: { organizationId: string }) {
+async function RecentCasesTable({ organizationId, scope }: { organizationId: string; scope: DataAccessScope }) {
   const [recentCases, statuses] = await Promise.all([
     prisma.case.findMany({
-      where: { organizationId },
+      where: caseWhereForScope(scope, organizationId),
       select: {
         id: true,
         caseNumber: true,

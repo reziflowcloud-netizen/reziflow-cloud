@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { deleteCloudinaryResources } from '@/lib/cloudinary'
 import { normalizePhones, phonesWithLegacy, primaryPhone } from '@/lib/phones'
+import { DataAccessScope, caseWhereForScope, clientWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 
 function isOrganizationAdmin(user: any) {
   return user?.role === 'admin' || user?.role === 'owner'
@@ -59,7 +60,7 @@ async function updateClientMosFields(tx: any, clientId: string, organizationId: 
   `
 }
 
-async function getFamilyLinksForClient(clientId: string, organizationId: string) {
+async function getFamilyLinksForClient(clientId: string, organizationId: string, scope?: DataAccessScope) {
   const links = await (prisma as any).clientFamilyLink.findMany({
     where: { organizationId },
     select: { clientId: true, relativeClientId: true },
@@ -87,7 +88,7 @@ async function getFamilyLinksForClient(clientId: string, organizationId: string)
   if (relativeIds.length === 0) return []
 
   const relatives = await prisma.client.findMany({
-    where: { id: { in: relativeIds }, organizationId },
+    where: scope ? clientWhereForScope(scope, organizationId, { id: { in: relativeIds } }) : { id: { in: relativeIds }, organizationId },
     select: { id: true, firstName: true, lastName: true, phone: true, email: true },
     orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
   })
@@ -102,11 +103,12 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
   try {
     const client = await (prisma as any).client.findFirst({
-      where: { id: params.id, organizationId },
+      where: clientWhereForScope(scope, organizationId, { id: params.id }),
       include: {
-        cases: { include: { service: true }, orderBy: { createdAt: 'desc' } },
+        cases: { where: caseWhereForScope(scope, organizationId), include: { service: true }, orderBy: { createdAt: 'desc' } },
         travelHistory: { orderBy: { entryDate: 'desc' } },
         previousPolandStays: { orderBy: { order: 'asc' } },
         phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
@@ -121,15 +123,15 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       }
     })
     if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    const familyLinks = await getFamilyLinksForClient(params.id, organizationId)
+    const familyLinks = await getFamilyLinksForClient(params.id, organizationId, scope)
     const mosFields = await getClientMosFields(params.id, organizationId)
     return NextResponse.json({ ...client, ...mosFields, phones: phonesWithLegacy(client), familyLinks })
   } catch (e) {
     // fallback
     const client = await prisma.client.findFirst({
-      where: { id: params.id, organizationId },
+      where: clientWhereForScope(scope, organizationId, { id: params.id }),
       include: {
-        cases: { orderBy: { createdAt: 'desc' } },
+        cases: { where: caseWhereForScope(scope, organizationId), orderBy: { createdAt: 'desc' } },
         previousPolandStays: { orderBy: { order: 'asc' } },
       }
     })
@@ -143,9 +145,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
   try {
     const body = await request.json()
-    const existingClient = await prisma.client.findFirst({ where: { id: params.id, organizationId } })
+    const existingClient = await prisma.client.findFirst({ where: clientWhereForScope(scope, organizationId, { id: params.id }) })
     if (!existingClient) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const shouldUpdatePhones = Array.isArray(body.phones)
     const phones = shouldUpdatePhones ? normalizePhones(body.phones, body.phone) : []
@@ -158,7 +161,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       ? Array.from(new Set<string>(body.familyClientIds.map((value: any) => String(value)).filter((value: string) => value && value !== params.id)))
       : []
     const validFamilyClients = familyClientIds.length > 0
-      ? await prisma.client.findMany({ where: { id: { in: familyClientIds }, organizationId }, select: { id: true } })
+      ? await prisma.client.findMany({ where: clientWhereForScope(scope, organizationId, { id: { in: familyClientIds } }), select: { id: true } })
       : []
     const validFamilyIds = validFamilyClients.map(item => item.id)
 
@@ -307,6 +310,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
               status: 'todo',
               dueDate: new Date(body.passportExpiresAt),
               clientName: clientName,
+              assignedToId: scope.restricted && scope.userId ? scope.userId : null,
               description: JSON.stringify({
                 reminderAt: new Date(new Date(body.passportExpiresAt).getTime() - 90 * 24 * 60 * 60 * 1000).toISOString(),
                 reminderNote: `Паспорт клиента ${clientName} истекает через 90 дней`

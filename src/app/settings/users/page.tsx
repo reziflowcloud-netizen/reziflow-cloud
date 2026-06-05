@@ -9,6 +9,7 @@ interface UserItem {
   name: string
   email: string
   role: string
+  restrictedAccess?: boolean
   avatarUrl?: string | null
   createdAt: string
 }
@@ -32,8 +33,8 @@ export default function UsersSettingsPage() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [canManageUsers, setCanManageUsers] = useState(true)
 
-  const [newForm, setNewForm] = useState({ name: '', email: '', password: '', role: 'employee' })
-  const [editForm, setEditForm] = useState({ name: '', email: '', role: '', password: '' })
+  const [newForm, setNewForm] = useState({ name: '', email: '', password: '', role: 'employee', restrictedAccess: false })
+  const [editForm, setEditForm] = useState({ name: '', email: '', role: '', password: '', restrictedAccess: false })
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({})
@@ -50,8 +51,20 @@ export default function UsersSettingsPage() {
     }
   }
 
-  function setN(k: string, v: string) { setNewForm(p => ({ ...p, [k]: v })) }
-  function setE(k: string, v: string) { setEditForm(p => ({ ...p, [k]: v })) }
+  function setN(k: string, v: any) {
+    setNewForm(p => ({
+      ...p,
+      [k]: v,
+      ...(k === 'role' && v !== 'employee' ? { restrictedAccess: false } : {}),
+    }))
+  }
+  function setE(k: string, v: any) {
+    setEditForm(p => ({
+      ...p,
+      [k]: v,
+      ...(k === 'role' && v !== 'employee' ? { restrictedAccess: false } : {}),
+    }))
+  }
 
   async function createUser() {
     setError(''); setSuccess('')
@@ -70,7 +83,7 @@ export default function UsersSettingsPage() {
     const data = await res.json()
     if (!res.ok) { setError(data.error || 'Ошибка создания'); setSaving(false); return }
     setUsers(p => [...p, data])
-    setNewForm({ name: '', email: '', password: '', role: 'employee' })
+    setNewForm({ name: '', email: '', password: '', role: 'employee', restrictedAccess: false })
     setShowNew(false)
     setSuccess(`Пользователь "${data.name}" успешно создан`)
     setSaving(false)
@@ -79,7 +92,7 @@ export default function UsersSettingsPage() {
 
   function startEdit(u: UserItem) {
     setEditingId(u.id)
-    setEditForm({ name: u.name, email: u.email, role: u.role, password: '' })
+    setEditForm({ name: u.name, email: u.email, role: u.role, password: '', restrictedAccess: u.restrictedAccess === true })
     setAvatarFile(null)
     setError('')
   }
@@ -94,7 +107,7 @@ export default function UsersSettingsPage() {
     }
     setSaving(true)
     const body: any = canManageUsers
-      ? { name: editForm.name, email: editForm.email, role: editForm.role }
+      ? { name: editForm.name, email: editForm.email, role: editForm.role, restrictedAccess: editForm.role === 'employee' && editForm.restrictedAccess }
       : { name: editForm.name }
     if (canManageUsers && editForm.password) body.password = editForm.password
     const res = await fetch(`/api/users/${id}`, {
@@ -202,6 +215,33 @@ export default function UsersSettingsPage() {
                   <option value="admin">Администратор</option>
                 </select>
               </div>
+              <label
+                style={{
+                  gridColumn: '1 / -1',
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'flex-start',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  padding: 12,
+                  background: 'var(--bg)',
+                  opacity: newForm.role === 'employee' ? 1 : 0.62,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={newForm.restrictedAccess}
+                  disabled={newForm.role !== 'employee'}
+                  onChange={e => setN('restrictedAccess', e.target.checked)}
+                  style={{ marginTop: 3 }}
+                />
+                <span>
+                  <span style={{ display: 'block', fontWeight: 700, fontSize: 13 }}>Ограничить доступ только своими делами и клиентами</span>
+                  <span style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
+                    Сотрудник увидит только назначенные ему дела, клиентов, лиды, задачи и финансовые показатели.
+                  </span>
+                </span>
+              </label>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button onClick={createUser} className="btn btn-primary" disabled={saving}>
@@ -257,6 +297,33 @@ export default function UsersSettingsPage() {
                           <option value="admin">Администратор</option>
                         </select>
                       </div>
+                      <label
+                        style={{
+                          gridColumn: '1 / -1',
+                          display: canManageUsers ? 'flex' : 'none',
+                          gap: 10,
+                          alignItems: 'flex-start',
+                          border: '1px solid var(--border)',
+                          borderRadius: 8,
+                          padding: 12,
+                          background: 'var(--bg)',
+                          opacity: editForm.role === 'employee' ? 1 : 0.62,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editForm.restrictedAccess}
+                          disabled={editForm.role !== 'employee'}
+                          onChange={e => setE('restrictedAccess', e.target.checked)}
+                          style={{ marginTop: 3 }}
+                        />
+                        <span>
+                          <span style={{ display: 'block', fontWeight: 700, fontSize: 13 }}>Ограничить доступ только своими делами и клиентами</span>
+                          <span style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
+                            Сотрудник увидит только назначенные ему дела, клиентов, лиды, задачи и финансовые показатели.
+                          </span>
+                        </span>
+                      </label>
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                         <label className="label">Аватарка</label>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -300,6 +367,11 @@ export default function UsersSettingsPage() {
                     <span className="badge" style={{ ...(ROLE_COLORS[u.role] || { bg: '#f3f4f6', color: '#374151' }) }}>
                       {ROLE_LABELS[u.role] || u.role}
                     </span>
+                    {u.role === 'employee' && u.restrictedAccess && (
+                      <span className="badge" style={{ background: '#f1f5f9', color: '#475569' }}>
+                        Ограничен
+                      </span>
+                    )}
                     <div style={{ fontSize: 12, color: 'var(--muted)', minWidth: 80 }}>
                       {new Date(u.createdAt).toLocaleDateString('ru')}
                     </div>

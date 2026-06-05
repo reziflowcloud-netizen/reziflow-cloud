@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { normalizePhones, phonesWithLegacy, primaryPhone } from '@/lib/phones'
+import { caseWhereForScope, clientWhereForScope, getDataAccessScope, taskWhereForScope } from '@/lib/apiScope'
 
 function dateOrNull(value: any) {
   return value ? new Date(value) : null
@@ -29,10 +30,11 @@ export async function GET() {
     const user = await getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const organizationId = getOrganizationId(user)
+    const scope = await getDataAccessScope(user, organizationId)
 
     // Загружаем клиентов — сначала без связей
     const clients = await prisma.client.findMany({
-      where: { organizationId },
+      where: clientWhereForScope(scope, organizationId),
       include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
       orderBy: { createdAt: 'desc' },
     })
@@ -41,7 +43,7 @@ export async function GET() {
     let casesMap: Record<string, any[]> = {}
     try {
       const allCases = await prisma.case.findMany({
-        where: { organizationId },
+        where: caseWhereForScope(scope, organizationId),
         select: {
           id: true, caseNumber: true, status: true,
           totalValue: true, totalPaid: true, createdAt: true,
@@ -74,7 +76,7 @@ export async function GET() {
     let tasks: any[] = []
     try {
       tasks = await prisma.task.findMany({
-        where: { organizationId, status: { not: 'done' } },
+        where: taskWhereForScope(scope, organizationId, { status: { not: 'done' } }),
         orderBy: { dueDate: 'asc' },
       })
     } catch (e) {
@@ -113,12 +115,14 @@ export async function POST(request: NextRequest) {
     const user = await getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const organizationId = getOrganizationId(user)
+    const scope = await getDataAccessScope(user, organizationId)
     const body = await request.json()
     const phones = normalizePhones(body.phones, body.phone)
     const mainPhone = primaryPhone(phones, body.phone)
     const client = await prisma.client.create({
       data: {
         organizationId,
+        assignedToId: scope.restricted && scope.userId ? scope.userId : body.assignedToId ? Number(body.assignedToId) : null,
         firstName: body.firstName,
         lastName: body.lastName,
         phone: mainPhone,

@@ -2,14 +2,16 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { formatMoney } from '@/lib/dashboardAnalytics'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 
 export const dynamic = 'force-dynamic'
 
 export default async function DebtPage() {
   const user = await getUser()
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
   const cases = await prisma.case.findMany({
-    where: { organizationId, totalValue: { gt: 0 } },
+    where: caseWhereForScope(scope, organizationId, { totalValue: { gt: 0 } }),
     include: { client: true, service: true },
     orderBy: { updatedAt: 'desc' },
   })

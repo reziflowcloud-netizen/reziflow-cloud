@@ -2,21 +2,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 
 export async function GET() {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
   try {
     const cases = await prisma.case.findMany({
-      where: { organizationId },
+      where: caseWhereForScope(scope, organizationId),
       include: { client: true, assignedTo: true, service: true },
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json(cases)
   } catch (e: any) {
     const cases = await prisma.case.findMany({
-      where: { organizationId },
+      where: caseWhereForScope(scope, organizationId),
       include: { client: true, assignedTo: true },
       orderBy: { createdAt: 'desc' },
     })
@@ -28,6 +30,7 @@ export async function POST(request: NextRequest) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
   try {
     const body = await request.json()
 
@@ -43,7 +46,7 @@ export async function POST(request: NextRequest) {
         stayType: body.stayType || null,
         contractType: body.contractType || null,
         totalValue: parseFloat(body.totalValue) || 0,
-        assignedToId: body.assignedToId ? parseInt(body.assignedToId) : null,
+        assignedToId: scope.restricted && scope.userId ? scope.userId : body.assignedToId ? parseInt(body.assignedToId) : null,
         serviceId: body.serviceId ? parseInt(body.serviceId) : null,
         notes: body.notes || null,
       }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { findScopedLead, getDataAccessScope, taskWhereForScope } from '@/lib/apiScope'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,14 +32,14 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
 
-  const lead = await (prisma as any).lead.findFirst({ where: { id: params.id, organizationId } })
+  const lead = await findScopedLead(params.id, organizationId)
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const scope = await getDataAccessScope(user, organizationId)
 
   const tasks = await prisma.task.findMany({
-    where: {
-      organizationId,
+    where: taskWhereForScope(scope, organizationId, {
       description: { contains: `"leadId":"${params.id}"` },
-    },
+    }),
     include: { assignedTo: { select: { id: true, name: true } } },
     orderBy: [{ dueDate: 'asc' }],
   })
@@ -66,8 +67,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
 
-  const lead = await (prisma as any).lead.findFirst({ where: { id: params.id, organizationId } })
+  const lead = await findScopedLead(params.id, organizationId)
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const scope = await getDataAccessScope(user, organizationId)
 
   const body = await request.json().catch(() => ({}))
   const reminderAt = body.reminderAt ? new Date(body.reminderAt) : null
@@ -93,7 +95,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       priority: body.priority || 'Нормально',
       dueDate: reminderAt,
       clientName: leadName(lead),
-      assignedToId: lead.assignedToId || user.id,
+      assignedToId: scope.restricted && scope.userId ? scope.userId : lead.assignedToId || user.id,
     },
     include: { assignedTo: { select: { id: true, name: true } } },
   })

@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
       email: admin.email,
       name: admin.name,
       role: admin.role,
+      restrictedAccess: false,
       avatarUrl: null,
       organizationId: organization.id,
       organizationName: organization.name,

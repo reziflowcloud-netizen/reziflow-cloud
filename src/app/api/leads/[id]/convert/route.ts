@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { leadDisplayName } from '@/lib/leads'
 import { normalizePhones, primaryPhone } from '@/lib/phones'
+import { getDataAccessScope, leadWhereForScope } from '@/lib/apiScope'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,10 +35,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
   const body = await request.json().catch(() => ({}))
 
   const lead = await (prisma as any).lead.findFirst({
-    where: { id: params.id, organizationId },
+    where: leadWhereForScope(scope, organizationId, { id: params.id }),
     include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
   })
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -62,6 +64,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const client = await tx.client.create({
       data: {
         organizationId,
+        assignedToId: scope.restricted && scope.userId ? scope.userId : lead.assignedToId || null,
         firstName: name.firstName,
         lastName: name.lastName,
         phone: clientPrimaryPhone || null,
@@ -86,7 +89,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
           clientId: client.id,
           status: body.caseStatus || 'Новый',
           totalValue: parseFloat(body.totalValue) || 0,
-          assignedToId: body.assignedToId ? parseInt(body.assignedToId) : lead.assignedToId || null,
+          assignedToId: scope.restricted && scope.userId ? scope.userId : body.assignedToId ? parseInt(body.assignedToId) : lead.assignedToId || null,
           serviceId: body.serviceId ? parseInt(body.serviceId) : null,
           notes: body.caseNotes || `Создано при переводе лида: ${leadDisplayName(lead)}`,
         },

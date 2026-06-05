@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { normalizeLeadBody } from '@/lib/leads'
 import { normalizePhones, phonesWithLegacy, primaryPhone } from '@/lib/phones'
+import { findScopedLead, getDataAccessScope, leadWhereForScope } from '@/lib/apiScope'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,7 +60,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const organizationId = getOrganizationId(user)
 
   const lead = await (prisma as any).lead.findFirst({
-    where: { id: params.id, organizationId },
+    where: leadWhereForScope(await getDataAccessScope(user, organizationId), organizationId, { id: params.id }),
     include: {
       assignedTo: { select: { id: true, name: true } },
       phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
@@ -74,8 +75,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
 
+  const scope = await getDataAccessScope(user, organizationId)
   const existing = await (prisma as any).lead.findFirst({
-    where: { id: params.id, organizationId },
+    where: leadWhereForScope(scope, organizationId, { id: params.id }),
     include: {
       assignedTo: { select: { id: true, name: true } },
       phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
@@ -85,6 +87,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   const body = await request.json()
   const data = normalizeLeadBody({ ...existing, ...body })
+  if (scope.restricted && scope.userId) data.assignedToId = scope.userId
   const shouldUpdatePhones = Array.isArray(body.phones)
   const phones = shouldUpdatePhones ? normalizePhones(body.phones, data.phone) : []
   if (shouldUpdatePhones) data.phone = primaryPhone(phones, data.phone)
@@ -176,7 +179,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
           },
         })
       }
-      await syncNextContactTask(tx, updated, organizationId, Number(user.id))
+      await syncNextContactTask(tx, updated, organizationId, scope.restricted && scope.userId ? scope.userId : Number(user.id))
     }
     return shouldUpdatePhones
       ? await tx.lead.findUnique({
@@ -194,7 +197,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
 
-  const existing = await (prisma as any).lead.findFirst({ where: { id: params.id, organizationId } })
+  const existing = await findScopedLead(params.id, organizationId, { id: true })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   await (prisma as any).lead.delete({ where: { id: params.id } })

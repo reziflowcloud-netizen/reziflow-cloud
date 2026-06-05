@@ -15,6 +15,7 @@ async function refreshUserCookie(updatedUser: any, currentUser: any) {
     email: updatedUser.email,
     name: updatedUser.name,
     role: updatedUser.role,
+    restrictedAccess: updatedUser.restrictedAccess === true,
     avatarUrl: updatedUser.avatarUrl || null,
     organizationId: currentUser.organizationId || 'org_default',
     organizationName: currentUser.organizationName || 'LegalHub',
@@ -90,7 +91,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const updated = await prisma.user.update({
     where: { id: targetId },
     data: { avatarUrl: uploaded.secure_url, avatarPublicId: uploaded.public_id } as any,
-    select: { id: true, name: true, email: true, role: true, avatarUrl: true, createdAt: true },
+    select: { id: true, name: true, email: true, role: true, restrictedAccess: true, avatarUrl: true, createdAt: true },
   })
   if (isSelf) await refreshUserCookie(updated, user)
   return NextResponse.json(updated)

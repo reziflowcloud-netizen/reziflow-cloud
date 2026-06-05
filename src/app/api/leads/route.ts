@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { normalizeLeadBody } from '@/lib/leads'
 import { normalizePhones, phonesWithLegacy, primaryPhone } from '@/lib/phones'
+import { getDataAccessScope, leadWhereForScope, taskWhereForScope } from '@/lib/apiScope'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,10 +47,11 @@ export async function GET(request: NextRequest) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
   const status = request.nextUrl.searchParams.get('status') || ''
   const source = request.nextUrl.searchParams.get('source') || ''
 
-  const where: any = { organizationId }
+  const where: any = leadWhereForScope(scope, organizationId)
   if (status) where.status = status
   if (source) where.source = source
 
@@ -64,11 +66,10 @@ export async function GET(request: NextRequest) {
 
   const leadIds = new Set(leads.map((lead: any) => lead.id))
   const tasks = await prisma.task.findMany({
-    where: {
-      organizationId,
+    where: taskWhereForScope(scope, organizationId, {
       status: { not: 'done' },
       description: { contains: '"leadId":"' },
-    },
+    }),
     include: { assignedTo: { select: { id: true, name: true } } },
     orderBy: { dueDate: 'asc' },
   })
@@ -101,8 +102,10 @@ export async function POST(request: NextRequest) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
   const body = await request.json()
   const data = normalizeLeadBody(body)
+  if (scope.restricted && scope.userId) data.assignedToId = scope.userId
   if (!body.status) {
     const defaultStatus = await (prisma as any).leadStatus.findFirst({
       where: { organizationId },
@@ -126,7 +129,7 @@ export async function POST(request: NextRequest) {
     },
     include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
   })
-  await createNextContactTask(lead, organizationId, Number(user.id))
+  await createNextContactTask(lead, organizationId, scope.restricted && scope.userId ? scope.userId : Number(user.id))
 
   return NextResponse.json(lead)
 }

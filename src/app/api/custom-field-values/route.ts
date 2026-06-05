@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { findScopedCase, findScopedClient } from '@/lib/apiScope'
 
 function normalizeScope(value: unknown) {
   return value === 'case' ? 'case' : 'client'
@@ -20,6 +21,10 @@ export async function GET(req: NextRequest) {
   const scope = normalizeScope(req.nextUrl.searchParams.get('scope'))
   const recordId = String(req.nextUrl.searchParams.get('recordId') || '')
   if (!recordId) return NextResponse.json({ error: 'recordId is required' }, { status: 400 })
+  const record = scope === 'case'
+    ? await findScopedCase(recordId, organizationId, { id: true })
+    : await findScopedClient(recordId, organizationId, { id: true })
+  if (!record) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const sections = await prisma.customSection.findMany({
     where: { organizationId, scope, active: true },
@@ -60,6 +65,10 @@ export async function PATCH(req: NextRequest) {
   const recordId = String(body.recordId || '')
   const values = body.values && typeof body.values === 'object' ? body.values : {}
   if (!recordId) return NextResponse.json({ error: 'recordId is required' }, { status: 400 })
+  const record = scope === 'case'
+    ? await findScopedCase(recordId, organizationId, { id: true })
+    : await findScopedClient(recordId, organizationId, { id: true })
+  if (!record) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const fieldIds = Object.keys(values).map(id => Number(id)).filter(Number.isFinite)
   if (fieldIds.length === 0) return NextResponse.json({ ok: true })

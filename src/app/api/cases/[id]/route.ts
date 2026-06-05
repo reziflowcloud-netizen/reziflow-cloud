@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { deleteCloudinaryResources } from '@/lib/cloudinary'
 import { deleteDropboxFile, getDropboxSettings } from '@/lib/dropbox'
+import { caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 
 function taskBelongsToCase(
   task: { title: string | null; description: string | null },
@@ -88,6 +89,7 @@ async function syncCaseImportantDateTask(args: {
     priority: existing?.priority || 'Нормально',
     dueDate,
     clientName: clientNameFromCase(args.caseRecord) || null,
+    assignedToId: args.caseRecord.assignedToId || null,
     status: existing?.status || 'todo',
     description: JSON.stringify({
       reminderAt: `${dateOnly}T09:00`,
@@ -135,9 +137,10 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
   try {
     const c = await (prisma as any).case.findFirst({
-      where: { id: params.id, organizationId },
+      where: caseWhereForScope(scope, organizationId, { id: params.id }),
       include: {
         client: true, service: true,
         payments: { orderBy: { date: 'desc' } },
@@ -156,7 +159,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     })
   } catch (e: any) {
     const c = await prisma.case.findFirst({
-      where: { id: params.id, organizationId },
+      where: caseWhereForScope(scope, organizationId, { id: params.id }),
       include: {
         client: true, service: true,
         payments: { orderBy: { date: 'desc' } },
@@ -173,10 +176,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
 
   try {
     const body = await request.json()
-    const existing = await prisma.case.findFirst({ where: { id: params.id, organizationId } })
+    const existing = await prisma.case.findFirst({ where: caseWhereForScope(scope, organizationId, { id: params.id }) })
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     // Базовые поля — всегда существуют
@@ -234,7 +238,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     const caseForCalendar = await prisma.case.findFirst({
-      where: { id: params.id, organizationId },
+      where: caseWhereForScope(scope, organizationId, { id: params.id }),
       include: { client: true },
     })
     if (caseForCalendar) await syncFixedImportantDateTasks(organizationId, caseForCalendar)

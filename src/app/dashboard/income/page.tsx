@@ -7,6 +7,7 @@ import {
   selectedMonth,
 } from '@/lib/dashboardAnalytics'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,8 +18,10 @@ export default async function IncomePage({
 }) {
   const user = await getUser()
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
+  const caseWhere = caseWhereForScope(scope, organizationId)
   const allPaymentDates = await prisma.payment.findMany({
-    where: { case: { organizationId } },
+    where: { case: caseWhere },
     select: { date: true },
     orderBy: { date: 'desc' },
   })
@@ -28,7 +31,7 @@ export default async function IncomePage({
 
   const payments = month
     ? await prisma.payment.findMany({
-        where: { date: { gte: month.start, lt: month.end }, case: { organizationId } },
+        where: { date: { gte: month.start, lt: month.end }, case: caseWhere },
         include: { case: { include: { client: true } } },
         orderBy: { date: 'desc' },
       })
@@ -37,7 +40,7 @@ export default async function IncomePage({
   const monthTotals = await Promise.all(
     months.map(async (item) => {
       const result = await prisma.payment.aggregate({
-        where: { date: { gte: item.start, lt: item.end }, case: { organizationId } },
+        where: { date: { gte: item.start, lt: item.end }, case: caseWhere },
         _sum: { amount: true },
       })
       return { ...item, total: result._sum.amount || 0 }

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { buildMonthOptions, formatDate, selectedMonth } from '@/lib/dashboardAnalytics'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { clientWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,8 +13,9 @@ export default async function NewClientsPage({
 }) {
   const user = await getUser()
   const organizationId = getOrganizationId(user)
+  const scope = await getDataAccessScope(user, organizationId)
   const allClients = await prisma.client.findMany({
-    where: { organizationId },
+    where: clientWhereForScope(scope, organizationId),
     select: { createdAt: true },
     orderBy: { createdAt: 'desc' },
   })
@@ -23,7 +25,7 @@ export default async function NewClientsPage({
 
   const clients = month
     ? await prisma.client.findMany({
-        where: { organizationId, createdAt: { gte: month.start, lt: month.end } },
+        where: clientWhereForScope(scope, organizationId, { createdAt: { gte: month.start, lt: month.end } }),
         include: { cases: true },
         orderBy: { createdAt: 'desc' },
       })
@@ -32,7 +34,7 @@ export default async function NewClientsPage({
   const monthTotals = await Promise.all(
     months.map(async (item) => ({
       ...item,
-      count: await prisma.client.count({ where: { organizationId, createdAt: { gte: item.start, lt: item.end } } }),
+      count: await prisma.client.count({ where: clientWhereForScope(scope, organizationId, { createdAt: { gte: item.start, lt: item.end } }) }),
     }))
   )
 
