@@ -141,6 +141,38 @@ export default function CaseDetailPage() {
     return new Date(value).toISOString().slice(0, 10)
   }
 
+  function localDateKey(value: any) {
+    if (!value) return ''
+    if (value instanceof Date) {
+      const year = value.getFullYear()
+      const month = String(value.getMonth() + 1).padStart(2, '0')
+      const day = String(value.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+    const raw = String(value)
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (match) return `${match[1]}-${match[2]}-${match[3]}`
+    const date = new Date(raw)
+    if (Number.isNaN(date.getTime())) return ''
+    return localDateKey(date)
+  }
+
+  function formatDateForNote(value: string) {
+    if (!value) return ''
+    const date = new Date(`${value}T00:00:00`)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleDateString(locale)
+  }
+
+  function buildPlannedPaymentNote(plan: any, plannedDate: string, transferredDate: string) {
+    const parts = [
+      plan.note ? String(plan.note) : '',
+      plannedDate ? `${t('payment_scheduled_for')}: ${formatDateForNote(plannedDate)}` : '',
+      `${t('payment_transferred_on')}: ${formatDateForNote(transferredDate)}`,
+    ].filter(Boolean)
+    return parts.join(' | ')
+  }
+
   async function save() {
     setSaving(true)
     try {
@@ -659,13 +691,16 @@ export default function CaseDetailPage() {
 
   async function convertPlannedPayment(plan: any) {
     if (!plan.amount) return
+    const plannedDate = localDateKey(plan.dueDate)
+    const today = localDateKey(new Date())
+    const paymentDate = plannedDate && plannedDate < today ? plannedDate : today
     const paymentRes = await fetch(`/api/cases/${id}/payments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         amount: plan.amount,
-      note: `${t('payment_plan')}${plan.dueDate ? ` ${new Date(plan.dueDate).toLocaleDateString(locale)}` : ''}`,
-        date: new Date().toISOString().slice(0, 10),
+        note: buildPlannedPaymentNote(plan, plannedDate, today),
+        date: paymentDate,
       }),
     })
     if (!paymentRes.ok) {
