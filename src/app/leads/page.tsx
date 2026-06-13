@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, leadDisplayName, type LeadSourceOption } from '@/lib/leads'
@@ -18,9 +18,10 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
 }
 
 type QuickFilter = 'all' | 'today' | 'overdue' | 'unassigned' | 'no_next_contact'
-type SortKey = 'lead' | 'status' | 'source' | 'interest' | 'createdAt' | 'nextContact' | 'responsible'
+type SortKey = 'lead' | 'status' | 'source' | 'interest' | 'createdAt' | 'lastContact' | 'nextContact' | 'responsible'
 type SortDirection = 'asc' | 'desc'
 type ViewMode = 'table' | 'board'
+type LeadColumnKey = 'lead' | 'status' | 'reason' | 'source' | 'interest' | 'createdAt' | 'lastContact' | 'nextContact' | 'responsible'
 type LeadListState = {
   search: string
   status: string
@@ -33,9 +34,22 @@ type LeadListState = {
 }
 
 const QUICK_FILTER_VALUES: QuickFilter[] = ['all', 'today', 'overdue', 'unassigned', 'no_next_contact']
-const SORT_KEY_VALUES: SortKey[] = ['lead', 'status', 'source', 'interest', 'createdAt', 'nextContact', 'responsible']
+const SORT_KEY_VALUES: SortKey[] = ['lead', 'status', 'source', 'interest', 'createdAt', 'lastContact', 'nextContact', 'responsible']
 const SORT_DIRECTION_VALUES: SortDirection[] = ['asc', 'desc']
 const VIEW_MODE_VALUES: ViewMode[] = ['table', 'board']
+const ALL_LEAD_COLUMNS: Array<{ key: LeadColumnKey; labelKey: string; always?: boolean; requiresStatusReasons?: boolean }> = [
+  { key: 'lead', labelKey: 'lead', always: true },
+  { key: 'status', labelKey: 'status' },
+  { key: 'reason', labelKey: 'reason', requiresStatusReasons: true },
+  { key: 'source', labelKey: 'source' },
+  { key: 'interest', labelKey: 'interest' },
+  { key: 'createdAt', labelKey: 'created' },
+  { key: 'lastContact', labelKey: 'last_contact' },
+  { key: 'nextContact', labelKey: 'next_contact' },
+  { key: 'responsible', labelKey: 'responsible' },
+]
+const DEFAULT_VISIBLE_LEAD_COLUMNS: LeadColumnKey[] = ['lead', 'status', 'reason', 'source', 'interest', 'createdAt', 'lastContact', 'nextContact', 'responsible']
+const LEAD_COLUMN_KEYS = ALL_LEAD_COLUMNS.map(col => col.key)
 const DEFAULT_LEAD_LIST_STATE: LeadListState = {
   search: '',
   status: '',
@@ -128,6 +142,21 @@ function formatLeadCreatedAt(value: string, locale: string) {
   })
 }
 
+function latestLeadContactAt(lead: any) {
+  const candidates = [lead.lastInteractionAt, lead.lastMessageAt, lead.lastContactAt]
+  let latest = ''
+  let latestTime = Number.NEGATIVE_INFINITY
+  for (const value of candidates) {
+    if (!value) continue
+    const time = new Date(value).getTime()
+    if (!Number.isNaN(time) && time > latestTime) {
+      latestTime = time
+      latest = value
+    }
+  }
+  return latest
+}
+
 function statusColors(status: any) {
   const color = status?.color || '#2563eb'
   return { bg: `${color}18`, color }
@@ -158,7 +187,7 @@ function isOverdue(value?: string) {
 
 export default function LeadsPage() {
   const router = useRouter()
-  const { lang } = useLanguage()
+  const { lang, t } = useLanguage()
   const locale = LEAD_LOCALES[lang] || 'ru-RU'
   const lt = (key: string) => leadText(lang, key)
   const [leads, setLeads] = useState<any[]>([])
@@ -195,6 +224,10 @@ export default function LeadsPage() {
   const [statusReasonSaving, setStatusReasonSaving] = useState(false)
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>(DEFAULT_LEAD_LIST_STATE.sortConfig)
   const [urlStateReady, setUrlStateReady] = useState(false)
+  const [visibleCols, setVisibleCols] = useState<LeadColumnKey[]>(DEFAULT_VISIBLE_LEAD_COLUMNS)
+  const [preferencesReady, setPreferencesReady] = useState(false)
+  const [showColMenu, setShowColMenu] = useState(false)
+  const colMenuRef = useRef<HTMLDivElement>(null)
 
   const orderedStatuses = leadStatuses.length ? leadStatuses : DEFAULT_LEAD_STATUSES
   const statusNames = orderedStatuses.map(status => status.name)
@@ -221,6 +254,17 @@ export default function LeadsPage() {
   const selectedStatusConfig = status ? statusByName[status] : null
   const selectedStatusReasons = statusReasons(selectedStatusConfig)
   const showStatusReasons = Boolean(status && selectedStatusConfig?.requireReason && selectedStatusReasons.length > 0)
+  const availableLeadColumns = useMemo(
+    () => ALL_LEAD_COLUMNS.filter(col => !col.requiresStatusReasons || showStatusReasons),
+    [showStatusReasons],
+  )
+  const visibleLeadColumns = useMemo(
+    () => availableLeadColumns.filter(col => visibleCols.includes(col.key)).map(col => col.key),
+    [availableLeadColumns, visibleCols],
+  )
+  const visibleLeadColumnCount = visibleLeadColumns.length
+  const totalLeadColumnCount = availableLeadColumns.length
+  const isColumnVisible = (key: LeadColumnKey) => visibleLeadColumns.includes(key)
 
   function applyLeadListState(nextState: LeadListState) {
     setSearch(nextState.search)
@@ -266,6 +310,27 @@ export default function LeadsPage() {
       .then(data => setLeadSources(Array.isArray(data.sources) ? data.sources : LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true }))))
   }, [])
 
+  useEffect(() => {
+    fetch('/api/user-preferences')
+      .then(res => res.ok ? res.json() : {})
+      .then((data: any) => {
+        if (Array.isArray(data.leadColumns)) {
+          const next = data.leadColumns.filter((key: string) => LEAD_COLUMN_KEYS.includes(key as LeadColumnKey)) as LeadColumnKey[]
+          setVisibleCols(next.includes('lead') ? next : ['lead', ...next])
+        }
+        setPreferencesReady(true)
+      })
+      .catch(() => setPreferencesReady(true))
+  }, [])
+
+  useEffect(() => {
+    function handler(event: MouseEvent) {
+      if (colMenuRef.current && !colMenuRef.current.contains(event.target as Node)) setShowColMenu(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     const rank = (lead: any) => {
@@ -285,6 +350,7 @@ export default function LeadsPage() {
       if (sortConfig.key === 'source') result = compareText(sourceLabel(a.source), sourceLabel(b.source))
       if (sortConfig.key === 'interest') result = compareText(a.serviceInterest, b.serviceInterest)
       if (sortConfig.key === 'createdAt') result = compareDate(a.createdAt, b.createdAt)
+      if (sortConfig.key === 'lastContact') result = compareDate(latestLeadContactAt(a), latestLeadContactAt(b))
       if (sortConfig.key === 'nextContact') result = compareDate(a.nextContactAt, b.nextContactAt)
       if (sortConfig.key === 'responsible') result = compareText(a.assignedTo?.name, b.assignedTo?.name)
       if (sortConfig.direction === 'desc') result *= -1
@@ -485,6 +551,23 @@ export default function LeadsPage() {
       key,
       direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
     }))
+  }
+
+  function toggleCol(key: LeadColumnKey) {
+    const column = ALL_LEAD_COLUMNS.find(item => item.key === key)
+    if (column?.always) return
+    setVisibleCols(current => {
+      const next = current.includes(key) ? current.filter(item => item !== key) : [...current, key]
+      const safeNext: LeadColumnKey[] = next.includes('lead') ? next : ['lead', ...next]
+      if (preferencesReady) {
+        fetch('/api/user-preferences', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ leadColumns: safeNext }),
+        }).catch(() => {})
+      }
+      return safeNext
+    })
   }
 
   function sortHeader(key: SortKey, label: string) {
@@ -1081,7 +1164,7 @@ export default function LeadsPage() {
           </div>
         )}
 
-        <div className="lead-filter-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 190px 190px auto', gap: 10, marginBottom: 16 }}>
+        <div className="lead-filter-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 190px 190px auto auto', gap: 10, marginBottom: 16 }}>
           <input className="input" placeholder={`🔍 ${lt('search_placeholder')}`} value={search} onChange={e => setSearch(e.target.value)} />
           <select className="select" value={status} onChange={e => setStatus(e.target.value)}>
             <option value="">{lt('all_statuses')}</option>
@@ -1091,6 +1174,59 @@ export default function LeadsPage() {
             <option value="">{lt('all_sources')}</option>
             {leadSources.map(item => <option key={item.value} value={item.value}>{leadSourceOptionLabel(lang, item)}</option>)}
           </select>
+          <div ref={colMenuRef} style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => setShowColMenu(current => !current)}
+              className="btn btn-secondary"
+              style={{ display: 'flex', alignItems: 'center', gap: 7, height: '100%', whiteSpace: 'nowrap' }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <line x1="4" y1="6" x2="20" y2="6" />
+                <line x1="4" y1="12" x2="20" y2="12" />
+                <line x1="4" y1="18" x2="20" y2="18" />
+              </svg>
+              {t('columns')} <span style={{ background: 'var(--brand)', color: 'white', borderRadius: 10, padding: '0 6px', fontSize: 11, fontWeight: 700 }}>{visibleLeadColumnCount}/{totalLeadColumnCount}</span>
+            </button>
+            {showColMenu && (
+              <div style={{
+                position: 'absolute', top: '100%', right: 0, marginTop: 4,
+                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
+                boxShadow: 'var(--shadow-md)', zIndex: 70, minWidth: 230, padding: '8px 0'
+              }}>
+                <div style={{ padding: '6px 14px 8px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                  {t('visible_columns')}
+                </div>
+                {availableLeadColumns.map(col => {
+                  const checked = visibleCols.includes(col.key)
+                  return (
+                    <button
+                      key={col.key}
+                      type="button"
+                      onClick={() => toggleCol(col.key)}
+                      disabled={col.always}
+                      style={{
+                        width: '100%', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '8px 14px', cursor: col.always ? 'default' : 'pointer', opacity: col.always ? 0.55 : 1,
+                        textAlign: 'left', color: 'var(--text)'
+                      }}
+                    >
+                      <span style={{
+                        width: 18, height: 18, borderRadius: 4, border: '2px solid',
+                        borderColor: checked ? 'var(--brand)' : 'var(--border)',
+                        background: checked ? 'var(--brand)' : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        color: 'white', fontSize: 12, lineHeight: 1
+                      }}>
+                        {checked ? '✓' : ''}
+                      </span>
+                      <span style={{ fontSize: 13 }}>{lt(col.labelKey)}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
           <div className="lead-view-toggle" style={{ display: 'flex', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}>
             <button type="button" className={viewMode === 'table' ? 'btn btn-primary' : 'btn btn-ghost'} style={{ padding: '7px 10px' }} onClick={() => setViewMode('table')}>{lt('table')}</button>
             <button type="button" className={viewMode === 'board' ? 'btn btn-primary' : 'btn btn-ghost'} style={{ padding: '7px 10px' }} onClick={() => setViewMode('board')}>{lt('board')}</button>
@@ -1136,21 +1272,22 @@ export default function LeadsPage() {
                         aria-label={lt('selected_count')}
                       />
                     </th>
-                    <th>{sortHeader('lead', lt('lead'))}</th>
-                    <th>{sortHeader('status', lt('status'))}</th>
-                    {showStatusReasons && <th>{lt('reason')}</th>}
-                    <th>{sortHeader('source', lt('source'))}</th>
-                    <th>{sortHeader('interest', lt('interest'))}</th>
-                    <th>{sortHeader('createdAt', lt('created'))}</th>
-                    <th>{sortHeader('nextContact', lt('next_contact'))}</th>
-                    <th>{sortHeader('responsible', lt('responsible'))}</th>
+                    {isColumnVisible('lead') && <th>{sortHeader('lead', lt('lead'))}</th>}
+                    {isColumnVisible('status') && <th>{sortHeader('status', lt('status'))}</th>}
+                    {isColumnVisible('reason') && <th>{lt('reason')}</th>}
+                    {isColumnVisible('source') && <th>{sortHeader('source', lt('source'))}</th>}
+                    {isColumnVisible('interest') && <th>{sortHeader('interest', lt('interest'))}</th>}
+                    {isColumnVisible('createdAt') && <th>{sortHeader('createdAt', lt('created'))}</th>}
+                    {isColumnVisible('lastContact') && <th>{sortHeader('lastContact', lt('last_contact'))}</th>}
+                    {isColumnVisible('nextContact') && <th>{sortHeader('nextContact', lt('next_contact'))}</th>}
+                    {isColumnVisible('responsible') && <th>{sortHeader('responsible', lt('responsible'))}</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={showStatusReasons ? 9 : 8} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>{lt('loading')}</td></tr>
+                    <tr><td colSpan={visibleLeadColumnCount + 1} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>{lt('loading')}</td></tr>
                   ) : filtered.length === 0 ? (
-                    <tr><td colSpan={showStatusReasons ? 9 : 8} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
+                    <tr><td colSpan={visibleLeadColumnCount + 1} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
                       <div style={{ fontSize: 32, marginBottom: 8 }}>◎</div>
                       <div>{search || status || source || temperature ? lt('leads_not_found') : lt('no_leads')}</div>
                       {!search && !status && !source && !temperature && <Link href="/leads/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>{lt('add_first_lead')}</Link>}
@@ -1161,6 +1298,7 @@ export default function LeadsPage() {
                     const temp = temperatureMeta(lead.urgency)
                     const overdue = isOverdue(lead.nextContactAt) && !isConvertedLead(lead)
                     const dueToday = isToday(lead.nextContactAt) && !isConvertedLead(lead)
+                    const lastContactAt = latestLeadContactAt(lead)
                     return (
                       <tr key={lead.id} onClick={() => openLeadCard(lead.id)} style={{ cursor: 'pointer', background: overdue ? '#fef2f2' : undefined }}>
                         <td onClick={event => event.stopPropagation()}>
@@ -1171,29 +1309,33 @@ export default function LeadsPage() {
                             aria-label={leadDisplayName(lead)}
                           />
                         </td>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div className="avatar" style={{ width: 32, height: 32, fontSize: 12 }}>{initials(lead)}</div>
-                            <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13 }}>
-                                {temp && <span title={leadTemperatureLabel(lang, lead.urgency)} style={{ width: 8, height: 8, borderRadius: 999, background: temp.color, flex: '0 0 auto' }} />}
-                                <span>{leadDisplayName(lead)}</span>
+                        {isColumnVisible('lead') && (
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <div className="avatar" style={{ width: 32, height: 32, fontSize: 12 }}>{initials(lead)}</div>
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13 }}>
+                                  {temp && <span title={leadTemperatureLabel(lang, lead.urgency)} style={{ width: 8, height: 8, borderRadius: 999, background: temp.color, flex: '0 0 auto' }} />}
+                                  <span>{leadDisplayName(lead)}</span>
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--muted)' }}>{lead.phone || lead.email || lead.instagram || lead.facebook || lt('contact_not_set')}</div>
                               </div>
-                              <div style={{ fontSize: 12, color: 'var(--muted)' }}>{lead.phone || lead.email || lead.instagram || lead.facebook || lt('contact_not_set')}</div>
                             </div>
-                          </div>
-                        </td>
-                        <td onClick={event => event.stopPropagation()}>
-                          <select
-                            className="select"
-                            value={leadStatus}
-                            onChange={event => updateLeadStatus(lead, event.target.value)}
-                            style={{ minWidth: 150, height: 32, padding: '4px 8px', background: colors.bg, color: colors.color, fontWeight: 700, borderColor: colors.bg }}
-                          >
-                            {statusNames.map(item => <option key={item} value={item}>{leadStatusLabel(lang, item)}</option>)}
-                          </select>
-                        </td>
-                        {showStatusReasons && (
+                          </td>
+                        )}
+                        {isColumnVisible('status') && (
+                          <td onClick={event => event.stopPropagation()}>
+                            <select
+                              className="select"
+                              value={leadStatus}
+                              onChange={event => updateLeadStatus(lead, event.target.value)}
+                              style={{ minWidth: 150, height: 32, padding: '4px 8px', background: colors.bg, color: colors.color, fontWeight: 700, borderColor: colors.bg }}
+                            >
+                              {statusNames.map(item => <option key={item} value={item}>{leadStatusLabel(lang, item)}</option>)}
+                            </select>
+                          </td>
+                        )}
+                        {isColumnVisible('reason') && (
                           <td style={{ fontSize: 13 }}>
                             {lead.statusReason ? (
                               <div>
@@ -1203,25 +1345,32 @@ export default function LeadsPage() {
                             ) : lt('no_value')}
                           </td>
                         )}
-                        <td style={{ fontSize: 13 }}>{sourceLabel(lead.source)}</td>
-                        <td style={{ fontSize: 13 }}>{lead.serviceInterest || lt('no_value')}</td>
-                        <td style={{ fontSize: 13, color: 'var(--muted)' }}>{lead.createdAt ? formatLeadCreatedAt(lead.createdAt, locale) : lt('no_value')}</td>
-                        <td style={{ fontSize: 13 }}>
-                          {lead.nextContactAt ? (
-                            <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                <span>{formatLeadDateTime(lead.nextContactAt, locale)}</span>
-                                {(overdue || dueToday) && (
-                                  <span className="badge" style={{ background: overdue ? '#fee2e2' : '#fef3c7', color: overdue ? '#b91c1c' : '#92400e' }}>
-                                    {overdue ? lt('overdue') : lt('due_today')}
-                                  </span>
-                                )}
+                        {isColumnVisible('source') && <td style={{ fontSize: 13 }}>{sourceLabel(lead.source)}</td>}
+                        {isColumnVisible('interest') && <td style={{ fontSize: 13 }}>{lead.serviceInterest || lt('no_value')}</td>}
+                        {isColumnVisible('createdAt') && <td style={{ fontSize: 13, color: 'var(--muted)' }}>{lead.createdAt ? formatLeadCreatedAt(lead.createdAt, locale) : lt('no_value')}</td>}
+                        {isColumnVisible('lastContact') && (
+                          <td style={{ fontSize: 13, color: lastContactAt ? 'var(--text)' : 'var(--muted)' }}>
+                            {lastContactAt ? formatLeadCreatedAt(lastContactAt, locale) : lt('no_value')}
+                          </td>
+                        )}
+                        {isColumnVisible('nextContact') && (
+                          <td style={{ fontSize: 13 }}>
+                            {lead.nextContactAt ? (
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                  <span>{formatLeadDateTime(lead.nextContactAt, locale)}</span>
+                                  {(overdue || dueToday) && (
+                                    <span className="badge" style={{ background: overdue ? '#fee2e2' : '#fef3c7', color: overdue ? '#b91c1c' : '#92400e' }}>
+                                      {overdue ? lt('overdue') : lt('due_today')}
+                                    </span>
+                                  )}
+                                </div>
+                                {lead.nextContactNote && <div style={{ color: 'var(--muted)', marginTop: 2 }}>{lead.nextContactNote}</div>}
                               </div>
-                              {lead.nextContactNote && <div style={{ color: 'var(--muted)', marginTop: 2 }}>{lead.nextContactNote}</div>}
-                            </div>
-                          ) : lt('no_value')}
-                        </td>
-                        <td style={{ fontSize: 13 }}>{lead.assignedTo?.name || lt('no_value')}</td>
+                            ) : lt('no_value')}
+                          </td>
+                        )}
+                        {isColumnVisible('responsible') && <td style={{ fontSize: 13 }}>{lead.assignedTo?.name || lt('no_value')}</td>}
                       </tr>
                     )
                   })}

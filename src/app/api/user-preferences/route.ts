@@ -11,6 +11,9 @@ function cleanPreferences(value: any) {
   if (Array.isArray(value?.clientColumns)) {
     prefs.clientColumns = Array.from(new Set(value.clientColumns.filter((item: unknown) => typeof item === 'string')))
   }
+  if (Array.isArray(value?.leadColumns)) {
+    prefs.leadColumns = Array.from(new Set(value.leadColumns.filter((item: unknown) => typeof item === 'string')))
+  }
   return prefs
 }
 

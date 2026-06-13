@@ -19,6 +19,17 @@ function leadName(lead: any) {
   return lead.fullName || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.phone || 'Лид'
 }
 
+function latestDate(...values: unknown[]) {
+  let latest: Date | null = null
+  for (const value of values) {
+    if (!value) continue
+    const date = value instanceof Date ? value : new Date(String(value))
+    if (Number.isNaN(date.getTime())) continue
+    if (!latest || date.getTime() > latest.getTime()) latest = date
+  }
+  return latest
+}
+
 async function createNextContactTask(lead: any, organizationId: string, assignedToId?: number | null) {
   if (!lead.nextContactAt) return
   const note = lead.nextContactNote || 'Следующий контакт'
@@ -64,7 +75,16 @@ export async function GET(request: NextRequest) {
     orderBy: { updatedAt: 'desc' },
   })
 
-  const leadIds = new Set(leads.map((lead: any) => lead.id))
+  const leadIdList = leads.map((lead: any) => lead.id)
+  const leadIds = new Set(leadIdList)
+  const latestMessages = leadIdList.length
+    ? await (prisma as any).leadMessage.groupBy({
+        by: ['leadId'],
+        where: { organizationId, leadId: { in: leadIdList } },
+        _max: { sentAt: true },
+      })
+    : []
+  const lastMessageByLead = new Map(latestMessages.map((item: any) => [item.leadId, item._max?.sentAt || null]))
   const tasks = await prisma.task.findMany({
     where: taskWhereForScope(scope, organizationId, {
       status: { not: 'done' },
@@ -91,11 +111,16 @@ export async function GET(request: NextRequest) {
     ]
   }
 
-  return NextResponse.json(leads.map((lead: any) => ({
-    ...lead,
-    phones: phonesWithLegacy(lead),
-    leadReminders: remindersByLead[lead.id] || [],
-  })))
+  return NextResponse.json(leads.map((lead: any) => {
+    const lastMessageAt = lastMessageByLead.get(lead.id) || null
+    return {
+      ...lead,
+      phones: phonesWithLegacy(lead),
+      leadReminders: remindersByLead[lead.id] || [],
+      lastMessageAt,
+      lastInteractionAt: latestDate(lead.lastContactAt, lastMessageAt),
+    }
+  }))
 }
 
 export async function POST(request: NextRequest) {
