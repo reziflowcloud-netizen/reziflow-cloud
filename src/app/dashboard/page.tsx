@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Suspense } from 'react'
 import UpcomingEvents from '@/components/UpcomingEvents'
 import Tr from '@/components/Tr'
+import DashboardOnboarding, { DashboardOnboardingStep } from '@/components/DashboardOnboarding'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +35,7 @@ export default async function DashboardPage() {
   const user = await getUser()
   const organizationId = getOrganizationId(user)
   const scope = await getDataAccessScope(user, organizationId)
+  const canManageSetup = user?.role === 'admin' || user?.role === 'owner'
 
   return (
     <div className="fade-in">
@@ -111,6 +113,12 @@ export default async function DashboardPage() {
 
       <div className="page-body">
 
+        {canManageSetup && (
+          <Suspense fallback={<DashboardOnboardingFallback />}>
+            <DashboardOnboardingSection organizationId={organizationId} />
+          </Suspense>
+        )}
+
         <Suspense fallback={<DashboardStatsFallback />}>
           <DashboardStats organizationId={organizationId} scope={scope} />
         </Suspense>
@@ -137,6 +145,72 @@ export default async function DashboardPage() {
       </div>
     </div>
   )
+}
+
+function DashboardOnboardingFallback() {
+  return <div className="onboarding-panel" style={{ minHeight: 210, opacity: 0.72 }} />
+}
+
+async function DashboardOnboardingSection({ organizationId }: { organizationId: string }) {
+  const [
+    serviceCount,
+    statusCount,
+    userCount,
+    employeeCount,
+    clientCount,
+    caseCount,
+  ] = await Promise.all([
+    prisma.service.count({ where: { organizationId, active: true } }),
+    prisma.caseStatus.count({ where: { organizationId } }),
+    prisma.user.count({ where: { organizationId } }),
+    prisma.employee.count({ where: { organizationId, active: true } }),
+    prisma.client.count({ where: { organizationId } }),
+    prisma.case.count({ where: { organizationId } }),
+  ])
+
+  const hasTeam = userCount > 1 || employeeCount > 0
+  const hasData = clientCount > 0 || caseCount > 0
+
+  const steps: DashboardOnboardingStep[] = [
+    {
+      id: 'services',
+      title: 'Добавьте услуги',
+      description: 'Список услуг помогает быстрее создавать дела и считать стоимость.',
+      href: '/settings/services',
+      action: 'Настроить',
+      done: serviceCount > 0,
+      meta: serviceCount > 0 ? `${serviceCount} активн.` : 'Пока пусто',
+    },
+    {
+      id: 'statuses',
+      title: 'Проверьте статусы дел',
+      description: 'Оставьте стандартные этапы или адаптируйте их под процесс вашей фирмы.',
+      href: '/settings/statuses',
+      action: 'Открыть',
+      done: statusCount > 0,
+      meta: statusCount > 0 ? `${statusCount} статусов` : 'Нужно настроить',
+    },
+    {
+      id: 'team',
+      title: 'Добавьте команду',
+      description: 'Пригласите пользователей или заведите ответственных сотрудников для назначения дел.',
+      href: '/settings/users',
+      action: 'Добавить',
+      done: hasTeam,
+      meta: hasTeam ? `${userCount} польз. / ${employeeCount} сотр.` : 'Только администратор',
+    },
+    {
+      id: 'data',
+      title: 'Загрузите первые данные',
+      description: 'Создайте клиента вручную или импортируйте клиентов и дела из CSV.',
+      href: '/settings/export',
+      action: 'Импорт',
+      done: hasData,
+      meta: hasData ? `${clientCount} клиентов / ${caseCount} дел` : 'Можно начать с импорта',
+    },
+  ]
+
+  return <DashboardOnboarding organizationId={organizationId} steps={steps} />
 }
 
 function DashboardStatsFallback() {
