@@ -38,6 +38,33 @@ function initials(name?: string) {
   return (parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0]?.slice(0, 2) || 'U').toUpperCase()
 }
 
+function sidebarPlanLabel(plan?: string, billingStatus?: string) {
+  const key = String(plan || 'manual').toLowerCase()
+  const base = key === 'free' ? 'Free'
+    : key === 'starter' ? 'Starter'
+    : key === 'pro' ? 'Pro'
+    : key === 'agency' ? 'Agency'
+    : 'Manual'
+  return billingStatus === 'trialing' && key !== 'free' ? `${base} trial` : base
+}
+
+function sidebarBillingLabel(status?: string) {
+  switch (String(status || '').toLowerCase()) {
+    case 'trialing':
+      return 'Пробный период'
+    case 'active':
+      return 'Активна'
+    case 'past_due':
+      return 'Требует оплаты'
+    case 'canceled':
+      return 'Отменена'
+    case 'manual':
+      return 'Ручная оплата'
+    default:
+      return 'Тариф'
+  }
+}
+
 export default function Sidebar({
   userName,
   userRole,
@@ -53,7 +80,7 @@ export default function Sidebar({
   const router = useRouter()
   const [theme, setTheme] = useState<Theme>('light')
   const [lang, setLang] = useState<Lang>('ru')
-  const [billingInfo, setBillingInfo] = useState<{ billingStatus?: string, trialEndsAt?: string | null, organizationPlan?: string } | null>(null)
+  const [billingInfo, setBillingInfo] = useState<{ billingStatus?: string, trialEndsAt?: string | null, currentPeriodEndsAt?: string | null, organizationPlan?: string } | null>(null)
 
   useEffect(() => {
     const savedThemeRaw = localStorage.getItem('rezi_theme') || 'light'
@@ -69,6 +96,7 @@ export default function Sidebar({
           setBillingInfo({
             billingStatus: data.billingStatus,
             trialEndsAt: data.trialEndsAt,
+            currentPeriodEndsAt: data.currentPeriodEndsAt,
             organizationPlan: data.organizationPlan,
           })
         }
@@ -100,6 +128,11 @@ export default function Sidebar({
     ? Math.max(0, Math.ceil((trialEndsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
     : null
   const showTrial = billingInfo?.billingStatus === 'trialing' && trialEndsAt
+  const canManageBilling = userRole === 'admin' || userRole === 'owner'
+  const planLabel = sidebarPlanLabel(billingInfo?.organizationPlan, billingInfo?.billingStatus)
+  const planText = showTrial
+    ? `До ${trialEndsAt.toLocaleDateString(lang === 'pl' ? 'pl-PL' : lang === 'uk' ? 'uk-UA' : 'ru-RU')}, ${trialDaysLeft} дн.`
+    : sidebarBillingLabel(billingInfo?.billingStatus)
 
   const navItems = [
     { href: '/dashboard', key: 'dashboard', icon: (
@@ -201,15 +234,12 @@ export default function Sidebar({
           </div>
         </div>
 
-        {showTrial && (
-          <div className="sidebar-trial-box">
-            <div className="sidebar-trial-title">Trial: {trialDaysLeft} дн.</div>
-            <div className="sidebar-trial-text">
-              До {trialEndsAt.toLocaleDateString(lang === 'pl' ? 'pl-PL' : lang === 'uk' ? 'uk-UA' : 'ru-RU')}
-            </div>
-          </div>
+        {billingInfo && canManageBilling && (
+          <Link href="/settings/billing" className={`sidebar-plan-box ${showTrial ? 'is-trial' : ''}`}>
+            <div className="sidebar-plan-title">{planLabel}</div>
+            <div className="sidebar-plan-text">{planText}</div>
+          </Link>
         )}
-
         <button onClick={handleLogout} className="sidebar-logout">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>

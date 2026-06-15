@@ -7,12 +7,19 @@ import { useLanguage } from '@/context/LanguageContext'
 export default function SettingsPage() {
   const { t } = useLanguage()
   const [canManageAll, setCanManageAll] = useState(false)
+  const [canManageBilling, setCanManageBilling] = useState(false)
 
   useEffect(() => {
     fetch('/api/auth/me')
       .then(res => res.json())
-      .then(data => setCanManageAll(Boolean(data.canManageAll)))
-      .catch(() => setCanManageAll(false))
+      .then(data => {
+        setCanManageAll(Boolean(data.canManageAll))
+        setCanManageBilling(data?.role === 'admin' || data?.role === 'owner')
+      })
+      .catch(() => {
+        setCanManageAll(false)
+        setCanManageBilling(false)
+      })
   }, [])
 
   const items = useMemo(() => [
@@ -52,6 +59,12 @@ export default function SettingsPage() {
       title: 'Пользователи',
       desc: 'Управление доступом к системе',
     },
+    ...(canManageBilling ? [{
+      href: '/settings/billing',
+      icon: 'PLN',
+      title: 'Тариф и оплата',
+      desc: 'План, пробный период, использование и мягкие лимиты',
+    }] : []),
     {
       href: '/settings/sections',
       icon: '▦',
@@ -88,7 +101,7 @@ export default function SettingsPage() {
       title: 'Интеграции',
       desc: 'Webhook для заявок с сайта, квиза, рекламы и внешних сервисов',
     },
-  ], [canManageAll, t])
+  ], [canManageAll, canManageBilling, t])
 
   return (
     <div className="fade-in">
