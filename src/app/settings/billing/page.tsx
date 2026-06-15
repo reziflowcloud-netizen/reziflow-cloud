@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { isSystemAdmin } from '@/lib/organizationProvisioning'
 import {
   BILLING_METRIC_LABELS,
   BillingMetricKey,
@@ -64,6 +65,7 @@ export default async function BillingSettingsPage() {
   const trialDaysLeft = getTrialDaysLeft(snapshot.organization.trialEndsAt)
   const metrics = Object.keys(snapshot.usage) as BillingMetricKey[]
   const hasWarnings = snapshot.softLimitWarnings.length > 0
+  const showInternalBillingTools = isSystemAdmin(user)
 
   return (
     <div className="fade-in">
@@ -104,7 +106,7 @@ export default async function BillingSettingsPage() {
               </div>
             )}
             <div className="billing-actions">
-              <a href="/#pricing" className="btn btn-primary">Посмотреть тарифы</a>
+              <a href="/pricing" className="btn btn-primary">Посмотреть тарифы</a>
               <a href="mailto:reziflowcloud@gmail.com?subject=LegalHub%20CRM%20upgrade" className="btn btn-secondary">Связаться</a>
             </div>
           </div>
@@ -130,6 +132,7 @@ export default async function BillingSettingsPage() {
               const used = snapshot.usage[key]
               const limit = snapshot.plan.limits[key]
               const percent = usagePercent(used, limit)
+              const customLimit = snapshot.customLimitKeys.includes(key)
               return (
                 <div key={key} className={`billing-usage-card ${statusClass(used, limit)}`}>
                   <div className="billing-usage-label">{BILLING_METRIC_LABELS[key]}</div>
@@ -141,7 +144,9 @@ export default async function BillingSettingsPage() {
                     <span style={{ width: `${percent ?? 100}%` }} />
                   </div>
                   <div className="billing-usage-note">
-                    {limit ? `${percent}% лимита` : 'Лимит не применяется'}
+                    {limit
+                      ? `${percent}% лимита${customLimit ? ' · индивидуально' : ''}`
+                      : customLimit ? 'Индивидуально: без лимита' : 'Лимит не применяется'}
                   </div>
                 </div>
               )
@@ -166,16 +171,18 @@ export default async function BillingSettingsPage() {
           </div>
         </section>
 
-        <section className="billing-next-step">
-          <div>
-            <h2>Следующий шаг</h2>
-            <p>
-              После проверки интерфейса можно добавить реальные правила: мягкие предупреждения в формах,
-              затем Stripe или ручную оплату через администратора.
-            </p>
-          </div>
-          <Link href="/settings/organizations" className="btn btn-secondary">Организации</Link>
-        </section>
+        {showInternalBillingTools && (
+          <section className="billing-next-step">
+            <div>
+              <h2>Следующий шаг</h2>
+              <p>
+                После проверки интерфейса можно добавить реальные правила: мягкие предупреждения в формах,
+                затем Stripe или ручную оплату через администратора.
+              </p>
+            </div>
+            <Link href="/settings/organizations" className="btn btn-secondary">Организации</Link>
+          </section>
+        )}
       </div>
     </div>
   )

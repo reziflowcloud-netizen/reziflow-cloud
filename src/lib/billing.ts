@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 export type BillingMetricKey = 'users' | 'clients' | 'cases' | 'leads'
 
 export type PlanLimits = Record<BillingMetricKey, number | null>
+export type BillingLimitOverrides = Partial<Record<BillingMetricKey, number | null>>
 
 export type PlanDefinition = {
   key: string
@@ -27,7 +28,10 @@ export type BillingSnapshot = {
   plan: PlanDefinition
   usage: Record<BillingMetricKey, number>
   softLimitWarnings: BillingMetricKey[]
+  customLimitKeys: BillingMetricKey[]
 }
+
+const BILLING_METRIC_KEYS: BillingMetricKey[] = ['users', 'clients', 'cases', 'leads']
 
 export const PLAN_DEFINITIONS: Record<string, PlanDefinition> = {
   free: {
@@ -117,6 +121,44 @@ export function getPlanDefinition(plan?: string | null) {
   return PLAN_DEFINITIONS[normalizePlanKey(plan)]
 }
 
+function settingsObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {}
+}
+
+export function getBillingLimitOverrides(settings: unknown): BillingLimitOverrides {
+  const raw = settingsObject(settingsObject(settings).billingLimits)
+  const overrides: BillingLimitOverrides = {}
+
+  for (const key of BILLING_METRIC_KEYS) {
+    if (!(key in raw)) continue
+    const value = raw[key]
+    if (value === null || value === '' || value === 'unlimited') {
+      overrides[key] = null
+      continue
+    }
+
+    const limit = Number(value)
+    if (Number.isFinite(limit) && limit > 0) {
+      overrides[key] = Math.floor(limit)
+    }
+  }
+
+  return overrides
+}
+
+export function applyBillingLimitOverrides(plan: PlanDefinition, settings: unknown): PlanDefinition {
+  const overrides = getBillingLimitOverrides(settings)
+  return {
+    ...plan,
+    limits: {
+      ...plan.limits,
+      ...overrides,
+    },
+  }
+}
+
 export function billingStatusLabel(status?: string | null) {
   switch (String(status || '').toLowerCase()) {
     case 'trialing':
@@ -169,6 +211,7 @@ export async function getBillingSnapshot(organizationId: string): Promise<Billin
       trialEndsAt: true,
       currentPeriodEndsAt: true,
       cancelAtPeriodEnd: true,
+      settings: true,
     },
   })
 
@@ -183,8 +226,9 @@ export async function getBillingSnapshot(organizationId: string): Promise<Billin
     prisma.lead.count({ where: { organizationId } }),
   ])
 
-  const plan = getPlanDefinition(organization.plan)
+  const plan = applyBillingLimitOverrides(getPlanDefinition(organization.plan), organization.settings)
   const usage = { users, clients, cases, leads }
+  const customLimitKeys = Object.keys(getBillingLimitOverrides(organization.settings)) as BillingMetricKey[]
   const softLimitWarnings = (Object.keys(usage) as BillingMetricKey[])
     .filter(key => isSoftLimitWarning(usage[key], plan.limits[key]))
 
@@ -202,5 +246,6 @@ export async function getBillingSnapshot(organizationId: string): Promise<Billin
     plan,
     usage,
     softLimitWarnings,
+    customLimitKeys,
   }
 }

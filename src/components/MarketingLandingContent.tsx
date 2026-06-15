@@ -72,12 +72,26 @@ function buildPlanHref(planId: string, ref?: string) {
   return planId === 'agency' ? '/contact' : buildRegisterHref(ref, planId)
 }
 
-export default function MarketingLandingContent({ referralCode }: { referralCode?: string }) {
+export default function MarketingLandingContent({
+  referralCode,
+  initialSectionId,
+}: {
+  referralCode?: string
+  initialSectionId?: string
+}) {
   const { lang } = useMarketingLanguage()
   const copy = getMarketingCopy(lang)
   const [heroVideoOpen, setHeroVideoOpen] = useState(false)
   const [faqOpen, setFaqOpen] = useState(false)
   const faqItems = copy.faq.items.slice(0, 8)
+
+  useEffect(() => {
+    if (!initialSectionId) return
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(initialSectionId)?.scrollIntoView({ block: 'start' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [initialSectionId])
 
   useEffect(() => {
     if (!faqOpen) return
