@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
@@ -38,36 +39,74 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
-      <div className="login-card fade-in">
-        <div className="login-logo">
-          <img src="/assets/legalhub/legalhub-photo-logo-wide-transparent.png" alt="LegalHub" className="login-brand-logo" />
-          <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>Система управления делами</p>
+      <section className="login-intro" aria-label="Преимущества LegalHub">
+        <p className="login-kicker">LegalHub CRM</p>
+        <h1>Система управления делами для легализационных агентств в Польше</h1>
+        <div className="login-benefits">
+          <article>
+            <span className="login-benefit-icon shield" aria-hidden="true" />
+            <div>
+              <h2>Ваши данные под защитой</h2>
+              <p>Шифрование и резервное копирование</p>
+            </div>
+          </article>
+          <article>
+            <span className="login-benefit-icon reminder" aria-hidden="true" />
+            <div>
+              <h2>Ничего не упустите</h2>
+              <p>Напоминания и контроль сроков</p>
+            </div>
+          </article>
+          <article>
+            <span className="login-benefit-icon team" aria-hidden="true" />
+            <div>
+              <h2>Вся команда в одном окне</h2>
+              <p>Задачи, клиенты и документы</p>
+            </div>
+          </article>
         </div>
+      </section>
 
-        {error && <div className="error-msg">{error}</div>}
+      <section className="login-center" aria-label="Форма входа">
+        <div className="login-card fade-in">
+          <div className="login-logo">
+            <Link href="/" aria-label="LegalHub CRM">
+              <img src="/assets/legalhub/legalhub-photo-logo-wide-transparent.png" alt="LegalHub" className="login-brand-logo" />
+            </Link>
+            <p>Система управления делами</p>
+          </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="label">Email</label>
-            <input className="input" type="email" value={email}
-              onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required />
+          {error && <div className="error-msg">{error}</div>}
+
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label className="label">Email</label>
+              <input className="input" type="email" value={email}
+                onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required />
+            </div>
+            <div className="form-group">
+              <label className="label">Пароль</label>
+              <input className="input" type="password" value={password}
+                onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
+            </div>
+            <div className="login-form-row">
+              <label className="login-remember">
+                <input type="checkbox" />
+                <span>Запомнить меня</span>
+              </label>
+              <a href="mailto:office@legalhubcrm.com?subject=Восстановление доступа LegalHub">Забыли пароль?</a>
+            </div>
+            <button type="submit" className="btn btn-primary login-submit" disabled={loading}>
+              {loading ? 'Вход...' : 'Войти'}
+            </button>
+          </form>
+          <div className="login-legal-links">
+            <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>
+            <span>•</span>
+            <a href="/data-deletion" target="_blank" rel="noreferrer">Data Deletion Instructions</a>
           </div>
-          <div className="form-group">
-            <label className="label">Пароль</label>
-            <input className="input" type="password" value={password}
-              onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
-          </div>
-          <button type="submit" className="btn btn-primary"
-            style={{ width: '100%', justifyContent: 'center', marginTop: 8 }} disabled={loading}>
-            {loading ? 'Вход...' : 'Войти'}
-          </button>
-        </form>
-      </div>
-      <div className="login-legal-links">
-        <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>
-        <span>•</span>
-        <a href="/data-deletion" target="_blank" rel="noreferrer">Data Deletion Instructions</a>
-      </div>
+        </div>
+      </section>
     </div>
   )
 }

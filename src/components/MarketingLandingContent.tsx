@@ -1,11 +1,66 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import MarketingHeader from '@/components/MarketingHeader'
 import MarketingProductTour from '@/components/MarketingProductTour'
 import { useMarketingLanguage } from '@/hooks/useMarketingLanguage'
 import { getMarketingCopy } from '@/lib/marketingI18n'
+
+const changeCards = [
+  {
+    number: '01',
+    title: 'Заявки не теряются',
+    text: 'Сайт, Instagram, Facebook, Telegram и WhatsApp попадают в один поток.',
+  },
+  {
+    number: '02',
+    title: 'Документы видны сразу',
+    text: 'По делу понятно, что получено, чего не хватает и что запросить у клиента.',
+  },
+  {
+    number: '03',
+    title: 'Сроки под контролем',
+    text: 'Дедлайн, ответственный и следующий шаг закреплены за каждым делом.',
+  },
+  {
+    number: '04',
+    title: 'Руководитель видит картину',
+    text: 'Просрочки, нагрузка, оплаты и проблемные клиенты видны без ежедневных вопросов.',
+  },
+]
+
+const setupCards = [
+  {
+    icon: '↯',
+    title: 'Быстрый перенос',
+    text: 'Импортируйте клиентов из Excel, Google Sheets, старой CRM или обычного списка за несколько минут.',
+    items: ['Excel и Google Sheets', 'Старая CRM', 'Любые списки клиентов'],
+    badge: '5–10 минут',
+  },
+  {
+    icon: '⚙',
+    title: 'Гибкая настройка',
+    text: 'Настройте CRM под вашу работу: услуги, этапы, сотрудников и права доступа.',
+    items: ['Услуги', 'Этапы работы', 'Сотрудники и роли', 'Права доступа', 'Любая структура'],
+    badge: 'Любая структура',
+  },
+]
+
+const securityCards = [
+  {
+    title: 'Для руководителя',
+    text: 'Можно оставить полный доступ к клиентам, документам, оплатам и работе команды.',
+  },
+  {
+    title: 'Для сотрудника',
+    text: 'Можно открыть только его клиентов, задачи и дела в зоне ответственности.',
+  },
+  {
+    title: 'Для вашей фирмы',
+    text: 'Роли и права настраиваются под структуру команды и ваш рабочий порядок.',
+  },
+]
 
 function buildRegisterHref(ref?: string, plan = 'free') {
   const params = new URLSearchParams({ plan })
@@ -21,16 +76,36 @@ export default function MarketingLandingContent({ referralCode }: { referralCode
   const { lang } = useMarketingLanguage()
   const copy = getMarketingCopy(lang)
   const [heroVideoOpen, setHeroVideoOpen] = useState(false)
+  const [faqOpen, setFaqOpen] = useState(false)
+  const faqItems = copy.faq.items.slice(0, 8)
+
+  useEffect(() => {
+    if (!faqOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setFaqOpen(false)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [faqOpen])
 
   return (
     <main className="marketing-page" id="top">
-      <MarketingHeader referralCode={referralCode} copy={copy.header} />
+      <MarketingHeader referralCode={referralCode} copy={copy.header} onFaqOpen={() => setFaqOpen(true)} />
 
       <section className="marketing-hero">
         <div className="marketing-hero-content">
           <p className="marketing-kicker">{copy.hero.kicker}</p>
           <h1>{copy.hero.title}</h1>
           <p className="marketing-lead">{copy.hero.lead}</p>
+          <p className="hero-fit-note">{copy.hero.fitNote}</p>
           <div className="marketing-cta-row">
             <a href="#demo" className="marketing-primary large">{copy.hero.primary}</a>
             <Link href={buildRegisterHref(referralCode)} className="marketing-secondary">{copy.hero.secondary}</Link>
@@ -57,57 +132,42 @@ export default function MarketingLandingContent({ referralCode }: { referralCode
                 Ваш браузер не поддерживает встроенное видео. Напишите нам, и мы отправим обзор отдельно.
               </video>
             ) : (
-              <button type="button" className="hero-video-preview" onClick={() => setHeroVideoOpen(true)}>
-                <span>▶</span>
-                <strong>Смотреть короткий обзор</strong>
-                <small>1 минута 24 секунды · видео загрузится после нажатия</small>
+              <button
+                type="button"
+                className="hero-video-preview"
+                onClick={() => setHeroVideoOpen(true)}
+                aria-label="Смотреть короткий обзор LegalHub CRM"
+              >
+                <img
+                  className="hero-video-poster"
+                  src="/assets/legalhub/hero-video-poster.png?v=20260614"
+                  alt="Dashboard LegalHub: полный контроль агентства в одном окне"
+                />
+                <span className="hero-play">▶</span>
+                <span className="hero-video-open-label">Смотреть обзор 1 мин</span>
               </button>
             )}
           </div>
         </div>
       </section>
 
-      <section className="marketing-section problems-section" id="problems">
+      <section className="marketing-section compact-intro" id="product">
         <div className="section-heading-row">
           <div>
-            <p className="marketing-kicker">{copy.problems.kicker}</p>
-            <h2>{copy.problems.title}</h2>
+            <p className="marketing-kicker">Коротко о выгоде</p>
+            <h2>LegalHub собирает хаос в один рабочий процесс</h2>
           </div>
-          <p>{copy.problems.text}</p>
+          <p>Вместо чатов, Excel, Drive и постоянных вопросов сотрудникам: один экран, где видно клиента, услугу, документы, срок, оплату и ответственного.</p>
         </div>
-        <div className="marketing-grid problem-grid">
-          {copy.problems.cards.map(card => (
+
+        <div className="change-grid">
+          {changeCards.map(card => (
             <article key={card.title}>
+              <span>{card.number}</span>
               <h3>{card.title}</h3>
               <p>{card.text}</p>
             </article>
           ))}
-        </div>
-      </section>
-
-      <section className="marketing-section" id="product">
-        <div className="section-heading-row">
-          <div>
-            <p className="marketing-kicker">{copy.product.kicker}</p>
-            <h2>{copy.product.title}</h2>
-          </div>
-          <p>{copy.product.text}</p>
-        </div>
-        <div className="before-after">
-          <article>
-            <span>{copy.product.before.eyebrow}</span>
-            <h3>{copy.product.before.title}</h3>
-            <ul>
-              {copy.product.before.items.map(item => <li key={item}>{item}</li>)}
-            </ul>
-          </article>
-          <article className="after">
-            <span>{copy.product.after.eyebrow}</span>
-            <h3>{copy.product.after.title}</h3>
-            <ul>
-              {copy.product.after.items.map(item => <li key={item}>{item}</li>)}
-            </ul>
-          </article>
         </div>
       </section>
 
@@ -115,16 +175,47 @@ export default function MarketingLandingContent({ referralCode }: { referralCode
         <MarketingProductTour copy={copy.productTour} />
       </section>
 
-      <section className="marketing-section muted manager-section" id="manager-view">
+      <section className="marketing-section setup-fast-section" id="process">
+        <div className="setup-fast-shell">
+          <div className="setup-fast-heading">
+            <h2>Начните работу за несколько минут</h2>
+            <p>Быстрый перенос клиентов и гибкая настройка CRM под ваш бизнес</p>
+          </div>
+          <div className="setup-fast-grid">
+            {setupCards.map(card => (
+              <article className="setup-fast-card" key={card.title}>
+                <div className="setup-fast-card-head">
+                  <span className="setup-fast-icon" aria-hidden="true">{card.icon}</span>
+                  <div>
+                    <h3>{card.title}</h3>
+                    <p>{card.text}</p>
+                  </div>
+                </div>
+                <ul>
+                  {card.items.map(item => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+                <span className="setup-fast-badge">{card.badge}</span>
+              </article>
+            ))}
+          </div>
+          <div className="setup-fast-action">
+            <Link href={buildRegisterHref(referralCode)} className="marketing-primary large">Попробовать бесплатно</Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="marketing-section muted security-lite" id="security">
         <div className="section-heading-row">
           <div>
-            <p className="marketing-kicker">{copy.managerView.kicker}</p>
-            <h2>{copy.managerView.title}</h2>
+            <p className="marketing-kicker">Безопасность и доступы</p>
+            <h2>Доступы можно настроить под вашу команду</h2>
           </div>
-          <p>{copy.managerView.text}</p>
+          <p>Вы сами решаете, что видит каждый сотрудник: всю базу, отдельные разделы или только клиентов и дела в своей зоне ответственности.</p>
         </div>
-        <div className="marketing-grid manager-grid">
-          {copy.managerView.cards.map(card => (
+        <div className="security-lite-grid">
+          {securityCards.map(card => (
             <article key={card.title}>
               <h3>{card.title}</h3>
               <p>{card.text}</p>
@@ -133,97 +224,14 @@ export default function MarketingLandingContent({ referralCode }: { referralCode
         </div>
       </section>
 
-      <section className="marketing-section muted" id="process">
-        <div className="section-heading-row">
-          <div>
-            <p className="marketing-kicker">{copy.workflow.kicker}</p>
-            <h2>{copy.workflow.title}</h2>
-          </div>
-          <p>{copy.workflow.text}</p>
-        </div>
-        <div className="workflow-rail">
-          {copy.workflow.steps.map((step, index) => (
-            <article key={step.title}>
-              <span>{String(index + 1).padStart(2, '0')}</span>
-              <h3>{step.title}</h3>
-              <p>{step.text}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="marketing-section migration-section">
+      <section className="marketing-section launch-callout">
         <div>
-          <p className="marketing-kicker">{copy.migration.kicker}</p>
-          <h2>{copy.migration.title}</h2>
-          <p>{copy.migration.text}</p>
+          <p className="marketing-kicker">Спокойный запуск</p>
+          <h2>Поможем запустить первый процесс</h2>
+          <p>Не нужно переносить всю компанию сразу. Можно начать с одного процесса — например Karta Pobytu — добавить 5–10 клиентов, настроить этапы и проверить LegalHub в реальной работе.</p>
+          <small>Подходит для одного специалиста, маленькой команды и растущей фирмы.</small>
         </div>
-        <div className="migration-panel">
-          {copy.migration.steps.map(step => (
-            <div key={step.number}>
-              <strong>{step.number}</strong>
-              <span>
-                <b>{step.title}</b>
-                <small>{step.text}</small>
-              </span>
-            </div>
-          ))}
-          <p className="migration-note">{copy.migration.note}</p>
-        </div>
-      </section>
-
-      <section className="marketing-section" id="services">
-        <div className="section-heading-row">
-          <div>
-            <p className="marketing-kicker">{copy.services.kicker}</p>
-            <h2>{copy.services.title}</h2>
-          </div>
-          <p>{copy.services.text}</p>
-        </div>
-        <div className="marketing-grid services-grid">
-          {copy.services.cards.map(card => (
-            <article key={card.title}>
-              <h3>{card.title}</h3>
-              <p>{card.text}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="marketing-section comparison-section" id="crm-comparison">
-        <div className="section-heading-row">
-          <div>
-            <p className="marketing-kicker">{copy.comparison.kicker}</p>
-            <h2>{copy.comparison.title}</h2>
-          </div>
-          <p>{copy.comparison.text}</p>
-        </div>
-        <div className="comparison-grid">
-          {[copy.comparison.generic, copy.comparison.legalhub].map((column, index) => (
-            <article className={index === 1 ? 'comparison-card legalhub' : 'comparison-card'} key={column.eyebrow}>
-              <span>{column.eyebrow}</span>
-              <h3>{column.title}</h3>
-              <ul>
-                {column.items.map(item => <li key={item}>{item}</li>)}
-              </ul>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="marketing-section muted" id="security">
-        <div className="section-heading-row">
-          <div>
-            <p className="marketing-kicker">{copy.security.kicker}</p>
-            <h2>{copy.security.title}</h2>
-          </div>
-          <p>{copy.security.text}</p>
-        </div>
-        <div className="marketing-grid security-grid">
-          {copy.security.cards.map(card => (
-            <article key={card.title}><h3>{card.title}</h3><p>{card.text}</p></article>
-          ))}
-        </div>
+        <Link href="/contact" className="marketing-primary large">Запросить запуск</Link>
       </section>
 
       <section className="marketing-section" id="pricing">
@@ -252,17 +260,6 @@ export default function MarketingLandingContent({ referralCode }: { referralCode
         </div>
       </section>
 
-      <section className="marketing-section faq" id="faq">
-        <p className="marketing-kicker">{copy.faq.kicker}</p>
-        <h2>{copy.faq.title}</h2>
-        {copy.faq.items.map((item, index) => (
-          <details key={item.question} open={index === 0}>
-            <summary>{item.question}</summary>
-            <p>{item.answer}</p>
-          </details>
-        ))}
-      </section>
-
       <section className="marketing-final">
         <div>
           <p className="marketing-kicker">{copy.final.kicker}</p>
@@ -285,10 +282,30 @@ export default function MarketingLandingContent({ referralCode }: { referralCode
           <small>Copyright © 2026 LegalHub CRM, All Rights Reserved.</small>
         </div>
         <div className="marketing-footer-contact">
+          <button type="button" className="marketing-footer-faq" onClick={() => setFaqOpen(true)}>Частые вопросы</button>
           <a href="mailto:office@legalhubcrm.com">office@legalhubcrm.com</a>
           <a href="tel:+48730382448">{copy.footer.phoneLabel}: +48 730 382 448</a>
         </div>
       </footer>
+
+      {faqOpen && (
+        <div className="faq-modal" role="dialog" aria-modal="true" aria-labelledby="faq-modal-title">
+          <button type="button" className="faq-modal-backdrop" aria-label="Закрыть вопросы" onClick={() => setFaqOpen(false)} />
+          <section className="faq-modal-panel">
+            <button type="button" className="faq-modal-close" aria-label="Закрыть вопросы" onClick={() => setFaqOpen(false)}>×</button>
+            <p className="marketing-kicker">{copy.faq.kicker}</p>
+            <h2 id="faq-modal-title">{copy.faq.title}</h2>
+            <div className="faq-list">
+              {faqItems.map(item => (
+                <details key={item.question}>
+                  <summary>{item.question}</summary>
+                  <p>{item.answer}</p>
+                </details>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   )
 }

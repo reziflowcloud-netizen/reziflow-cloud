@@ -13,6 +13,7 @@ export type LeadWebhookSettings = {
   facebookLeadVerifyToken?: string
   facebookLeadPageAccessToken?: string
   instagramMessagesPageAccessToken?: string
+  instagramDirectAccessToken?: string
   facebookLeadApiVersion?: string
 }
 
@@ -95,6 +96,12 @@ export function getLeadWebhookSettings(value: unknown): LeadWebhookSettings {
   const assignmentUserIds = Array.isArray(raw.leadWebhookAssignmentUserIds)
     ? raw.leadWebhookAssignmentUserIds.map(Number).filter(Number.isFinite)
     : []
+  const instagramMessagesPageAccessToken =
+    typeof raw.instagramMessagesPageAccessToken === 'string'
+      ? raw.instagramMessagesPageAccessToken
+      : typeof raw.instagramDirectAccessToken === 'string'
+        ? raw.instagramDirectAccessToken
+        : ''
   return {
     leadWebhookEnabled: raw.leadWebhookEnabled !== false,
     leadWebhookKey: typeof raw.leadWebhookKey === 'string' ? raw.leadWebhookKey : '',
@@ -107,7 +114,8 @@ export function getLeadWebhookSettings(value: unknown): LeadWebhookSettings {
     facebookMessagesEnabled: raw.facebookMessagesEnabled === true,
     facebookLeadVerifyToken: typeof raw.facebookLeadVerifyToken === 'string' ? raw.facebookLeadVerifyToken : '',
     facebookLeadPageAccessToken: typeof raw.facebookLeadPageAccessToken === 'string' ? raw.facebookLeadPageAccessToken : '',
-    instagramMessagesPageAccessToken: typeof raw.instagramMessagesPageAccessToken === 'string' ? raw.instagramMessagesPageAccessToken : '',
+    instagramMessagesPageAccessToken,
+    instagramDirectAccessToken: typeof raw.instagramDirectAccessToken === 'string' ? raw.instagramDirectAccessToken : '',
     facebookLeadApiVersion: typeof raw.facebookLeadApiVersion === 'string' && raw.facebookLeadApiVersion ? raw.facebookLeadApiVersion : 'v23.0',
   }
 }

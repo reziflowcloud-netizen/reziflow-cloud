@@ -61,6 +61,7 @@ export async function GET() {
           facebookLeadVerifyToken: settings.facebookLeadVerifyToken,
           facebookLeadPageAccessToken: settings.facebookLeadPageAccessToken || '',
           instagramMessagesPageAccessToken: settings.instagramMessagesPageAccessToken || '',
+          instagramDirectAccessToken: settings.instagramMessagesPageAccessToken || '',
           facebookLeadApiVersion: settings.facebookLeadApiVersion || 'v23.0',
         },
       },
@@ -95,6 +96,7 @@ export async function GET() {
       verifyToken: settings.facebookLeadVerifyToken || '',
       pageAccessToken: settings.facebookLeadPageAccessToken || '',
       instagramPageAccessToken: settings.instagramMessagesPageAccessToken || '',
+      instagramAccessToken: settings.instagramMessagesPageAccessToken || '',
       apiVersion: settings.facebookLeadApiVersion || 'v23.0',
     },
   })
@@ -142,8 +144,13 @@ export async function PATCH(request: NextRequest) {
   const nextFacebookPageAccessToken = incomingFacebook && typeof incomingFacebook.pageAccessToken === 'string'
     ? normalizeAccessToken(incomingFacebook.pageAccessToken)
     : previous.facebookLeadPageAccessToken || ''
-  const nextInstagramPageAccessToken = incomingFacebook && typeof incomingFacebook.instagramPageAccessToken === 'string'
-    ? normalizeAccessToken(incomingFacebook.instagramPageAccessToken)
+  const incomingInstagramPageAccessToken = incomingFacebook && typeof incomingFacebook.instagramPageAccessToken === 'string'
+    ? incomingFacebook.instagramPageAccessToken
+    : incomingFacebook && typeof incomingFacebook.instagramAccessToken === 'string'
+      ? incomingFacebook.instagramAccessToken
+      : null
+  const nextInstagramPageAccessToken = incomingInstagramPageAccessToken !== null
+    ? normalizeAccessToken(incomingInstagramPageAccessToken)
     : previous.instagramMessagesPageAccessToken || ''
   const nextFacebookApiVersion = incomingFacebook && typeof incomingFacebook.apiVersion === 'string'
     ? incomingFacebook.apiVersion.trim() || 'v23.0'
@@ -165,6 +172,7 @@ export async function PATCH(request: NextRequest) {
         facebookLeadVerifyToken: nextFacebookVerifyToken,
         facebookLeadPageAccessToken: nextFacebookPageAccessToken,
         instagramMessagesPageAccessToken: nextInstagramPageAccessToken,
+        instagramDirectAccessToken: nextInstagramPageAccessToken,
         facebookLeadApiVersion: nextFacebookApiVersion,
       },
     },
@@ -186,6 +194,7 @@ export async function PATCH(request: NextRequest) {
       verifyToken: nextFacebookVerifyToken,
       pageAccessToken: nextFacebookPageAccessToken,
       instagramPageAccessToken: nextInstagramPageAccessToken,
+      instagramAccessToken: nextInstagramPageAccessToken,
       apiVersion: nextFacebookApiVersion,
     },
   })

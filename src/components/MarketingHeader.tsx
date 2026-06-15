@@ -13,9 +13,11 @@ function buildRegisterHref(ref?: string, plan = 'free') {
 export default function MarketingHeader({
   referralCode,
   copy = getMarketingCopy(DEFAULT_MARKETING_LANG).header,
+  onFaqOpen,
 }: {
   referralCode?: string
   copy?: MarketingHeaderCopy
+  onFaqOpen?: () => void
 }) {
   const [hidden, setHidden] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -75,6 +77,7 @@ export default function MarketingHeader({
         <a href="#process" onClick={() => setMenuOpen(false)}>{copy.nav.workflow}</a>
         <a href="#pricing" onClick={() => setMenuOpen(false)}>{copy.nav.pricing}</a>
         <a href="#security" onClick={() => setMenuOpen(false)}>{copy.nav.security}</a>
+        <button type="button" onClick={() => { setMenuOpen(false); onFaqOpen?.() }}>FAQ</button>
       </nav>
       <div className="marketing-actions">
         <button

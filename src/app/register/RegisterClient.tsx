@@ -10,6 +10,29 @@ const PLAN_LABELS: Record<string, string> = {
   agency: 'Agency',
 }
 
+const REGISTER_BENEFITS = [
+  {
+    title: 'Старт без оплаты',
+    text: 'и без карты',
+    icon: 'payment',
+  },
+  {
+    title: 'Гибкие настройки',
+    text: 'под ваш процесс',
+    icon: 'settings',
+  },
+  {
+    title: 'Полный контроль',
+    text: 'и аналитика',
+    icon: 'control',
+  },
+  {
+    title: 'Безопасность',
+    text: 'и защита данных',
+    icon: 'security',
+  },
+]
+
 export default function RegisterClient({ initialPlan, referralCode }: { initialPlan: string, referralCode?: string }) {
   const router = useRouter()
   const [companyName, setCompanyName] = useState('')
@@ -55,18 +78,33 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
   }
 
   return (
-    <main className="register-page">
-      <section className="register-panel">
-        <Link href="/" className="register-logo">
-          <img src="/assets/legalhub/legalhub-photo-logo-wide-transparent.png" alt="LegalHub" />
-        </Link>
-        <p className="marketing-kicker">Бесплатный старт</p>
-        <h1>Создайте организацию и начните работу в LegalHub</h1>
+    <main className="register-page auth-register-page">
+      <section className="register-panel register-info-panel" aria-label="Преимущества старта">
+        <p className="marketing-kicker">LegalHub CRM</p>
+        <h1>Начните бесплатно и настройте систему под свою работу</h1>
         <p className="register-lead">
-          После регистрации вы сразу попадете в LegalHub CRM. Карту добавлять не нужно, а подходящий тариф можно выбрать позже.
+          Создайте организацию за пару минут и начните работать в своей CRM.
         </p>
+        <div className="register-benefit-grid">
+          {REGISTER_BENEFITS.map(benefit => (
+            <article key={benefit.title} className="register-benefit-card">
+              <span className={`register-benefit-icon ${benefit.icon}`} aria-hidden="true" />
+              <div>
+                <h2>{benefit.title}</h2>
+                <p>{benefit.text}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
 
+      <section className="register-form-shell" aria-label="Форма регистрации">
         <form onSubmit={handleSubmit} className="register-form">
+          <Link href="/" className="register-logo">
+            <img src="/assets/legalhub/legalhub-photo-logo-wide-transparent.png" alt="LegalHub" />
+          </Link>
+          <p className="marketing-kicker">Бесплатный старт</p>
+
           {error && <div className="error-msg">{error}</div>}
 
           <div className="form-group">
@@ -115,18 +153,6 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
           Уже есть аккаунт? <Link href="/login">Войти</Link>
         </p>
       </section>
-
-      <aside className="register-aside" aria-label="Что входит в старт">
-        <div>
-          <strong>Что будет создано</strong>
-          <ul>
-            <li>Отдельная организация в CRM</li>
-            <li>Первый администратор с полным доступом</li>
-            <li>Базовые статусы, приоритеты и настройки дел</li>
-            <li>Запуск без карты и предоплаты</li>
-          </ul>
-        </div>
-      </aside>
     </main>
   )
 }

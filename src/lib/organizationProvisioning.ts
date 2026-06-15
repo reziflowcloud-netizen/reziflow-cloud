@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs'
+import { isValidEmail } from '@/lib/apiErrors'
 import { prisma } from '@/lib/prisma'
 
 export const DEFAULT_TRIAL_DAYS = Number(process.env.TRIAL_DAYS || 30)
@@ -151,8 +152,6 @@ export async function provisionOrganization(input: {
   const adminName = String(input.adminName || '').trim()
   const adminEmail = String(input.adminEmail || '').trim().toLowerCase()
   const adminPassword = String(input.adminPassword || '')
-  const explicitSlug = Boolean(input.slug && String(input.slug).trim())
-  const slug = await resolveUniqueSlug(input.slug || name, explicitSlug)
   const plan = String(input.plan || 'starter')
   const status = String(input.status || 'trial')
   const now = new Date()
@@ -166,10 +165,15 @@ export async function provisionOrganization(input: {
   if (!name || !adminName || !adminEmail || !adminPassword) {
     throw new Error('Название фирмы, имя администратора, email и пароль обязательны')
   }
+  if (!isValidEmail(adminEmail)) {
+    throw new Error('Введите корректный email для входа')
+  }
   if (adminPassword.length < 6) {
     throw new Error('Пароль должен быть не короче 6 символов')
   }
 
+  const explicitSlug = Boolean(input.slug && String(input.slug).trim())
+  const slug = await resolveUniqueSlug(input.slug || name, explicitSlug)
   const existingUser = await prisma.user.findUnique({ where: { email: adminEmail } })
   if (existingUser) throw new Error('Пользователь с таким email уже есть')
 
