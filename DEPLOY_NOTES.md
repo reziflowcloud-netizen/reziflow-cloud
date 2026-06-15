@@ -1,24 +1,30 @@
-# Migraflow CRM: deployment and recovery notes
+# LegalHub CRM: deployment and recovery notes
 
 ## Where the project lives
 
-- GitHub repository: https://github.com/reziflow-code/migraflow
-- Production site: https://reziflow.vercel.app
-- Local project folder:
+- GitHub repository: https://github.com/reziflowcloud-netizen/reziflow-cloud
+- Production site: https://legalhubcrm.com
+- Current local project folder:
+  `C:\Users\verbe\Documents\Codex\2026-05-18\files-mentioned-by-the-user-reziflow\reziflow-cloud-github`
+- Integration sandbox used for the landing + CRM merge:
+  `C:\Users\verbe\Documents\Codex\2026-06-15\legalhub-crm-crm-c-users-verbe\work\legalhub-integration`
+- Old CRM reference folder:
   `C:\Users\verbe\Documents\Codex\2026-05-02\files-mentioned-by-the-user-migraflow\migraflow-main`
 
 ## What is stored where
 
 - GitHub stores the application code.
 - Vercel hosts the live website and stores production environment variables.
-- Supabase/PostgreSQL stores the database.
+- PostgreSQL stores the database. Production currently uses the database configured in Vercel environment variables.
 - The local `.env` file stores secrets for local development only.
 
 Never commit `.env`, database passwords, JWT secrets, or uploaded client documents to GitHub.
 
 ## Environment variables
 
-The local `.env` file is here:
+The current landing/CRM repository may not have a local `.env` file. Production secrets are stored in Vercel.
+
+The old CRM reference folder has a local `.env` here:
 
 ```text
 C:\Users\verbe\Documents\Codex\2026-05-02\files-mentioned-by-the-user-migraflow\migraflow-main\.env
@@ -33,7 +39,7 @@ Save a backup copy of this file in a safe place, for example:
 The Vercel environment variables are in:
 
 ```text
-Vercel -> project reziflow -> Settings -> Environment Variables
+Vercel -> LegalHub CRM project -> Settings -> Environment Variables
 ```
 
 Important variables:
@@ -62,8 +68,8 @@ CLOUDINARY_UPLOAD_PRESET
 3. Download the project:
 
 ```bash
-git clone https://github.com/reziflow-code/migraflow.git
-cd migraflow
+git clone https://github.com/reziflowcloud-netizen/reziflow-cloud.git
+cd reziflow-cloud
 ```
 
 4. Restore `.env` from your backup into the project folder.
@@ -120,6 +126,24 @@ node scripts/vercel-migrate.js && prisma generate && next build
 If `DIRECT_URL` exists, migrations are applied automatically.
 
 If `DIRECT_URL` is missing, migrations are skipped and deployment continues.
+
+## Post-release cleanup checklist
+
+After testing registration on production:
+
+1. Remove or clearly mark any test organizations created on `https://legalhubcrm.com`.
+2. If a temporary Neon/PostgreSQL test database was used, reset its role password after testing.
+3. Confirm `https://legalhubcrm.com/register?plan=free` loads and creates organizations correctly.
+4. Confirm unauthenticated `https://legalhubcrm.com/dashboard` redirects to `/login`.
+5. Keep `.env`, `.env.local`, database URLs, JWT secrets, and service tokens out of Git.
+
+## Test database note
+
+For local end-to-end tests, use a separate empty PostgreSQL database, not production. The tested flow is:
+
+```text
+landing -> /register -> /api/auth/register -> auth-token cookie -> /dashboard
+```
 
 ## Important warning about documents
 
