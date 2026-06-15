@@ -39,6 +39,7 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
   const [adminName, setAdminName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [plan, setPlan] = useState(PLAN_LABELS[initialPlan] ? initialPlan : 'free')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -124,7 +125,18 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
 
           <div className="form-group">
             <label className="label">Пароль *</label>
-            <input className="input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Минимум 6 символов" minLength={6} required />
+            <div className="password-field">
+              <input className="input password-field-input" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Минимум 6 символов" minLength={6} required />
+              <button
+                type="button"
+                className={`password-toggle ${showPassword ? 'is-visible' : ''}`}
+                onClick={() => setShowPassword(value => !value)}
+                aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                title={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+              >
+                <span className="password-toggle-eye" aria-hidden="true" />
+              </button>
+            </div>
           </div>
 
           <div className="form-group">

@@ -66,6 +66,7 @@ export default function OrganizationsPage() {
   const [success, setSuccess] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [canManageAll, setCanManageAll] = useState(false)
   const [form, setForm] = useState({
     name: '',
@@ -171,6 +172,38 @@ export default function OrganizationsPage() {
     setOrganizations(prev => prev.map(org => org.id === id ? data : org))
     setEditingId(null)
     setSuccess('Фирма обновлена')
+  }
+
+  async function deleteOrganization(org: OrganizationItem) {
+    setError('')
+    setSuccess('')
+
+    const message = [
+      `Удалить организацию "${org.name}"?`,
+      '',
+      `Будут удалены пользователи: ${org._count.users}`,
+      `Клиенты: ${org._count.clients}`,
+      `Дела: ${org._count.cases}`,
+      `Задачи: ${org._count.tasks}`,
+      '',
+      'Это действие нельзя отменить.',
+    ].join('\n')
+
+    if (!window.confirm(message)) return
+
+    setDeletingId(org.id)
+    const res = await fetch(`/api/organizations/${org.id}`, { method: 'DELETE' })
+    const data = await res.json().catch(() => ({}))
+    setDeletingId(null)
+
+    if (!res.ok) {
+      setError(data.error || 'Не удалось удалить организацию')
+      return
+    }
+
+    setOrganizations(prev => prev.filter(item => item.id !== org.id))
+    if (editingId === org.id) setEditingId(null)
+    setSuccess(`Организация "${org.name}" удалена`)
   }
 
   return (
@@ -362,7 +395,17 @@ export default function OrganizationsPage() {
                           <button className="btn btn-secondary" onClick={() => setEditingId(null)}>Отмена</button>
                         </div>
                       ) : canManageAll ? (
-                        <button className="btn btn-secondary" onClick={() => startEdit(org)}>Редактировать</button>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-secondary" onClick={() => startEdit(org)}>Редактировать</button>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ color: '#b91c1c', borderColor: '#fecaca' }}
+                            onClick={() => deleteOrganization(org)}
+                            disabled={deletingId === org.id || saving}
+                          >
+                            {deletingId === org.id ? 'Удаление...' : 'Удалить'}
+                          </button>
+                        </div>
                       ) : null}
                     </td>
                   </tr>

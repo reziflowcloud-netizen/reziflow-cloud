@@ -82,3 +82,117 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: e.message || 'Ошибка сохранения фирмы' }, { status: 500 })
   }
 }
+
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const user = await getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!isSystemAdmin(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const currentOrganizationId = getOrganizationId(user)
+  if (params.id === currentOrganizationId) {
+    return NextResponse.json({ error: 'Нельзя удалить организацию, в которой вы сейчас работаете' }, { status: 400 })
+  }
+
+  try {
+    const organization = await prisma.organization.findUnique({
+      where: { id: params.id },
+      select: { id: true, name: true },
+    })
+    if (!organization) {
+      return NextResponse.json({ error: 'Организация не найдена' }, { status: 404 })
+    }
+
+    const organizationCount = await prisma.organization.count()
+    if (organizationCount <= 1) {
+      return NextResponse.json({ error: 'Нельзя удалить последнюю организацию' }, { status: 400 })
+    }
+
+    await prisma.$transaction(async tx => {
+      const cases = await tx.case.findMany({
+        where: { organizationId: params.id },
+        select: { id: true },
+      })
+      const caseIds = cases.map(item => item.id)
+
+      if (caseIds.length) {
+        await tx.caseCustomDate.deleteMany({ where: { caseId: { in: caseIds } } })
+        await tx.docUpdate.deleteMany({ where: { caseId: { in: caseIds } } })
+        await tx.caseDocument.deleteMany({ where: { caseId: { in: caseIds } } })
+        await tx.statusHistory.deleteMany({ where: { caseId: { in: caseIds } } })
+        await tx.comment.deleteMany({ where: { caseId: { in: caseIds } } })
+        await tx.document.deleteMany({ where: { caseId: { in: caseIds } } })
+        await tx.payment.deleteMany({ where: { caseId: { in: caseIds } } })
+        await tx.case.deleteMany({ where: { id: { in: caseIds } } })
+      }
+
+      const clients = await tx.client.findMany({
+        where: { organizationId: params.id },
+        select: { id: true },
+      })
+      const clientIds = clients.map(item => item.id)
+
+      if (clientIds.length) {
+        await tx.travelHistory.deleteMany({ where: { clientId: { in: clientIds } } })
+        await tx.previousPolandStay.deleteMany({ where: { clientId: { in: clientIds } } })
+        await tx.clientFamilyLink.deleteMany({
+          where: {
+            OR: [
+              { organizationId: params.id },
+              { clientId: { in: clientIds } },
+              { relativeClientId: { in: clientIds } },
+            ],
+          },
+        })
+        await tx.clientPhone.deleteMany({ where: { organizationId: params.id } })
+        await tx.client.deleteMany({ where: { id: { in: clientIds } } })
+      }
+
+      const leads = await tx.lead.findMany({
+        where: { organizationId: params.id },
+        select: { id: true },
+      })
+      const leadIds = leads.map(item => item.id)
+
+      if (leadIds.length) {
+        await tx.leadPhone.deleteMany({ where: { organizationId: params.id } })
+        await tx.leadContactHistory.deleteMany({ where: { organizationId: params.id } })
+        await tx.leadMessage.deleteMany({ where: { organizationId: params.id } })
+        await tx.leadWebhookLog.deleteMany({ where: { organizationId: params.id } })
+        await tx.lead.deleteMany({ where: { id: { in: leadIds } } })
+      } else {
+        await tx.leadWebhookLog.deleteMany({ where: { organizationId: params.id } })
+      }
+
+      const customSections = await tx.customSection.findMany({
+        where: { organizationId: params.id },
+        select: { id: true },
+      })
+      const customSectionIds = customSections.map(item => item.id)
+
+      await tx.customFieldValue.deleteMany({ where: { organizationId: params.id } })
+      if (customSectionIds.length) {
+        await tx.customField.deleteMany({ where: { sectionId: { in: customSectionIds } } })
+        await tx.customSection.deleteMany({ where: { id: { in: customSectionIds } } })
+      }
+
+      await tx.task.deleteMany({ where: { organizationId: params.id } })
+      await tx.documentTemplate.deleteMany({ where: { organizationId: params.id } })
+      await tx.uiSectionSetting.deleteMany({ where: { organizationId: params.id } })
+      await tx.leadStatus.deleteMany({ where: { organizationId: params.id } })
+      await tx.caseStatus.deleteMany({ where: { organizationId: params.id } })
+      await tx.taskPriority.deleteMany({ where: { organizationId: params.id } })
+      await tx.service.deleteMany({ where: { organizationId: params.id } })
+      await tx.caseOption.deleteMany({ where: { organizationId: params.id } })
+      await tx.employee.deleteMany({ where: { organizationId: params.id } })
+      await tx.referralCommission.deleteMany({ where: { organizationId: params.id } })
+      await tx.referralAttribution.deleteMany({ where: { organizationId: params.id } })
+      await tx.user.deleteMany({ where: { organizationId: params.id } })
+      await tx.organization.delete({ where: { id: params.id } })
+    })
+
+    return NextResponse.json({ success: true, id: organization.id, name: organization.name })
+  } catch (e: any) {
+    console.error('Organization delete error:', e)
+    return NextResponse.json({ error: e.message || 'Ошибка удаления организации' }, { status: 500 })
+  }
+}
