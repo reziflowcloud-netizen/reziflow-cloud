@@ -17,6 +17,7 @@ const PUBLIC_PATHS = [
   '/manifest.json',
   '/api/auth/login',
   '/api/auth/register',
+  '/api/contact',
   '/api/partner/referrals',
   '/api/meta/data-deletion',
 ]

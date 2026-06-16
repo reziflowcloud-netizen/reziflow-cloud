@@ -92,7 +92,14 @@ export async function sendContactNotification(input: ContactNotificationInput) {
       html: htmlBody(input),
       reply_to: replyToHeader(input.replyTo),
     }),
+  }).catch(error => {
+    console.error('Contact email request failed:', error)
+    return null
   })
+
+  if (!response) {
+    return { sent: false, skipped: false, reason: 'Email provider request failed' }
+  }
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
