@@ -22,6 +22,7 @@ export const DEFAULT_PRIORITIES = [
 ]
 
 export const organizationInclude = {
+  settings: true,
   users: {
     where: { role: 'admin' },
     select: { id: true, name: true, email: true, role: true },

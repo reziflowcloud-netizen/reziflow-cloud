@@ -4,6 +4,35 @@ import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { isSystemAdmin, organizationInclude } from '@/lib/organizationProvisioning'
 
+const BILLING_LIMIT_KEYS = ['users', 'clients', 'cases', 'leads'] as const
+type BillingLimitKey = typeof BILLING_LIMIT_KEYS[number]
+
+function plainObject(value: unknown): Record<string, any> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return { ...(value as Record<string, any>) }
+}
+
+function normalizeBillingLimits(value: unknown) {
+  const source = plainObject(value)
+  const limits: Partial<Record<BillingLimitKey, number | null>> = {}
+
+  for (const key of BILLING_LIMIT_KEYS) {
+    if (!(key in source)) continue
+    const raw = source[key]
+    if (raw === null || raw === 'unlimited') {
+      limits[key] = null
+      continue
+    }
+
+    const numeric = Number(raw)
+    if (Number.isFinite(numeric) && numeric > 0) {
+      limits[key] = Math.floor(numeric)
+    }
+  }
+
+  return limits
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -32,9 +61,28 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const adminPassword = typeof body.adminPassword === 'string' ? body.adminPassword : ''
 
     const updated = await prisma.$transaction(async tx => {
+      const organizationData = { ...data }
+
+      if (canManageAll && 'billingLimits' in body) {
+        const existingOrganization = await tx.organization.findUnique({
+          where: { id: params.id },
+          select: { settings: true },
+        })
+        const settings = plainObject(existingOrganization?.settings)
+        const billingLimits = normalizeBillingLimits(body.billingLimits)
+
+        if (Object.keys(billingLimits).length) {
+          settings.billingLimits = billingLimits
+        } else {
+          delete settings.billingLimits
+        }
+
+        organizationData.settings = settings
+      }
+
       await tx.organization.update({
         where: { id: params.id },
-        data,
+        data: organizationData,
       })
 
       if (canManageAll && (adminName || adminEmail || adminPassword)) {

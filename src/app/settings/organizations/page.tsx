@@ -1,7 +1,10 @@
 'use client'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
+
+type BillingLimitKey = 'users' | 'clients' | 'cases' | 'leads'
+type BillingLimitForm = Record<BillingLimitKey, string>
 
 type OrganizationItem = {
   id: string
@@ -10,6 +13,7 @@ type OrganizationItem = {
   status: string
   plan: string
   billingStatus?: string
+  settings?: Record<string, any> | null
   trialEndsAt: string | null
   createdAt: string
   users?: Array<{
@@ -24,6 +28,58 @@ type OrganizationItem = {
     cases: number
     tasks: number
   }
+}
+
+const BILLING_LIMIT_FIELDS: Array<{ key: BillingLimitKey; label: string }> = [
+  { key: 'users', label: 'Пользователи' },
+  { key: 'clients', label: 'Клиенты' },
+  { key: 'cases', label: 'Дела' },
+  { key: 'leads', label: 'Лиды' },
+]
+
+function emptyBillingLimitForm(): BillingLimitForm {
+  return { users: '', clients: '', cases: '', leads: '' }
+}
+
+function settingsObject(value: unknown): Record<string, any> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return value as Record<string, any>
+}
+
+function billingLimitsFromSettings(settings: unknown): BillingLimitForm {
+  const raw = settingsObject(settingsObject(settings).billingLimits)
+  const form = emptyBillingLimitForm()
+  for (const field of BILLING_LIMIT_FIELDS) {
+    if (!(field.key in raw)) continue
+    form[field.key] = raw[field.key] === null ? 'unlimited' : String(raw[field.key])
+  }
+  return form
+}
+
+function billingLimitPayload(limits: BillingLimitForm) {
+  const payload: Partial<Record<BillingLimitKey, number | null>> = {}
+  for (const field of BILLING_LIMIT_FIELDS) {
+    const value = limits[field.key]
+    if (value === 'unlimited') {
+      payload[field.key] = null
+      continue
+    }
+
+    const numeric = Number(value)
+    if (Number.isFinite(numeric) && numeric > 0) {
+      payload[field.key] = Math.floor(numeric)
+    }
+  }
+  return payload
+}
+
+function billingLimitSummary(settings: unknown) {
+  const raw = settingsObject(settingsObject(settings).billingLimits)
+  const parts = BILLING_LIMIT_FIELDS.flatMap(field => {
+    if (!(field.key in raw)) return []
+    return [`${field.label}: ${raw[field.key] === null ? 'без лимита' : raw[field.key]}`]
+  })
+  return parts.join(' · ')
 }
 
 function formatDate(value: string | null, locale: string) {
@@ -86,6 +142,7 @@ export default function OrganizationsPage() {
     adminName: '',
     adminEmail: '',
     adminPassword: '',
+    billingLimits: emptyBillingLimitForm(),
   })
 
   useEffect(() => {
@@ -151,17 +208,32 @@ export default function OrganizationsPage() {
       adminName: primaryAdmin?.name || '',
       adminEmail: primaryAdmin?.email || '',
       adminPassword: '',
+      billingLimits: billingLimitsFromSettings(org.settings),
     })
+  }
+
+  function setBillingLimit(key: BillingLimitKey, value: string) {
+    setEditForm(prev => ({
+      ...prev,
+      billingLimits: { ...prev.billingLimits, [key]: value },
+    }))
+  }
+
+  function setBillingUnlimited(key: BillingLimitKey, checked: boolean) {
+    setBillingLimit(key, checked ? 'unlimited' : '')
   }
 
   async function saveOrganization(id: string) {
     setError('')
     setSuccess('')
     setSaving(true)
+    const payload = canManageAll
+      ? { ...editForm, billingLimits: billingLimitPayload(editForm.billingLimits) }
+      : editForm
     const res = await fetch(`/api/organizations/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editForm),
+      body: JSON.stringify(payload),
     })
     const data = await res.json()
     setSaving(false)
@@ -325,8 +397,10 @@ export default function OrganizationsPage() {
                 )}
                 {organizations.map(org => {
                   const primaryAdmin = org.users?.[0]
+                  const limitSummary = billingLimitSummary(org.settings)
                   return (
-                  <tr key={org.id}>
+                  <Fragment key={org.id}>
+                  <tr>
                     <td>
                       {editingId === org.id && canManageAll ? (
                         <div style={{ display: 'grid', gap: 8, minWidth: 220 }}>
@@ -362,7 +436,16 @@ export default function OrganizationsPage() {
                           <option value="pro">Pro</option>
                           <option value="agency">Agency</option>
                         </select>
-                      ) : planLabel(org.plan)}
+                      ) : (
+                        <>
+                          <div>{planLabel(org.plan)}</div>
+                          {limitSummary && (
+                            <div style={{ marginTop: 4, color: 'var(--muted)', fontSize: 11, lineHeight: 1.35 }}>
+                              {limitSummary}
+                            </div>
+                          )}
+                        </>
+                      )}
                     </td>
                     <td>
                       {editingId === org.id && canManageAll ? (
@@ -409,6 +492,53 @@ export default function OrganizationsPage() {
                       ) : null}
                     </td>
                   </tr>
+                  {editingId === org.id && canManageAll && (
+                    <tr className="billing-limit-row">
+                      <td colSpan={11}>
+                        <div className="billing-limit-panel">
+                          <div className="billing-limit-head">
+                            <div>
+                              <strong>Индивидуальные лимиты</strong>
+                              <span>Пустое поле использует лимит тарифа. Число задает отдельный лимит для этой организации.</span>
+                            </div>
+                          </div>
+                          <div className="billing-limit-grid">
+                            {BILLING_LIMIT_FIELDS.map(field => {
+                              const value = editForm.billingLimits[field.key]
+                              const unlimited = value === 'unlimited'
+                              return (
+                                <div key={field.key} className="billing-limit-control">
+                                  <label className="label">{field.label}</label>
+                                  <input
+                                    className="input"
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value={unlimited ? '' : value}
+                                    disabled={unlimited}
+                                    onChange={event => setBillingLimit(field.key, event.target.value)}
+                                    placeholder="по тарифу"
+                                  />
+                                  <label className="billing-limit-check">
+                                    <input
+                                      type="checkbox"
+                                      checked={unlimited}
+                                      onChange={event => setBillingUnlimited(field.key, event.target.checked)}
+                                    />
+                                    <span>Без лимита</span>
+                                  </label>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          <div className="billing-limit-note">
+                            Эти настройки применяются только к выбранной организации и отображаются в разделе “Тариф и оплата”.
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                   )
                 })}
               </tbody>

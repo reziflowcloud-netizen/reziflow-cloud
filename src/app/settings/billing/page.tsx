@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { isSystemAdmin } from '@/lib/organizationProvisioning'
+import BillingContactButton from '@/components/BillingContactButton'
 import {
   BILLING_METRIC_LABELS,
   BillingMetricKey,
@@ -107,7 +108,11 @@ export default async function BillingSettingsPage() {
             )}
             <div className="billing-actions">
               <a href="/pricing" className="btn btn-primary">Посмотреть тарифы</a>
-              <a href="mailto:reziflowcloud@gmail.com?subject=LegalHub%20CRM%20upgrade" className="btn btn-secondary">Связаться</a>
+              <BillingContactButton
+                initialName={String(user.name || '')}
+                initialContact={String(user.email || '')}
+                initialCompany={snapshot.organization.name}
+              />
             </div>
           </div>
         </section>
