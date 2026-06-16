@@ -22,6 +22,22 @@ type PartnerData = {
       name: string
     } | null
   }>
+  payouts?: Array<{
+    id: string
+    amount: number
+    currency: string
+    status: string
+    paidAt: string
+    notes?: string | null
+    commissions?: Array<{
+      id: string
+      amount: number
+      notes?: string | null
+      organization?: {
+        name: string
+      } | null
+    }>
+  }>
   attributions: Array<{
     id: string
     createdAt: string
@@ -62,8 +78,25 @@ function commissionStatusLabel(status?: string) {
   return labels[status || ''] || status || '—'
 }
 
+function payoutStatusLabel(status?: string) {
+  const labels: Record<string, string> = {
+    paid: 'Выплачено',
+    pending: 'В обработке',
+    canceled: 'Отменено',
+  }
+  return labels[status || ''] || status || '—'
+}
+
 function formatDate(value?: string | null) {
   return value ? new Date(value).toLocaleDateString('ru-RU') : '—'
+}
+
+function payoutItems(payout: NonNullable<PartnerData['payouts']>[number]) {
+  const items = payout.commissions || []
+  if (!items.length) return 'Начисления не указаны'
+  return items
+    .map(item => `${item.organization?.name || 'Организация'}: ${money(item.amount || 0)}`)
+    .join(', ')
 }
 
 export default function PartnerPortalClient({ code, token }: { code?: string, token?: string }) {
@@ -104,6 +137,7 @@ export default function PartnerPortalClient({ code, token }: { code?: string, to
           <div className="error-msg">{error}</div>
         ) : partner ? (
           <>
+          <div className="section-title" style={{ marginBottom: 8 }}>Приглашенные организации</div>
           <div className="table-container" style={{ maxWidth: 900 }}>
             <div className="table-scroll">
               <table className="table">
@@ -131,7 +165,8 @@ export default function PartnerPortalClient({ code, token }: { code?: string, to
               </table>
             </div>
           </div>
-          <div className="table-container" style={{ maxWidth: 900, marginTop: 16 }}>
+          <div className="section-title" style={{ marginTop: 18, marginBottom: 8 }}>Начисления по организациям</div>
+          <div className="table-container" style={{ maxWidth: 900 }}>
             <div className="table-scroll">
               <table className="table">
                 <thead>
@@ -156,6 +191,34 @@ export default function PartnerPortalClient({ code, token }: { code?: string, to
                       <td>{commissionStatusLabel(item.status)}</td>
                       <td>{formatDate(item.earnedAt)}</td>
                       <td>{formatDate(item.paidAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="section-title" style={{ marginTop: 18, marginBottom: 8 }}>История выплат</div>
+          <div className="table-container" style={{ maxWidth: 900 }}>
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Дата выплаты</th>
+                    <th>Сумма</th>
+                    <th>Статус</th>
+                    <th>Что вошло</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!partner.payouts?.length && (
+                    <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)' }}>Выплат пока нет</td></tr>
+                  )}
+                  {partner.payouts?.map(item => (
+                    <tr key={item.id}>
+                      <td>{formatDate(item.paidAt)}</td>
+                      <td style={{ fontWeight: 800 }}>{money(item.amount || 0)}</td>
+                      <td>{payoutStatusLabel(item.status)}</td>
+                      <td>{payoutItems(item)}</td>
                     </tr>
                   ))}
                 </tbody>

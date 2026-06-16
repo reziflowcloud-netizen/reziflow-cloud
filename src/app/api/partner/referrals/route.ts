@@ -46,6 +46,21 @@ export async function GET(request: NextRequest) {
           },
         },
       },
+      payouts: {
+        orderBy: { paidAt: 'desc' },
+        include: {
+          commissions: {
+            orderBy: { earnedAt: 'asc' },
+            include: {
+              organization: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      },
     },
   })
 
@@ -63,6 +78,7 @@ export async function GET(request: NextRequest) {
       totals: summary(partner.commissions || []),
       attributions: partner.attributions,
       commissions: partner.commissions,
+      payouts: partner.payouts,
     },
   })
 }
