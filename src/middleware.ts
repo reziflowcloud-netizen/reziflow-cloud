@@ -31,7 +31,7 @@ export async function middleware(request: NextRequest) {
 
   if (isPublic) {
     // If logged in and on public entry pages, continue to the app.
-    if (token && (pathname === '/' || pathname === '/login' || pathname === '/register')) {
+    if (token && (pathname === '/login' || pathname === '/register')) {
       const payload = await verifyToken(token)
       if (payload) return NextResponse.redirect(new URL('/dashboard', request.url))
     }

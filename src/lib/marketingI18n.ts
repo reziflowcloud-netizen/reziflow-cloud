@@ -29,6 +29,7 @@ export type MarketingHeaderCopy = {
     security: string
   }
   login: string
+  openCrm: string
   startFree: string
 }
 
@@ -181,6 +182,7 @@ const ruMarketingCopy: MarketingCopy = {
       security: 'Безопасность',
     },
     login: 'Войти',
+    openCrm: 'Открыть CRM',
     startFree: 'Начать бесплатно',
   },
   hero: {

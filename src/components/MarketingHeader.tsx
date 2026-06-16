@@ -13,10 +13,12 @@ function buildRegisterHref(ref?: string, plan = 'free') {
 export default function MarketingHeader({
   referralCode,
   copy = getMarketingCopy(DEFAULT_MARKETING_LANG).header,
+  isAuthenticated = false,
   onFaqOpen,
 }: {
   referralCode?: string
   copy?: MarketingHeaderCopy
+  isAuthenticated?: boolean
   onFaqOpen?: () => void
 }) {
   const [hidden, setHidden] = useState(false)
@@ -94,7 +96,9 @@ export default function MarketingHeader({
           <span />
         </button>
         <MarketingLanguageSelect />
-        <Link href="/login" className="marketing-login">{copy.login}</Link>
+        <Link href={isAuthenticated ? '/dashboard' : '/login'} className="marketing-login">
+          {isAuthenticated ? copy.openCrm : copy.login}
+        </Link>
         <Link href={buildRegisterHref(referralCode)} className="marketing-primary">{copy.startFree}</Link>
       </div>
     </header>

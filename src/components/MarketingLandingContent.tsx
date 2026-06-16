@@ -75,9 +75,11 @@ function buildPlanHref(planId: string, ref?: string) {
 export default function MarketingLandingContent({
   referralCode,
   initialSectionId,
+  isAuthenticated = false,
 }: {
   referralCode?: string
   initialSectionId?: string
+  isAuthenticated?: boolean
 }) {
   const { lang } = useMarketingLanguage()
   const copy = getMarketingCopy(lang)
@@ -112,7 +114,12 @@ export default function MarketingLandingContent({
 
   return (
     <main className="marketing-page" id="top">
-      <MarketingHeader referralCode={referralCode} copy={copy.header} onFaqOpen={() => setFaqOpen(true)} />
+      <MarketingHeader
+        referralCode={referralCode}
+        copy={copy.header}
+        isAuthenticated={isAuthenticated}
+        onFaqOpen={() => setFaqOpen(true)}
+      />
 
       <section className="marketing-hero">
         <div className="marketing-hero-content">
