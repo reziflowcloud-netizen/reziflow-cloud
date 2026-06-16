@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { ensureDefaultOrganization } from '@/lib/organizationProvisioning'
 import { prisma } from '@/lib/prisma'
+import { sendContactNotification } from '@/lib/emailNotifications'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,5 +80,22 @@ export async function POST(request: NextRequest) {
     select: { id: true },
   })
 
-  return NextResponse.json({ ok: true, id: lead.id })
+  const email = await sendContactNotification({
+    subject: 'Заявка по тарифу LegalHub CRM',
+    title: 'Заявка из раздела "Тариф и оплата"',
+    replyTo: isEmail ? contact : String(user.email || ''),
+    lines: [
+      ['Имя', name],
+      ['Контакт', contact],
+      ['Компания из формы', company],
+      ['Текущая организация', sourceOrganization?.name || sourceOrganizationId],
+      ['Тариф', sourceOrganization?.plan || '-'],
+      ['Статус оплаты', sourceOrganization?.billingStatus || '-'],
+      ['Пользователь CRM', `${String(user.name || '-')} <${String(user.email || '-')}>`],
+      ['ID лида', lead.id],
+    ],
+    message,
+  })
+
+  return NextResponse.json({ ok: true, id: lead.id, emailSent: email.sent })
 }

@@ -1,28 +1,55 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { FormEvent, useState } from 'react'
 
 export default function ContactClient() {
   const [name, setName] = useState('')
   const [contact, setContact] = useState('')
   const [company, setCompany] = useState('')
   const [message, setMessage] = useState('')
+  const [website, setWebsite] = useState('')
+  const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const [error, setError] = useState('')
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    setError('')
+    setSent(false)
 
-    const subject = encodeURIComponent('Заявка с сайта LegalHub CRM')
-    const body = encodeURIComponent([
-      `Имя: ${name}`,
-      `Контакт: ${contact}`,
-      company ? `Компания: ${company}` : '',
-      message ? `Вопрос: ${message}` : '',
-    ].filter(Boolean).join('\n'))
+    if (!name.trim() || !contact.trim()) {
+      setError('Заполните имя и контакт для связи.')
+      return
+    }
 
-    window.location.href = `mailto:office@legalhubcrm.com?subject=${subject}&body=${body}`
+    setSending(true)
+    const response = await fetch('/api/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        contact,
+        company,
+        message,
+        website,
+        page: typeof window !== 'undefined' ? window.location.href : '/contact',
+      }),
+    }).catch(() => null)
+    setSending(false)
+
+    if (!response?.ok) {
+      const data = await response?.json().catch(() => null)
+      setError(data?.error || 'Не удалось отправить заявку. Напишите нам на office@legalhubcrm.com или позвоните по номеру выше.')
+      return
+    }
+
     setSent(true)
+    setName('')
+    setContact('')
+    setCompany('')
+    setMessage('')
+    setWebsite('')
   }
 
   return (
@@ -47,9 +74,25 @@ export default function ContactClient() {
         <form className="contact-form" onSubmit={handleSubmit}>
           {sent && (
             <div className="register-ref-note">
-              Заявка подготовлена в почтовом клиенте. Если письмо не открылось, напишите нам напрямую на email или позвоните.
+              Заявка отправлена. Мы сохранили ее в CRM и свяжемся с вами по указанному контакту.
             </div>
           )}
+
+          {error && (
+            <div className="register-ref-note" style={{ borderColor: '#fecaca', background: '#fef2f2', color: '#b91c1c' }}>
+              {error}
+            </div>
+          )}
+
+          <input
+            type="text"
+            value={website}
+            onChange={event => setWebsite(event.target.value)}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            style={{ display: 'none' }}
+          />
 
           <div className="form-group">
             <label className="label">Ваше имя *</label>
@@ -93,7 +136,9 @@ export default function ContactClient() {
             />
           </div>
 
-          <button className="btn btn-primary register-submit" type="submit">Отправить заявку</button>
+          <button className="btn btn-primary register-submit" type="submit" disabled={sending}>
+            {sending ? 'Отправляем...' : 'Отправить заявку'}
+          </button>
           <p className="contact-note">
             Обязательные поля только имя и контакт. Можно также просто позвонить по номеру выше.
           </p>
