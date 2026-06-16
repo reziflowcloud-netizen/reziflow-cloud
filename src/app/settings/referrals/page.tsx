@@ -96,6 +96,7 @@ export default function ReferralsPage() {
   const [savingEditId, setSavingEditId] = useState<string | null>(null)
   const [deletingPartnerId, setDeletingPartnerId] = useState<string | null>(null)
   const [editingPartnerId, setEditingPartnerId] = useState<string | null>(null)
+  const [expandedPartnerId, setExpandedPartnerId] = useState<string | null>(null)
   const [savingCommissionId, setSavingCommissionId] = useState<string | null>(null)
   const [payingPartnerId, setPayingPartnerId] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -143,6 +144,7 @@ export default function ReferralsPage() {
       return
     }
     setPartners(prev => [data, ...prev])
+    if (data.id) setExpandedPartnerId(data.id)
     setForm({
       name: '',
       code: '',
@@ -180,8 +182,15 @@ export default function ReferralsPage() {
   function startEditing(partner: Partner) {
     setError('')
     setSuccess('')
+    setExpandedPartnerId(partner.id)
     setEditingPartnerId(partner.id)
     setEditForms(prev => ({ ...prev, [partner.id]: buildEditForm(partner) }))
+  }
+
+  function togglePartner(partnerId: string) {
+    const isOpen = expandedPartnerId === partnerId
+    setExpandedPartnerId(isOpen ? null : partnerId)
+    if (isOpen && editingPartnerId === partnerId) setEditingPartnerId(null)
   }
 
   function setEditField(partner: Partner, key: keyof PartnerEditForm, value: string) {
@@ -226,6 +235,7 @@ export default function ReferralsPage() {
     }
     setSuccess(data.archived ? 'Партнер архивирован' : 'Партнер удален')
     if (editingPartnerId === partner.id) setEditingPartnerId(null)
+    if (expandedPartnerId === partner.id) setExpandedPartnerId(null)
     await loadPartners()
   }
 
@@ -374,199 +384,289 @@ export default function ReferralsPage() {
               <tbody>
                 {loading && <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)' }}>Загрузка...</td></tr>}
                 {!loading && partners.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)' }}>Партнеров пока нет</td></tr>}
-                {partners.map(partner => (
-                  <Fragment key={partner.id}>
-                  <tr>
-                    <td>
-                      <div style={{ fontWeight: 800 }}>{partner.name}</div>
-                      <div style={{ color: 'var(--muted)', fontSize: 12 }}>{partner.contactEmail || 'Email не указан'}</div>
-                      {partner.portalUrl && <a href={partner.portalUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--brand)', fontSize: 12, fontWeight: 700 }}>Кабинет партнера</a>}
-                    </td>
-                    <td>
-                      <a href={partner.signupUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--brand)', fontFamily: 'monospace', fontSize: 12, fontWeight: 700, wordBreak: 'break-all' }}>{partner.signupUrl}</a>
-                      <div style={{ color: 'var(--muted)', fontSize: 12 }}>Код: {partner.code}</div>
-                    </td>
-                    <td>
-                      {partner.commissionType === 'percentage' ? `${partner.commissionValue}%` : money(partner.commissionValue)}
-                      <div style={{ color: 'var(--muted)', fontSize: 12 }}>{partner.commissionMonths} мес.</div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 800 }}>{partner.attributions.length}</div>
-                      <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
-                        {partner.attributions.slice(0, 4).map(item => (
-                          <div key={item.id} style={{ fontSize: 12 }}>
-                            <strong>{item.organization.name}</strong>
-                            <span style={{ color: 'var(--muted)' }}> · {statusBadge(item.organization.billingStatus || item.organization.status)}</span>
-                          </div>
-                        ))}
-                      </div>
-                      {partner.attributions.length > 0 && (
-                        <div style={{ display: 'grid', gap: 6, marginTop: 10, minWidth: 220 }}>
-                          <select
-                            className="select"
-                            value={commissionForm(partner).organizationId}
-                            onChange={e => setCommissionField(partner, 'organizationId', e.target.value)}
-                          >
-                            {partner.attributions.map(item => (
-                              <option key={item.organization.id} value={item.organization.id}>{item.organization.name}</option>
-                            ))}
-                          </select>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6 }}>
-                            <input
-                              className="input"
-                              value={commissionForm(partner).amount}
-                              onChange={e => setCommissionField(partner, 'amount', e.target.value)}
-                              placeholder="Сумма, PLN"
-                            />
-                            <button
-                              className="btn btn-secondary"
-                              onClick={() => createCommission(partner)}
-                              disabled={savingCommissionId === partner.id}
+                {partners.map(partner => {
+                  const isExpanded = expandedPartnerId === partner.id
+                  const currentCommissionForm = commissionForm(partner)
+
+                  return (
+                    <Fragment key={partner.id}>
+                      <tr
+                        onClick={() => togglePartner(partner.id)}
+                        style={{ cursor: 'pointer', background: isExpanded ? '#f8fafc' : undefined }}
+                      >
+                        <td>
+                          <div style={{ fontWeight: 800 }}>{partner.name}</div>
+                          <div style={{ color: 'var(--muted)', fontSize: 12 }}>{partner.contactEmail || 'Email не указан'}</div>
+                          {partner.portalUrl && (
+                            <a
+                              href={partner.portalUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              style={{ color: 'var(--brand)', fontSize: 12, fontWeight: 700 }}
                             >
-                              {savingCommissionId === partner.id ? '...' : 'Начислить'}
+                              Кабинет партнера
+                            </a>
+                          )}
+                        </td>
+                        <td>
+                          <a
+                            href={partner.signupUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            style={{ color: 'var(--brand)', display: 'block', fontFamily: 'monospace', fontSize: 12, fontWeight: 700, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          >
+                            {partner.signupUrl}
+                          </a>
+                          <div style={{ color: 'var(--muted)', fontSize: 12 }}>Код: {partner.code}</div>
+                        </td>
+                        <td>
+                          {partner.commissionType === 'percentage' ? `${partner.commissionValue}%` : money(partner.commissionValue)}
+                          <div style={{ color: 'var(--muted)', fontSize: 12 }}>{partner.commissionMonths} мес.</div>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 800 }}>{partner.attributions.length}</div>
+                          <div style={{ color: 'var(--muted)', fontSize: 12 }}>организаций</div>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 800 }}>{money(partner.totals.open)}</div>
+                          <div style={{ color: 'var(--muted)', fontSize: 12 }}>{partner.commissions?.filter(item => item.status === 'pending').length || 0} открытых</div>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 800 }}>{money(partner.totals.paid)}</div>
+                          <div style={{ color: 'var(--muted)', fontSize: 12 }}>{partner.commissions?.length || 0} начислений</div>
+                        </td>
+                        <td>
+                          <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, minWidth: 260 }}>
+                            <button type="button" className="btn btn-secondary" onClick={() => togglePartner(partner.id)}>
+                              {isExpanded ? 'Скрыть' : 'Подробнее'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => editingPartnerId === partner.id ? setEditingPartnerId(null) : startEditing(partner)}
+                            >
+                              {editingPartnerId === partner.id ? 'Закрыть' : 'Редактировать'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ color: '#b91c1c' }}
+                              onClick={() => deletePartner(partner)}
+                              disabled={deletingPartnerId === partner.id}
+                            >
+                              {deletingPartnerId === partner.id ? 'Удаление...' : 'Удалить'}
                             </button>
                           </div>
-                          <textarea
-                            className="input"
-                            value={commissionForm(partner).notes}
-                            onChange={e => setCommissionField(partner, 'notes', e.target.value)}
-                            rows={3}
-                            style={{ minHeight: 78, resize: 'vertical' }}
-                            placeholder="Заметка к начислению"
-                          />
-                        </div>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={7} style={{ background: '#fbfdff', padding: 0 }}>
+                            <div style={{ display: 'grid', gap: 16, padding: 16 }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, alignItems: 'start' }}>
+                                <div>
+                                  <div className="section-title" style={{ marginBottom: 8 }}>Приглашенные организации</div>
+                                  {partner.attributions.length === 0 ? (
+                                    <div style={{ color: 'var(--muted)', fontSize: 13 }}>Пока нет приглашенных организаций</div>
+                                  ) : (
+                                    <div className="table-scroll">
+                                      <table className="table">
+                                        <thead>
+                                          <tr>
+                                            <th>Организация</th>
+                                            <th>Статус</th>
+                                            <th>Тариф</th>
+                                            <th>Дата</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {partner.attributions.map(item => (
+                                            <tr key={item.id}>
+                                              <td style={{ fontWeight: 800 }}>{item.organization.name}</td>
+                                              <td>{statusBadge(item.organization.billingStatus || item.organization.status)}</td>
+                                              <td>{item.organization.plan || '—'}</td>
+                                              <td>{formatDate(item.organization.createdAt)}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div style={{ display: 'grid', gap: 12 }}>
+                                  <div>
+                                    <div className="section-title" style={{ marginBottom: 8 }}>Начислить комиссию</div>
+                                    {partner.attributions.length > 0 ? (
+                                      <div style={{ display: 'grid', gap: 8 }}>
+                                        <select
+                                          className="select"
+                                          value={currentCommissionForm.organizationId}
+                                          onChange={e => setCommissionField(partner, 'organizationId', e.target.value)}
+                                        >
+                                          {partner.attributions.map(item => (
+                                            <option key={item.organization.id} value={item.organization.id}>{item.organization.name}</option>
+                                          ))}
+                                        </select>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 1fr) auto', gap: 8 }}>
+                                          <input
+                                            className="input"
+                                            value={currentCommissionForm.amount}
+                                            onChange={e => setCommissionField(partner, 'amount', e.target.value)}
+                                            placeholder="Сумма, PLN"
+                                          />
+                                          <button
+                                            type="button"
+                                            className="btn btn-secondary"
+                                            onClick={() => createCommission(partner)}
+                                            disabled={savingCommissionId === partner.id}
+                                          >
+                                            {savingCommissionId === partner.id ? '...' : 'Начислить'}
+                                          </button>
+                                        </div>
+                                        <textarea
+                                          className="input"
+                                          value={currentCommissionForm.notes}
+                                          onChange={e => setCommissionField(partner, 'notes', e.target.value)}
+                                          rows={4}
+                                          style={{ minHeight: 96, resize: 'vertical' }}
+                                          placeholder="Заметка к начислению"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div style={{ color: 'var(--muted)', fontSize: 13 }}>Сначала нужна приглашенная организация</div>
+                                    )}
+                                  </div>
+
+                                  <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, display: 'grid', gap: 10, padding: 12 }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+                                      <div>
+                                        <div className="label">К выплате</div>
+                                        <div style={{ fontWeight: 800 }}>{money(partner.totals.open)}</div>
+                                      </div>
+                                      <div>
+                                        <div className="label">Выплачено</div>
+                                        <div style={{ fontWeight: 800 }}>{money(partner.totals.paid)}</div>
+                                      </div>
+                                      <div>
+                                        <div className="label">Всего</div>
+                                        <div style={{ fontWeight: 800 }}>{money(partner.totals.total)}</div>
+                                      </div>
+                                    </div>
+                                    {partner.totals.open > 0 && (
+                                      <button
+                                        type="button"
+                                        className="btn btn-secondary"
+                                        onClick={() => payOpenCommissions(partner)}
+                                        disabled={payingPartnerId === partner.id}
+                                      >
+                                        {payingPartnerId === partner.id ? 'Выплата...' : 'Выплатить открытые'}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div>
+                                <div className="section-title" style={{ marginBottom: 8 }}>Начисления по организациям</div>
+                                {!!partner.commissions?.length ? (
+                                  <div className="table-scroll">
+                                    <table className="table">
+                                      <thead>
+                                        <tr>
+                                          <th>Организация</th>
+                                          <th>Начисление</th>
+                                          <th>Сумма</th>
+                                          <th>Статус</th>
+                                          <th>Начислено</th>
+                                          <th>Выплачено</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {partner.commissions.map(item => (
+                                          <tr key={item.id}>
+                                            <td style={{ fontWeight: 800 }}>{item.organization?.name || 'Организация'}</td>
+                                            <td>{item.notes || 'Партнерская комиссия'}</td>
+                                            <td style={{ fontWeight: 800 }}>{money(item.amount || 0)}</td>
+                                            <td>{commissionStatusLabel(item.status)}</td>
+                                            <td>{formatDate(item.earnedAt)}</td>
+                                            <td>{formatDate(item.paidAt)}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <div style={{ color: 'var(--muted)', fontSize: 13 }}>Начислений пока нет</div>
+                                )}
+                              </div>
+
+                              {editingPartnerId === partner.id && (
+                                <div style={{ borderTop: '1px solid var(--border)', display: 'grid', gap: 12, paddingTop: 14 }}>
+                                  <div className="section-title">Редактирование партнера</div>
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+                                    <div className="form-group">
+                                      <label className="label">Имя партнера *</label>
+                                      <input className="input" value={editForm(partner).name} onChange={e => setEditField(partner, 'name', e.target.value)} />
+                                    </div>
+                                    <div className="form-group">
+                                      <label className="label">Код ссылки</label>
+                                      <input className="input" value={editForm(partner).code} onChange={e => setEditField(partner, 'code', e.target.value)} />
+                                    </div>
+                                    <div className="form-group">
+                                      <label className="label">Email партнера</label>
+                                      <input className="input" type="email" value={editForm(partner).contactEmail} onChange={e => setEditField(partner, 'contactEmail', e.target.value)} />
+                                    </div>
+                                    <div className="form-group">
+                                      <label className="label">Статус</label>
+                                      <select className="select" value={editForm(partner).status} onChange={e => setEditField(partner, 'status', e.target.value)}>
+                                        <option value="active">Активен</option>
+                                        <option value="paused">Отключен</option>
+                                      </select>
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+                                    <div className="form-group">
+                                      <label className="label">Тип комиссии</label>
+                                      <select className="select" value={editForm(partner).commissionType} onChange={e => setEditField(partner, 'commissionType', e.target.value)}>
+                                        <option value="percentage">Процент</option>
+                                        <option value="fixed">Фиксированно</option>
+                                      </select>
+                                    </div>
+                                    <div className="form-group">
+                                      <label className="label">Комиссия</label>
+                                      <input className="input" value={editForm(partner).commissionValue} onChange={e => setEditField(partner, 'commissionValue', e.target.value)} />
+                                    </div>
+                                    <div className="form-group">
+                                      <label className="label">Месяцев</label>
+                                      <input className="input" value={editForm(partner).commissionMonths} onChange={e => setEditField(partner, 'commissionMonths', e.target.value)} />
+                                    </div>
+                                    <div className="form-group">
+                                      <label className="label">Заметка</label>
+                                      <textarea className="input" value={editForm(partner).notes} onChange={e => setEditField(partner, 'notes', e.target.value)} rows={4} style={{ minHeight: 110, resize: 'vertical' }} />
+                                    </div>
+                                  </div>
+                                  <div className="form-group">
+                                    <label className="label">Реквизиты для выплат</label>
+                                    <textarea className="input" value={editForm(partner).payoutDetails} onChange={e => setEditField(partner, 'payoutDetails', e.target.value)} rows={4} style={{ minHeight: 110, resize: 'vertical' }} />
+                                  </div>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
+                                    <button type="button" className="btn btn-secondary" onClick={() => setEditingPartnerId(null)}>Отмена</button>
+                                    <button type="button" className="btn btn-primary" onClick={() => savePartner(partner)} disabled={savingEditId === partner.id}>
+                                      {savingEditId === partner.id ? 'Сохранение...' : 'Сохранить'}
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 800 }}>{money(partner.totals.open)}</div>
-                      {partner.totals.open > 0 && (
-                        <button
-                          className="btn btn-secondary"
-                          style={{ marginTop: 8 }}
-                          onClick={() => payOpenCommissions(partner)}
-                          disabled={payingPartnerId === partner.id}
-                        >
-                          {payingPartnerId === partner.id ? 'Выплата...' : 'Выплатить открытые'}
-                        </button>
-                      )}
-                    </td>
-                    <td>{money(partner.totals.paid)}</td>
-                    <td>
-                      <div style={{ display: 'grid', gap: 8, minWidth: 140 }}>
-                        <button
-                          className="btn btn-secondary"
-                          onClick={() => editingPartnerId === partner.id ? setEditingPartnerId(null) : startEditing(partner)}
-                        >
-                          {editingPartnerId === partner.id ? 'Закрыть' : 'Редактировать'}
-                        </button>
-                        <button
-                          className="btn btn-secondary"
-                          style={{ color: '#b91c1c' }}
-                          onClick={() => deletePartner(partner)}
-                          disabled={deletingPartnerId === partner.id}
-                        >
-                          {deletingPartnerId === partner.id ? 'Удаление...' : 'Удалить'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  {!!partner.commissions?.length && (
-                    <tr>
-                      <td colSpan={7} style={{ background: '#fbfdff', padding: 0 }}>
-                        <div style={{ padding: '10px 14px 14px' }}>
-                          <div className="section-title" style={{ marginBottom: 8 }}>Начисления по организациям</div>
-                          <div className="table-scroll">
-                            <table className="table">
-                              <thead>
-                                <tr>
-                                  <th>Организация</th>
-                                  <th>Начисление</th>
-                                  <th>Сумма</th>
-                                  <th>Статус</th>
-                                  <th>Начислено</th>
-                                  <th>Выплачено</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {partner.commissions.map(item => (
-                                  <tr key={item.id}>
-                                    <td style={{ fontWeight: 800 }}>{item.organization?.name || 'Организация'}</td>
-                                    <td>{item.notes || 'Партнерская комиссия'}</td>
-                                    <td style={{ fontWeight: 800 }}>{money(item.amount || 0)}</td>
-                                    <td>{commissionStatusLabel(item.status)}</td>
-                                    <td>{formatDate(item.earnedAt)}</td>
-                                    <td>{formatDate(item.paidAt)}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                  {editingPartnerId === partner.id && (
-                    <tr>
-                      <td colSpan={7} style={{ background: '#f8fafc' }}>
-                        <div style={{ display: 'grid', gap: 12, padding: 6 }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 180px 220px 160px', gap: 12 }}>
-                            <div className="form-group">
-                              <label className="label">Имя партнера *</label>
-                              <input className="input" value={editForm(partner).name} onChange={e => setEditField(partner, 'name', e.target.value)} />
-                            </div>
-                            <div className="form-group">
-                              <label className="label">Код ссылки</label>
-                              <input className="input" value={editForm(partner).code} onChange={e => setEditField(partner, 'code', e.target.value)} />
-                            </div>
-                            <div className="form-group">
-                              <label className="label">Email партнера</label>
-                              <input className="input" type="email" value={editForm(partner).contactEmail} onChange={e => setEditField(partner, 'contactEmail', e.target.value)} />
-                            </div>
-                            <div className="form-group">
-                              <label className="label">Статус</label>
-                              <select className="select" value={editForm(partner).status} onChange={e => setEditField(partner, 'status', e.target.value)}>
-                                <option value="active">Активен</option>
-                                <option value="paused">Отключен</option>
-                              </select>
-                            </div>
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '180px 180px 180px 1fr', gap: 12 }}>
-                            <div className="form-group">
-                              <label className="label">Тип комиссии</label>
-                              <select className="select" value={editForm(partner).commissionType} onChange={e => setEditField(partner, 'commissionType', e.target.value)}>
-                                <option value="percentage">Процент</option>
-                                <option value="fixed">Фиксированно</option>
-                              </select>
-                            </div>
-                            <div className="form-group">
-                              <label className="label">Комиссия</label>
-                              <input className="input" value={editForm(partner).commissionValue} onChange={e => setEditField(partner, 'commissionValue', e.target.value)} />
-                            </div>
-                            <div className="form-group">
-                              <label className="label">Месяцев</label>
-                              <input className="input" value={editForm(partner).commissionMonths} onChange={e => setEditField(partner, 'commissionMonths', e.target.value)} />
-                            </div>
-                            <div className="form-group">
-                              <label className="label">Заметка</label>
-                              <textarea className="input" value={editForm(partner).notes} onChange={e => setEditField(partner, 'notes', e.target.value)} rows={4} style={{ minHeight: 110, resize: 'vertical' }} />
-                            </div>
-                          </div>
-                          <div className="form-group">
-                            <label className="label">Реквизиты для выплат</label>
-                            <textarea className="input" value={editForm(partner).payoutDetails} onChange={e => setEditField(partner, 'payoutDetails', e.target.value)} rows={4} style={{ minHeight: 110, resize: 'vertical' }} />
-                          </div>
-                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                            <button className="btn btn-secondary" onClick={() => setEditingPartnerId(null)}>Отмена</button>
-                            <button className="btn btn-primary" onClick={() => savePartner(partner)} disabled={savingEditId === partner.id}>
-                              {savingEditId === partner.id ? 'Сохранение...' : 'Сохранить'}
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                  </Fragment>
-                ))}
+                    </Fragment>
+                  )
+                })}
               </tbody>
             </table>
           </div>
