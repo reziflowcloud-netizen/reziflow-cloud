@@ -61,7 +61,21 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      commissions: { orderBy: { earnedAt: 'desc' } },
+      commissions: {
+        orderBy: { earnedAt: 'desc' },
+        include: {
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              status: true,
+              plan: true,
+              billingStatus: true,
+            },
+          },
+        },
+      },
       payouts: { orderBy: { paidAt: 'desc' } },
     },
   })
@@ -111,7 +125,20 @@ export async function POST(request: NextRequest) {
       },
       include: {
         attributions: { include: { organization: true } },
-        commissions: true,
+        commissions: {
+          include: {
+            organization: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                status: true,
+                plan: true,
+                billingStatus: true,
+              },
+            },
+          },
+        },
         payouts: true,
       },
     })

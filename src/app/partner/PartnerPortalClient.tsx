@@ -18,6 +18,9 @@ type PartnerData = {
     earnedAt: string
     paidAt?: string | null
     notes?: string | null
+    organization?: {
+      name: string
+    } | null
   }>
   attributions: Array<{
     id: string
@@ -57,6 +60,10 @@ function commissionStatusLabel(status?: string) {
     canceled: 'Отменено',
   }
   return labels[status || ''] || status || '—'
+}
+
+function formatDate(value?: string | null) {
+  return value ? new Date(value).toLocaleDateString('ru-RU') : '—'
 }
 
 export default function PartnerPortalClient({ code, token }: { code?: string, token?: string }) {
@@ -129,22 +136,26 @@ export default function PartnerPortalClient({ code, token }: { code?: string, to
               <table className="table">
                 <thead>
                   <tr>
+                    <th>Организация</th>
                     <th>Начисление</th>
                     <th>Сумма</th>
                     <th>Статус</th>
-                    <th>Дата</th>
+                    <th>Начислено</th>
+                    <th>Выплачено</th>
                   </tr>
                 </thead>
                 <tbody>
                   {!partner.commissions?.length && (
-                    <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)' }}>Начислений пока нет</td></tr>
+                    <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)' }}>Начислений пока нет</td></tr>
                   )}
                   {partner.commissions?.map(item => (
                     <tr key={item.id}>
+                      <td style={{ fontWeight: 800 }}>{item.organization?.name || 'Организация'}</td>
                       <td>{item.notes || 'Партнерская комиссия'}</td>
                       <td style={{ fontWeight: 800 }}>{money(item.amount || 0)}</td>
                       <td>{commissionStatusLabel(item.status)}</td>
-                      <td>{new Date(item.earnedAt).toLocaleDateString('ru-RU')}</td>
+                      <td>{formatDate(item.earnedAt)}</td>
+                      <td>{formatDate(item.paidAt)}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -76,6 +76,19 @@ function statusBadge(status?: string) {
   return label[status || ''] || status || '—'
 }
 
+function commissionStatusLabel(status?: string) {
+  const labels: Record<string, string> = {
+    pending: 'К выплате',
+    paid: 'Выплачено',
+    canceled: 'Отменено',
+  }
+  return labels[status || ''] || status || '—'
+}
+
+function formatDate(value?: string | null) {
+  return value ? new Date(value).toLocaleDateString('ru-RU') : '—'
+}
+
 export default function ReferralsPage() {
   const [partners, setPartners] = useState<Partner[]>([])
   const [loading, setLoading] = useState(true)
@@ -457,6 +470,41 @@ export default function ReferralsPage() {
                       </div>
                     </td>
                   </tr>
+                  {!!partner.commissions?.length && (
+                    <tr>
+                      <td colSpan={7} style={{ background: '#fbfdff', padding: 0 }}>
+                        <div style={{ padding: '10px 14px 14px' }}>
+                          <div className="section-title" style={{ marginBottom: 8 }}>Начисления по организациям</div>
+                          <div className="table-scroll">
+                            <table className="table">
+                              <thead>
+                                <tr>
+                                  <th>Организация</th>
+                                  <th>Начисление</th>
+                                  <th>Сумма</th>
+                                  <th>Статус</th>
+                                  <th>Начислено</th>
+                                  <th>Выплачено</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {partner.commissions.map(item => (
+                                  <tr key={item.id}>
+                                    <td style={{ fontWeight: 800 }}>{item.organization?.name || 'Организация'}</td>
+                                    <td>{item.notes || 'Партнерская комиссия'}</td>
+                                    <td style={{ fontWeight: 800 }}>{money(item.amount || 0)}</td>
+                                    <td>{commissionStatusLabel(item.status)}</td>
+                                    <td>{formatDate(item.earnedAt)}</td>
+                                    <td>{formatDate(item.paidAt)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                   {editingPartnerId === partner.id && (
                     <tr>
                       <td colSpan={7} style={{ background: '#f8fafc' }}>

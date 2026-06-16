@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import PasswordEyeIcon from '@/components/PasswordEyeIcon'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -97,7 +98,7 @@ export default function LoginPage() {
                   aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
                   title={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
                 >
-                  <span className="password-toggle-eye" aria-hidden="true" />
+                  <PasswordEyeIcon visible={showPassword} />
                 </button>
               </div>
             </div>

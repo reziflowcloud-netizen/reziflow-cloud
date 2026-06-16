@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
+import PasswordEyeIcon from '@/components/PasswordEyeIcon'
 
 const PLAN_LABELS: Record<string, string> = {
   free: 'Бесплатный',
@@ -134,7 +135,7 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
                 aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
                 title={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
               >
-                <span className="password-toggle-eye" aria-hidden="true" />
+                <PasswordEyeIcon visible={showPassword} />
               </button>
             </div>
           </div>

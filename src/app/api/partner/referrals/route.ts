@@ -36,7 +36,16 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      commissions: { orderBy: { earnedAt: 'desc' } },
+      commissions: {
+        orderBy: { earnedAt: 'desc' },
+        include: {
+          organization: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
     },
   })
 
