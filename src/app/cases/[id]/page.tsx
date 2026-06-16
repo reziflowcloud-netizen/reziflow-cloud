@@ -127,6 +127,18 @@ export default function CaseDetailPage() {
     return opts
   }
 
+  function mosDocumentType(serviceId?: string | number | null) {
+    return serviceId ? `mosDocument:${serviceId}` : 'mosDocument'
+  }
+
+  function mosDocumentsForService(serviceId?: string | number | null) {
+    const serviceDocs = serviceId
+      ? caseOptions.filter((o: any) => o.type === mosDocumentType(serviceId)).sort((a: any, b: any) => a.order - b.order)
+      : []
+    if (serviceDocs.length > 0) return serviceDocs
+    return optionsByType('mosDocument')
+  }
+
   function renderOptions(type: string, fallback: string[]) {
     const loaded = optionsByType(type)
     if (loaded.length > 0) return loaded.map((o: any) => <option key={o.id} value={o.value}>{o.value}</option>)
@@ -878,7 +890,7 @@ export default function CaseDetailPage() {
   const cleanMosDocTitle = (title: string) => String(title || '').replace(/^MOS:\s*/, '').trim()
   const submittedMosDocuments = mosDocuments.filter((doc: any) => doc.status === 'done' || doc.sentAt)
   const submittedMosDocNames = new Set(submittedMosDocuments.map((doc: any) => cleanMosDocTitle(doc.title)))
-  const mosDocumentOptions = optionsByType('mosDocument')
+  const mosDocumentOptions = mosDocumentsForService(form.serviceId)
   const availableMosDocuments = mosDocumentOptions.filter((opt: any) => !submittedMosDocNames.has(opt.value))
 
   return (
@@ -1155,7 +1167,7 @@ export default function CaseDetailPage() {
                       <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', padding: 12, minHeight: 220 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
                           <div style={{ fontWeight: 700, fontSize: 13 }}>{t('documents_to_deliver')}</div>
-                          <a href={`/settings/case-options?returnTo=/cases/${id}`} style={{ fontSize: 12, color: 'var(--brand)' }}>{t('configure')}</a>
+                          <a href={`/settings/case-options?returnTo=/cases/${id}&mosServiceId=${form.serviceId || ''}`} style={{ fontSize: 12, color: 'var(--brand)' }}>{t('configure')}</a>
                         </div>
                         {mosDocumentOptions.length === 0 ? (
                           <div style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: '30px 10px' }}>

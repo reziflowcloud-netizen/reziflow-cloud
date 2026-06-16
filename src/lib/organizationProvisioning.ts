@@ -125,6 +125,7 @@ export async function loadSetupTemplate(sourceOrganizationId?: string | null) {
     statuses: statuses.length ? statuses.map(({ name, color, order }) => ({ name, color, order })) : DEFAULT_STATUSES,
     priorities: priorities.length ? priorities.map(({ name, color, order }) => ({ name, color, order })) : DEFAULT_PRIORITIES,
     services: services.map((item: any) => ({
+      sourceId: item.id,
       name: item.name,
       description: item.description,
       price: item.price,
@@ -238,12 +239,31 @@ export async function provisionOrganization(input: {
     })
     if (template.services.length) {
       await (tx as any).service.createMany({
-        data: template.services.map((item: any) => ({ ...item, organizationId: org.id })),
+        data: template.services.map(({ sourceId, ...item }: any) => ({ ...item, organizationId: org.id })),
       })
+    }
+    const createdServices = template.services.length
+      ? await (tx as any).service.findMany({ where: { organizationId: org.id } })
+      : []
+    const sourceServiceByName = new Map(template.services.map((item: any) => [item.name, item.sourceId]))
+    const targetServiceIdBySource = new Map<string, number>()
+    for (const service of createdServices as any[]) {
+      const sourceId = sourceServiceByName.get(service.name)
+      if (sourceId) targetServiceIdBySource.set(String(sourceId), service.id)
+    }
+    const remapCaseOptionType = (type: string) => {
+      const match = String(type || '').match(/^mosDocument:(\d+)$/)
+      if (!match) return type
+      const targetServiceId = targetServiceIdBySource.get(match[1])
+      return targetServiceId ? `mosDocument:${targetServiceId}` : 'mosDocument'
     }
     if (template.caseOptions.length) {
       await (tx as any).caseOption.createMany({
-        data: template.caseOptions.map((item: any) => ({ ...item, organizationId: org.id })),
+        data: template.caseOptions.map((item: any) => ({
+          ...item,
+          type: remapCaseOptionType(item.type),
+          organizationId: org.id,
+        })),
       })
     }
 

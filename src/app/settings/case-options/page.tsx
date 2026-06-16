@@ -6,6 +6,43 @@ import { useSearchParams } from 'next/navigation'
 
 type OptionType = 'stayPurpose' | 'stayType' | 'contractType' | 'mosDocument'
 
+const MOS_DOCUMENT_SUGGESTIONS = [
+  'Действующий заграничный паспорт',
+  'Профиль зауфаны / Profil Zaufany',
+  'Цифровая фотография в формате JPG, 684×893 px',
+  'Квитанция об оплате гербового сбора: 440, 340 или 640 PLN',
+  'Квитанция об оплате за изготовление пластиковой карты: 100 PLN',
+  'Договор аренды жилья / Umowa najmu',
+  'Свидетельство о праве собственности на недвижимость',
+  'Справка о прописке / Meldunek',
+  'Трудовой договор / Umowa o pracę, Umowa zlecenie или Umowa o dzieło',
+  'Приложение №1 / Załącznik nr 1 — от работодателя',
+  'Приложение №5 / Załącznik nr 5 — от учебного заведения',
+  'Справка из ZUS о страховании и отсутствии задолженности / ZUS RCA, ZUS ZUA',
+  'Полис частного медицинского страхования',
+  'Договор страхования с NFZ / Narodowy Fundusz Zdrowia',
+  'Выписка из польского банковского счёта о наличии денежных средств',
+  'Справка о доходах / подтверждение регулярного стабильного дохода',
+  'Налоговая декларация за прошлый год / PIT-37, PIT-36 или PIT-11',
+  'Справка об отсутствии налоговой задолженности / Zaświadczenie o niezaleganiu w podatkach',
+  'Свидетельство о браке с присяжным переводом',
+  'Свидетельство о рождении ребёнка с присяжным переводом',
+  'Копия карты побыта или паспорта супруга / родителя',
+  'Свидетельство о зачислении в вуз или полицеальную школу',
+  'Справка о продолжении обучения и табель успеваемости',
+  'Квитанция об оплате семестра или года обучения в вузе',
+  'Выписка из судебного реестра компаний / KRS',
+  'Выписка из реестра индивидуальных предпринимателей / CEIDG',
+  'Устав компании / Umowa spółki',
+  'Финансовый баланс компании и отчёт о прибылях и убытках / декларация CIT-8',
+  'Справка о несудимости из страны происхождения с присяжным переводом',
+  'Справка о несудимости в Польше / KRK',
+  'Карта Поляка',
+  'Решение о предоставлении международной защиты или статуса беженца',
+  'Документы, подтверждающие польское происхождение, например архивные справки',
+  'Присяжный перевод / Tłumaczenie przysięgłe любого документа, составленного не на польском языке',
+]
+
 const TYPE_LABELS: Record<OptionType, string> = {
   stayPurpose: 'Цель пребывания',
   stayType: 'Тип занятости',
@@ -40,26 +77,30 @@ const DEFAULTS: Record<OptionType, string[]> = {
     'Умова о дзело (Договор)',
   ],
   mosDocument: [
-    'Заявление',
-    'Копия паспорта',
-    'Фото',
-    'Подтверждение оплаты',
-    'Договор',
-    'Подтверждение адреса',
+    ...MOS_DOCUMENT_SUGGESTIONS,
   ],
 }
 
 interface CaseOption {
   id: number
-  type: OptionType
+  type: string
   value: string
   order: number
+}
+
+interface Service {
+  id: number
+  name: string
+  active?: boolean
 }
 
 export default function CaseOptionsPage() {
   const searchParams = useSearchParams()
   const returnTo = searchParams.get('returnTo') || '/settings'
+  const initialMosServiceId = searchParams.get('mosServiceId') || ''
   const [options, setOptions] = useState<CaseOption[]>([])
+  const [services, setServices] = useState<Service[]>([])
+  const [selectedMosServiceId, setSelectedMosServiceId] = useState(initialMosServiceId)
   const [newValues, setNewValues] = useState<Record<OptionType, string>>({
     stayPurpose: '', stayType: '', contractType: '', mosDocument: '',
   })
@@ -78,10 +119,23 @@ export default function CaseOptionsPage() {
       })
       .then(d => setOptions(Array.isArray(d) ? d : []))
       .catch(e => setFetchError(`Ошибка загрузки: ${e.message}. Возможно таблица ещё не создана — подождите деплой.`))
+    fetch('/api/services')
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setServices(Array.isArray(d) ? d.filter((s: Service) => s.active !== false) : []))
+      .catch(() => setServices([]))
   }, [])
 
+  function mosDocumentType(serviceId = selectedMosServiceId) {
+    return serviceId ? `mosDocument:${serviceId}` : 'mosDocument'
+  }
+
+  function optionTypeFor(type: OptionType) {
+    return type === 'mosDocument' ? mosDocumentType() : type
+  }
+
   function optionsByType(type: OptionType) {
-    return options.filter(o => o.type === type).sort((a, b) => a.order - b.order)
+    const storedType = optionTypeFor(type)
+    return options.filter(o => o.type === storedType).sort((a, b) => a.order - b.order)
   }
 
   async function add(type: OptionType) {
@@ -94,7 +148,7 @@ export default function CaseOptionsPage() {
       const res = await fetch('/api/case-options', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, value, order: existing.length }),
+        body: JSON.stringify({ type: optionTypeFor(type), value, order: existing.length }),
       })
       if (!res.ok) {
         const err = await res.json()
@@ -122,7 +176,7 @@ export default function CaseOptionsPage() {
         const res = await fetch('/api/case-options', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type, value, order: existing.length + i }),
+          body: JSON.stringify({ type: optionTypeFor(type), value, order: existing.length + i }),
         })
         if (!res.ok) {
           const err = await res.json()
@@ -204,9 +258,14 @@ export default function CaseOptionsPage() {
           </div>
         )}
 
+        <datalist id="mos-document-suggestions">
+          {MOS_DOCUMENT_SUGGESTIONS.map(item => <option key={item} value={item} />)}
+        </datalist>
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
           {(Object.keys(TYPE_LABELS) as OptionType[]).map(type => {
             const items = optionsByType(type)
+            const hasMissingDefaults = DEFAULTS[type].some(value => !items.some(item => item.value === value))
             return (
               <div key={type} className="card">
                 {/* Заголовок */}
@@ -219,7 +278,7 @@ export default function CaseOptionsPage() {
                     </div>
                   </div>
                   {/* Кнопка загрузки стандартных */}
-                  {items.length === 0 && (
+                  {(items.length === 0 || (type === 'mosDocument' && hasMissingDefaults)) && (
                     <button
                       onClick={() => loadDefaults(type)}
                       disabled={seeding === type}
@@ -229,6 +288,25 @@ export default function CaseOptionsPage() {
                     </button>
                   )}
                 </div>
+
+                {type === 'mosDocument' && (
+                  <div className="form-group" style={{ marginBottom: 14 }}>
+                    <label className="label">Услуга</label>
+                    <select
+                      className="select"
+                      value={selectedMosServiceId}
+                      onChange={e => {
+                        setSelectedMosServiceId(e.target.value)
+                        setEditingId(null)
+                      }}
+                    >
+                      <option value="">Общий список</option>
+                      {services.map(service => (
+                        <option key={service.id} value={service.id.toString()}>{service.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Список */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14, minHeight: 40 }}>
@@ -282,6 +360,7 @@ export default function CaseOptionsPage() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
                     className="input"
+                    list={type === 'mosDocument' ? 'mos-document-suggestions' : undefined}
                     value={newValues[type]}
                     onChange={e => setNewValues(prev => ({ ...prev, [type]: e.target.value }))}
                     onKeyDown={e => { if (e.key === 'Enter') add(type) }}
