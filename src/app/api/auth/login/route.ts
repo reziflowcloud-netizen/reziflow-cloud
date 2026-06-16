@@ -3,22 +3,23 @@ import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { signToken } from '@/lib/auth'
 import { cookies } from 'next/headers'
-import { ensureDefaultOrganization } from '@/lib/organizationProvisioning'
+import { ensureDefaultOrganization, getSystemAdminEmails } from '@/lib/organizationProvisioning'
 
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json()
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@migraflow.pl'
+    const normalizedEmail = String(email || '').trim().toLowerCase()
+    const isSystemAdminEmail = getSystemAdminEmails().includes(normalizedEmail)
     const adminPassword = process.env.ADMIN_PASSWORD || 'admin123'
 
-    let user = await prisma.user.findUnique({ where: { email } })
+    let user = await prisma.user.findUnique({ where: { email: normalizedEmail } })
     let organization = null
 
-    if (!user && email === adminEmail && password === adminPassword) {
+    if (!user && isSystemAdminEmail && password === adminPassword) {
       organization = await ensureDefaultOrganization()
       user = await prisma.user.create({
         data: {
-          email: adminEmail,
+          email: normalizedEmail,
           password: await bcrypt.hash(adminPassword, 10),
           name: process.env.ADMIN_NAME || 'Administrator',
           role: 'admin',
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     let valid = await bcrypt.compare(password, user.password)
-    if (!valid && email === adminEmail && password === adminPassword) {
+    if (!valid && isSystemAdminEmail && password === adminPassword) {
       organization = await ensureDefaultOrganization()
       user = await prisma.user.update({
         where: { id: user.id },

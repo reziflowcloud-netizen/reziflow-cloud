@@ -22,7 +22,6 @@ export const DEFAULT_PRIORITIES = [
 ]
 
 export const organizationInclude = {
-  settings: true,
   users: {
     where: { role: 'admin' },
     select: { id: true, name: true, email: true, role: true },
@@ -39,9 +38,30 @@ export const organizationInclude = {
   },
 }
 
+const DEFAULT_SYSTEM_ADMIN_EMAILS = [
+  'reziflowcloud@gmail.com',
+  'office@legalhubcrm.com',
+  'admin@migraflow.pl',
+]
+
+function normalizeEmailList(value?: string | null) {
+  return String(value || '')
+    .split(/[\s,;]+/)
+    .map(email => email.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+export function getSystemAdminEmails() {
+  return Array.from(new Set([
+    ...DEFAULT_SYSTEM_ADMIN_EMAILS,
+    ...normalizeEmailList(process.env.ADMIN_EMAIL),
+    ...normalizeEmailList(process.env.ADMIN_EMAILS),
+  ]))
+}
+
 export function isSystemAdmin(user: any) {
-  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@migraflow.pl').toLowerCase()
-  return user?.role === 'owner' || String(user?.email || '').toLowerCase() === adminEmail
+  const email = String(user?.email || '').toLowerCase()
+  return user?.role === 'owner' || getSystemAdminEmails().includes(email)
 }
 
 export function slugify(value: string) {
