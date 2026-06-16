@@ -14,6 +14,20 @@ type Partner = {
   signupUrl: string
   portalUrl?: string | null
   totals: { total: number, open: number, paid: number, canceled: number }
+  commissions?: Array<{
+    id: string
+    organizationId: string
+    amount: number
+    currency: string
+    status: string
+    earnedAt: string
+    paidAt?: string | null
+    notes?: string | null
+    organization?: {
+      id: string
+      name: string
+    }
+  }>
   attributions: Array<{
     id: string
     createdAt: string
@@ -52,7 +66,11 @@ export default function ReferralsPage() {
   const [partners, setPartners] = useState<Partner[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingCommissionId, setSavingCommissionId] = useState<string | null>(null)
+  const [payingPartnerId, setPayingPartnerId] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [commissionForms, setCommissionForms] = useState<Record<string, { organizationId: string, amount: string, notes: string }>>({})
   const [form, setForm] = useState({
     name: '',
     code: '',
@@ -110,6 +128,66 @@ export default function ReferralsPage() {
     setForm(prev => ({ ...prev, [key]: value }))
   }
 
+  function commissionForm(partner: Partner) {
+    return commissionForms[partner.id] || {
+      organizationId: partner.attributions[0]?.organization.id || '',
+      amount: '',
+      notes: '',
+    }
+  }
+
+  function setCommissionField(partner: Partner, key: string, value: string) {
+    setCommissionForms(prev => ({
+      ...prev,
+      [partner.id]: { ...commissionForm(partner), [key]: value },
+    }))
+  }
+
+  async function createCommission(partner: Partner) {
+    const current = commissionForm(partner)
+    setError('')
+    setSuccess('')
+    setSavingCommissionId(partner.id)
+    const res = await fetch(`/api/referrals/${partner.id}/commissions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(current),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingCommissionId(null)
+    if (!res.ok) {
+      setError(data.error || 'Не удалось начислить комиссию')
+      return
+    }
+    setSuccess('Комиссия начислена')
+    setCommissionForms(prev => ({
+      ...prev,
+      [partner.id]: { organizationId: current.organizationId, amount: '', notes: '' },
+    }))
+    await loadPartners()
+  }
+
+  async function payOpenCommissions(partner: Partner) {
+    if (!window.confirm(`Отметить все открытые начисления партнера "${partner.name}" как выплаченные?`)) return
+
+    setError('')
+    setSuccess('')
+    setPayingPartnerId(partner.id)
+    const res = await fetch(`/api/referrals/${partner.id}/payouts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: 'Ручная выплата через админку LegalHub' }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setPayingPartnerId(null)
+    if (!res.ok) {
+      setError(data.error || 'Не удалось отметить выплату')
+      return
+    }
+    setSuccess('Открытые начисления отмечены как выплаченные')
+    await loadPartners()
+  }
+
   return (
     <div className="fade-in">
       <div className="page-header">
@@ -124,6 +202,11 @@ export default function ReferralsPage() {
         {error && (
           <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 16px', marginBottom: 16, color: '#dc2626', fontSize: 13 }}>
             {error}
+          </div>
+        )}
+        {success && (
+          <div style={{ background: '#dcfce7', border: '1px solid #86efac', borderRadius: 8, padding: '12px 16px', marginBottom: 16, color: '#14532d', fontSize: 13 }}>
+            {success}
           </div>
         )}
 
@@ -214,8 +297,54 @@ export default function ReferralsPage() {
                           </div>
                         ))}
                       </div>
+                      {partner.attributions.length > 0 && (
+                        <div style={{ display: 'grid', gap: 6, marginTop: 10, minWidth: 220 }}>
+                          <select
+                            className="select"
+                            value={commissionForm(partner).organizationId}
+                            onChange={e => setCommissionField(partner, 'organizationId', e.target.value)}
+                          >
+                            {partner.attributions.map(item => (
+                              <option key={item.organization.id} value={item.organization.id}>{item.organization.name}</option>
+                            ))}
+                          </select>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6 }}>
+                            <input
+                              className="input"
+                              value={commissionForm(partner).amount}
+                              onChange={e => setCommissionField(partner, 'amount', e.target.value)}
+                              placeholder="Сумма, PLN"
+                            />
+                            <button
+                              className="btn btn-secondary"
+                              onClick={() => createCommission(partner)}
+                              disabled={savingCommissionId === partner.id}
+                            >
+                              {savingCommissionId === partner.id ? '...' : 'Начислить'}
+                            </button>
+                          </div>
+                          <input
+                            className="input"
+                            value={commissionForm(partner).notes}
+                            onChange={e => setCommissionField(partner, 'notes', e.target.value)}
+                            placeholder="Заметка к начислению"
+                          />
+                        </div>
+                      )}
                     </td>
-                    <td>{money(partner.totals.open)}</td>
+                    <td>
+                      <div style={{ fontWeight: 800 }}>{money(partner.totals.open)}</div>
+                      {partner.totals.open > 0 && (
+                        <button
+                          className="btn btn-secondary"
+                          style={{ marginTop: 8 }}
+                          onClick={() => payOpenCommissions(partner)}
+                          disabled={payingPartnerId === partner.id}
+                        >
+                          {payingPartnerId === partner.id ? 'Выплата...' : 'Выплатить открытые'}
+                        </button>
+                      )}
+                    </td>
                     <td>{money(partner.totals.paid)}</td>
                   </tr>
                 ))}

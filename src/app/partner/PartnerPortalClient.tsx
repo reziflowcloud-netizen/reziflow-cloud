@@ -9,6 +9,16 @@ type PartnerData = {
   commissionValue: number
   commissionMonths: number
   totals: { total: number, open: number, paid: number }
+  commissions?: Array<{
+    id: string
+    organizationId: string
+    amount: number
+    currency: string
+    status: string
+    earnedAt: string
+    paidAt?: string | null
+    notes?: string | null
+  }>
   attributions: Array<{
     id: string
     createdAt: string
@@ -36,6 +46,15 @@ function statusLabel(status?: string) {
     past_due: 'Ожидает оплаты',
     canceled: 'Отменена',
     expired: 'Trial истек',
+  }
+  return labels[status || ''] || status || '—'
+}
+
+function commissionStatusLabel(status?: string) {
+  const labels: Record<string, string> = {
+    pending: 'К выплате',
+    paid: 'Выплачено',
+    canceled: 'Отменено',
   }
   return labels[status || ''] || status || '—'
 }
@@ -77,6 +96,7 @@ export default function PartnerPortalClient({ code, token }: { code?: string, to
         ) : error ? (
           <div className="error-msg">{error}</div>
         ) : partner ? (
+          <>
           <div className="table-container" style={{ maxWidth: 900 }}>
             <div className="table-scroll">
               <table className="table">
@@ -104,6 +124,34 @@ export default function PartnerPortalClient({ code, token }: { code?: string, to
               </table>
             </div>
           </div>
+          <div className="table-container" style={{ maxWidth: 900, marginTop: 16 }}>
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Начисление</th>
+                    <th>Сумма</th>
+                    <th>Статус</th>
+                    <th>Дата</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!partner.commissions?.length && (
+                    <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)' }}>Начислений пока нет</td></tr>
+                  )}
+                  {partner.commissions?.map(item => (
+                    <tr key={item.id}>
+                      <td>{item.notes || 'Партнерская комиссия'}</td>
+                      <td style={{ fontWeight: 800 }}>{money(item.amount || 0)}</td>
+                      <td>{commissionStatusLabel(item.status)}</td>
+                      <td>{new Date(item.earnedAt).toLocaleDateString('ru-RU')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          </>
         ) : null}
       </section>
 
