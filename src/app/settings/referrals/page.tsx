@@ -1,6 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 
 type Partner = {
   id: string
@@ -8,6 +8,8 @@ type Partner = {
   code: string
   status: string
   contactEmail?: string | null
+  payoutDetails?: string | null
+  notes?: string | null
   commissionType: string
   commissionValue: number
   commissionMonths: number
@@ -44,6 +46,18 @@ type Partner = {
   }>
 }
 
+type PartnerEditForm = {
+  name: string
+  code: string
+  status: string
+  contactEmail: string
+  commissionType: string
+  commissionValue: string
+  commissionMonths: string
+  notes: string
+  payoutDetails: string
+}
+
 function money(value: number) {
   return `${value.toFixed(2)} zł`
 }
@@ -66,10 +80,14 @@ export default function ReferralsPage() {
   const [partners, setPartners] = useState<Partner[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingEditId, setSavingEditId] = useState<string | null>(null)
+  const [deletingPartnerId, setDeletingPartnerId] = useState<string | null>(null)
+  const [editingPartnerId, setEditingPartnerId] = useState<string | null>(null)
   const [savingCommissionId, setSavingCommissionId] = useState<string | null>(null)
   const [payingPartnerId, setPayingPartnerId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [editForms, setEditForms] = useState<Record<string, PartnerEditForm>>({})
   const [commissionForms, setCommissionForms] = useState<Record<string, { organizationId: string, amount: string, notes: string }>>({})
   const [form, setForm] = useState({
     name: '',
@@ -126,6 +144,76 @@ export default function ReferralsPage() {
 
   function setField(key: string, value: string) {
     setForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  function buildEditForm(partner: Partner): PartnerEditForm {
+    return {
+      name: partner.name || '',
+      code: partner.code || '',
+      status: partner.status || 'active',
+      contactEmail: partner.contactEmail || '',
+      commissionType: partner.commissionType || 'percentage',
+      commissionValue: String(partner.commissionValue || ''),
+      commissionMonths: String(partner.commissionMonths || ''),
+      notes: partner.notes || '',
+      payoutDetails: partner.payoutDetails || '',
+    }
+  }
+
+  function editForm(partner: Partner) {
+    return editForms[partner.id] || buildEditForm(partner)
+  }
+
+  function startEditing(partner: Partner) {
+    setError('')
+    setSuccess('')
+    setEditingPartnerId(partner.id)
+    setEditForms(prev => ({ ...prev, [partner.id]: buildEditForm(partner) }))
+  }
+
+  function setEditField(partner: Partner, key: keyof PartnerEditForm, value: string) {
+    setEditForms(prev => ({
+      ...prev,
+      [partner.id]: { ...editForm(partner), [key]: value },
+    }))
+  }
+
+  async function savePartner(partner: Partner) {
+    setError('')
+    setSuccess('')
+    setSavingEditId(partner.id)
+    const res = await fetch(`/api/referrals/${partner.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editForm(partner)),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingEditId(null)
+    if (!res.ok) {
+      setError(data.error || 'Не удалось сохранить партнера')
+      return
+    }
+    setSuccess('Партнер обновлен')
+    setEditingPartnerId(null)
+    await loadPartners()
+  }
+
+  async function deletePartner(partner: Partner) {
+    if (!window.confirm(`Удалить партнера "${partner.name}"? Если у него есть история, он будет архивирован и скрыт из списка.`)) return
+
+    setError('')
+    setSuccess('')
+    setDeletingPartnerId(partner.id)
+    const res = await fetch(`/api/referrals/${partner.id}`, { method: 'DELETE' })
+    const data = await res.json().catch(() => ({}))
+    setDeletingPartnerId(null)
+    if (!res.ok) {
+      setError(data.error || 'Не удалось удалить партнера')
+      return
+    }
+    setSuccess(data.archived ? 'Партнер архивирован' : 'Партнер удален')
+    if (editingPartnerId === partner.id) setEditingPartnerId(null)
+    await loadPartners()
   }
 
   function commissionForm(partner: Partner) {
@@ -245,12 +333,12 @@ export default function ReferralsPage() {
               </div>
               <div className="form-group">
                 <label className="label">Заметка</label>
-                <input className="input" value={form.notes} onChange={e => setField('notes', e.target.value)} placeholder="Условия, источник, договоренность" />
+                <textarea className="input" value={form.notes} onChange={e => setField('notes', e.target.value)} rows={3} style={{ minHeight: 82, resize: 'vertical' }} placeholder="Условия, источник, договоренность" />
               </div>
             </div>
             <div className="form-group">
               <label className="label">Реквизиты для выплат</label>
-              <textarea className="input" value={form.payoutDetails} onChange={e => setField('payoutDetails', e.target.value)} rows={2} placeholder="IBAN, BLIK, договоренность по выплатам" />
+              <textarea className="input" value={form.payoutDetails} onChange={e => setField('payoutDetails', e.target.value)} rows={3} style={{ minHeight: 82, resize: 'vertical' }} placeholder="IBAN, BLIK, договоренность по выплатам" />
             </div>
             <button className="btn btn-primary" disabled={saving}>{saving ? 'Создание...' : 'Создать партнера'}</button>
           </form>
@@ -267,20 +355,22 @@ export default function ReferralsPage() {
                   <th>Приглашено</th>
                   <th>К выплате</th>
                   <th>Выплачено</th>
+                  <th>Действия</th>
                 </tr>
               </thead>
               <tbody>
-                {loading && <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)' }}>Загрузка...</td></tr>}
-                {!loading && partners.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)' }}>Партнеров пока нет</td></tr>}
+                {loading && <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)' }}>Загрузка...</td></tr>}
+                {!loading && partners.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)' }}>Партнеров пока нет</td></tr>}
                 {partners.map(partner => (
-                  <tr key={partner.id}>
+                  <Fragment key={partner.id}>
+                  <tr>
                     <td>
                       <div style={{ fontWeight: 800 }}>{partner.name}</div>
                       <div style={{ color: 'var(--muted)', fontSize: 12 }}>{partner.contactEmail || 'Email не указан'}</div>
                       {partner.portalUrl && <a href={partner.portalUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--brand)', fontSize: 12, fontWeight: 700 }}>Кабинет партнера</a>}
                     </td>
                     <td>
-                      <div style={{ fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all' }}>{partner.signupUrl}</div>
+                      <a href={partner.signupUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--brand)', fontFamily: 'monospace', fontSize: 12, fontWeight: 700, wordBreak: 'break-all' }}>{partner.signupUrl}</a>
                       <div style={{ color: 'var(--muted)', fontSize: 12 }}>Код: {partner.code}</div>
                     </td>
                     <td>
@@ -323,10 +413,12 @@ export default function ReferralsPage() {
                               {savingCommissionId === partner.id ? '...' : 'Начислить'}
                             </button>
                           </div>
-                          <input
+                          <textarea
                             className="input"
                             value={commissionForm(partner).notes}
                             onChange={e => setCommissionField(partner, 'notes', e.target.value)}
+                            rows={3}
+                            style={{ minHeight: 78, resize: 'vertical' }}
                             placeholder="Заметка к начислению"
                           />
                         </div>
@@ -346,7 +438,86 @@ export default function ReferralsPage() {
                       )}
                     </td>
                     <td>{money(partner.totals.paid)}</td>
+                    <td>
+                      <div style={{ display: 'grid', gap: 8, minWidth: 140 }}>
+                        <button
+                          className="btn btn-secondary"
+                          onClick={() => editingPartnerId === partner.id ? setEditingPartnerId(null) : startEditing(partner)}
+                        >
+                          {editingPartnerId === partner.id ? 'Закрыть' : 'Редактировать'}
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ color: '#b91c1c' }}
+                          onClick={() => deletePartner(partner)}
+                          disabled={deletingPartnerId === partner.id}
+                        >
+                          {deletingPartnerId === partner.id ? 'Удаление...' : 'Удалить'}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
+                  {editingPartnerId === partner.id && (
+                    <tr>
+                      <td colSpan={7} style={{ background: '#f8fafc' }}>
+                        <div style={{ display: 'grid', gap: 12, padding: 6 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 180px 220px 160px', gap: 12 }}>
+                            <div className="form-group">
+                              <label className="label">Имя партнера *</label>
+                              <input className="input" value={editForm(partner).name} onChange={e => setEditField(partner, 'name', e.target.value)} />
+                            </div>
+                            <div className="form-group">
+                              <label className="label">Код ссылки</label>
+                              <input className="input" value={editForm(partner).code} onChange={e => setEditField(partner, 'code', e.target.value)} />
+                            </div>
+                            <div className="form-group">
+                              <label className="label">Email партнера</label>
+                              <input className="input" type="email" value={editForm(partner).contactEmail} onChange={e => setEditField(partner, 'contactEmail', e.target.value)} />
+                            </div>
+                            <div className="form-group">
+                              <label className="label">Статус</label>
+                              <select className="select" value={editForm(partner).status} onChange={e => setEditField(partner, 'status', e.target.value)}>
+                                <option value="active">Активен</option>
+                                <option value="paused">Отключен</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '180px 180px 180px 1fr', gap: 12 }}>
+                            <div className="form-group">
+                              <label className="label">Тип комиссии</label>
+                              <select className="select" value={editForm(partner).commissionType} onChange={e => setEditField(partner, 'commissionType', e.target.value)}>
+                                <option value="percentage">Процент</option>
+                                <option value="fixed">Фиксированно</option>
+                              </select>
+                            </div>
+                            <div className="form-group">
+                              <label className="label">Комиссия</label>
+                              <input className="input" value={editForm(partner).commissionValue} onChange={e => setEditField(partner, 'commissionValue', e.target.value)} />
+                            </div>
+                            <div className="form-group">
+                              <label className="label">Месяцев</label>
+                              <input className="input" value={editForm(partner).commissionMonths} onChange={e => setEditField(partner, 'commissionMonths', e.target.value)} />
+                            </div>
+                            <div className="form-group">
+                              <label className="label">Заметка</label>
+                              <textarea className="input" value={editForm(partner).notes} onChange={e => setEditField(partner, 'notes', e.target.value)} rows={4} style={{ minHeight: 110, resize: 'vertical' }} />
+                            </div>
+                          </div>
+                          <div className="form-group">
+                            <label className="label">Реквизиты для выплат</label>
+                            <textarea className="input" value={editForm(partner).payoutDetails} onChange={e => setEditField(partner, 'payoutDetails', e.target.value)} rows={4} style={{ minHeight: 110, resize: 'vertical' }} />
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <button className="btn btn-secondary" onClick={() => setEditingPartnerId(null)}>Отмена</button>
+                            <button className="btn btn-primary" onClick={() => savePartner(partner)} disabled={savingEditId === partner.id}>
+                              {savingEditId === partner.id ? 'Сохранение...' : 'Сохранить'}
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

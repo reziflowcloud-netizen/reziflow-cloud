@@ -4,19 +4,20 @@ import { getUser } from '@/lib/auth'
 import { isSystemAdmin, normalizeReferralCode } from '@/lib/organizationProvisioning'
 import { prisma } from '@/lib/prisma'
 
-function appUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')
+function appUrl(origin?: string) {
+  const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
+  return (configuredUrl || origin || 'https://legalhubcrm.com').replace(/\/$/, '')
 }
 
-function buildUrls(code: string, portalToken?: string | null) {
-  const base = appUrl()
+function buildUrls(code: string, portalToken?: string | null, origin?: string) {
+  const base = appUrl(origin)
   return {
     signupUrl: `${base}/register?ref=${encodeURIComponent(code)}`,
     portalUrl: portalToken ? `${base}/partner?code=${encodeURIComponent(code)}&token=${encodeURIComponent(portalToken)}` : null,
   }
 }
 
-function withSummary(partner: any) {
+function withSummary(partner: any, origin?: string) {
   const totals = (partner.commissions || []).reduce((acc: any, item: any) => {
     const amount = Number(item.amount || 0)
     if (item.status === 'paid') acc.paid += amount
@@ -28,17 +29,18 @@ function withSummary(partner: any) {
 
   return {
     ...partner,
-    ...buildUrls(partner.code, partner.portalToken),
+    ...buildUrls(partner.code, partner.portalToken, origin),
     totals,
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!isSystemAdmin(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const partners = await (prisma as any).referralPartner.findMany({
+    where: { status: { not: 'archived' } },
     orderBy: { createdAt: 'desc' },
     include: {
       attributions: {
@@ -64,7 +66,7 @@ export async function GET() {
     },
   })
 
-  return NextResponse.json({ partners: partners.map(withSummary) })
+  return NextResponse.json({ partners: partners.map((partner: any) => withSummary(partner, request.nextUrl.origin)) })
 }
 
 export async function POST(request: NextRequest) {
@@ -114,7 +116,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    return NextResponse.json(withSummary(partner))
+    return NextResponse.json(withSummary(partner, request.nextUrl.origin))
   } catch (error: any) {
     console.error('Referral partner create error:', error)
     return NextResponse.json({ error: error.message || 'Ошибка создания партнера' }, { status: 500 })
