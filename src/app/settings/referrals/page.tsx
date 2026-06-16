@@ -193,6 +193,29 @@ export default function ReferralsPage() {
     if (isOpen && editingPartnerId === partnerId) setEditingPartnerId(null)
   }
 
+  async function copyReferralLink(url: string) {
+    setError('')
+    setSuccess('')
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url)
+      } else {
+        const textarea = document.createElement('textarea')
+        textarea.value = url
+        textarea.style.position = 'fixed'
+        textarea.style.left = '-9999px'
+        document.body.appendChild(textarea)
+        textarea.focus()
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+      }
+      setSuccess('Реферальная ссылка скопирована')
+    } catch {
+      setError('Не удалось скопировать ссылку. Выделите ее вручную.')
+    }
+  }
+
   function setEditField(partner: Partner, key: keyof PartnerEditForm, value: string) {
     setEditForms(prev => ({
       ...prev,
@@ -410,16 +433,20 @@ export default function ReferralsPage() {
                           )}
                         </td>
                         <td>
-                          <a
-                            href={partner.signupUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={e => e.stopPropagation()}
-                            style={{ color: 'var(--brand)', display: 'block', fontFamily: 'monospace', fontSize: 12, fontWeight: 700, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                          >
-                            {partner.signupUrl}
-                          </a>
-                          <div style={{ color: 'var(--muted)', fontSize: 12 }}>Код: {partner.code}</div>
+                          <div onClick={e => e.stopPropagation()} style={{ display: 'grid', gap: 6, maxWidth: 320 }}>
+                            <div
+                              title={partner.signupUrl}
+                              style={{ color: 'var(--brand)', fontFamily: 'monospace', fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                            >
+                              {partner.signupUrl}
+                            </div>
+                            <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                              <span style={{ color: 'var(--muted)', fontSize: 12 }}>Код: {partner.code}</span>
+                              <button type="button" className="btn btn-secondary" style={{ fontSize: 12, padding: '4px 8px' }} onClick={() => copyReferralLink(partner.signupUrl)}>
+                                Копировать
+                              </button>
+                            </div>
+                          </div>
                         </td>
                         <td>
                           {partner.commissionType === 'percentage' ? `${partner.commissionValue}%` : money(partner.commissionValue)}
@@ -465,6 +492,22 @@ export default function ReferralsPage() {
                         <tr>
                           <td colSpan={7} style={{ background: '#fbfdff', padding: 0 }}>
                             <div style={{ display: 'grid', gap: 16, padding: 16 }}>
+                              <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, display: 'grid', gap: 8, padding: 12 }}>
+                                <div className="section-title">Реферальная ссылка</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8 }}>
+                                  <input
+                                    className="input"
+                                    readOnly
+                                    value={partner.signupUrl}
+                                    onFocus={e => e.currentTarget.select()}
+                                    style={{ fontFamily: 'monospace', fontSize: 12 }}
+                                  />
+                                  <button type="button" className="btn btn-secondary" onClick={() => copyReferralLink(partner.signupUrl)}>
+                                    Копировать
+                                  </button>
+                                </div>
+                                <div style={{ color: 'var(--muted)', fontSize: 12 }}>Код партнера: {partner.code}</div>
+                              </div>
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, alignItems: 'start' }}>
                                 <div>
                                   <div className="section-title" style={{ marginBottom: 8 }}>Приглашенные организации</div>
