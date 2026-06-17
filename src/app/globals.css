@@ -217,6 +217,21 @@ body { background: var(--bg); color: var(--text); transition: background 0.2s, c
   align-items: flex-start;
   margin-bottom: 16px;
 }
+.onboarding-panel-collapsed {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+.onboarding-panel-collapsed h2 {
+  margin: 0;
+}
+.onboarding-collapsed-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
 .onboarding-panel h2 {
   margin: 0;
   font-size: 18px;
@@ -252,27 +267,34 @@ body { background: var(--bg); color: var(--text); transition: background 0.2s, c
 }
 .onboarding-steps {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 10px;
 }
 .onboarding-step {
   min-width: 0;
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  grid-template-rows: 1fr auto;
-  gap: 8px 10px;
+  grid-template-columns: 1fr;
+  gap: 8px;
   padding: 12px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: rgba(255,255,255,0.78);
   color: var(--text);
-  text-decoration: none;
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 .onboarding-step:hover {
   border-color: rgba(6,182,212,0.52);
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
+}
+.onboarding-step-main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  grid-template-rows: 1fr auto;
+  gap: 8px 10px;
+  color: inherit;
+  text-decoration: none;
 }
 .onboarding-step-check {
   width: 30px;
@@ -289,6 +311,14 @@ body { background: var(--bg); color: var(--text); transition: background 0.2s, c
 .onboarding-step.is-done .onboarding-step-check {
   background: rgba(22,163,74,0.13);
   color: #16a34a;
+}
+.onboarding-step.is-skipped {
+  border-style: dashed;
+  background: rgba(255,255,255,0.48);
+}
+.onboarding-step.is-skipped .onboarding-step-check {
+  background: rgba(107,114,128,0.12);
+  color: var(--muted);
 }
 .onboarding-step-copy {
   min-width: 0;
@@ -322,6 +352,22 @@ body { background: var(--bg); color: var(--text); transition: background 0.2s, c
 }
 .onboarding-step.is-done .onboarding-step-action {
   color: #16a34a;
+}
+.onboarding-step.is-skipped .onboarding-step-action {
+  color: var(--muted);
+}
+.onboarding-step-skip {
+  justify-self: start;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.onboarding-step-skip:hover {
+  color: var(--brand);
 }
 .onboarding-panel-foot {
   display: flex;
@@ -3455,13 +3501,18 @@ textarea.input { resize: vertical; }
   .stats-grid .stat-value { font-size: 18px; }
   .onboarding-panel { padding: 14px; margin-bottom: 12px; }
   .onboarding-panel-head { flex-direction: column; gap: 12px; }
+  .onboarding-panel-collapsed { flex-direction: column; align-items: stretch; }
+  .onboarding-collapsed-actions { width: 100%; flex-wrap: wrap; }
+  .onboarding-collapsed-actions .btn { flex: 1 1 auto; justify-content: center; }
   .onboarding-panel h2 { font-size: 17px; }
   .onboarding-progress { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .onboarding-progress span { margin-top: 0; }
   .onboarding-steps { grid-template-columns: 1fr; gap: 8px; }
-  .onboarding-step { grid-template-columns: 28px minmax(0, 1fr) auto; grid-template-rows: auto; align-items: center; }
+  .onboarding-step { grid-template-columns: 1fr; align-items: stretch; }
+  .onboarding-step-main { grid-template-columns: 28px minmax(0, 1fr) auto; grid-template-rows: auto; align-items: center; }
   .onboarding-step-check { width: 28px; height: 28px; }
   .onboarding-step-action { grid-column: 3; align-self: center; }
+  .onboarding-step-skip { justify-self: end; }
   .onboarding-panel-foot .btn { flex: 1 1 auto; justify-content: center; }
   .billing-hero { grid-template-columns: 1fr; padding: 14px; }
   .billing-plan-title { font-size: 22px; }

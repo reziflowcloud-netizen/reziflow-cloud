@@ -169,7 +169,6 @@ async function DashboardOnboardingSection({ organizationId }: { organizationId: 
   ])
 
   const hasTeam = userCount > 1 || employeeCount > 0
-  const hasData = clientCount > 0 || caseCount > 0
 
   const steps: DashboardOnboardingStep[] = [
     {
@@ -200,13 +199,22 @@ async function DashboardOnboardingSection({ organizationId }: { organizationId: 
       meta: hasTeam ? `${userCount} польз. / ${employeeCount} сотр.` : 'Только администратор',
     },
     {
-      id: 'data',
-      title: 'Загрузите первые данные',
-      description: 'Создайте клиента вручную или импортируйте клиентов и дела из CSV.',
-      href: '/settings/export',
-      action: 'Импорт',
-      done: hasData,
-      meta: hasData ? `${clientCount} клиентов / ${caseCount} дел` : 'Можно начать с импорта',
+      id: 'clients',
+      title: 'Добавьте первых клиентов',
+      description: 'Создайте клиента вручную или импортируйте базу из CSV.',
+      href: '/clients/new',
+      action: 'Добавить',
+      done: clientCount > 0,
+      meta: clientCount > 0 ? `${clientCount} клиентов` : 'Можно начать с одного клиента',
+    },
+    {
+      id: 'first-case',
+      title: 'Создайте первое дело',
+      description: 'Откройте первое дело, выберите услугу и проверьте карточку клиента в работе.',
+      href: '/cases/new',
+      action: 'Создать',
+      done: caseCount > 0,
+      meta: caseCount > 0 ? `${caseCount} дел` : 'После добавления клиента',
     },
   ]
 
