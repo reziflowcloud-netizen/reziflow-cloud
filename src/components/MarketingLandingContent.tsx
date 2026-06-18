@@ -218,11 +218,181 @@ const ukLandingCopy: LandingCopy = {
   closeFaq: 'Закрити запитання',
 }
 
+const enLandingCopy: LandingCopy = {
+  heroWindowTitle: 'Short LegalHub CRM overview',
+  videoAria: 'Introductory LegalHub CRM video',
+  videoUnsupported: 'Your browser does not support embedded video. Write to us and we will send the overview separately.',
+  videoPreviewAria: 'Watch a short LegalHub CRM overview',
+  posterAlt: 'LegalHub dashboard: full agency control in one workspace',
+  videoOpenLabel: 'Watch 1 min overview',
+  benefit: {
+    kicker: 'In short',
+    title: 'LegalHub turns chaos into one working process',
+    text: 'Instead of chats, Excel, Drive and constant team questions: one screen with the client, service, documents, deadline, payment and responsible person.',
+    cards: [
+      {
+        number: '01',
+        title: 'Requests are not lost',
+        text: 'Website, Instagram, Facebook, Telegram and WhatsApp go into one flow.',
+      },
+      {
+        number: '02',
+        title: 'Documents are visible immediately',
+        text: 'For each case it is clear what has been received, what is missing and what to request from the client.',
+      },
+      {
+        number: '03',
+        title: 'Deadlines stay under control',
+        text: 'Deadline, owner and next step are attached to every case.',
+      },
+      {
+        number: '04',
+        title: 'The manager sees the picture',
+        text: 'Overdue items, workload, payments and problematic clients are visible without daily status checks.',
+      },
+    ],
+  },
+  setup: {
+    title: 'Start working in a few minutes',
+    text: 'Quick client migration and flexible CRM setup for your business',
+    cta: 'Try for free',
+    cards: [
+      {
+        icon: '↯',
+        title: 'Quick migration',
+        text: 'Import clients from Excel, Google Sheets, an old CRM or a regular list in a few minutes.',
+        items: ['Excel and Google Sheets', 'Old CRM', 'Any client lists'],
+        badge: '5-10 minutes',
+      },
+      {
+        icon: '⚙',
+        title: 'Flexible setup',
+        text: 'Adjust the CRM to your work: services, stages, employees and access rights.',
+        items: ['Services', 'Work stages', 'Employees and roles', 'Access rights', 'Any structure'],
+        badge: 'Any structure',
+      },
+    ],
+  },
+  security: {
+    kicker: 'Security and access',
+    title: 'Access can be configured for your team',
+    text: 'You decide what each employee can see: the whole base, selected sections or only clients and cases in their responsibility area.',
+    cards: [
+      {
+        title: 'For the manager',
+        text: 'You can keep full access to clients, documents, payments and team work.',
+      },
+      {
+        title: 'For an employee',
+        text: 'You can show only their clients, tasks and cases in their responsibility area.',
+      },
+      {
+        title: 'For your company',
+        text: 'Roles and permissions adapt to your team structure and working order.',
+      },
+    ],
+  },
+  launch: {
+    kicker: 'Calm launch',
+    title: 'We can help launch the first process',
+    text: 'You do not have to move the whole company at once. Start with one process, for example Karta Pobytu, add 5-10 clients, set up stages and test LegalHub in real work.',
+    note: 'Works for a solo specialist, a small team and a growing company.',
+    cta: 'Request launch',
+  },
+  footerFaq: 'FAQ',
+  closeFaq: 'Close FAQ',
+}
+
+const plLandingCopy: LandingCopy = {
+  heroWindowTitle: 'Krótki przegląd LegalHub CRM',
+  videoAria: 'Wprowadzające wideo LegalHub CRM',
+  videoUnsupported: 'Twoja przeglądarka nie obsługuje osadzonego wideo. Napisz do nas, a wyślemy przegląd osobno.',
+  videoPreviewAria: 'Obejrzyj krótki przegląd LegalHub CRM',
+  posterAlt: 'Dashboard LegalHub: pełna kontrola agencji w jednym miejscu',
+  videoOpenLabel: 'Obejrzyj przegląd 1 min',
+  benefit: {
+    kicker: 'Krótko o korzyści',
+    title: 'LegalHub zamienia chaos w jeden proces pracy',
+    text: 'Zamiast czatów, Excela, Drive i ciągłych pytań do zespołu: jeden ekran, gdzie widać klienta, usługę, dokumenty, termin, płatność i osobę odpowiedzialną.',
+    cards: [
+      {
+        number: '01',
+        title: 'Zgłoszenia się nie gubią',
+        text: 'Strona, Instagram, Facebook, Telegram i WhatsApp trafiają do jednego strumienia.',
+      },
+      {
+        number: '02',
+        title: 'Dokumenty widać od razu',
+        text: 'Przy sprawie jest jasne, co otrzymano, czego brakuje i o co poprosić klienta.',
+      },
+      {
+        number: '03',
+        title: 'Terminy są pod kontrolą',
+        text: 'Deadline, odpowiedzialny i następny krok są przypisane do każdej sprawy.',
+      },
+      {
+        number: '04',
+        title: 'Manager widzi całość',
+        text: 'Opóźnienia, obciążenie, płatności i problemowi klienci są widoczni bez codziennych pytań.',
+      },
+    ],
+  },
+  setup: {
+    title: 'Zacznij pracę w kilka minut',
+    text: 'Szybkie przeniesienie klientów i elastyczne ustawienie CRM pod Twój biznes',
+    cta: 'Spróbuj bezpłatnie',
+    cards: [
+      {
+        icon: '↯',
+        title: 'Szybkie przeniesienie',
+        text: 'Zaimportuj klientów z Excela, Google Sheets, starego CRM albo zwykłej listy w kilka minut.',
+        items: ['Excel i Google Sheets', 'Stary CRM', 'Dowolne listy klientów'],
+        badge: '5-10 minut',
+      },
+      {
+        icon: '⚙',
+        title: 'Elastyczne ustawienia',
+        text: 'Dopasuj CRM do swojej pracy: usługi, etapy, pracowników i prawa dostępu.',
+        items: ['Usługi', 'Etapy pracy', 'Pracownicy i role', 'Prawa dostępu', 'Dowolna struktura'],
+        badge: 'Dowolna struktura',
+      },
+    ],
+  },
+  security: {
+    kicker: 'Bezpieczeństwo i dostępy',
+    title: 'Dostępy można dopasować do zespołu',
+    text: 'Sam decydujesz, co widzi każdy pracownik: całą bazę, wybrane sekcje albo tylko klientów i sprawy w swojej strefie odpowiedzialności.',
+    cards: [
+      {
+        title: 'Dla managera',
+        text: 'Można zostawić pełny dostęp do klientów, dokumentów, płatności i pracy zespołu.',
+      },
+      {
+        title: 'Dla pracownika',
+        text: 'Można otworzyć tylko jego klientów, zadania i sprawy w strefie odpowiedzialności.',
+      },
+      {
+        title: 'Dla Twojej firmy',
+        text: 'Role i prawa dopasowują się do struktury zespołu i sposobu pracy.',
+      },
+    ],
+  },
+  launch: {
+    kicker: 'Spokojne wdrożenie',
+    title: 'Pomożemy uruchomić pierwszy proces',
+    text: 'Nie trzeba przenosić całej firmy od razu. Można zacząć od jednego procesu, na przykład Karta Pobytu, dodać 5-10 klientów, ustawić etapy i sprawdzić LegalHub w realnej pracy.',
+    note: 'Dla jednego specjalisty, małego zespołu i rozwijającej się firmy.',
+    cta: 'Poproś o wdrożenie',
+  },
+  footerFaq: 'Najczęstsze pytania',
+  closeFaq: 'Zamknij pytania',
+}
+
 const landingCopy: Record<MarketingLang, LandingCopy> = {
-  en: ruLandingCopy,
+  en: enLandingCopy,
   ru: ruLandingCopy,
   uk: ukLandingCopy,
-  pl: ruLandingCopy,
+  pl: plLandingCopy,
 }
 
 function buildRegisterHref(ref?: string, plan = 'free') {

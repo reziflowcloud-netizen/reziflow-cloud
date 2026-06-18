@@ -65,11 +65,51 @@ const ukContactCopy: ContactCopy = {
   note: 'Обовʼязкові поля тільки імʼя та контакт. Також можна просто зателефонувати за номером вище.',
 }
 
+const enContactCopy: ContactCopy = {
+  kicker: 'Contact LegalHub',
+  title: 'Tell us how you want to try CRM',
+  text: 'Leave only the minimum details and we will help understand how LegalHub fits your process: leads, base import, employees and first cases.',
+  sent: 'Request sent. We saved it in CRM and will contact you using the details you provided.',
+  validation: 'Fill in your name and contact details.',
+  sendError: 'Could not send the request. Write to office@legalhubcrm.com or call the number above.',
+  name: 'Your name *',
+  namePlaceholder: 'E.g.: Anna',
+  contact: 'Phone, email or Telegram *',
+  contactPlaceholder: '+48..., email or @username',
+  company: 'Company',
+  companyPlaceholder: 'Company name',
+  message: 'What would you like to clarify?',
+  messagePlaceholder: 'For example: I want to try CRM, move a client base or see a demo',
+  sending: 'Sending...',
+  submit: 'Send request',
+  note: 'Only name and contact are required. You can also simply call the number above.',
+}
+
+const plContactCopy: ContactCopy = {
+  kicker: 'Kontakt z LegalHub',
+  title: 'Opowiedz, jak chcesz wypróbować CRM',
+  text: 'Zostaw minimum danych, a pomożemy zrozumieć, jak LegalHub pasuje do Twojego procesu: leady, import bazy, pracownicy i pierwsze sprawy.',
+  sent: 'Zgłoszenie wysłane. Zapisaliśmy je w CRM i skontaktujemy się z Tobą przez podany kontakt.',
+  validation: 'Wpisz imię i kontakt do komunikacji.',
+  sendError: 'Nie udało się wysłać zgłoszenia. Napisz do nas na office@legalhubcrm.com albo zadzwoń pod numer powyżej.',
+  name: 'Twoje imię *',
+  namePlaceholder: 'Np.: Anna',
+  contact: 'Telefon, email albo Telegram *',
+  contactPlaceholder: '+48..., email albo @username',
+  company: 'Firma',
+  companyPlaceholder: 'Nazwa firmy',
+  message: 'Co chcesz doprecyzować?',
+  messagePlaceholder: 'Na przykład: chcę wypróbować CRM, przenieść bazę albo zobaczyć demo',
+  sending: 'Wysyłamy...',
+  submit: 'Wyślij zgłoszenie',
+  note: 'Obowiązkowe są tylko imię i kontakt. Możesz też po prostu zadzwonić pod numer powyżej.',
+}
+
 const contactCopy: Record<MarketingLang, ContactCopy> = {
-  en: ruContactCopy,
+  en: enContactCopy,
   ru: ruContactCopy,
   uk: ukContactCopy,
-  pl: ruContactCopy,
+  pl: plContactCopy,
 }
 
 export default function ContactClient() {
