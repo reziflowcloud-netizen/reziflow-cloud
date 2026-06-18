@@ -158,7 +158,7 @@ export default function Sidebar({
       <div className="sidebar-bottom">
         <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
           {(['ru', 'uk', 'pl'] as const).map(l => (
-            <button key={l} onClick={() => changeLang(l)} className={`sidebar-segment ${lang === l ? 'active' : ''}`}>{l === 'uk' ? 'ua' : l}</button>
+            <button key={l} onClick={() => changeLang(l)} className={`sidebar-segment ${lang === l ? 'active' : ''}`}>{l === 'uk' ? 'UA' : l.toUpperCase()}</button>
           ))}
         </div>
 
