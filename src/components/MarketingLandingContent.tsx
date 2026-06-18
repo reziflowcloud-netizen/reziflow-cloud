@@ -5,62 +5,225 @@ import { useEffect, useState } from 'react'
 import MarketingHeader from '@/components/MarketingHeader'
 import MarketingProductTour from '@/components/MarketingProductTour'
 import { useMarketingLanguage } from '@/hooks/useMarketingLanguage'
-import { getMarketingCopy } from '@/lib/marketingI18n'
+import { getMarketingCopy, type MarketingLang } from '@/lib/marketingI18n'
 
-const changeCards = [
-  {
-    number: '01',
-    title: 'Заявки не теряются',
-    text: 'Сайт, Instagram, Facebook, Telegram и WhatsApp попадают в один поток.',
-  },
-  {
-    number: '02',
-    title: 'Документы видны сразу',
-    text: 'По делу понятно, что получено, чего не хватает и что запросить у клиента.',
-  },
-  {
-    number: '03',
-    title: 'Сроки под контролем',
-    text: 'Дедлайн, ответственный и следующий шаг закреплены за каждым делом.',
-  },
-  {
-    number: '04',
-    title: 'Руководитель видит картину',
-    text: 'Просрочки, нагрузка, оплаты и проблемные клиенты видны без ежедневных вопросов.',
-  },
-]
+type LandingTextCard = {
+  title: string
+  text: string
+}
 
-const setupCards = [
-  {
-    icon: '↯',
-    title: 'Быстрый перенос',
-    text: 'Импортируйте клиентов из Excel, Google Sheets, старой CRM или обычного списка за несколько минут.',
-    items: ['Excel и Google Sheets', 'Старая CRM', 'Любые списки клиентов'],
-    badge: '5–10 минут',
-  },
-  {
-    icon: '⚙',
-    title: 'Гибкая настройка',
-    text: 'Настройте CRM под вашу работу: услуги, этапы, сотрудников и права доступа.',
-    items: ['Услуги', 'Этапы работы', 'Сотрудники и роли', 'Права доступа', 'Любая структура'],
-    badge: 'Любая структура',
-  },
-]
+type LandingCopy = {
+  heroWindowTitle: string
+  videoAria: string
+  videoUnsupported: string
+  videoPreviewAria: string
+  posterAlt: string
+  videoOpenLabel: string
+  benefit: {
+    kicker: string
+    title: string
+    text: string
+    cards: Array<LandingTextCard & { number: string }>
+  }
+  setup: {
+    title: string
+    text: string
+    cta: string
+    cards: Array<LandingTextCard & { icon: string; items: string[]; badge: string }>
+  }
+  security: {
+    kicker: string
+    title: string
+    text: string
+    cards: LandingTextCard[]
+  }
+  launch: {
+    kicker: string
+    title: string
+    text: string
+    note: string
+    cta: string
+  }
+  footerFaq: string
+  closeFaq: string
+}
 
-const securityCards = [
-  {
-    title: 'Для руководителя',
-    text: 'Можно оставить полный доступ к клиентам, документам, оплатам и работе команды.',
+const ruLandingCopy: LandingCopy = {
+  heroWindowTitle: 'Короткий обзор LegalHub CRM',
+  videoAria: 'Ознакомительное видео LegalHub CRM',
+  videoUnsupported: 'Ваш браузер не поддерживает встроенное видео. Напишите нам, и мы отправим обзор отдельно.',
+  videoPreviewAria: 'Смотреть короткий обзор LegalHub CRM',
+  posterAlt: 'Dashboard LegalHub: полный контроль агентства в одном окне',
+  videoOpenLabel: 'Смотреть обзор 1 мин',
+  benefit: {
+    kicker: 'Коротко о выгоде',
+    title: 'LegalHub собирает хаос в один рабочий процесс',
+    text: 'Вместо чатов, Excel, Drive и постоянных вопросов сотрудникам: один экран, где видно клиента, услугу, документы, срок, оплату и ответственного.',
+    cards: [
+      {
+        number: '01',
+        title: 'Заявки не теряются',
+        text: 'Сайт, Instagram, Facebook, Telegram и WhatsApp попадают в один поток.',
+      },
+      {
+        number: '02',
+        title: 'Документы видны сразу',
+        text: 'По делу понятно, что получено, чего не хватает и что запросить у клиента.',
+      },
+      {
+        number: '03',
+        title: 'Сроки под контролем',
+        text: 'Дедлайн, ответственный и следующий шаг закреплены за каждым делом.',
+      },
+      {
+        number: '04',
+        title: 'Руководитель видит картину',
+        text: 'Просрочки, нагрузка, оплаты и проблемные клиенты видны без ежедневных вопросов.',
+      },
+    ],
   },
-  {
-    title: 'Для сотрудника',
-    text: 'Можно открыть только его клиентов, задачи и дела в зоне ответственности.',
+  setup: {
+    title: 'Начните работу за несколько минут',
+    text: 'Быстрый перенос клиентов и гибкая настройка CRM под ваш бизнес',
+    cta: 'Попробовать бесплатно',
+    cards: [
+      {
+        icon: '↯',
+        title: 'Быстрый перенос',
+        text: 'Импортируйте клиентов из Excel, Google Sheets, старой CRM или обычного списка за несколько минут.',
+        items: ['Excel и Google Sheets', 'Старая CRM', 'Любые списки клиентов'],
+        badge: '5-10 минут',
+      },
+      {
+        icon: '⚙',
+        title: 'Гибкая настройка',
+        text: 'Настройте CRM под вашу работу: услуги, этапы, сотрудников и права доступа.',
+        items: ['Услуги', 'Этапы работы', 'Сотрудники и роли', 'Права доступа', 'Любая структура'],
+        badge: 'Любая структура',
+      },
+    ],
   },
-  {
-    title: 'Для вашей фирмы',
-    text: 'Роли и права настраиваются под структуру команды и ваш рабочий порядок.',
+  security: {
+    kicker: 'Безопасность и доступы',
+    title: 'Доступы можно настроить под вашу команду',
+    text: 'Вы сами решаете, что видит каждый сотрудник: всю базу, отдельные разделы или только клиентов и дела в своей зоне ответственности.',
+    cards: [
+      {
+        title: 'Для руководителя',
+        text: 'Можно оставить полный доступ к клиентам, документам, оплатам и работе команды.',
+      },
+      {
+        title: 'Для сотрудника',
+        text: 'Можно открыть только его клиентов, задачи и дела в зоне ответственности.',
+      },
+      {
+        title: 'Для вашей фирмы',
+        text: 'Роли и права настраиваются под структуру команды и ваш рабочий порядок.',
+      },
+    ],
   },
-]
+  launch: {
+    kicker: 'Спокойный запуск',
+    title: 'Поможем запустить первый процесс',
+    text: 'Не нужно переносить всю компанию сразу. Можно начать с одного процесса — например Karta Pobytu — добавить 5-10 клиентов, настроить этапы и проверить LegalHub в реальной работе.',
+    note: 'Подходит для одного специалиста, маленькой команды и растущей фирмы.',
+    cta: 'Запросить запуск',
+  },
+  footerFaq: 'Частые вопросы',
+  closeFaq: 'Закрыть вопросы',
+}
+
+const ukLandingCopy: LandingCopy = {
+  heroWindowTitle: 'Короткий огляд LegalHub CRM',
+  videoAria: 'Ознайомче відео LegalHub CRM',
+  videoUnsupported: 'Ваш браузер не підтримує вбудоване відео. Напишіть нам, і ми надішлемо огляд окремо.',
+  videoPreviewAria: 'Подивитися короткий огляд LegalHub CRM',
+  posterAlt: 'Dashboard LegalHub: повний контроль агентства в одному вікні',
+  videoOpenLabel: 'Подивитися огляд 1 хв',
+  benefit: {
+    kicker: 'Коротко про користь',
+    title: 'LegalHub збирає хаос в один робочий процес',
+    text: 'Замість чатів, Excel, Drive і постійних питань до співробітників: один екран, де видно клієнта, послугу, документи, строк, оплату й відповідального.',
+    cards: [
+      {
+        number: '01',
+        title: 'Заявки не губляться',
+        text: 'Сайт, Instagram, Facebook, Telegram і WhatsApp потрапляють в один потік.',
+      },
+      {
+        number: '02',
+        title: 'Документи видно одразу',
+        text: 'По справі зрозуміло, що отримано, чого не вистачає і що запросити у клієнта.',
+      },
+      {
+        number: '03',
+        title: 'Строки під контролем',
+        text: 'Дедлайн, відповідальний і наступний крок закріплені за кожною справою.',
+      },
+      {
+        number: '04',
+        title: 'Керівник бачить картину',
+        text: 'Прострочення, навантаження, оплати й проблемні клієнти видно без щоденних питань.',
+      },
+    ],
+  },
+  setup: {
+    title: 'Почніть роботу за кілька хвилин',
+    text: 'Швидке перенесення клієнтів і гнучке налаштування CRM під ваш бізнес',
+    cta: 'Спробувати безкоштовно',
+    cards: [
+      {
+        icon: '↯',
+        title: 'Швидке перенесення',
+        text: 'Імпортуйте клієнтів з Excel, Google Sheets, старої CRM або звичайного списку за кілька хвилин.',
+        items: ['Excel і Google Sheets', 'Стара CRM', 'Будь-які списки клієнтів'],
+        badge: '5-10 хвилин',
+      },
+      {
+        icon: '⚙',
+        title: 'Гнучке налаштування',
+        text: 'Налаштуйте CRM під вашу роботу: послуги, етапи, співробітників і права доступу.',
+        items: ['Послуги', 'Етапи роботи', 'Співробітники й ролі', 'Права доступу', 'Будь-яка структура'],
+        badge: 'Будь-яка структура',
+      },
+    ],
+  },
+  security: {
+    kicker: 'Безпека та доступи',
+    title: 'Доступи можна налаштувати під вашу команду',
+    text: 'Ви самі вирішуєте, що бачить кожен співробітник: усю базу, окремі розділи або тільки клієнтів і справи у своїй зоні відповідальності.',
+    cards: [
+      {
+        title: 'Для керівника',
+        text: 'Можна залишити повний доступ до клієнтів, документів, оплат і роботи команди.',
+      },
+      {
+        title: 'Для співробітника',
+        text: 'Можна відкрити тільки його клієнтів, задачі та справи в зоні відповідальності.',
+      },
+      {
+        title: 'Для вашої фірми',
+        text: 'Ролі й права налаштовуються під структуру команди та ваш робочий порядок.',
+      },
+    ],
+  },
+  launch: {
+    kicker: 'Спокійний запуск',
+    title: 'Допоможемо запустити перший процес',
+    text: 'Не потрібно переносити всю компанію одразу. Можна почати з одного процесу — наприклад Karta Pobytu — додати 5-10 клієнтів, налаштувати етапи й перевірити LegalHub у реальній роботі.',
+    note: 'Підходить для одного спеціаліста, невеликої команди та компанії, що зростає.',
+    cta: 'Запросити запуск',
+  },
+  footerFaq: 'Часті запитання',
+  closeFaq: 'Закрити запитання',
+}
+
+const landingCopy: Record<MarketingLang, LandingCopy> = {
+  en: ruLandingCopy,
+  ru: ruLandingCopy,
+  uk: ukLandingCopy,
+  pl: ruLandingCopy,
+}
 
 function buildRegisterHref(ref?: string, plan = 'free') {
   const params = new URLSearchParams({ plan })
@@ -83,6 +246,7 @@ export default function MarketingLandingContent({
 }) {
   const { lang } = useMarketingLanguage()
   const copy = getMarketingCopy(lang)
+  const localCopy = landingCopy[lang] || ruLandingCopy
   const [heroVideoOpen, setHeroVideoOpen] = useState(false)
   const [faqOpen, setFaqOpen] = useState(false)
   const faqItems = copy.faq.items.slice(0, 8)
@@ -139,7 +303,7 @@ export default function MarketingLandingContent({
         </div>
 
         <div className="hero-product-card" aria-label={copy.hero.dashboardAria}>
-          <div className="hero-window-top"><span /><span /><span /><strong>Короткий обзор LegalHub CRM</strong></div>
+          <div className="hero-window-top"><span /><span /><span /><strong>{localCopy.heroWindowTitle}</strong></div>
           <div className="hero-video-frame">
             {heroVideoOpen ? (
               <video
@@ -147,25 +311,25 @@ export default function MarketingLandingContent({
                 autoPlay
                 playsInline
                 preload="metadata"
-                aria-label="Ознакомительное видео LegalHub CRM"
+                aria-label={localCopy.videoAria}
               >
                 <source src="/assets/legalhub/legalhub-overview.mov" />
-                Ваш браузер не поддерживает встроенное видео. Напишите нам, и мы отправим обзор отдельно.
+                {localCopy.videoUnsupported}
               </video>
             ) : (
               <button
                 type="button"
                 className="hero-video-preview"
                 onClick={() => setHeroVideoOpen(true)}
-                aria-label="Смотреть короткий обзор LegalHub CRM"
+                aria-label={localCopy.videoPreviewAria}
               >
                 <img
                   className="hero-video-poster"
                   src="/assets/legalhub/hero-video-poster.png?v=20260614"
-                  alt="Dashboard LegalHub: полный контроль агентства в одном окне"
+                  alt={localCopy.posterAlt}
                 />
                 <span className="hero-play">▶</span>
-                <span className="hero-video-open-label">Смотреть обзор 1 мин</span>
+                <span className="hero-video-open-label">{localCopy.videoOpenLabel}</span>
               </button>
             )}
           </div>
@@ -175,14 +339,14 @@ export default function MarketingLandingContent({
       <section className="marketing-section compact-intro" id="product">
         <div className="section-heading-row">
           <div>
-            <p className="marketing-kicker">Коротко о выгоде</p>
-            <h2>LegalHub собирает хаос в один рабочий процесс</h2>
+            <p className="marketing-kicker">{localCopy.benefit.kicker}</p>
+            <h2>{localCopy.benefit.title}</h2>
           </div>
-          <p>Вместо чатов, Excel, Drive и постоянных вопросов сотрудникам: один экран, где видно клиента, услугу, документы, срок, оплату и ответственного.</p>
+          <p>{localCopy.benefit.text}</p>
         </div>
 
         <div className="change-grid">
-          {changeCards.map(card => (
+          {localCopy.benefit.cards.map(card => (
             <article key={card.title}>
               <span>{card.number}</span>
               <h3>{card.title}</h3>
@@ -199,11 +363,11 @@ export default function MarketingLandingContent({
       <section className="marketing-section setup-fast-section" id="process">
         <div className="setup-fast-shell">
           <div className="setup-fast-heading">
-            <h2>Начните работу за несколько минут</h2>
-            <p>Быстрый перенос клиентов и гибкая настройка CRM под ваш бизнес</p>
+            <h2>{localCopy.setup.title}</h2>
+            <p>{localCopy.setup.text}</p>
           </div>
           <div className="setup-fast-grid">
-            {setupCards.map(card => (
+            {localCopy.setup.cards.map(card => (
               <article className="setup-fast-card" key={card.title}>
                 <div className="setup-fast-card-head">
                   <span className="setup-fast-icon" aria-hidden="true">{card.icon}</span>
@@ -222,7 +386,7 @@ export default function MarketingLandingContent({
             ))}
           </div>
           <div className="setup-fast-action">
-            <Link href={buildRegisterHref(referralCode)} className="marketing-primary large">Попробовать бесплатно</Link>
+            <Link href={buildRegisterHref(referralCode)} className="marketing-primary large">{localCopy.setup.cta}</Link>
           </div>
         </div>
       </section>
@@ -230,13 +394,13 @@ export default function MarketingLandingContent({
       <section className="marketing-section muted security-lite" id="security">
         <div className="section-heading-row">
           <div>
-            <p className="marketing-kicker">Безопасность и доступы</p>
-            <h2>Доступы можно настроить под вашу команду</h2>
+            <p className="marketing-kicker">{localCopy.security.kicker}</p>
+            <h2>{localCopy.security.title}</h2>
           </div>
-          <p>Вы сами решаете, что видит каждый сотрудник: всю базу, отдельные разделы или только клиентов и дела в своей зоне ответственности.</p>
+          <p>{localCopy.security.text}</p>
         </div>
         <div className="security-lite-grid">
-          {securityCards.map(card => (
+          {localCopy.security.cards.map(card => (
             <article key={card.title}>
               <h3>{card.title}</h3>
               <p>{card.text}</p>
@@ -247,12 +411,12 @@ export default function MarketingLandingContent({
 
       <section className="marketing-section launch-callout">
         <div>
-          <p className="marketing-kicker">Спокойный запуск</p>
-          <h2>Поможем запустить первый процесс</h2>
-          <p>Не нужно переносить всю компанию сразу. Можно начать с одного процесса — например Karta Pobytu — добавить 5–10 клиентов, настроить этапы и проверить LegalHub в реальной работе.</p>
-          <small>Подходит для одного специалиста, маленькой команды и растущей фирмы.</small>
+          <p className="marketing-kicker">{localCopy.launch.kicker}</p>
+          <h2>{localCopy.launch.title}</h2>
+          <p>{localCopy.launch.text}</p>
+          <small>{localCopy.launch.note}</small>
         </div>
-        <Link href="/contact" className="marketing-primary large">Запросить запуск</Link>
+        <Link href="/contact" className="marketing-primary large">{localCopy.launch.cta}</Link>
       </section>
 
       <section className="marketing-section" id="pricing">
@@ -303,7 +467,7 @@ export default function MarketingLandingContent({
           <small>Copyright © 2026 LegalHub CRM, All Rights Reserved.</small>
         </div>
         <div className="marketing-footer-contact">
-          <button type="button" className="marketing-footer-faq" onClick={() => setFaqOpen(true)}>Частые вопросы</button>
+          <button type="button" className="marketing-footer-faq" onClick={() => setFaqOpen(true)}>{localCopy.footerFaq}</button>
           <a href="mailto:office@legalhubcrm.com">office@legalhubcrm.com</a>
           <a href="tel:+48730382448">{copy.footer.phoneLabel}: +48 730 382 448</a>
         </div>
@@ -311,9 +475,9 @@ export default function MarketingLandingContent({
 
       {faqOpen && (
         <div className="faq-modal" role="dialog" aria-modal="true" aria-labelledby="faq-modal-title">
-          <button type="button" className="faq-modal-backdrop" aria-label="Закрыть вопросы" onClick={() => setFaqOpen(false)} />
+          <button type="button" className="faq-modal-backdrop" aria-label={localCopy.closeFaq} onClick={() => setFaqOpen(false)} />
           <section className="faq-modal-panel">
-            <button type="button" className="faq-modal-close" aria-label="Закрыть вопросы" onClick={() => setFaqOpen(false)}>×</button>
+            <button type="button" className="faq-modal-close" aria-label={localCopy.closeFaq} onClick={() => setFaqOpen(false)}>×</button>
             <p className="marketing-kicker">{copy.faq.kicker}</p>
             <h2 id="faq-modal-title">{copy.faq.title}</h2>
             <div className="faq-list">

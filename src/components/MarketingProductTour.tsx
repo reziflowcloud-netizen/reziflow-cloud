@@ -78,7 +78,7 @@ export default function MarketingProductTour({ copy }: { copy: ProductTourCopy }
                 type="button"
                 className="tour-image-open"
                 onClick={() => setPreviewImage({ src: activeImage, alt: activeImageAlt, label: active.label })}
-                aria-label={`Открыть крупнее: ${active.label}`}
+                aria-label={`${copy.openLarger}: ${active.label}`}
               >
                 <img
                   className="tour-image"
@@ -86,7 +86,7 @@ export default function MarketingProductTour({ copy }: { copy: ProductTourCopy }
                   alt={activeImageAlt}
                   loading="lazy"
                 />
-                <span className="tour-image-zoom-label">Открыть крупнее</span>
+                <span className="tour-image-zoom-label">{copy.openLarger}</span>
               </button>
             </div>
           ) : (
@@ -113,13 +113,13 @@ export default function MarketingProductTour({ copy }: { copy: ProductTourCopy }
           <button
             type="button"
             className="tour-image-modal-backdrop"
-            aria-label="Закрыть изображение"
+            aria-label={copy.closeImage}
             onClick={() => setPreviewImage(null)}
           />
           <div className="tour-image-modal-panel">
             <div className="tour-image-modal-bar">
               <strong>{previewImage.label}</strong>
-              <button type="button" aria-label="Закрыть изображение" onClick={() => setPreviewImage(null)}>×</button>
+              <button type="button" aria-label={copy.closeImage} onClick={() => setPreviewImage(null)}>×</button>
             </div>
             <img src={previewImage.src} alt={previewImage.alt} />
           </div>
