@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { FormEvent, useState } from 'react'
-import MarketingLanguageSelect from '@/components/MarketingLanguageSelect'
 import { useMarketingLanguage } from '@/hooks/useMarketingLanguage'
 import type { MarketingLang } from '@/lib/marketingI18n'
 
@@ -128,12 +127,9 @@ export default function ContactClient() {
     <main className="contact-page">
       <div className="contact-shell">
         <section className="contact-copy">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 40 }}>
-            <Link href="/" className="contact-brand" style={{ marginBottom: 0 }}>
-              <img src="/assets/legalhub/legalhub-photo-logo-wide-transparent.png" alt="LegalHub" />
-            </Link>
-            <MarketingLanguageSelect />
-          </div>
+          <Link href="/" className="contact-brand">
+            <img src="/assets/legalhub/legalhub-photo-logo-wide-transparent.png" alt="LegalHub" />
+          </Link>
           <p className="marketing-kicker">{copy.kicker}</p>
           <h1>{copy.title}</h1>
           <p>{copy.text}</p>
