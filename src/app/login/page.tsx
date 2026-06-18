@@ -2,10 +2,15 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import MarketingLanguageSelect from '@/components/MarketingLanguageSelect'
 import PasswordEyeIcon from '@/components/PasswordEyeIcon'
+import { useMarketingLanguage } from '@/hooks/useMarketingLanguage'
+import { getAuthCopy } from '@/lib/authI18n'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { lang } = useMarketingLanguage()
+  const copy = getAuthCopy(lang).login
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -29,11 +34,11 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       })
-      const data = await res.json()
-      if (!res.ok) setError(data.error || 'Ошибка входа')
+      await res.json()
+      if (!res.ok) setError(copy.loginError)
       else router.push('/dashboard')
     } catch {
-      setError('Ошибка соединения')
+      setError(copy.connectionError)
     } finally {
       setLoading(false)
     }
@@ -41,53 +46,45 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
-      <section className="login-intro" aria-label="Преимущества LegalHub">
-        <p className="login-kicker">LegalHub CRM</p>
-        <h1>Система управления делами для легализационных агентств в Польше</h1>
+      <section className="login-intro" aria-label={copy.introAria}>
+        <p className="login-kicker">{copy.kicker}</p>
+        <h1>{copy.title}</h1>
         <div className="login-benefits">
-          <article>
-            <span className="login-benefit-icon shield" aria-hidden="true" />
-            <div>
-              <h2>Ваши данные под защитой</h2>
-              <p>Шифрование и резервное копирование</p>
-            </div>
-          </article>
-          <article>
-            <span className="login-benefit-icon reminder" aria-hidden="true" />
-            <div>
-              <h2>Ничего не упустите</h2>
-              <p>Напоминания и контроль сроков</p>
-            </div>
-          </article>
-          <article>
-            <span className="login-benefit-icon team" aria-hidden="true" />
-            <div>
-              <h2>Вся команда в одном окне</h2>
-              <p>Задачи, клиенты и документы</p>
-            </div>
-          </article>
+          {copy.benefits.map(benefit => (
+            <article key={benefit.title}>
+              <span className={`login-benefit-icon ${benefit.icon}`} aria-hidden="true" />
+              <div>
+                <h2>{benefit.title}</h2>
+                <p>{benefit.text}</p>
+              </div>
+            </article>
+          ))}
         </div>
       </section>
 
-      <section className="login-center" aria-label="Форма входа">
+      <section className="login-center" aria-label={copy.formAria}>
         <div className="login-card fade-in">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <MarketingLanguageSelect />
+          </div>
+
           <div className="login-logo">
             <Link href="/" aria-label="LegalHub CRM">
               <img src="/assets/legalhub/legalhub-photo-logo-wide-transparent.png" alt="LegalHub" className="login-brand-logo" />
             </Link>
-            <p>Система управления делами</p>
+            <p>{copy.cardSubtitle}</p>
           </div>
 
           {error && <div className="error-msg">{error}</div>}
 
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="label">Email</label>
+              <label className="label">{copy.email}</label>
               <input className="input" type="email" value={email}
                 onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required />
             </div>
             <div className="form-group">
-              <label className="label">Пароль</label>
+              <label className="label">{copy.password}</label>
               <div className="password-field">
                 <input className="input password-field-input" type={showPassword ? 'text' : 'password'} value={password}
                   onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
@@ -95,8 +92,8 @@ export default function LoginPage() {
                   type="button"
                   className={`password-toggle ${showPassword ? 'is-visible' : ''}`}
                   onClick={() => setShowPassword(value => !value)}
-                  aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                  title={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                  aria-label={showPassword ? copy.hidePassword : copy.showPassword}
+                  title={showPassword ? copy.hidePassword : copy.showPassword}
                 >
                   <PasswordEyeIcon visible={showPassword} />
                 </button>
@@ -105,18 +102,18 @@ export default function LoginPage() {
             <div className="login-form-row">
               <label className="login-remember">
                 <input type="checkbox" />
-                <span>Запомнить меня</span>
+                <span>{copy.remember}</span>
               </label>
-              <a href="mailto:office@legalhubcrm.com?subject=Восстановление доступа LegalHub">Забыли пароль?</a>
+              <a href={`mailto:office@legalhubcrm.com?subject=${encodeURIComponent(copy.forgotSubject)}`}>{copy.forgot}</a>
             </div>
             <button type="submit" className="btn btn-primary login-submit" disabled={loading}>
-              {loading ? 'Вход...' : 'Войти'}
+              {loading ? copy.loading : copy.submit}
             </button>
           </form>
           <div className="login-legal-links">
-            <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>
+            <a href="/privacy" target="_blank" rel="noreferrer">{copy.privacy}</a>
             <span>•</span>
-            <a href="/data-deletion" target="_blank" rel="noreferrer">Data Deletion Instructions</a>
+            <a href="/data-deletion" target="_blank" rel="noreferrer">{copy.dataDeletion}</a>
           </div>
         </div>
       </section>

@@ -2,50 +2,33 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
+import MarketingLanguageSelect from '@/components/MarketingLanguageSelect'
 import PasswordEyeIcon from '@/components/PasswordEyeIcon'
+import { useMarketingLanguage } from '@/hooks/useMarketingLanguage'
+import { getAuthCopy } from '@/lib/authI18n'
 
-const PLAN_LABELS: Record<string, string> = {
-  free: 'Бесплатный',
-  starter: 'Starter',
-  pro: 'Pro',
-  agency: 'Agency',
+type PlanId = 'free' | 'starter' | 'pro' | 'agency'
+
+const PLAN_IDS: PlanId[] = ['free', 'starter', 'pro', 'agency']
+
+function normalizePlan(value: string): PlanId {
+  return PLAN_IDS.includes(value as PlanId) ? value as PlanId : 'free'
 }
-
-const REGISTER_BENEFITS = [
-  {
-    title: 'Старт без оплаты',
-    text: 'и без карты',
-    icon: 'payment',
-  },
-  {
-    title: 'Гибкие настройки',
-    text: 'под ваш процесс',
-    icon: 'settings',
-  },
-  {
-    title: 'Полный контроль',
-    text: 'и аналитика',
-    icon: 'control',
-  },
-  {
-    title: 'Безопасность',
-    text: 'и защита данных',
-    icon: 'security',
-  },
-]
 
 export default function RegisterClient({ initialPlan, referralCode }: { initialPlan: string, referralCode?: string }) {
   const router = useRouter()
+  const { lang } = useMarketingLanguage()
+  const copy = getAuthCopy(lang).register
   const [companyName, setCompanyName] = useState('')
   const [adminName, setAdminName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [plan, setPlan] = useState(PLAN_LABELS[initialPlan] ? initialPlan : 'free')
+  const [plan, setPlan] = useState<PlanId>(normalizePlan(initialPlan))
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const planName = useMemo(() => PLAN_LABELS[plan] || PLAN_LABELS.free, [plan])
+  const planName = useMemo(() => copy.planLabels[plan], [copy.planLabels, plan])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -68,12 +51,12 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Не удалось создать организацию')
+        setError(copy.createError)
         return
       }
       router.push(data.redirectTo || '/dashboard')
     } catch {
-      setError('Ошибка соединения')
+      setError(copy.connectionError)
     } finally {
       setLoading(false)
     }
@@ -81,14 +64,12 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
 
   return (
     <main className="register-page auth-register-page">
-      <section className="register-panel register-info-panel" aria-label="Преимущества старта">
-        <p className="marketing-kicker">LegalHub CRM</p>
-        <h1>Начните бесплатно и настройте систему под свою работу</h1>
-        <p className="register-lead">
-          Создайте организацию за пару минут и начните работать в своей CRM.
-        </p>
+      <section className="register-panel register-info-panel" aria-label={copy.infoAria}>
+        <p className="marketing-kicker">{copy.kicker}</p>
+        <h1>{copy.title}</h1>
+        <p className="register-lead">{copy.lead}</p>
         <div className="register-benefit-grid">
-          {REGISTER_BENEFITS.map(benefit => (
+          {copy.benefits.map(benefit => (
             <article key={benefit.title} className="register-benefit-card">
               <span className={`register-benefit-icon ${benefit.icon}`} aria-hidden="true" />
               <div>
@@ -100,40 +81,44 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
         </div>
       </section>
 
-      <section className="register-form-shell" aria-label="Форма регистрации">
+      <section className="register-form-shell" aria-label={copy.formAria}>
         <form onSubmit={handleSubmit} className="register-form">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <MarketingLanguageSelect />
+          </div>
+
           <Link href="/" className="register-logo">
             <img src="/assets/legalhub/legalhub-photo-logo-wide-transparent.png" alt="LegalHub" />
           </Link>
-          <p className="marketing-kicker">Бесплатный старт</p>
+          <p className="marketing-kicker">{copy.formKicker}</p>
 
           {error && <div className="error-msg">{error}</div>}
 
           <div className="form-group">
-            <label className="label">Название компании *</label>
-            <input className="input" value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Напр.: Legal Partner" required />
+            <label className="label">{copy.companyName}</label>
+            <input className="input" value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder={copy.companyPlaceholder} required />
           </div>
 
           <div className="form-group">
-            <label className="label">Ваше имя *</label>
-            <input className="input" value={adminName} onChange={e => setAdminName(e.target.value)} placeholder="Имя администратора" required />
+            <label className="label">{copy.adminName}</label>
+            <input className="input" value={adminName} onChange={e => setAdminName(e.target.value)} placeholder={copy.adminPlaceholder} required />
           </div>
 
           <div className="form-group">
-            <label className="label">Email для входа *</label>
-            <input className="input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@example.com" required />
+            <label className="label">{copy.email}</label>
+            <input className="input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder={copy.emailPlaceholder} required />
           </div>
 
           <div className="form-group">
-            <label className="label">Пароль *</label>
+            <label className="label">{copy.password}</label>
             <div className="password-field">
-              <input className="input password-field-input" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Минимум 6 символов" minLength={6} required />
+              <input className="input password-field-input" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder={copy.passwordPlaceholder} minLength={6} required />
               <button
                 type="button"
                 className={`password-toggle ${showPassword ? 'is-visible' : ''}`}
                 onClick={() => setShowPassword(value => !value)}
-                aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                title={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                aria-label={showPassword ? copy.hidePassword : copy.showPassword}
+                title={showPassword ? copy.hidePassword : copy.showPassword}
               >
                 <PasswordEyeIcon visible={showPassword} />
               </button>
@@ -141,9 +126,9 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
           </div>
 
           <div className="form-group">
-            <label className="label">Режим старта</label>
-            <div className="plan-segments" role="radiogroup" aria-label="Тариф">
-              {Object.entries(PLAN_LABELS).map(([value, label]) => (
+            <label className="label">{copy.startMode}</label>
+            <div className="plan-segments" role="radiogroup" aria-label={copy.planAria}>
+              {PLAN_IDS.map(value => (
                 <button
                   key={value}
                   type="button"
@@ -151,19 +136,19 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
                   onClick={() => setPlan(value)}
                   aria-pressed={plan === value}
                 >
-                  {label}
+                  {copy.planLabels[value]}
                 </button>
               ))}
             </div>
           </div>
 
           <button className="btn btn-primary register-submit" type="submit" disabled={loading}>
-            {loading ? 'Создаем организацию...' : plan === 'free' ? 'Создать организацию бесплатно' : `Начать бесплатно на тарифе ${planName}`}
+            {loading ? copy.loading : plan === 'free' ? copy.submitFree : copy.submitPlan.replace('{plan}', planName)}
           </button>
         </form>
 
         <p className="register-bottom">
-          Уже есть аккаунт? <Link href="/login">Войти</Link>
+          {copy.already} <Link href="/login">{copy.loginLink}</Link>
         </p>
       </section>
     </main>
