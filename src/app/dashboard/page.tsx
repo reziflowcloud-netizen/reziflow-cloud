@@ -7,6 +7,7 @@ import { Suspense } from 'react'
 import UpcomingEvents from '@/components/UpcomingEvents'
 import Tr from '@/components/Tr'
 import DashboardOnboarding, { DashboardOnboardingStep } from '@/components/DashboardOnboarding'
+import { LocalizedMonthLabel } from '@/components/DashboardI18n'
 
 export const dynamic = 'force-dynamic'
 
@@ -356,7 +357,7 @@ async function DashboardCharts({ organizationId, scope }: { organizationId: stri
       prisma.client.count({ where: clientWhereForScope(scope, organizationId, { createdAt: { gte: start, lt: end } }) }),
     ])
     return {
-      month: start.toLocaleDateString('ru', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
+      monthKey: `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, '0')}`,
       cases,
       clients,
     }
@@ -365,7 +366,7 @@ async function DashboardCharts({ organizationId, scope }: { organizationId: stri
   const maxClients = Math.max(...lastMonths.map(m => m.clients), 1)
   const makeBars = (metric: 'cases' | 'clients', max: number) => lastMonths.map(m => ({
     value: m[metric],
-    month: m.month,
+    monthKey: m.monthKey,
     height: Math.max((m[metric] / max) * 76, m[metric] > 0 ? 12 : 2),
   }))
 
@@ -395,7 +396,7 @@ async function DashboardCharts({ organizationId, scope }: { organizationId: stri
                       }}
                     />
                     <span className="dash-chart-label" style={{ color: i === bars.length - 1 ? color : undefined, fontWeight: i === bars.length - 1 ? 700 : 400 }}>
-                      {bar.month}
+                      <LocalizedMonthLabel monthKey={bar.monthKey} variant="short" />
                     </span>
                   </div>
                 ))}

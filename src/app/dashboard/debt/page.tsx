@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { formatMoney } from '@/lib/dashboardAnalytics'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
+import { DashboardText } from '@/components/DashboardI18n'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,7 +48,7 @@ export default async function DebtPage() {
       id: item.id,
       caseNumber: item.caseNumber,
       debt,
-      serviceName: item.service?.name || 'Без услуги',
+      serviceName: item.service?.name || '',
       serviceColor: item.service?.color || '#64748b',
     })
     clients.set(item.clientId, current)
@@ -60,10 +61,10 @@ export default async function DebtPage() {
     <div className="fade-in">
       <div className="page-header">
         <div>
-          <div className="page-title">Задолженность</div>
-          <div className="page-subtitle">Клиенты и дела с неоплаченным остатком</div>
+          <div className="page-title"><DashboardText k="debt_title" /></div>
+          <div className="page-subtitle"><DashboardText k="debt_subtitle" /></div>
         </div>
-        <Link href="/dashboard" className="btn btn-secondary">Назад</Link>
+        <Link href="/dashboard" className="btn btn-secondary"><DashboardText k="back" /></Link>
       </div>
 
       <div className="page-body">
@@ -71,37 +72,37 @@ export default async function DebtPage() {
           <div className="stat-card">
             <div className="stat-icon" style={{ background: '#fef2f2' }}>Σ</div>
             <div>
-              <div className="stat-label">Всего долг</div>
+              <div className="stat-label"><DashboardText k="total_debt" /></div>
               <div className="stat-value" style={{ color: '#dc2626' }}>{formatMoney(totalDebt)}</div>
             </div>
           </div>
           <div className="stat-card">
             <div className="stat-icon" style={{ background: '#fff7ed' }}>#</div>
             <div>
-              <div className="stat-label">Клиентов с долгом</div>
+              <div className="stat-label"><DashboardText k="clients_with_debt" /></div>
               <div className="stat-value">{debtClients.length}</div>
             </div>
           </div>
         </div>
 
         <div className="table-container">
-          <div style={{ padding: '16px 16px 0', fontWeight: 600 }}>Кто должен деньги</div>
+          <div style={{ padding: '16px 16px 0', fontWeight: 600 }}><DashboardText k="who_owes_money" /></div>
           <div className="table-scroll">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Клиент</th>
-                  <th>Телефон</th>
-                  <th>Услуги</th>
-                  <th>Стоимость</th>
-                  <th>Оплачено</th>
-                  <th>Долг</th>
+                  <th><DashboardText k="client" /></th>
+                  <th><DashboardText k="phone" /></th>
+                  <th><DashboardText k="service" /></th>
+                  <th><DashboardText k="cost" /></th>
+                  <th><DashboardText k="paid" /></th>
+                  <th><DashboardText k="debt" /></th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {debtClients.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}>Задолженностей нет</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}><DashboardText k="no_debts" /></td></tr>
                 ) : debtClients.map((item) => (
                   <tr key={item.id}>
                     <td style={{ fontWeight: 600 }}>{item.name}</td>
@@ -118,9 +119,9 @@ export default async function DebtPage() {
                               textDecoration: 'none',
                               marginRight: 6,
                             }}
-                            title={caseItem.caseNumber || 'Номер не указан'}
+                            title={caseItem.caseNumber || undefined}
                           >
-                            {caseItem.serviceName}
+                            {caseItem.serviceName || <DashboardText k="no_service" />}
                           </Link>
                           {' '}({formatMoney(caseItem.debt)})
                         </div>
@@ -129,7 +130,7 @@ export default async function DebtPage() {
                     <td>{formatMoney(item.totalValue)}</td>
                     <td>{formatMoney(item.totalPaid)}</td>
                     <td style={{ color: '#dc2626', fontWeight: 700 }}>{formatMoney(item.debt)}</td>
-                    <td><Link href={`/clients/${item.id}`} className="btn btn-ghost">Открыть</Link></td>
+                    <td><Link href={`/clients/${item.id}`} className="btn btn-ghost"><DashboardText k="open" /></Link></td>
                   </tr>
                 ))}
               </tbody>

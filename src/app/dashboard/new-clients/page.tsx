@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
-import { buildMonthOptions, formatDate, selectedMonth } from '@/lib/dashboardAnalytics'
+import { buildMonthOptions, selectedMonth } from '@/lib/dashboardAnalytics'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { clientWhereForScope, getDataAccessScope } from '@/lib/apiScope'
+import { DashboardText, LocalizedDate, LocalizedMonthLabel } from '@/components/DashboardI18n'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,15 +43,15 @@ export default async function NewClientsPage({
     <div className="fade-in">
       <div className="page-header">
         <div>
-          <div className="page-title">Новые клиенты</div>
-          <div className="page-subtitle">Клиенты, добавленные в выбранном месяце</div>
+          <div className="page-title"><DashboardText k="new_clients" /></div>
+          <div className="page-subtitle"><DashboardText k="new_clients_subtitle" /></div>
         </div>
-        <Link href="/dashboard" className="btn btn-secondary">Назад</Link>
+        <Link href="/dashboard" className="btn btn-secondary"><DashboardText k="back" /></Link>
       </div>
 
       <div className="page-body">
         <div className="card" style={{ marginBottom: 16 }}>
-          <div className="section-title">Месяцы</div>
+          <div className="section-title"><DashboardText k="months" /></div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {monthTotals.map((item) => (
               <Link
@@ -58,7 +59,7 @@ export default async function NewClientsPage({
                 href={`/dashboard/new-clients?month=${item.key}`}
                 className={item.key === monthKey ? 'btn btn-primary' : 'btn btn-secondary'}
               >
-                {item.label} · {item.count}
+                <LocalizedMonthLabel monthKey={item.key} /> · {item.count}
               </Link>
             ))}
           </div>
@@ -67,38 +68,40 @@ export default async function NewClientsPage({
         <div className="stat-card" style={{ marginBottom: 16 }}>
           <div className="stat-icon" style={{ background: '#d1fae5' }}>#</div>
           <div>
-            <div className="stat-label">Добавлено клиентов за {month?.label || 'месяц'}</div>
+            <div className="stat-label">
+              <DashboardText k="added_clients_for" /> {month ? <LocalizedMonthLabel monthKey={month.key} /> : <DashboardText k="month" />}
+            </div>
             <div className="stat-value">{clients.length}</div>
           </div>
         </div>
 
         <div className="table-container">
-          <div style={{ padding: '16px 16px 0', fontWeight: 600 }}>Клиенты за месяц</div>
+          <div style={{ padding: '16px 16px 0', fontWeight: 600 }}><DashboardText k="clients_for_month" /></div>
           <div className="table-scroll">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Дата</th>
-                  <th>Клиент</th>
-                  <th>Телефон</th>
+                  <th><DashboardText k="date" /></th>
+                  <th><DashboardText k="client" /></th>
+                  <th><DashboardText k="phone" /></th>
                   <th>Email</th>
-                  <th>Город</th>
-                  <th>Дел</th>
+                  <th><DashboardText k="city" /></th>
+                  <th><DashboardText k="cases_short" /></th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {clients.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}>В этом месяце новых клиентов нет</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}><DashboardText k="no_new_clients_month" /></td></tr>
                 ) : clients.map((client) => (
                   <tr key={client.id}>
-                    <td>{formatDate(client.createdAt)}</td>
+                    <td><LocalizedDate value={client.createdAt} /></td>
                     <td style={{ fontWeight: 600 }}>{client.firstName} {client.lastName}</td>
                     <td>{client.phone || '-'}</td>
                     <td>{client.email || '-'}</td>
                     <td>{client.city || '-'}</td>
                     <td>{client.cases.length}</td>
-                    <td><Link href={`/clients/${client.id}`} className="btn btn-ghost">Открыть</Link></td>
+                    <td><Link href={`/clients/${client.id}`} className="btn btn-ghost"><DashboardText k="open" /></Link></td>
                   </tr>
                 ))}
               </tbody>

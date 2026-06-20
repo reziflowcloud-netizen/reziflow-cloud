@@ -1,21 +1,58 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useLanguage } from '@/context/LanguageContext'
+import type { Lang } from '@/lib/translations'
 
-function getDateLabel(date: Date): { label: string; color: string } {
+const LOCALES: Record<Lang, string> = {
+  ru: 'ru-RU',
+  uk: 'uk-UA',
+  pl: 'pl-PL',
+}
+
+const RELATIVE_LABELS: Record<Lang, {
+  overdue: (days: number) => string
+  today: string
+  tomorrow: string
+  inDays: (days: number) => string
+}> = {
+  ru: {
+    overdue: (days) => `Просрочено ${days} дн.`,
+    today: 'Сегодня',
+    tomorrow: 'Завтра',
+    inDays: (days) => `Через ${days} дн.`,
+  },
+  uk: {
+    overdue: (days) => `Прострочено ${days} дн.`,
+    today: 'Сьогодні',
+    tomorrow: 'Завтра',
+    inDays: (days) => `Через ${days} дн.`,
+  },
+  pl: {
+    overdue: (days) => `Po terminie ${days} dni`,
+    today: 'Dzisiaj',
+    tomorrow: 'Jutro',
+    inDays: (days) => `Za ${days} dni`,
+  },
+}
+
+function getDateLabel(date: Date, lang: Lang): { label: string; color: string } {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const d = new Date(date)
   d.setHours(0, 0, 0, 0)
   const diff = Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  const labels = RELATIVE_LABELS[lang] || RELATIVE_LABELS.ru
+  const locale = LOCALES[lang] || LOCALES.ru
 
-  if (diff < 0) return { label: `Просрочено ${Math.abs(diff)} дн.`, color: '#dc2626' }
-  if (diff === 0) return { label: 'Сегодня', color: '#dc2626' }
-  if (diff === 1) return { label: 'Завтра', color: '#f59e0b' }
-  if (diff <= 7) return { label: `Через ${diff} дн.`, color: '#6b7280' }
-  return { label: new Date(date).toLocaleDateString('ru', { day: 'numeric', month: 'short' }), color: '#6b7280' }
+  if (diff < 0) return { label: labels.overdue(Math.abs(diff)), color: '#dc2626' }
+  if (diff === 0) return { label: labels.today, color: '#dc2626' }
+  if (diff === 1) return { label: labels.tomorrow, color: '#f59e0b' }
+  if (diff <= 7) return { label: labels.inDays(diff), color: '#6b7280' }
+  return { label: new Date(date).toLocaleDateString(locale, { day: 'numeric', month: 'short' }), color: '#6b7280' }
 }
 
 export default function UpcomingEvents() {
+  const { lang, t } = useLanguage()
   const [tasks, setTasks] = useState<any[]>([])
   const [priorities, setPriorities] = useState<any[]>([])
   const [clients, setClients] = useState<any[]>([])
@@ -161,7 +198,7 @@ export default function UpcomingEvents() {
 
   if (items.length === 0) return (
     <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '14px 0', fontSize: 13 }}>
-      🎉 Нет предстоящих событий на ближайшие 14 дней
+      🎉 {t('no_upcoming')}
     </div>
   )
 
@@ -215,10 +252,10 @@ export default function UpcomingEvents() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {items.map((item, i) => {
-          const { label, color } = getDateLabel(item.date)
+          const { label, color } = getDateLabel(item.date, lang)
           const isRem = item.type === 'reminder'
           const accent = item.isOverdue ? '#dc2626' : isRem ? '#7c3aed' : getPriorityColor(item.task.priority)
-          const timeStr = isRem ? item.date.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }) : ''
+          const timeStr = isRem ? item.date.toLocaleTimeString(LOCALES[lang] || LOCALES.ru, { hour: '2-digit', minute: '2-digit' }) : ''
 
           return (
             <div
