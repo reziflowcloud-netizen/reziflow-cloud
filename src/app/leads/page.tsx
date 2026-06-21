@@ -204,6 +204,7 @@ export default function LeadsPage() {
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
   const [leadSources, setLeadSources] = useState<LeadSourceOption[]>(LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true })))
   const [editingStatuses, setEditingStatuses] = useState(false)
+  const [deletingStatusId, setDeletingStatusId] = useState<number | null>(null)
   const [newStatusName, setNewStatusName] = useState('')
   const [newStatusColor, setNewStatusColor] = useState('#2563eb')
   const [viewMode, setViewMode] = useState<ViewMode>(DEFAULT_LEAD_LIST_STATE.viewMode)
@@ -726,6 +727,31 @@ export default function LeadsPage() {
     setNewStatusColor('#2563eb')
   }
 
+  async function deleteLeadStatus(item: any) {
+    const count = statusCounts[item.name] || 0
+    if (count > 0) {
+      window.alert(lt('status_delete_blocked').replace('{count}', String(count)))
+      return
+    }
+    if (!window.confirm(lt('status_delete_confirm').replace('{name}', item.name))) return
+
+    const previous = leadStatuses
+    setDeletingStatusId(item.id)
+    setLeadStatuses(current => current.filter(statusItem => statusItem.id !== item.id))
+    try {
+      const res = await fetch(`/api/lead-statuses/${item.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setLeadStatuses(previous)
+        window.alert(data.error || lt('status_delete_failed'))
+        return
+      }
+      if (status === item.name) setStatus('')
+    } finally {
+      setDeletingStatusId(null)
+    }
+  }
+
   function toDateTimeLocal(value?: string) {
     if (!value) return ''
     const date = new Date(value)
@@ -1058,6 +1084,7 @@ export default function LeadsPage() {
         <div className="lead-status-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 16 }}>
           {orderedStatuses.map((item, index) => {
             const colors = statusColors(item)
+            const leadCount = statusCounts[item.name] || 0
             return (
               <div className="lead-status-card" key={item.id || item.name} style={{ border: `1px solid ${status === item.name ? colors.color : 'var(--border)'}`, background: status === item.name ? colors.bg : 'var(--surface)', borderRadius: 8, padding: 10 }}>
                 <button
@@ -1065,7 +1092,7 @@ export default function LeadsPage() {
                   onClick={() => !editingStatuses && setStatus(current => current === item.name ? '' : item.name)}
                   style={{ width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: 0, cursor: editingStatuses ? 'default' : 'pointer' }}
                 >
-                  <div className="lead-status-count" style={{ color: colors.color, fontWeight: 800, fontSize: 18 }}>{statusCounts[item.name] || 0}</div>
+                  <div className="lead-status-count" style={{ color: colors.color, fontWeight: 800, fontSize: 18 }}>{leadCount}</div>
                   {editingStatuses && item.id ? (
                     <input className="input" defaultValue={item.name} onBlur={event => event.target.value.trim() !== item.name && saveLeadStatus(item, { name: event.target.value })} style={{ height: 30, padding: '4px 8px', fontSize: 12, fontWeight: 700 }} />
                   ) : (
@@ -1094,6 +1121,16 @@ export default function LeadsPage() {
                         style={{ minHeight: 72, fontSize: 12 }}
                       />
                     )}
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      disabled={deletingStatusId === item.id || leadCount > 0}
+                      title={leadCount > 0 ? lt('status_delete_blocked').replace('{count}', String(leadCount)) : lt('delete_status')}
+                      onClick={() => deleteLeadStatus(item)}
+                      style={{ width: '100%', justifyContent: 'center', padding: '6px 10px', fontSize: 12 }}
+                    >
+                      {deletingStatusId === item.id ? lt('processing') : lt('delete_status')}
+                    </button>
                   </div>
                 )}
               </div>
