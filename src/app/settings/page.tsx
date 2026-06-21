@@ -32,8 +32,8 @@ export default function SettingsPage() {
     {
       href: '/settings/lead-sources',
       icon: '◎',
-      title: 'Источники лидов',
-      desc: 'Список источников для фильтров, карточек и создания лидов',
+      title: t('lead_sources_title'),
+      desc: t('lead_sources_sub'),
     },
     {
       href: '/settings/services',
@@ -44,50 +44,50 @@ export default function SettingsPage() {
     {
       href: '/settings/case-options',
       icon: '📋',
-      title: 'Поля дела',
-      desc: 'Цель пребывания, тип занятости, тип договора, документы для MOS',
+      title: t('case_options_title'),
+      desc: t('case_options_sub'),
     },
     {
       href: '/settings/employees',
       icon: '👨‍💼',
-      title: 'Сотрудники',
-      desc: 'Ответственные сотрудники и доверители',
+      title: t('employees_title'),
+      desc: t('employees_sub'),
     },
     {
       href: '/settings/users',
       icon: '🔐',
-      title: 'Пользователи',
-      desc: 'Управление доступом к системе',
+      title: t('users'),
+      desc: t('users_settings_sub'),
     },
     ...(canManageBilling ? [{
       href: '/settings/billing',
       icon: 'PLN',
-      title: 'Тариф и оплата',
-      desc: 'План, пробный период, использование и мягкие лимиты',
+      title: t('billing_title'),
+      desc: t('billing_sub'),
     }] : []),
     {
       href: '/settings/sections',
       icon: '▦',
-      title: 'Поля и сектора',
-      desc: 'Показывать или скрывать блоки в карточке клиента и деле',
+      title: t('sections_title'),
+      desc: t('sections_sub'),
     },
     {
       href: '/settings/document-templates',
       icon: '📄',
-      title: 'Шаблоны документов',
-      desc: 'DOCX-бланки договоров и доверенностей для автоматического заполнения',
+      title: t('document_templates_title'),
+      desc: t('document_templates_sub'),
     },
     {
       href: '/settings/organizations',
       icon: '🏢',
-      title: 'Организации',
-      desc: 'Фирмы, тарифы и первый администратор для каждой компании',
+      title: t('organizations_title'),
+      desc: t('organizations_settings_sub'),
     },
     ...(canManageAll ? [{
       href: '/settings/referrals',
       icon: '%',
-      title: 'Рефералы',
-      desc: 'Партнерские ссылки, приглашенные организации и начисления',
+      title: t('referrals_title'),
+      desc: t('referrals_sub'),
     }] : []),
     {
       href: '/settings/export',
@@ -98,8 +98,8 @@ export default function SettingsPage() {
     {
       href: '/settings/integrations',
       icon: '🔌',
-      title: 'Интеграции',
-      desc: 'Webhook для заявок с сайта, квиза, рекламы и внешних сервисов',
+      title: t('integrations_title'),
+      desc: t('integrations_sub'),
     },
   ], [canManageAll, canManageBilling, t])
 
@@ -107,7 +107,7 @@ export default function SettingsPage() {
     <div className="fade-in">
       <div className="page-header">
         <div className="page-title">{t('settings_title')}</div>
-        <Link href="/dashboard" className="btn btn-secondary">Назад</Link>
+        <Link href="/dashboard" className="btn btn-secondary">{t('back')}</Link>
       </div>
       <div className="page-body">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, maxWidth: 900 }}>
