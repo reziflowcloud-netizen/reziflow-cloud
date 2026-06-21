@@ -17,6 +17,18 @@ type ImportColumnMap = {
   unknown: string[]
 }
 
+type LeadPreviewData = {
+  headers: string[]
+  rowCount: number
+  previewRows: Record<string, string>[]
+  columnMap: LeadImportColumnMap
+}
+
+type LeadImportColumnMap = {
+  lead: Record<string, string>
+  unknown: string[]
+}
+
 type ImportResult = {
   importedRows: number
   clientsCreated: number
@@ -24,6 +36,14 @@ type ImportResult = {
   casesCreated: number
   customFieldsCreatedOrUsed: number
   customValuesSaved: number
+}
+
+type LeadImportResult = {
+  importedRows: number
+  skippedRows: number
+  duplicatesSkipped: number
+  emptyRows: number
+  statusesCreated: number
 }
 
 const clientLabels: Record<string, string> = {
@@ -44,6 +64,34 @@ const caseLabels: Record<string, string> = {
   notes: 'Заметки',
   filingDate: 'Дата подачи',
   contractDate: 'Дата договора',
+}
+
+const leadLabels: Record<string, string> = {
+  fullName: 'Имя лида',
+  firstName: 'Имя',
+  lastName: 'Фамилия',
+  phone: 'Телефон',
+  email: 'Email',
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  messengerId: 'Messenger ID',
+  city: 'Город',
+  voivodeship: 'Воеводство',
+  country: 'Страна / гражданство',
+  language: 'Язык',
+  serviceInterest: 'Интересующая услуга',
+  budget: 'Бюджет',
+  urgency: 'Температура',
+  status: 'Статус',
+  source: 'Источник',
+  notes: 'Заметки',
+  statusReason: 'Причина статуса',
+  statusReasonComment: 'Комментарий причины',
+  lastContactAt: 'Последний контакт',
+  lastContactNote: 'Заметка последнего контакта',
+  nextContactAt: 'Следующий контакт',
+  nextContactNote: 'Заметка следующего контакта',
+  deadlineAt: 'Дедлайн',
 }
 
 Object.assign(clientLabels, {
@@ -103,6 +151,7 @@ Object.assign(caseLabels, {
 
 const clientFieldOrder = Object.keys(clientLabels)
 const caseFieldOrder = Object.keys(caseLabels)
+const leadFieldOrder = Object.keys(leadLabels)
 
 const exportText = {
   ru: {
@@ -117,8 +166,11 @@ const exportText = {
     techError: 'Сервер вернул техническую ошибку: {message}',
     emptyResponse: 'Сервер вернул пустой ответ ({status})',
     importResult: 'Импортировано строк: {rows}. Клиентов создано: {created}, найдено существующих: {reused}, дел создано: {cases}. Дополнительных значений сохранено: {custom}.',
+    leadImportResult: 'Импортировано лидов: {created}. Пропущено: {skipped}. Дубликатов: {duplicates}. Пустых строк: {empty}. Новых статусов: {statuses}.',
     importTitle: 'Импорт клиентов и дел из CSV',
     importHint: 'Сначала файл только проверяется. Распознанные колонки попадут в клиента и дело, а неизвестные колонки автоматически создадут поля в деле в секции',
+    leadImportTitle: 'Импорт лидов из CSV',
+    leadImportHint: 'Сначала файл только проверяется. Выберите, какие колонки попадут в лид, а лишние оставьте без импорта.',
     importedData: 'Импортированные данные',
     downloading: 'Скачиваю...',
     downloadTemplate: 'Скачать бланк CSV',
@@ -132,17 +184,21 @@ const exportText = {
     extraFields: 'Доп. поля',
     clientCardTarget: 'Что попадет в карточку клиента',
     caseTarget: 'Что попадет в дело',
+    leadTarget: 'Что попадет в лид',
     notRecognized: 'Пока не распознано',
     manualMapping: 'Ручное сопоставление колонок',
     manualMappingHint: 'Если CRM распознала колонку неправильно, выберите нужный столбец вручную. Пустое значение означает, что поле не будет заполняться напрямую.',
     clientFields: 'Поля клиента',
     caseFields: 'Поля дела',
+    leadFields: 'Поля лида',
     doNotImport: '— Не импортировать —',
     unknownColumns: 'Неизвестные колонки',
     unknownColumnsHint: 'Эти колонки будут сохранены в деле как настраиваемые поля. Например,',
+    leadUnknownColumnsHint: 'Эти колонки не будут импортированы. Если нужно, сопоставьте их с полем лида вручную.',
     willStay: 'не потеряется.',
     rowsNow: 'Сколько строк импортировать сейчас',
     testHint: 'Для теста лучше начать с 3-5 строк.',
+    leadTestHint: 'Для проверки лучше начать с 3-5 лидов.',
     fullDb: 'Полная база данных',
     fullDbDesc: 'Один файл: клиенты, дела, оплаты и дополнительные поля.',
     preparing: 'Подготовка...',
@@ -170,8 +226,11 @@ const exportText = {
     techError: 'Сервер повернув технічну помилку: {message}',
     emptyResponse: 'Сервер повернув порожню відповідь ({status})',
     importResult: 'Імпортовано рядків: {rows}. Клієнтів створено: {created}, знайдено наявних: {reused}, справ створено: {cases}. Додаткових значень збережено: {custom}.',
+    leadImportResult: 'Імпортовано лідів: {created}. Пропущено: {skipped}. Дублікатів: {duplicates}. Порожніх рядків: {empty}. Нових статусів: {statuses}.',
     importTitle: 'Імпорт клієнтів і справ із CSV',
     importHint: 'Спочатку файл тільки перевіряється. Розпізнані колонки потраплять у клієнта і справу, а невідомі колонки автоматично створять поля у справі в секції',
+    leadImportTitle: 'Імпорт лідів із CSV',
+    leadImportHint: 'Спочатку файл тільки перевіряється. Виберіть, які колонки потраплять у ліда, а зайві залиште без імпорту.',
     importedData: 'Імпортовані дані',
     downloading: 'Завантажую...',
     downloadTemplate: 'Завантажити бланк CSV',
@@ -185,17 +244,21 @@ const exportText = {
     extraFields: 'Дод. поля',
     clientCardTarget: 'Що потрапить у картку клієнта',
     caseTarget: 'Що потрапить у справу',
+    leadTarget: 'Що потрапить у ліда',
     notRecognized: 'Поки не розпізнано',
     manualMapping: 'Ручне зіставлення колонок',
     manualMappingHint: 'Якщо CRM розпізнала колонку неправильно, виберіть потрібний стовпець вручну. Порожнє значення означає, що поле не буде заповнюватися напряму.',
     clientFields: 'Поля клієнта',
     caseFields: 'Поля справи',
+    leadFields: 'Поля ліда',
     doNotImport: '— Не імпортувати —',
     unknownColumns: 'Невідомі колонки',
     unknownColumnsHint: 'Ці колонки будуть збережені у справі як налаштовувані поля. Наприклад,',
+    leadUnknownColumnsHint: 'Ці колонки не будуть імпортовані. Якщо потрібно, зіставте їх із полем ліда вручну.',
     willStay: 'не загубиться.',
     rowsNow: 'Скільки рядків імпортувати зараз',
     testHint: 'Для тесту краще почати з 3-5 рядків.',
+    leadTestHint: 'Для перевірки краще почати з 3-5 лідів.',
     fullDb: 'Повна база даних',
     fullDbDesc: 'Один файл: клієнти, справи, оплати та додаткові поля.',
     preparing: 'Підготовка...',
@@ -223,8 +286,11 @@ const exportText = {
     techError: 'Serwer zwrócił błąd techniczny: {message}',
     emptyResponse: 'Serwer zwrócił pustą odpowiedź ({status})',
     importResult: 'Zaimportowano wierszy: {rows}. Utworzono klientów: {created}, znaleziono istniejących: {reused}, utworzono spraw: {cases}. Zapisano dodatkowych wartości: {custom}.',
+    leadImportResult: 'Zaimportowano leadów: {created}. Pominięto: {skipped}. Duplikatów: {duplicates}. Pustych wierszy: {empty}. Nowych statusów: {statuses}.',
     importTitle: 'Import klientów i spraw z CSV',
     importHint: 'Najpierw plik jest tylko sprawdzany. Rozpoznane kolumny trafią do klienta i sprawy, a nieznane kolumny automatycznie utworzą pola w sprawie w sekcji',
+    leadImportTitle: 'Import leadów z CSV',
+    leadImportHint: 'Najpierw plik jest tylko sprawdzany. Wybierz, które kolumny trafią do leada, a zbędne pozostaw bez importu.',
     importedData: 'Dane importowane',
     downloading: 'Pobieram...',
     downloadTemplate: 'Pobierz szablon CSV',
@@ -238,17 +304,21 @@ const exportText = {
     extraFields: 'Dodatkowe pola',
     clientCardTarget: 'Co trafi do karty klienta',
     caseTarget: 'Co trafi do sprawy',
+    leadTarget: 'Co trafi do leada',
     notRecognized: 'Jeszcze nie rozpoznano',
     manualMapping: 'Ręczne mapowanie kolumn',
     manualMappingHint: 'Jeśli CRM rozpoznała kolumnę nieprawidłowo, wybierz właściwą kolumnę ręcznie. Pusta wartość oznacza, że pole nie będzie uzupełniane bezpośrednio.',
     clientFields: 'Pola klienta',
     caseFields: 'Pola sprawy',
+    leadFields: 'Pola leada',
     doNotImport: '— Nie importować —',
     unknownColumns: 'Nieznane kolumny',
     unknownColumnsHint: 'Te kolumny zostaną zapisane w sprawie jako pola konfigurowalne. Na przykład',
+    leadUnknownColumnsHint: 'Te kolumny nie będą importowane. W razie potrzeby przypisz je ręcznie do pola leada.',
     willStay: 'nie zginie.',
     rowsNow: 'Ile wierszy zaimportować teraz',
     testHint: 'Do testu najlepiej zacząć od 3-5 wierszy.',
+    leadTestHint: 'Do testu najlepiej zacząć od 3-5 leadów.',
     fullDb: 'Pełna baza danych',
     fullDbDesc: 'Jeden plik: klienci, sprawy, płatności i dodatkowe pola.',
     preparing: 'Przygotowanie...',
@@ -266,7 +336,7 @@ const exportText = {
   },
 }
 
-const fieldLabelOverrides: Record<'uk' | 'pl', { client: Record<string, string>; case: Record<string, string> }> = {
+const fieldLabelOverrides: Record<'uk' | 'pl', { client: Record<string, string>; case: Record<string, string>; lead: Record<string, string> }> = {
   uk: {
     client: {
       firstName: 'Ім’я', lastName: 'Прізвище', phone: 'Телефон', email: 'Email', pesel: 'PESEL',
@@ -292,6 +362,16 @@ const fieldLabelOverrides: Record<'uk' | 'pl', { client: Record<string, string>;
       workContractType: 'Тип зайнятості', workContractNumber: 'Номер робочого договору',
       workContractDate: 'Дата робочого договору', workContractEndDate: 'Дата закінчення договору',
       workContractSigned: 'Робочий договір підписано',
+    },
+    lead: {
+      fullName: 'Ім’я ліда', firstName: 'Ім’я', lastName: 'Прізвище', phone: 'Телефон', email: 'Email',
+      instagram: 'Instagram', facebook: 'Facebook', messengerId: 'Messenger ID', city: 'Місто',
+      voivodeship: 'Воєводство', country: 'Країна / громадянство', language: 'Мова',
+      serviceInterest: 'Цікава послуга', budget: 'Бюджет', urgency: 'Температура',
+      status: 'Статус', source: 'Джерело', notes: 'Нотатки', statusReason: 'Причина статусу',
+      statusReasonComment: 'Коментар причини', lastContactAt: 'Останній контакт',
+      lastContactNote: 'Нотатка останнього контакту', nextContactAt: 'Наступний контакт',
+      nextContactNote: 'Нотатка наступного контакту', deadlineAt: 'Дедлайн',
     },
   },
   pl: {
@@ -320,6 +400,16 @@ const fieldLabelOverrides: Record<'uk' | 'pl', { client: Record<string, string>;
       workContractDate: 'Data umowy pracy', workContractEndDate: 'Data zakończenia umowy',
       workContractSigned: 'Umowa pracy podpisana',
     },
+    lead: {
+      fullName: 'Nazwa leada', firstName: 'Imię', lastName: 'Nazwisko', phone: 'Telefon', email: 'Email',
+      instagram: 'Instagram', facebook: 'Facebook', messengerId: 'Messenger ID', city: 'Miasto',
+      voivodeship: 'Województwo', country: 'Kraj / obywatelstwo', language: 'Język',
+      serviceInterest: 'Interesująca usługa', budget: 'Budżet', urgency: 'Temperatura',
+      status: 'Status', source: 'Źródło', notes: 'Notatki', statusReason: 'Powód statusu',
+      statusReasonComment: 'Komentarz powodu', lastContactAt: 'Ostatni kontakt',
+      lastContactNote: 'Notatka ostatniego kontaktu', nextContactAt: 'Następny kontakt',
+      nextContactNote: 'Notatka następnego kontaktu', deadlineAt: 'Deadline',
+    },
   },
 }
 
@@ -328,6 +418,11 @@ function recalculateUnknown(headers: string[], columnMap: ImportColumnMap): stri
     ...Object.values(columnMap.client || {}),
     ...Object.values(columnMap.case || {}),
   ].filter(Boolean))
+  return headers.filter(header => !selected.has(header))
+}
+
+function recalculateLeadUnknown(headers: string[], columnMap: LeadImportColumnMap): string[] {
+  const selected = new Set(Object.values(columnMap.lead || {}).filter(Boolean))
   return headers.filter(header => !selected.has(header))
 }
 
@@ -351,6 +446,10 @@ export default function ExportPage() {
   const [preview, setPreview] = useState<PreviewData | null>(null)
   const [limit, setLimit] = useState(5)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
+  const [leadFile, setLeadFile] = useState<File | null>(null)
+  const [leadPreview, setLeadPreview] = useState<LeadPreviewData | null>(null)
+  const [leadLimit, setLeadLimit] = useState(5)
+  const [leadImportResult, setLeadImportResult] = useState<LeadImportResult | null>(null)
 
   async function doExport(type: string, filename: string) {
     setLoading(type)
@@ -436,10 +535,68 @@ export default function ExportPage() {
     }
   }
 
+  async function doLeadPreview() {
+    if (!leadFile) {
+      setLastError(text.chooseFile)
+      return
+    }
+    setLoading('lead-import-preview')
+    setLastError(null)
+    setLeadImportResult(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', leadFile)
+      const res = await fetch('/api/import-leads', { method: 'POST', body: formData })
+      const data = await readApiJson(res, text)
+      if (!res.ok) {
+        setLastError(data.details || data.error || text.readFailed)
+        return
+      }
+      setLeadPreview(data)
+      setLeadLimit(Math.min(5, Math.max(1, data.rowCount || 1)))
+    } catch (e: any) {
+      setLastError(String(e))
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function doLeadImport() {
+    if (!leadFile || !leadPreview) {
+      setLastError(text.previewFirst)
+      return
+    }
+    setLoading('lead-import-confirm')
+    setLastError(null)
+    setLeadImportResult(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', leadFile)
+      formData.append('confirm', 'true')
+      formData.append('limit', String(leadLimit))
+      formData.append('columnMap', JSON.stringify({
+        lead: leadPreview.columnMap.lead,
+      }))
+      const res = await fetch('/api/import-leads', { method: 'POST', body: formData })
+      const data = await readApiJson(res, text)
+      if (!res.ok) {
+        setLastError(data.details || data.error || text.importFailed)
+        return
+      }
+      setLeadImportResult(data)
+    } catch (e: any) {
+      setLastError(String(e))
+    } finally {
+      setLoading(null)
+    }
+  }
+
   const mappedClient = preview ? Object.entries(preview.columnMap.client) : []
   const mappedCase = preview ? Object.entries(preview.columnMap.case) : []
+  const mappedLead = leadPreview ? Object.entries(leadPreview.columnMap.lead) : []
   const clientFieldLabel = (field: string) => fieldLabelOverrides[lang as 'uk' | 'pl']?.client[field] || clientLabels[field] || field
   const caseFieldLabel = (field: string) => fieldLabelOverrides[lang as 'uk' | 'pl']?.case[field] || caseLabels[field] || field
+  const leadFieldLabel = (field: string) => fieldLabelOverrides[lang as 'uk' | 'pl']?.lead[field] || leadLabels[field] || field
 
   function updateColumnMap(scope: 'client' | 'case', field: string, header: string) {
     setPreview(current => {
@@ -454,6 +611,22 @@ export default function ExportPage() {
       else delete nextMap[scope][field]
 
       nextMap.unknown = recalculateUnknown(current.headers, nextMap)
+      return { ...current, columnMap: nextMap }
+    })
+  }
+
+  function updateLeadColumnMap(field: string, header: string) {
+    setLeadPreview(current => {
+      if (!current) return current
+      const nextMap: LeadImportColumnMap = {
+        lead: { ...current.columnMap.lead },
+        unknown: [],
+      }
+
+      if (header) nextMap.lead[field] = header
+      else delete nextMap.lead[field]
+
+      nextMap.unknown = recalculateLeadUnknown(current.headers, nextMap)
       return { ...current, columnMap: nextMap }
     })
   }
@@ -483,6 +656,17 @@ export default function ExportPage() {
               .replace('{reused}', String(importResult.clientsReused))
               .replace('{cases}', String(importResult.casesCreated))
               .replace('{custom}', String(importResult.customValuesSaved))}
+          </div>
+        )}
+
+        {leadImportResult && (
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#166534', fontSize: 13 }}>
+            {text.leadImportResult
+              .replace('{created}', String(leadImportResult.importedRows))
+              .replace('{skipped}', String(leadImportResult.skippedRows))
+              .replace('{duplicates}', String(leadImportResult.duplicatesSkipped))
+              .replace('{empty}', String(leadImportResult.emptyRows))
+              .replace('{statuses}', String(leadImportResult.statusesCreated))}
           </div>
         )}
 
@@ -659,6 +843,147 @@ export default function ExportPage() {
                     {preview.previewRows.map((row, rowIndex) => (
                       <tr key={rowIndex}>
                         {preview.headers.slice(0, 10).map(header => (
+                          <td key={header} style={{ padding: 8, borderBottom: '1px solid var(--border)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row[header]}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="card" style={{ marginBottom: 20, border: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 16 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>{text.leadImportTitle}</div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5, maxWidth: 760 }}>
+                {text.leadImportHint}
+              </div>
+            </div>
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', fontWeight: 800, color: 'var(--brand)', background: 'var(--bg)' }}>
+              Leads
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) auto auto', gap: 10, alignItems: 'center' }}>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={event => {
+                setLeadFile(event.target.files?.[0] || null)
+                setLeadPreview(null)
+                setLeadImportResult(null)
+                setImportResult(null)
+                setLastError(null)
+              }}
+            />
+            <button className="btn btn-secondary" onClick={doLeadPreview} disabled={loading === 'lead-import-preview'}>
+              {loading === 'lead-import-preview' ? text.checking : text.preview}
+            </button>
+            <button className="btn btn-primary" onClick={doLeadImport} disabled={!leadPreview || loading === 'lead-import-confirm'}>
+              {loading === 'lead-import-confirm' ? text.importing : text.import}
+            </button>
+          </div>
+
+          {leadPreview && (
+            <div style={{ marginTop: 18 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10, marginBottom: 14 }}>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{text.fileRows}</div>
+                  <div style={{ fontSize: 24, fontWeight: 800 }}>{leadPreview.rowCount}</div>
+                </div>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{text.columns}</div>
+                  <div style={{ fontSize: 24, fontWeight: 800 }}>{leadPreview.headers.length}</div>
+                </div>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{text.recognized}</div>
+                  <div style={{ fontSize: 24, fontWeight: 800 }}>{mappedLead.length}</div>
+                </div>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{text.extraFields}</div>
+                  <div style={{ fontSize: 24, fontWeight: 800 }}>{leadPreview.columnMap.unknown.length}</div>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>{text.leadTarget}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {mappedLead.length === 0 && <span style={{ color: 'var(--muted)', fontSize: 13 }}>{text.notRecognized}</span>}
+                  {mappedLead.map(([field, header]) => (
+                    <span key={field} style={{ border: '1px solid var(--border)', borderRadius: 999, padding: '5px 9px', fontSize: 12 }}>
+                      {leadFieldLabel(field)}: <strong>{header}</strong>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 14, background: 'var(--surface)' }}>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>{text.manualMapping}</div>
+                <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
+                  {text.manualMappingHint}
+                </div>
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>{text.leadFields}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 8 }}>
+                  {leadFieldOrder.map(field => (
+                    <label key={field} style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: 8, alignItems: 'center', fontSize: 13 }}>
+                      <span>{leadFieldLabel(field)}</span>
+                      <select
+                        className="select"
+                        value={leadPreview.columnMap.lead[field] || ''}
+                        onChange={event => updateLeadColumnMap(field, event.target.value)}
+                      >
+                        <option value="">{text.doNotImport}</option>
+                        {leadPreview.headers.map(header => (
+                          <option key={header} value={header}>{header}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 14 }}>
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>{text.unknownColumns}</div>
+                <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>
+                  {text.leadUnknownColumnsHint}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {leadPreview.columnMap.unknown.length === 0 && <span style={{ color: 'var(--muted)', fontSize: 13 }}>{text.notRecognized}</span>}
+                  {leadPreview.columnMap.unknown.slice(0, 80).map(header => (
+                    <span key={header} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 999, padding: '5px 9px', fontSize: 12 }}>{header}</span>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                <label style={{ fontWeight: 600, fontSize: 13 }}>{text.rowsNow}</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={leadPreview.rowCount}
+                  value={leadLimit}
+                  onChange={event => setLeadLimit(Math.max(1, Math.min(leadPreview.rowCount, Number(event.target.value) || 1)))}
+                  style={{ width: 110 }}
+                />
+                <span style={{ color: 'var(--muted)', fontSize: 13 }}>{text.leadTestHint}</span>
+              </div>
+
+              <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      {leadPreview.headers.slice(0, 10).map(header => (
+                        <th key={header} style={{ textAlign: 'left', padding: 8, background: 'var(--bg)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leadPreview.previewRows.map((row, rowIndex) => (
+                      <tr key={rowIndex}>
+                        {leadPreview.headers.slice(0, 10).map(header => (
                           <td key={header} style={{ padding: 8, borderBottom: '1px solid var(--border)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row[header]}</td>
                         ))}
                       </tr>
