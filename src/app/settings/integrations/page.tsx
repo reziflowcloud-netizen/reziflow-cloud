@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 
 type WebhookSettings = {
   slug: string
@@ -587,6 +588,7 @@ function onFormSubmit(e) {
           <div className="page-title">Интеграции</div>
           <div className="page-subtitle">Подключение заявок с сайта, квиза, рекламы и внешних сервисов</div>
         </div>
+        <Link href="/settings" className="btn btn-secondary">Назад</Link>
       </div>
 
       <div className="page-body">

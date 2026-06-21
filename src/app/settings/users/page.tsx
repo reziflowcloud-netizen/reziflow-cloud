@@ -153,7 +153,7 @@ export default function UsersSettingsPage() {
           <div className="page-subtitle">Управление доступом к LegalHub</div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <Link href="/settings" className="btn btn-secondary">← Назад</Link>
+          <Link href="/settings" className="btn btn-secondary">Назад</Link>
           <button onClick={() => { setShowNew(true); setEditingId(null); setError('') }} className="btn btn-primary" style={{ display: canManageUsers ? undefined : 'none' }}>
             + Добавить пользователя
           </button>

@@ -107,6 +107,7 @@ export default function SettingsPage() {
     <div className="fade-in">
       <div className="page-header">
         <div className="page-title">{t('settings_title')}</div>
+        <Link href="/dashboard" className="btn btn-secondary">Назад</Link>
       </div>
       <div className="page-body">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, maxWidth: 900 }}>

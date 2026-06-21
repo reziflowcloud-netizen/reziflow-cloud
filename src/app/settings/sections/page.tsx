@@ -317,7 +317,7 @@ export default function SectionSettingsPage() {
           <div className="page-subtitle">Стандартные блоки и собственные поля для карточки клиента и дела</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Link className="btn btn-light" href="/settings">Назад</Link>
+          <Link className="btn btn-secondary" href="/settings">Назад</Link>
           {canManage && <button className="btn btn-primary" onClick={saveStandard} disabled={saving}>{saving ? 'Сохранение...' : 'Сохранить видимость'}</button>}
         </div>
       </div>

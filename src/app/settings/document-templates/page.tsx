@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { DOCUMENT_TEMPLATE_VARIABLES } from '@/lib/documentTemplates'
 
 type TemplateType = {
@@ -96,6 +97,7 @@ export default function DocumentTemplatesPage() {
           <div className="page-title">Шаблоны документов</div>
           <div className="page-subtitle">Добавляйте несколько DOCX-бланков договоров, доверенностей и других документов для одной организации</div>
         </div>
+        <Link href="/settings" className="btn btn-secondary">Назад</Link>
       </div>
 
       <div className="page-body">

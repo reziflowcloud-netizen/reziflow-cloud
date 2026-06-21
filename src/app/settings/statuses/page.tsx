@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
 
 function isArchiveStatusName(name: string) {
@@ -118,6 +119,7 @@ export default function StatusesPage() {
           <div className="page-title">{t('statuses_title')}</div>
           <div className="page-subtitle">{t('statuses_sub')}</div>
         </div>
+        <Link href="/settings" className="btn btn-secondary">Назад</Link>
       </div>
 
       <div className="page-body">

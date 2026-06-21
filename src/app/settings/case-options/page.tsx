@@ -238,7 +238,7 @@ export default function CaseOptionsPage() {
           <div className="page-title">Варианты полей дела</div>
           <div className="page-subtitle">Управление выпадающими списками при создании дела</div>
         </div>
-        <Link href={returnTo} className="btn btn-secondary">← Назад</Link>
+        <Link href={returnTo} className="btn btn-secondary">Назад</Link>
       </div>
 
       <div className="page-body">

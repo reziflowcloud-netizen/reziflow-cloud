@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 
 type PreviewData = {
   headers: string[]
@@ -240,6 +241,7 @@ export default function ExportPage() {
           <div className="page-title">Экспорт и импорт данных</div>
           <div className="page-subtitle">CSV-файлы для переноса клиентов, дел и резервной копии LegalHub</div>
         </div>
+        <Link href="/settings" className="btn btn-secondary">Назад</Link>
       </div>
 
       <div className="page-body">

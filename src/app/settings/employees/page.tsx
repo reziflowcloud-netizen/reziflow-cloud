@@ -63,7 +63,7 @@ export default function EmployeesSettingsPage() {
           <div className="page-title">👤 Ответственные сотрудники</div>
           <div className="page-subtitle">Список сотрудников для назначения на дела</div>
         </div>
-        <Link href={returnTo} className="btn btn-secondary">← Назад</Link>
+        <Link href={returnTo} className="btn btn-secondary">Назад</Link>
       </div>
       <div className="page-body">
         {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 16px', marginBottom: 16, color: '#dc2626', fontSize: 13 }}>{error}</div>}

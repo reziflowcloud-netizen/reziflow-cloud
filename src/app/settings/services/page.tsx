@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 
 interface Service {
   id: number
@@ -112,6 +113,7 @@ export default function ServicesPage() {
           <div className="page-title">Услуги</div>
           <div className="page-subtitle">Услуги которые вы предоставляете клиентам</div>
         </div>
+        <Link href="/settings" className="btn btn-secondary">Назад</Link>
       </div>
 
       <div className="page-body">
