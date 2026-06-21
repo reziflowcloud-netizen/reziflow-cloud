@@ -154,6 +154,8 @@ const exportText = {
     casesAndSums: 'Дела и суммы',
     onlyPayments: 'Только оплаты',
     paymentHistory: 'История платежей',
+    onlyLeads: 'Только лиды',
+    leadsPipeline: 'Лиды и контакты',
     back: 'Назад',
   },
   uk: {
@@ -205,6 +207,8 @@ const exportText = {
     casesAndSums: 'Справи і суми',
     onlyPayments: 'Тільки оплати',
     paymentHistory: 'Історія платежів',
+    onlyLeads: 'Тільки ліди',
+    leadsPipeline: 'Ліди та контакти',
     back: 'Назад',
   },
   pl: {
@@ -256,6 +260,8 @@ const exportText = {
     casesAndSums: 'Sprawy i kwoty',
     onlyPayments: 'Tylko płatności',
     paymentHistory: 'Historia płatności',
+    onlyLeads: 'Tylko leady',
+    leadsPipeline: 'Leady i kontakty',
     back: 'Wstecz',
   },
 }
@@ -682,11 +688,12 @@ export default function ExportPage() {
         </div>
 
         <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, fontWeight: 500 }}>{text.downloadSeparately}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
           {[
             { id: 'clients', icon: '👥', title: text.onlyClients, desc: text.personalData, filename: 'LegalHubCRM_clients', color: '#eff6ff' },
             { id: 'cases', icon: '📋', title: text.onlyCases, desc: text.casesAndSums, filename: 'LegalHubCRM_cases', color: '#fef3c7' },
             { id: 'payments', icon: '💳', title: text.onlyPayments, desc: text.paymentHistory, filename: 'LegalHubCRM_payments', color: '#dcfce7' },
+            { id: 'leads', icon: '🎯', title: text.onlyLeads, desc: text.leadsPipeline, filename: 'LegalHubCRM_leads', color: '#ede9fe' },
           ].map(exp => (
             <div key={exp.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 40, height: 40, borderRadius: 10, background: exp.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{exp.icon}</div>

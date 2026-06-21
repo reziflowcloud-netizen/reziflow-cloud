@@ -38,6 +38,10 @@ function formatAllPhones(record: any): string {
   return record?.phone || ''
 }
 
+function formatLeadName(lead: any): string {
+  return lead.fullName || `${lead.firstName || ''} ${lead.lastName || ''}`.trim()
+}
+
 function customHeader(scopeLabel: string, sectionTitle: string, fieldLabel: string): string {
   return `${scopeLabel}: ${sectionTitle} / ${fieldLabel}`
 }
@@ -320,6 +324,72 @@ export async function GET(request: NextRequest) {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
           'Content-Disposition': `attachment; filename="LegalHubCRM_cases_${new Date().toISOString().slice(0,10)}.csv"`,
+        }
+      })
+    }
+
+    if (type === 'leads') {
+      const leads = await (prisma as any).lead.findMany({
+        where: { organizationId },
+        include: {
+          assignedTo: { select: { name: true, email: true } },
+          phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+      const headers = [
+        'Дата создания',
+        'Лид',
+        'Телефоны',
+        'Email',
+        'Instagram',
+        'Facebook',
+        'Источник',
+        'Статус',
+        'Интерес / услуга',
+        'Бюджет',
+        'Срочность',
+        'Город',
+        'Страна',
+        'Язык',
+        'Последний контакт',
+        'Следующий контакт',
+        'Заметка к следующему контакту',
+        'Ответственный',
+        'Причина статуса',
+        'Комментарий причины',
+        'Заметки',
+      ]
+      let csv = '\uFEFF' + headers.map(esc).join(',') + '\n'
+      for (const lead of leads) {
+        csv += [
+          toDate(lead.createdAt),
+          formatLeadName(lead),
+          formatAllPhones(lead),
+          lead.email || '',
+          lead.instagram || '',
+          lead.facebook || '',
+          lead.source || '',
+          lead.status || '',
+          lead.serviceInterest || '',
+          lead.budget || '',
+          lead.urgency || '',
+          lead.city || '',
+          lead.country || '',
+          lead.language || '',
+          toDate(lead.lastContactAt),
+          toDate(lead.nextContactAt),
+          lead.nextContactNote || '',
+          lead.assignedTo?.name || lead.assignedTo?.email || '',
+          lead.statusReason || '',
+          lead.statusReasonComment || '',
+          lead.notes || '',
+        ].map(esc).join(',') + '\n'
+      }
+      return new NextResponse(csv, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="LegalHubCRM_leads_${new Date().toISOString().slice(0,10)}.csv"`,
         }
       })
     }

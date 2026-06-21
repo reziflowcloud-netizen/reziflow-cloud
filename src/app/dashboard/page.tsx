@@ -424,6 +424,7 @@ async function RecentCasesTable({ organizationId, scope }: { organizationId: str
         totalValue: true,
         totalPaid: true,
         client: { select: { firstName: true, lastName: true } },
+        service: { select: { name: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: 6,
@@ -451,7 +452,7 @@ async function RecentCasesTable({ organizationId, scope }: { organizationId: str
           <thead>
             <tr>
               <th><Tr k="client" /></th>
-              <th><Tr k="case_number" /></th>
+              <th><Tr k="service" /></th>
               <th><Tr k="status" /></th>
               <th><Tr k="cost" /></th>
               <th><Tr k="income_month" /></th>
@@ -475,7 +476,7 @@ async function RecentCasesTable({ organizationId, scope }: { organizationId: str
                       <span style={{ fontWeight: 500 }}>{c.client.firstName} {c.client.lastName}</span>
                     </div>
                   </td>
-                  <td style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--muted)' }}>{c.caseNumber || '—'}</td>
+                  <td style={{ fontSize: 12, color: 'var(--muted)' }}>{c.service?.name || '—'}</td>
                   <td><span className="badge" style={{ background: sc.bg, color: sc.color }}>{c.status}</span></td>
                   <td>{c.totalValue.toFixed(2)} zł</td>
                   <td style={{ color: c.totalPaid >= c.totalValue && c.totalValue > 0 ? '#16a34a' : '#dc2626' }}>

@@ -51,6 +51,7 @@ function ClientCombobox({
         className="input"
         value={query}
         onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
         onChange={e => {
           setQuery(e.target.value)
           setOpen(true)
@@ -399,7 +400,7 @@ export default function TasksPage() {
   }
 
   const selectedClient = clients.find(c => c.id === selectedClientId)
-  const clientCases = cases.filter(item => item.clientId === selectedClientId)
+  const clientCases = selectedClientId ? cases.filter(item => item.clientId === selectedClientId) : cases
   const selectedService = services.find(item => item.id.toString() === selectedServiceId)
   const serviceCases = selectedService
     ? clientCases.filter(item => item.serviceId === selectedService.id || item.service?.id === selectedService.id)
@@ -409,7 +410,7 @@ export default function TasksPage() {
     ? visibleTasks.filter(task => serviceCases.some(item => taskMatchesCase(task, item)))
     : selectedClient
       ? visibleTasks.filter(task => taskMatchesClient(task, selectedClient))
-      : []
+      : visibleTasks
   const editTaskCaseId = taskRelatedCaseId(editForm)
 
   // ─── Render ───────────────────────────────────────────
@@ -675,9 +676,9 @@ export default function TasksPage() {
                 <ClientCombobox
                   clients={clients}
                   value={selectedClientId}
-                  allowEmpty={false}
+                  allowEmpty
                   placeholder={t('all_clients_placeholder')}
-                  emptyLabel={t('no_client')}
+                  emptyLabel={t('all_clients')}
                   notFoundLabel={t('not_found')}
                   onSelect={clientId => {
                     setSelectedClientId(clientId)
@@ -706,9 +707,7 @@ export default function TasksPage() {
               </div>
             </div>
 
-            {!selectedClientId ? (
-              <div style={{ color: 'var(--muted)', fontSize: 13, padding: '18px 0' }}>{t('select_client_to_see_tasks')}</div>
-            ) : selectedService && serviceCases.length === 0 ? (
+            {selectedService && serviceCases.length === 0 ? (
               <div style={{ color: 'var(--muted)', fontSize: 13, padding: '18px 0' }}>
                 У выбранного клиента пока нет дела по услуге «{selectedService.name}».
               </div>
