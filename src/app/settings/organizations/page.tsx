@@ -30,12 +30,7 @@ type OrganizationItem = {
   }
 }
 
-const BILLING_LIMIT_FIELDS: Array<{ key: BillingLimitKey; label: string }> = [
-  { key: 'users', label: 'Пользователи' },
-  { key: 'clients', label: 'Клиенты' },
-  { key: 'cases', label: 'Дела' },
-  { key: 'leads', label: 'Лиды' },
-]
+const BILLING_LIMIT_FIELDS: BillingLimitKey[] = ['users', 'clients', 'cases', 'leads']
 
 function emptyBillingLimitForm(): BillingLimitForm {
   return { users: '', clients: '', cases: '', leads: '' }
@@ -49,35 +44,35 @@ function settingsObject(value: unknown): Record<string, any> {
 function billingLimitsFromSettings(settings: unknown): BillingLimitForm {
   const raw = settingsObject(settingsObject(settings).billingLimits)
   const form = emptyBillingLimitForm()
-  for (const field of BILLING_LIMIT_FIELDS) {
-    if (!(field.key in raw)) continue
-    form[field.key] = raw[field.key] === null ? 'unlimited' : String(raw[field.key])
+  for (const key of BILLING_LIMIT_FIELDS) {
+    if (!(key in raw)) continue
+    form[key] = raw[key] === null ? 'unlimited' : String(raw[key])
   }
   return form
 }
 
 function billingLimitPayload(limits: BillingLimitForm) {
   const payload: Partial<Record<BillingLimitKey, number | null>> = {}
-  for (const field of BILLING_LIMIT_FIELDS) {
-    const value = limits[field.key]
+  for (const key of BILLING_LIMIT_FIELDS) {
+    const value = limits[key]
     if (value === 'unlimited') {
-      payload[field.key] = null
+      payload[key] = null
       continue
     }
 
     const numeric = Number(value)
     if (Number.isFinite(numeric) && numeric > 0) {
-      payload[field.key] = Math.floor(numeric)
+      payload[key] = Math.floor(numeric)
     }
   }
   return payload
 }
 
-function billingLimitSummary(settings: unknown) {
+function billingLimitSummary(settings: unknown, labels: Record<BillingLimitKey, string>, unlimitedText: string) {
   const raw = settingsObject(settingsObject(settings).billingLimits)
-  const parts = BILLING_LIMIT_FIELDS.flatMap(field => {
-    if (!(field.key in raw)) return []
-    return [`${field.label}: ${raw[field.key] === null ? 'без лимита' : raw[field.key]}`]
+  const parts = BILLING_LIMIT_FIELDS.flatMap(key => {
+    if (!(key in raw)) return []
+    return [`${labels[key]}: ${raw[key] === null ? unlimitedText : raw[key]}`]
   })
   return parts.join(' · ')
 }
@@ -87,33 +82,184 @@ function formatDate(value: string | null, locale: string) {
   return new Date(value).toLocaleDateString(locale)
 }
 
+const orgText = {
+  ru: {
+    loadFailed: 'Не удалось загрузить фирмы',
+    required: 'Заполните название фирмы, администратора, email и пароль',
+    createFailed: 'Не удалось создать фирму',
+    created: 'Фирма "{name}" создана. Администратор может входить по своему email и паролю.',
+    saveFailed: 'Не удалось сохранить фирму',
+    updated: 'Фирма обновлена',
+    deleteConfirm: 'Удалить организацию "{name}"?\n\nБудут удалены пользователи: {users}\nКлиенты: {clients}\nДела: {cases}\nЗадачи: {tasks}\n\nЭто действие нельзя отменить.',
+    deleteFailed: 'Не удалось удалить организацию',
+    deleted: 'Организация "{name}" удалена',
+    expired: 'Trial истек',
+    pastDue: 'Просрочка',
+    canceled: 'Отменена',
+    free: 'Бесплатный',
+    manual: 'Ручной',
+    paid: 'Оплачено',
+    canceledBilling: 'Отменено',
+    payment: 'Оплата',
+    newCompany: 'Новая фирма',
+    companyName: 'Название фирмы *',
+    companyNamePlaceholder: 'Напр.: Legal Partner',
+    slug: 'Короткий адрес',
+    plan: 'Тариф',
+    status: 'Статус',
+    trialUntil: 'Пробный период до',
+    firstAdmin: 'Первый администратор фирмы',
+    name: 'Имя *',
+    password: 'Пароль *',
+    passwordPlaceholder: 'Минимум 6 символов',
+    creating: 'Создание...',
+    createCompany: 'Создать фирму',
+    cancel: 'Отмена',
+    loading: 'Загрузка...',
+    empty: 'Фирм пока нет',
+    adminNamePlaceholder: 'Имя администратора',
+    adminEmailPlaceholder: 'Email для входа',
+    adminPasswordPlaceholder: 'Новый пароль, если нужно',
+    adminMissing: 'Администратор не задан',
+    save: 'Сохранить',
+    edit: 'Редактировать',
+    deleting: 'Удаление...',
+    delete: 'Удалить',
+    customLimits: 'Индивидуальные лимиты',
+    customLimitsHint: 'Пустое поле использует лимит тарифа. Число задает отдельный лимит для этой организации.',
+    tariffPlaceholder: 'по тарифу',
+    unlimited: 'Без лимита',
+    customLimitsNote: 'Эти настройки применяются только к выбранной организации и отображаются в разделе “Тариф и оплата”.',
+    limitLabels: { users: 'Пользователи', clients: 'Клиенты', cases: 'Дела', leads: 'Лиды' },
+  },
+  uk: {
+    loadFailed: 'Не вдалося завантажити фірми',
+    required: 'Заповніть назву фірми, адміністратора, email і пароль',
+    createFailed: 'Не вдалося створити фірму',
+    created: 'Фірму "{name}" створено. Адміністратор може входити зі своїм email і паролем.',
+    saveFailed: 'Не вдалося зберегти фірму',
+    updated: 'Фірму оновлено',
+    deleteConfirm: 'Видалити організацію "{name}"?\n\nБудуть видалені користувачі: {users}\nКлієнти: {clients}\nСправи: {cases}\nЗавдання: {tasks}\n\nЦю дію не можна скасувати.',
+    deleteFailed: 'Не вдалося видалити організацію',
+    deleted: 'Організацію "{name}" видалено',
+    expired: 'Trial завершився',
+    pastDue: 'Прострочено',
+    canceled: 'Скасована',
+    free: 'Безкоштовний',
+    manual: 'Ручний',
+    paid: 'Оплачено',
+    canceledBilling: 'Скасовано',
+    payment: 'Оплата',
+    newCompany: 'Нова фірма',
+    companyName: 'Назва фірми *',
+    companyNamePlaceholder: 'Напр.: Legal Partner',
+    slug: 'Коротка адреса',
+    plan: 'Тариф',
+    status: 'Статус',
+    trialUntil: 'Пробний період до',
+    firstAdmin: 'Перший адміністратор фірми',
+    name: 'Ім’я *',
+    password: 'Пароль *',
+    passwordPlaceholder: 'Мінімум 6 символів',
+    creating: 'Створення...',
+    createCompany: 'Створити фірму',
+    cancel: 'Скасувати',
+    loading: 'Завантаження...',
+    empty: 'Фірм поки немає',
+    adminNamePlaceholder: 'Ім’я адміністратора',
+    adminEmailPlaceholder: 'Email для входу',
+    adminPasswordPlaceholder: 'Новий пароль, якщо потрібно',
+    adminMissing: 'Адміністратора не задано',
+    save: 'Зберегти',
+    edit: 'Редагувати',
+    deleting: 'Видалення...',
+    delete: 'Видалити',
+    customLimits: 'Індивідуальні ліміти',
+    customLimitsHint: 'Порожнє поле використовує ліміт тарифу. Число задає окремий ліміт для цієї організації.',
+    tariffPlaceholder: 'за тарифом',
+    unlimited: 'Без ліміту',
+    customLimitsNote: 'Ці налаштування застосовуються тільки до вибраної організації та відображаються в розділі “Тариф і оплата”.',
+    limitLabels: { users: 'Користувачі', clients: 'Клієнти', cases: 'Справи', leads: 'Ліди' },
+  },
+  pl: {
+    loadFailed: 'Nie udało się załadować firm',
+    required: 'Uzupełnij nazwę firmy, administratora, email i hasło',
+    createFailed: 'Nie udało się utworzyć firmy',
+    created: 'Firma „{name}” została utworzona. Administrator może logować się swoim emailem i hasłem.',
+    saveFailed: 'Nie udało się zapisać firmy',
+    updated: 'Firma zaktualizowana',
+    deleteConfirm: 'Usunąć organizację „{name}”?\n\nZostaną usunięci użytkownicy: {users}\nKlienci: {clients}\nSprawy: {cases}\nZadania: {tasks}\n\nTej czynności nie można cofnąć.',
+    deleteFailed: 'Nie udało się usunąć organizacji',
+    deleted: 'Organizacja „{name}” została usunięta',
+    expired: 'Trial wygasł',
+    pastDue: 'Po terminie',
+    canceled: 'Anulowana',
+    free: 'Bezpłatny',
+    manual: 'Ręczny',
+    paid: 'Opłacono',
+    canceledBilling: 'Anulowano',
+    payment: 'Płatność',
+    newCompany: 'Nowa firma',
+    companyName: 'Nazwa firmy *',
+    companyNamePlaceholder: 'Np.: Legal Partner',
+    slug: 'Krótki adres',
+    plan: 'Taryf',
+    status: 'Status',
+    trialUntil: 'Okres próbny do',
+    firstAdmin: 'Pierwszy administrator firmy',
+    name: 'Imię *',
+    password: 'Hasło *',
+    passwordPlaceholder: 'Minimum 6 znaków',
+    creating: 'Tworzenie...',
+    createCompany: 'Utwórz firmę',
+    cancel: 'Anuluj',
+    loading: 'Ładowanie...',
+    empty: 'Nie ma jeszcze firm',
+    adminNamePlaceholder: 'Imię administratora',
+    adminEmailPlaceholder: 'Email do logowania',
+    adminPasswordPlaceholder: 'Nowe hasło, jeśli potrzebne',
+    adminMissing: 'Administrator nie ustawiony',
+    save: 'Zapisz',
+    edit: 'Edytuj',
+    deleting: 'Usuwanie...',
+    delete: 'Usuń',
+    customLimits: 'Indywidualne limity',
+    customLimitsHint: 'Puste pole używa limitu taryfu. Liczba ustawia osobny limit dla tej organizacji.',
+    tariffPlaceholder: 'według taryfu',
+    unlimited: 'Bez limitu',
+    customLimitsNote: 'Te ustawienia dotyczą tylko wybranej organizacji i są widoczne w sekcji “Taryf i płatności”.',
+    limitLabels: { users: 'Użytkownicy', clients: 'Klienci', cases: 'Sprawy', leads: 'Leady' },
+  },
+}
+
 export default function OrganizationsPage() {
   const { lang, t } = useLanguage()
+  const text = orgText[lang] || orgText.ru
   const locale = lang === 'pl' ? 'pl-PL' : lang === 'uk' ? 'uk-UA' : 'ru-RU'
   const statusLabel = (status: string) => ({
     active: t('org_status_active'),
     paused: t('org_status_paused'),
     trial: t('org_status_trial'),
-    expired: 'Trial истек',
-    past_due: 'Просрочка',
-    canceled: 'Отменена',
+    expired: text.expired,
+    past_due: text.pastDue,
+    canceled: text.canceled,
   }[status] || status)
   const planLabel = (plan: string) => ({
     manual: t('org_plan_manual'),
     trial: t('org_plan_trial'),
-    free: 'Бесплатный',
+    free: text.free,
     starter: 'Starter',
     basic: 'Basic',
     pro: 'Pro',
     agency: 'Agency',
   }[plan] || plan)
   const billingLabel = (status?: string) => ({
-    manual: 'Ручной',
+    manual: text.manual,
     trialing: 'Trial',
-    active: 'Оплачено',
-    past_due: 'Просрочка',
-    canceled: 'Отменено',
-    expired: 'Trial истек',
+    active: text.paid,
+    past_due: text.pastDue,
+    canceled: text.canceledBilling,
+    expired: text.expired,
   }[status || ''] || status || '—')
   const [organizations, setOrganizations] = useState<OrganizationItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -162,7 +308,7 @@ export default function OrganizationsPage() {
         setCanManageAll(Boolean(data.canManageAll))
       }
     }
-    else setError(data.error || 'Не удалось загрузить фирмы')
+    else setError(data.error || text.loadFailed)
     setLoading(false)
   }
 
@@ -174,7 +320,7 @@ export default function OrganizationsPage() {
     setError('')
     setSuccess('')
     if (!form.name.trim() || !form.adminName.trim() || !form.adminEmail.trim() || !form.adminPassword.trim()) {
-      setError('Заполните название фирмы, администратора, email и пароль')
+      setError(text.required)
       return
     }
 
@@ -187,14 +333,14 @@ export default function OrganizationsPage() {
     const data = await res.json()
     setSaving(false)
     if (!res.ok) {
-      setError(data.error || 'Не удалось создать фирму')
+      setError(data.error || text.createFailed)
       return
     }
 
     setOrganizations(prev => [...prev, data])
     setForm({ name: '', slug: '', plan: 'manual', status: 'active', trialEndsAt: '', adminName: '', adminEmail: '', adminPassword: '' })
     setShowNew(false)
-    setSuccess(`Фирма "${data.name}" создана. Администратор может входить по своему email и паролю.`)
+    setSuccess(text.created.replace('{name}', data.name))
   }
 
   function startEdit(org: OrganizationItem) {
@@ -238,28 +384,24 @@ export default function OrganizationsPage() {
     const data = await res.json()
     setSaving(false)
     if (!res.ok) {
-      setError(data.error || 'Не удалось сохранить фирму')
+      setError(data.error || text.saveFailed)
       return
     }
     setOrganizations(prev => prev.map(org => org.id === id ? data : org))
     setEditingId(null)
-    setSuccess('Фирма обновлена')
+    setSuccess(text.updated)
   }
 
   async function deleteOrganization(org: OrganizationItem) {
     setError('')
     setSuccess('')
 
-    const message = [
-      `Удалить организацию "${org.name}"?`,
-      '',
-      `Будут удалены пользователи: ${org._count.users}`,
-      `Клиенты: ${org._count.clients}`,
-      `Дела: ${org._count.cases}`,
-      `Задачи: ${org._count.tasks}`,
-      '',
-      'Это действие нельзя отменить.',
-    ].join('\n')
+    const message = text.deleteConfirm
+      .replace('{name}', org.name)
+      .replace('{users}', String(org._count.users))
+      .replace('{clients}', String(org._count.clients))
+      .replace('{cases}', String(org._count.cases))
+      .replace('{tasks}', String(org._count.tasks))
 
     if (!window.confirm(message)) return
 
@@ -269,13 +411,13 @@ export default function OrganizationsPage() {
     setDeletingId(null)
 
     if (!res.ok) {
-      setError(data.error || 'Не удалось удалить организацию')
+      setError(data.error || text.deleteFailed)
       return
     }
 
     setOrganizations(prev => prev.filter(item => item.id !== org.id))
     if (editingId === org.id) setEditingId(null)
-    setSuccess(`Организация "${org.name}" удалена`)
+    setSuccess(text.deleted.replace('{name}', org.name))
   }
 
   return (
@@ -306,25 +448,25 @@ export default function OrganizationsPage() {
         {canManageAll && showNew && (
           <div className="card" style={{ marginBottom: 18, borderLeft: '3px solid var(--brand)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>Новая фирма</div>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>{text.newCompany}</div>
               <button onClick={() => setShowNew(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div className="form-group">
-                <label className="label">Название фирмы *</label>
-                <input className="input" value={form.name} onChange={e => setField('name', e.target.value)} placeholder="Напр.: Legal Partner" />
+                <label className="label">{text.companyName}</label>
+                <input className="input" value={form.name} onChange={e => setField('name', e.target.value)} placeholder={text.companyNamePlaceholder} />
               </div>
               <div className="form-group">
-                <label className="label">Короткий адрес</label>
+                <label className="label">{text.slug}</label>
                 <input className="input" value={form.slug} onChange={e => setField('slug', e.target.value)} placeholder="legal-partner" />
               </div>
               <div className="form-group">
-                <label className="label">Тариф</label>
+                <label className="label">{text.plan}</label>
                 <select className="select" value={form.plan} onChange={e => setField('plan', e.target.value)}>
-                  <option value="manual">Ручной</option>
-                  <option value="trial">Пробный</option>
-                  <option value="free">Бесплатный</option>
+                  <option value="manual">{planLabel('manual')}</option>
+                  <option value="trial">{planLabel('trial')}</option>
+                  <option value="free">{planLabel('free')}</option>
                   <option value="starter">Starter</option>
                   <option value="basic">Basic</option>
                   <option value="pro">Pro</option>
@@ -332,24 +474,24 @@ export default function OrganizationsPage() {
                 </select>
               </div>
               <div className="form-group">
-                <label className="label">Статус</label>
+                <label className="label">{text.status}</label>
                 <select className="select" value={form.status} onChange={e => setField('status', e.target.value)}>
-                  <option value="active">Активна</option>
-                  <option value="trial">Пробный период</option>
-                  <option value="paused">Пауза</option>
+                  <option value="active">{statusLabel('active')}</option>
+                  <option value="trial">{statusLabel('trial')}</option>
+                  <option value="paused">{statusLabel('paused')}</option>
                 </select>
               </div>
               <div className="form-group">
-                <label className="label">Пробный период до</label>
+                <label className="label">{text.trialUntil}</label>
                 <input className="input" type="date" value={form.trialEndsAt} onChange={e => setField('trialEndsAt', e.target.value)} />
               </div>
             </div>
 
             <div style={{ borderTop: '1px solid var(--border)', margin: '10px 0 16px' }} />
-            <div className="section-title">Первый администратор фирмы</div>
+            <div className="section-title">{text.firstAdmin}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
               <div className="form-group">
-                <label className="label">Имя *</label>
+                <label className="label">{text.name}</label>
                 <input className="input" value={form.adminName} onChange={e => setField('adminName', e.target.value)} placeholder="Administrator" />
               </div>
               <div className="form-group">
@@ -357,15 +499,15 @@ export default function OrganizationsPage() {
                 <input className="input" type="email" value={form.adminEmail} onChange={e => setField('adminEmail', e.target.value)} placeholder="admin@example.com" />
               </div>
               <div className="form-group">
-                <label className="label">Пароль *</label>
-                <input className="input" type="password" value={form.adminPassword} onChange={e => setField('adminPassword', e.target.value)} placeholder="Минимум 6 символов" />
+                <label className="label">{text.password}</label>
+                <input className="input" type="password" value={form.adminPassword} onChange={e => setField('adminPassword', e.target.value)} placeholder={text.passwordPlaceholder} />
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button className="btn btn-primary" onClick={createOrganization} disabled={saving}>
-                {saving ? 'Создание...' : 'Создать фирму'}
+                {saving ? text.creating : text.createCompany}
               </button>
-              <button className="btn btn-secondary" onClick={() => setShowNew(false)}>Отмена</button>
+              <button className="btn btn-secondary" onClick={() => setShowNew(false)}>{text.cancel}</button>
             </div>
           </div>
         )}
@@ -379,7 +521,7 @@ export default function OrganizationsPage() {
                   <th>{t('organization')}</th>
                   <th>{t('plan')}</th>
                   <th>{t('status')}</th>
-                  <th>Оплата</th>
+                  <th>{text.payment}</th>
                   <th>{t('trial_until')}</th>
                   <th>{t('users_short')}</th>
                   <th>{t('clients_title')}</th>
@@ -390,28 +532,28 @@ export default function OrganizationsPage() {
               </thead>
               <tbody>
                 {loading && (
-                  <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--muted)' }}>Загрузка...</td></tr>
+                  <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--muted)' }}>{text.loading}</td></tr>
                 )}
                 {!loading && organizations.length === 0 && (
-                  <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--muted)' }}>Фирм пока нет</td></tr>
+                  <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--muted)' }}>{text.empty}</td></tr>
                 )}
                 {organizations.map(org => {
                   const primaryAdmin = org.users?.[0]
-                  const limitSummary = billingLimitSummary(org.settings)
+                  const limitSummary = billingLimitSummary(org.settings, text.limitLabels, text.unlimited)
                   return (
                   <Fragment key={org.id}>
                   <tr>
                     <td>
                       {editingId === org.id && canManageAll ? (
                         <div style={{ display: 'grid', gap: 8, minWidth: 220 }}>
-                          <input className="input" value={editForm.adminName} onChange={e => setEditForm(p => ({ ...p, adminName: e.target.value }))} placeholder="Имя администратора" />
-                          <input className="input" type="email" value={editForm.adminEmail} onChange={e => setEditForm(p => ({ ...p, adminEmail: e.target.value }))} placeholder="Email для входа" />
-                          <input className="input" type="password" value={editForm.adminPassword} onChange={e => setEditForm(p => ({ ...p, adminPassword: e.target.value }))} placeholder="Новый пароль, если нужно" />
+                          <input className="input" value={editForm.adminName} onChange={e => setEditForm(p => ({ ...p, adminName: e.target.value }))} placeholder={text.adminNamePlaceholder} />
+                          <input className="input" type="email" value={editForm.adminEmail} onChange={e => setEditForm(p => ({ ...p, adminEmail: e.target.value }))} placeholder={text.adminEmailPlaceholder} />
+                          <input className="input" type="password" value={editForm.adminPassword} onChange={e => setEditForm(p => ({ ...p, adminPassword: e.target.value }))} placeholder={text.adminPasswordPlaceholder} />
                         </div>
                       ) : (
                         <>
                           <div style={{ fontWeight: 700 }}>{primaryAdmin?.name || '—'}</div>
-                          <div style={{ color: 'var(--muted)', fontSize: 12 }}>{primaryAdmin?.email || 'Администратор не задан'}</div>
+                          <div style={{ color: 'var(--muted)', fontSize: 12 }}>{primaryAdmin?.email || text.adminMissing}</div>
                         </>
                       )}
                     </td>
@@ -428,9 +570,9 @@ export default function OrganizationsPage() {
                     <td>
                       {editingId === org.id && canManageAll ? (
                         <select className="select" value={editForm.plan} onChange={e => setEditForm(p => ({ ...p, plan: e.target.value }))}>
-                          <option value="manual">Ручной</option>
-                          <option value="trial">Пробный</option>
-                          <option value="free">Бесплатный</option>
+                          <option value="manual">{planLabel('manual')}</option>
+                          <option value="trial">{planLabel('trial')}</option>
+                          <option value="free">{planLabel('free')}</option>
                           <option value="starter">Starter</option>
                           <option value="basic">Basic</option>
                           <option value="pro">Pro</option>
@@ -450,9 +592,9 @@ export default function OrganizationsPage() {
                     <td>
                       {editingId === org.id && canManageAll ? (
                         <select className="select" value={editForm.status} onChange={e => setEditForm(p => ({ ...p, status: e.target.value }))}>
-                          <option value="active">Активна</option>
-                          <option value="trial">Пробный период</option>
-                          <option value="paused">Пауза</option>
+                          <option value="active">{statusLabel('active')}</option>
+                          <option value="trial">{statusLabel('trial')}</option>
+                          <option value="paused">{statusLabel('paused')}</option>
                         </select>
                       ) : (
                         <span className="badge" style={{
@@ -474,19 +616,19 @@ export default function OrganizationsPage() {
                     <td>
                       {editingId === org.id ? (
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn btn-primary" onClick={() => saveOrganization(org.id)} disabled={saving}>Сохранить</button>
-                          <button className="btn btn-secondary" onClick={() => setEditingId(null)}>Отмена</button>
+                          <button className="btn btn-primary" onClick={() => saveOrganization(org.id)} disabled={saving}>{text.save}</button>
+                          <button className="btn btn-secondary" onClick={() => setEditingId(null)}>{text.cancel}</button>
                         </div>
                       ) : canManageAll ? (
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn btn-secondary" onClick={() => startEdit(org)}>Редактировать</button>
+                          <button className="btn btn-secondary" onClick={() => startEdit(org)}>{text.edit}</button>
                           <button
                             className="btn btn-secondary"
                             style={{ color: '#b91c1c', borderColor: '#fecaca' }}
                             onClick={() => deleteOrganization(org)}
                             disabled={deletingId === org.id || saving}
                           >
-                            {deletingId === org.id ? 'Удаление...' : 'Удалить'}
+                            {deletingId === org.id ? text.deleting : text.delete}
                           </button>
                         </div>
                       ) : null}
@@ -498,17 +640,17 @@ export default function OrganizationsPage() {
                         <div className="billing-limit-panel">
                           <div className="billing-limit-head">
                             <div>
-                              <strong>Индивидуальные лимиты</strong>
-                              <span>Пустое поле использует лимит тарифа. Число задает отдельный лимит для этой организации.</span>
+                              <strong>{text.customLimits}</strong>
+                              <span>{text.customLimitsHint}</span>
                             </div>
                           </div>
                           <div className="billing-limit-grid">
-                            {BILLING_LIMIT_FIELDS.map(field => {
-                              const value = editForm.billingLimits[field.key]
+                            {BILLING_LIMIT_FIELDS.map(key => {
+                              const value = editForm.billingLimits[key]
                               const unlimited = value === 'unlimited'
                               return (
-                                <div key={field.key} className="billing-limit-control">
-                                  <label className="label">{field.label}</label>
+                                <div key={key} className="billing-limit-control">
+                                  <label className="label">{text.limitLabels[key]}</label>
                                   <input
                                     className="input"
                                     type="number"
@@ -516,23 +658,23 @@ export default function OrganizationsPage() {
                                     step="1"
                                     value={unlimited ? '' : value}
                                     disabled={unlimited}
-                                    onChange={event => setBillingLimit(field.key, event.target.value)}
-                                    placeholder="по тарифу"
+                                    onChange={event => setBillingLimit(key, event.target.value)}
+                                    placeholder={text.tariffPlaceholder}
                                   />
                                   <label className="billing-limit-check">
                                     <input
                                       type="checkbox"
                                       checked={unlimited}
-                                      onChange={event => setBillingUnlimited(field.key, event.target.checked)}
+                                      onChange={event => setBillingUnlimited(key, event.target.checked)}
                                     />
-                                    <span>Без лимита</span>
+                                    <span>{text.unlimited}</span>
                                   </label>
                                 </div>
                               )
                             })}
                           </div>
                           <div className="billing-limit-note">
-                            Эти настройки применяются только к выбранной организации и отображаются в разделе “Тариф и оплата”.
+                            {text.customLimitsNote}
                           </div>
                         </div>
                       </td>

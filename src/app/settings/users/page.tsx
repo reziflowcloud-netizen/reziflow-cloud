@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useLanguage } from '@/context/LanguageContext'
 
 interface UserItem {
   id: number
@@ -14,17 +15,134 @@ interface UserItem {
   createdAt: string
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  admin: 'Администратор',
-  employee: 'Сотрудник',
-}
-
 const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
   admin: { bg: '#fef3c7', color: '#92400e' },
   employee: { bg: '#eff6ff', color: '#1d4ed8' },
 }
 
+const userText = {
+  ru: {
+    title: '👥 Пользователи системы',
+    subtitle: 'Управление доступом к LegalHub',
+    addUser: '+ Добавить пользователя',
+    fillAll: 'Заполните все поля',
+    passwordMin: 'Пароль должен быть не менее 6 символов',
+    createError: 'Ошибка создания',
+    created: 'Пользователь "{name}" успешно создан',
+    nameEmailRequired: 'Имя и email обязательны',
+    saveError: 'Ошибка сохранения',
+    updated: 'Данные обновлены',
+    deleteConfirm: 'Удалить пользователя "{name}"? Это действие нельзя отменить.',
+    deleteError: 'Ошибка удаления',
+    deleted: 'Пользователь "{name}" удалён',
+    newUser: 'Новый пользователь',
+    name: 'Имя',
+    nameRequired: 'Имя *',
+    passwordRequired: 'Пароль * (мин. 6 символов)',
+    enterPassword: 'Введите пароль',
+    role: 'Роль',
+    roles: { admin: 'Администратор', employee: 'Сотрудник' },
+    restrictTitle: 'Ограничить доступ только своими делами и клиентами',
+    restrictDesc: 'Сотрудник увидит только назначенные ему дела, клиентов, лиды, задачи и финансовые показатели.',
+    creating: 'Создание...',
+    createUser: '✅ Создать пользователя',
+    cancel: 'Отмена',
+    noUsers: 'Нет пользователей',
+    newPassword: 'Новый пароль (оставьте пустым чтобы не менять)',
+    newPasswordPlaceholder: 'Новый пароль...',
+    avatar: 'Аватарка',
+    avatarHint: 'Можно загрузить JPG, PNG или WebP до 5 MB',
+    saving: 'Сохранение...',
+    save: '💾 Сохранить',
+    restricted: 'Ограничен',
+    edit: '✏️ Изменить',
+    hintTitle: 'Роли:',
+    hintText: 'Администратор имеет полный доступ. Сотрудник может просматривать и редактировать дела и клиентов. Каждый пользователь входит в систему через страницу входа используя свой email и пароль.',
+    locale: 'ru-RU',
+  },
+  uk: {
+    title: '👥 Користувачі системи',
+    subtitle: 'Керування доступом до LegalHub',
+    addUser: '+ Додати користувача',
+    fillAll: 'Заповніть усі поля',
+    passwordMin: 'Пароль має бути не менше 6 символів',
+    createError: 'Помилка створення',
+    created: 'Користувача "{name}" успішно створено',
+    nameEmailRequired: 'Ім’я та email обов’язкові',
+    saveError: 'Помилка збереження',
+    updated: 'Дані оновлено',
+    deleteConfirm: 'Видалити користувача "{name}"? Цю дію не можна скасувати.',
+    deleteError: 'Помилка видалення',
+    deleted: 'Користувача "{name}" видалено',
+    newUser: 'Новий користувач',
+    name: 'Ім’я',
+    nameRequired: 'Ім’я *',
+    passwordRequired: 'Пароль * (мін. 6 символів)',
+    enterPassword: 'Введіть пароль',
+    role: 'Роль',
+    roles: { admin: 'Адміністратор', employee: 'Співробітник' },
+    restrictTitle: 'Обмежити доступ тільки своїми справами і клієнтами',
+    restrictDesc: 'Співробітник побачить тільки призначені йому справи, клієнтів, ліди, завдання та фінансові показники.',
+    creating: 'Створення...',
+    createUser: '✅ Створити користувача',
+    cancel: 'Скасувати',
+    noUsers: 'Користувачів немає',
+    newPassword: 'Новий пароль (залиште порожнім, щоб не змінювати)',
+    newPasswordPlaceholder: 'Новий пароль...',
+    avatar: 'Аватарка',
+    avatarHint: 'Можна завантажити JPG, PNG або WebP до 5 MB',
+    saving: 'Збереження...',
+    save: '💾 Зберегти',
+    restricted: 'Обмежений',
+    edit: '✏️ Змінити',
+    hintTitle: 'Ролі:',
+    hintText: 'Адміністратор має повний доступ. Співробітник може переглядати і редагувати справи та клієнтів. Кожен користувач входить у систему через сторінку входу, використовуючи свій email і пароль.',
+    locale: 'uk-UA',
+  },
+  pl: {
+    title: '👥 Użytkownicy systemu',
+    subtitle: 'Zarządzanie dostępem do LegalHub',
+    addUser: '+ Dodaj użytkownika',
+    fillAll: 'Uzupełnij wszystkie pola',
+    passwordMin: 'Hasło musi mieć co najmniej 6 znaków',
+    createError: 'Błąd tworzenia',
+    created: 'Użytkownik „{name}” został utworzony',
+    nameEmailRequired: 'Imię i email są wymagane',
+    saveError: 'Błąd zapisu',
+    updated: 'Dane zaktualizowane',
+    deleteConfirm: 'Usunąć użytkownika „{name}”? Tej czynności nie można cofnąć.',
+    deleteError: 'Błąd usuwania',
+    deleted: 'Użytkownik „{name}” został usunięty',
+    newUser: 'Nowy użytkownik',
+    name: 'Imię',
+    nameRequired: 'Imię *',
+    passwordRequired: 'Hasło * (min. 6 znaków)',
+    enterPassword: 'Wpisz hasło',
+    role: 'Rola',
+    roles: { admin: 'Administrator', employee: 'Pracownik' },
+    restrictTitle: 'Ogranicz dostęp tylko do własnych spraw i klientów',
+    restrictDesc: 'Pracownik zobaczy tylko przypisane do niego sprawy, klientów, leady, zadania i wskaźniki finansowe.',
+    creating: 'Tworzenie...',
+    createUser: '✅ Utwórz użytkownika',
+    cancel: 'Anuluj',
+    noUsers: 'Brak użytkowników',
+    newPassword: 'Nowe hasło (zostaw puste, aby nie zmieniać)',
+    newPasswordPlaceholder: 'Nowe hasło...',
+    avatar: 'Avatar',
+    avatarHint: 'Można przesłać JPG, PNG albo WebP do 5 MB',
+    saving: 'Zapisywanie...',
+    save: '💾 Zapisz',
+    restricted: 'Ograniczony',
+    edit: '✏️ Edytuj',
+    hintTitle: 'Role:',
+    hintText: 'Administrator ma pełny dostęp. Pracownik może przeglądać i edytować sprawy oraz klientów. Każdy użytkownik loguje się przez stronę logowania, używając swojego emaila i hasła.',
+    locale: 'pl-PL',
+  },
+}
+
 export default function UsersSettingsPage() {
+  const { lang, t } = useLanguage()
+  const text = userText[lang] || userText.ru
   const router = useRouter()
   const [users, setUsers] = useState<UserItem[]>([])
   const [error, setError] = useState('')
@@ -69,10 +187,10 @@ export default function UsersSettingsPage() {
   async function createUser() {
     setError(''); setSuccess('')
     if (!newForm.name.trim() || !newForm.email.trim() || !newForm.password.trim()) {
-      setError('Заполните все поля'); return
+      setError(text.fillAll); return
     }
     if (newForm.password.length < 6) {
-      setError('Пароль должен быть не менее 6 символов'); return
+      setError(text.passwordMin); return
     }
     setSaving(true)
     const res = await fetch('/api/users', {
@@ -81,11 +199,11 @@ export default function UsersSettingsPage() {
       body: JSON.stringify(newForm),
     })
     const data = await res.json()
-    if (!res.ok) { setError(data.error || 'Ошибка создания'); setSaving(false); return }
+    if (!res.ok) { setError(data.error || text.createError); setSaving(false); return }
     setUsers(p => [...p, data])
     setNewForm({ name: '', email: '', password: '', role: 'employee', restrictedAccess: false })
     setShowNew(false)
-    setSuccess(`Пользователь "${data.name}" успешно создан`)
+    setSuccess(text.created.replace('{name}', data.name))
     setSaving(false)
     setTimeout(() => setSuccess(''), 4000)
   }
@@ -100,10 +218,10 @@ export default function UsersSettingsPage() {
   async function saveEdit(id: number) {
     setError('')
     if (!editForm.name.trim() || !editForm.email.trim()) {
-      setError('Имя и email обязательны'); return
+      setError(text.nameEmailRequired); return
     }
     if (canManageUsers && editForm.password && editForm.password.length < 6) {
-      setError('Пароль должен быть не менее 6 символов'); return
+      setError(text.passwordMin); return
     }
     setSaving(true)
     const body: any = canManageUsers
@@ -116,7 +234,7 @@ export default function UsersSettingsPage() {
       body: JSON.stringify(body),
     })
     const data = await res.json()
-    if (!res.ok) { setError(data.error || 'Ошибка сохранения'); setSaving(false); return }
+    if (!res.ok) { setError(data.error || text.saveError); setSaving(false); return }
     let updatedUser = data
     if (avatarFile) {
       const fd = new FormData()
@@ -129,19 +247,19 @@ export default function UsersSettingsPage() {
     setUsers(p => p.map(u => u.id === id ? updatedUser : u))
     setEditingId(null)
     setAvatarFile(null)
-    setSuccess('Данные обновлены')
+    setSuccess(text.updated)
     router.refresh()
     setSaving(false)
     setTimeout(() => setSuccess(''), 3000)
   }
 
   async function deleteUser(id: number, name: string) {
-    if (!confirm(`Удалить пользователя "${name}"? Это действие нельзя отменить.`)) return
+    if (!confirm(text.deleteConfirm.replace('{name}', name))) return
     const res = await fetch(`/api/users/${id}`, { method: 'DELETE' })
     const data = await res.json()
-    if (!res.ok) { setError(data.error || 'Ошибка удаления'); return }
+    if (!res.ok) { setError(data.error || text.deleteError); return }
     setUsers(p => p.filter(u => u.id !== id))
-    setSuccess(`Пользователь "${name}" удалён`)
+    setSuccess(text.deleted.replace('{name}', name))
     setTimeout(() => setSuccess(''), 3000)
   }
 
@@ -149,13 +267,13 @@ export default function UsersSettingsPage() {
     <div className="fade-in">
       <div className="page-header">
         <div>
-          <div className="page-title">👥 Пользователи системы</div>
-          <div className="page-subtitle">Управление доступом к LegalHub</div>
+          <div className="page-title">{text.title}</div>
+          <div className="page-subtitle">{text.subtitle}</div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <Link href="/settings" className="btn btn-secondary">Назад</Link>
+          <Link href="/settings" className="btn btn-secondary">{t('back')}</Link>
           <button onClick={() => { setShowNew(true); setEditingId(null); setError('') }} className="btn btn-primary" style={{ display: canManageUsers ? undefined : 'none' }}>
-            + Добавить пользователя
+            {text.addUser}
           </button>
         </div>
       </div>
@@ -179,12 +297,12 @@ export default function UsersSettingsPage() {
         {showNew && canManageUsers && (
           <div className="card" style={{ marginBottom: 20, borderLeft: '3px solid var(--brand)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>Новый пользователь</div>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>{text.newUser}</div>
               <button onClick={() => { setShowNew(false); setError('') }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 18 }}>✕</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group">
-                <label className="label">Имя *</label>
+                <label className="label">{text.nameRequired}</label>
                 <input className="input" value={newForm.name} onChange={e => setN('name', e.target.value)} placeholder="Иван Иванов" />
               </div>
               <div className="form-group">
@@ -192,14 +310,14 @@ export default function UsersSettingsPage() {
                 <input className="input" type="email" value={newForm.email} onChange={e => setN('email', e.target.value)} placeholder="ivan@example.com" />
               </div>
               <div className="form-group">
-                <label className="label">Пароль * (мин. 6 символов)</label>
+                <label className="label">{text.passwordRequired}</label>
                 <div style={{ position: 'relative' }}>
                   <input
                     className="input"
                     type={showPasswords['new'] ? 'text' : 'password'}
                     value={newForm.password}
                     onChange={e => setN('password', e.target.value)}
-                    placeholder="Введите пароль"
+                    placeholder={text.enterPassword}
                     style={{ paddingRight: 40 }}
                   />
                   <button
@@ -209,10 +327,10 @@ export default function UsersSettingsPage() {
                 </div>
               </div>
               <div className="form-group">
-                <label className="label">Роль</label>
+                <label className="label">{text.role}</label>
                 <select className="select" value={newForm.role} onChange={e => setN('role', e.target.value)}>
-                  <option value="employee">Сотрудник</option>
-                  <option value="admin">Администратор</option>
+                  <option value="employee">{text.roles.employee}</option>
+                  <option value="admin">{text.roles.admin}</option>
                 </select>
               </div>
               <label
@@ -236,18 +354,18 @@ export default function UsersSettingsPage() {
                   style={{ marginTop: 3 }}
                 />
                 <span>
-                  <span style={{ display: 'block', fontWeight: 700, fontSize: 13 }}>Ограничить доступ только своими делами и клиентами</span>
+                  <span style={{ display: 'block', fontWeight: 700, fontSize: 13 }}>{text.restrictTitle}</span>
                   <span style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
-                    Сотрудник увидит только назначенные ему дела, клиентов, лиды, задачи и финансовые показатели.
+                    {text.restrictDesc}
                   </span>
                 </span>
               </label>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button onClick={createUser} className="btn btn-primary" disabled={saving}>
-                {saving ? 'Создание...' : '✅ Создать пользователя'}
+                {saving ? text.creating : text.createUser}
               </button>
-              <button onClick={() => { setShowNew(false); setError('') }} className="btn btn-secondary">Отмена</button>
+              <button onClick={() => { setShowNew(false); setError('') }} className="btn btn-secondary">{text.cancel}</button>
             </div>
           </div>
         )}
@@ -256,7 +374,7 @@ export default function UsersSettingsPage() {
         <div className="card">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {users.length === 0 && (
-              <div style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Нет пользователей</div>
+              <div style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>{text.noUsers}</div>
             )}
             {users.map((u, idx) => (
               <div key={u.id}>
@@ -266,7 +384,7 @@ export default function UsersSettingsPage() {
                   <div style={{ padding: '16px 0' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                       <div className="form-group">
-                        <label className="label">Имя</label>
+                        <label className="label">{text.name}</label>
                         <input className="input" value={editForm.name} onChange={e => setE('name', e.target.value)} />
                       </div>
                       <div className="form-group">
@@ -274,14 +392,14 @@ export default function UsersSettingsPage() {
                         <input className="input" type="email" value={editForm.email} onChange={e => setE('email', e.target.value)} disabled={!canManageUsers} />
                       </div>
                       <div className="form-group" style={{ display: canManageUsers ? undefined : 'none' }}>
-                        <label className="label">Новый пароль (оставьте пустым чтобы не менять)</label>
+                        <label className="label">{text.newPassword}</label>
                         <div style={{ position: 'relative' }}>
                           <input
                             className="input"
                             type={showPasswords[u.id] ? 'text' : 'password'}
                             value={editForm.password}
                             onChange={e => setE('password', e.target.value)}
-                            placeholder="Новый пароль..."
+                            placeholder={text.newPasswordPlaceholder}
                             style={{ paddingRight: 40 }}
                           />
                           <button
@@ -291,10 +409,10 @@ export default function UsersSettingsPage() {
                         </div>
                       </div>
                       <div className="form-group" style={{ display: canManageUsers ? undefined : 'none' }}>
-                        <label className="label">Роль</label>
+                        <label className="label">{text.role}</label>
                         <select className="select" value={editForm.role} onChange={e => setE('role', e.target.value)}>
-                          <option value="employee">Сотрудник</option>
-                          <option value="admin">Администратор</option>
+                          <option value="employee">{text.roles.employee}</option>
+                          <option value="admin">{text.roles.admin}</option>
                         </select>
                       </div>
                       <label
@@ -318,14 +436,14 @@ export default function UsersSettingsPage() {
                           style={{ marginTop: 3 }}
                         />
                         <span>
-                          <span style={{ display: 'block', fontWeight: 700, fontSize: 13 }}>Ограничить доступ только своими делами и клиентами</span>
+                          <span style={{ display: 'block', fontWeight: 700, fontSize: 13 }}>{text.restrictTitle}</span>
                           <span style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
-                            Сотрудник увидит только назначенные ему дела, клиентов, лиды, задачи и финансовые показатели.
+                            {text.restrictDesc}
                           </span>
                         </span>
                       </label>
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                        <label className="label">Аватарка</label>
+                        <label className="label">{text.avatar}</label>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           {u.avatarUrl ? (
                             <img src={u.avatarUrl} alt={u.name} className="avatar" style={{ width: 44, height: 44, objectFit: 'cover', flexShrink: 0 }} />
@@ -337,7 +455,7 @@ export default function UsersSettingsPage() {
                           <div style={{ flex: 1 }}>
                             <input className="input" type="file" accept="image/*" onChange={e => setAvatarFile(e.target.files?.[0] || null)} />
                             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-                              {avatarFile ? avatarFile.name : 'Можно загрузить JPG, PNG или WebP до 5 MB'}
+                              {avatarFile ? avatarFile.name : text.avatarHint}
                             </div>
                           </div>
                         </div>
@@ -345,9 +463,9 @@ export default function UsersSettingsPage() {
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => saveEdit(u.id)} className="btn btn-primary" disabled={saving}>
-                        {saving ? 'Сохранение...' : '💾 Сохранить'}
+                        {saving ? text.saving : text.save}
                       </button>
-                      <button onClick={() => setEditingId(null)} className="btn btn-secondary">Отмена</button>
+                      <button onClick={() => setEditingId(null)} className="btn btn-secondary">{text.cancel}</button>
                     </div>
                   </div>
                 ) : (
@@ -365,20 +483,20 @@ export default function UsersSettingsPage() {
                       <div style={{ fontSize: 12, color: 'var(--muted)' }}>{u.email}</div>
                     </div>
                     <span className="badge" style={{ ...(ROLE_COLORS[u.role] || { bg: '#f3f4f6', color: '#374151' }) }}>
-                      {ROLE_LABELS[u.role] || u.role}
+                      {text.roles[u.role as keyof typeof text.roles] || u.role}
                     </span>
                     {u.role === 'employee' && u.restrictedAccess && (
                       <span className="badge" style={{ background: '#f1f5f9', color: '#475569' }}>
-                        Ограничен
+                        {text.restricted}
                       </span>
                     )}
                     <div style={{ fontSize: 12, color: 'var(--muted)', minWidth: 80 }}>
-                      {new Date(u.createdAt).toLocaleDateString('ru')}
+                      {new Date(u.createdAt).toLocaleDateString(text.locale)}
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button onClick={() => startEdit(u)}
                         style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 12px', cursor: 'pointer', fontSize: 13, color: 'var(--text)' }}>
-                        ✏️ Изменить
+                        {text.edit}
                       </button>
                       <button onClick={() => deleteUser(u.id, u.name)}
                         style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7, padding: '6px 10px', cursor: 'pointer', fontSize: 13, color: '#dc2626', display: canManageUsers ? undefined : 'none' }}>
@@ -394,8 +512,7 @@ export default function UsersSettingsPage() {
 
         {/* Подсказка */}
         <div style={{ marginTop: 16, padding: '12px 16px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, color: 'var(--muted)' }}>
-          💡 <strong>Роли:</strong> Администратор имеет полный доступ. Сотрудник может просматривать и редактировать дела и клиентов.
-          Каждый пользователь входит в систему через страницу входа используя свой email и пароль.
+          💡 <strong>{text.hintTitle}</strong> {text.hintText}
         </div>
       </div>
     </div>

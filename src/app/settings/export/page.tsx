@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useLanguage } from '@/context/LanguageContext'
 
 type PreviewData = {
   headers: string[]
@@ -103,6 +104,219 @@ Object.assign(caseLabels, {
 const clientFieldOrder = Object.keys(clientLabels)
 const caseFieldOrder = Object.keys(caseLabels)
 
+const exportText = {
+  ru: {
+    title: 'Экспорт и импорт данных',
+    subtitle: 'CSV-файлы для переноса клиентов, дел и резервной копии LegalHub',
+    error: 'Ошибка:',
+    unknownError: 'Неизвестная ошибка',
+    chooseFile: 'Выберите CSV-файл для импорта',
+    readFailed: 'Не удалось прочитать файл',
+    previewFirst: 'Сначала сделайте предпросмотр файла',
+    importFailed: 'Не удалось импортировать файл',
+    techError: 'Сервер вернул техническую ошибку: {message}',
+    emptyResponse: 'Сервер вернул пустой ответ ({status})',
+    importResult: 'Импортировано строк: {rows}. Клиентов создано: {created}, найдено существующих: {reused}, дел создано: {cases}. Дополнительных значений сохранено: {custom}.',
+    importTitle: 'Импорт клиентов и дел из CSV',
+    importHint: 'Сначала файл только проверяется. Распознанные колонки попадут в клиента и дело, а неизвестные колонки автоматически создадут поля в деле в секции',
+    importedData: 'Импортированные данные',
+    downloading: 'Скачиваю...',
+    downloadTemplate: 'Скачать бланк CSV',
+    checking: 'Проверяю...',
+    preview: 'Предпросмотр',
+    importing: 'Импортирую...',
+    import: 'Импортировать',
+    fileRows: 'Строк в файле',
+    columns: 'Колонок',
+    recognized: 'Распознано',
+    extraFields: 'Доп. поля',
+    clientCardTarget: 'Что попадет в карточку клиента',
+    caseTarget: 'Что попадет в дело',
+    notRecognized: 'Пока не распознано',
+    manualMapping: 'Ручное сопоставление колонок',
+    manualMappingHint: 'Если CRM распознала колонку неправильно, выберите нужный столбец вручную. Пустое значение означает, что поле не будет заполняться напрямую.',
+    clientFields: 'Поля клиента',
+    caseFields: 'Поля дела',
+    doNotImport: '— Не импортировать —',
+    unknownColumns: 'Неизвестные колонки',
+    unknownColumnsHint: 'Эти колонки будут сохранены в деле как настраиваемые поля. Например,',
+    willStay: 'не потеряется.',
+    rowsNow: 'Сколько строк импортировать сейчас',
+    testHint: 'Для теста лучше начать с 3-5 строк.',
+    fullDb: 'Полная база данных',
+    fullDbDesc: 'Один файл: клиенты, дела, оплаты и дополнительные поля.',
+    preparing: 'Подготовка...',
+    downloadAll: 'Скачать все',
+    downloadSeparately: 'Или скачать отдельно:',
+    onlyClients: 'Только клиенты',
+    personalData: 'Личные данные',
+    onlyCases: 'Только дела',
+    casesAndSums: 'Дела и суммы',
+    onlyPayments: 'Только оплаты',
+    paymentHistory: 'История платежей',
+    back: 'Назад',
+  },
+  uk: {
+    title: 'Експорт та імпорт даних',
+    subtitle: 'CSV-файли для перенесення клієнтів, справ і резервної копії LegalHub',
+    error: 'Помилка:',
+    unknownError: 'Невідома помилка',
+    chooseFile: 'Виберіть CSV-файл для імпорту',
+    readFailed: 'Не вдалося прочитати файл',
+    previewFirst: 'Спочатку зробіть попередній перегляд файлу',
+    importFailed: 'Не вдалося імпортувати файл',
+    techError: 'Сервер повернув технічну помилку: {message}',
+    emptyResponse: 'Сервер повернув порожню відповідь ({status})',
+    importResult: 'Імпортовано рядків: {rows}. Клієнтів створено: {created}, знайдено наявних: {reused}, справ створено: {cases}. Додаткових значень збережено: {custom}.',
+    importTitle: 'Імпорт клієнтів і справ із CSV',
+    importHint: 'Спочатку файл тільки перевіряється. Розпізнані колонки потраплять у клієнта і справу, а невідомі колонки автоматично створять поля у справі в секції',
+    importedData: 'Імпортовані дані',
+    downloading: 'Завантажую...',
+    downloadTemplate: 'Завантажити бланк CSV',
+    checking: 'Перевіряю...',
+    preview: 'Попередній перегляд',
+    importing: 'Імпортую...',
+    import: 'Імпортувати',
+    fileRows: 'Рядків у файлі',
+    columns: 'Колонок',
+    recognized: 'Розпізнано',
+    extraFields: 'Дод. поля',
+    clientCardTarget: 'Що потрапить у картку клієнта',
+    caseTarget: 'Що потрапить у справу',
+    notRecognized: 'Поки не розпізнано',
+    manualMapping: 'Ручне зіставлення колонок',
+    manualMappingHint: 'Якщо CRM розпізнала колонку неправильно, виберіть потрібний стовпець вручну. Порожнє значення означає, що поле не буде заповнюватися напряму.',
+    clientFields: 'Поля клієнта',
+    caseFields: 'Поля справи',
+    doNotImport: '— Не імпортувати —',
+    unknownColumns: 'Невідомі колонки',
+    unknownColumnsHint: 'Ці колонки будуть збережені у справі як налаштовувані поля. Наприклад,',
+    willStay: 'не загубиться.',
+    rowsNow: 'Скільки рядків імпортувати зараз',
+    testHint: 'Для тесту краще почати з 3-5 рядків.',
+    fullDb: 'Повна база даних',
+    fullDbDesc: 'Один файл: клієнти, справи, оплати та додаткові поля.',
+    preparing: 'Підготовка...',
+    downloadAll: 'Завантажити все',
+    downloadSeparately: 'Або завантажити окремо:',
+    onlyClients: 'Тільки клієнти',
+    personalData: 'Особисті дані',
+    onlyCases: 'Тільки справи',
+    casesAndSums: 'Справи і суми',
+    onlyPayments: 'Тільки оплати',
+    paymentHistory: 'Історія платежів',
+    back: 'Назад',
+  },
+  pl: {
+    title: 'Eksport i import danych',
+    subtitle: 'Pliki CSV do migracji klientów, spraw i kopii zapasowej LegalHub',
+    error: 'Błąd:',
+    unknownError: 'Nieznany błąd',
+    chooseFile: 'Wybierz plik CSV do importu',
+    readFailed: 'Nie udało się odczytać pliku',
+    previewFirst: 'Najpierw wykonaj podgląd pliku',
+    importFailed: 'Nie udało się zaimportować pliku',
+    techError: 'Serwer zwrócił błąd techniczny: {message}',
+    emptyResponse: 'Serwer zwrócił pustą odpowiedź ({status})',
+    importResult: 'Zaimportowano wierszy: {rows}. Utworzono klientów: {created}, znaleziono istniejących: {reused}, utworzono spraw: {cases}. Zapisano dodatkowych wartości: {custom}.',
+    importTitle: 'Import klientów i spraw z CSV',
+    importHint: 'Najpierw plik jest tylko sprawdzany. Rozpoznane kolumny trafią do klienta i sprawy, a nieznane kolumny automatycznie utworzą pola w sprawie w sekcji',
+    importedData: 'Dane importowane',
+    downloading: 'Pobieram...',
+    downloadTemplate: 'Pobierz szablon CSV',
+    checking: 'Sprawdzam...',
+    preview: 'Podgląd',
+    importing: 'Importuję...',
+    import: 'Importuj',
+    fileRows: 'Wierszy w pliku',
+    columns: 'Kolumn',
+    recognized: 'Rozpoznano',
+    extraFields: 'Dodatkowe pola',
+    clientCardTarget: 'Co trafi do karty klienta',
+    caseTarget: 'Co trafi do sprawy',
+    notRecognized: 'Jeszcze nie rozpoznano',
+    manualMapping: 'Ręczne mapowanie kolumn',
+    manualMappingHint: 'Jeśli CRM rozpoznała kolumnę nieprawidłowo, wybierz właściwą kolumnę ręcznie. Pusta wartość oznacza, że pole nie będzie uzupełniane bezpośrednio.',
+    clientFields: 'Pola klienta',
+    caseFields: 'Pola sprawy',
+    doNotImport: '— Nie importować —',
+    unknownColumns: 'Nieznane kolumny',
+    unknownColumnsHint: 'Te kolumny zostaną zapisane w sprawie jako pola konfigurowalne. Na przykład',
+    willStay: 'nie zginie.',
+    rowsNow: 'Ile wierszy zaimportować teraz',
+    testHint: 'Do testu najlepiej zacząć od 3-5 wierszy.',
+    fullDb: 'Pełna baza danych',
+    fullDbDesc: 'Jeden plik: klienci, sprawy, płatności i dodatkowe pola.',
+    preparing: 'Przygotowanie...',
+    downloadAll: 'Pobierz wszystko',
+    downloadSeparately: 'Albo pobierz osobno:',
+    onlyClients: 'Tylko klienci',
+    personalData: 'Dane osobowe',
+    onlyCases: 'Tylko sprawy',
+    casesAndSums: 'Sprawy i kwoty',
+    onlyPayments: 'Tylko płatności',
+    paymentHistory: 'Historia płatności',
+    back: 'Wstecz',
+  },
+}
+
+const fieldLabelOverrides: Record<'uk' | 'pl', { client: Record<string, string>; case: Record<string, string> }> = {
+  uk: {
+    client: {
+      firstName: 'Ім’я', lastName: 'Прізвище', phone: 'Телефон', email: 'Email', pesel: 'PESEL',
+      birthDate: 'Дата народження', citizenship: 'Громадянство', addressInPoland: 'Адреса в Польщі',
+      city: 'Місто', previousFirstName: 'Попереднє ім’я', previousLastName: 'Попереднє прізвище',
+      maidenName: 'Дівоче прізвище', birthPlace: 'Місце народження', nationality: 'Національність',
+      maritalStatus: 'Сімейний стан', education: 'Освіта', fatherName: 'Ім’я батька', motherName: 'Ім’я матері',
+      motherMaidenName: 'Дівоче прізвище матері', passportSeries: 'Серія паспорта', passportNumber: 'Номер паспорта',
+      passportIssuedBy: 'Ким виданий паспорт', passportIssuedAt: 'Дата видачі паспорта', passportExpiresAt: 'Паспорт дійсний до',
+      originCountryAddress: 'Адреса в країні походження', previousResidenceAddress: 'Попередня адреса проживання',
+      legalTitle: 'Правовий титул на житло', rentalEndDate: 'Кінець оренди', stayBasis: 'Підстава перебування',
+      lastEntryDate: 'Дата останнього в’їзду', residenceCardExpiry: 'Строк дії карти', finesInPoland: 'Штрафи в Польщі',
+      finesDescription: 'Опис штрафів', height: 'Зріст', eyeColor: 'Колір очей', specialSigns: 'Особливі прикмети',
+    },
+    case: {
+      status: 'Статус справи', totalValue: 'Вартість', totalPaid: 'Оплачено', notes: 'Нотатки',
+      filingDate: 'Дата подачі', contractDate: 'Дата договору', caseNumber: 'Номер справи', service: 'Послуга',
+      stayPurpose: 'Головна мета перебування', stayType: 'Тип перебування', trustee: 'Довіритель',
+      personalAppearDate: 'Особиста явка', legalStayDeadline: 'Строк легального перебування',
+      fingerprintsDate: 'Відбитки пальців', predictedDecisionDate: 'Очікувана дата рішення', mosNumber: 'Номер MOS',
+      mosSentAt: 'Дата передачі в MOS', cabinetLogin: 'Логін кабінету', cabinetPassword: 'Пароль кабінету',
+      contractType: 'Тип договору', contractNumber: 'Номер договору', contractSigned: 'Договір підписано',
+      workContractType: 'Тип зайнятості', workContractNumber: 'Номер робочого договору',
+      workContractDate: 'Дата робочого договору', workContractEndDate: 'Дата закінчення договору',
+      workContractSigned: 'Робочий договір підписано',
+    },
+  },
+  pl: {
+    client: {
+      firstName: 'Imię', lastName: 'Nazwisko', phone: 'Telefon', email: 'Email', pesel: 'PESEL',
+      birthDate: 'Data urodzenia', citizenship: 'Obywatelstwo', addressInPoland: 'Adres w Polsce',
+      city: 'Miasto', previousFirstName: 'Poprzednie imię', previousLastName: 'Poprzednie nazwisko',
+      maidenName: 'Nazwisko panieńskie', birthPlace: 'Miejsce urodzenia', nationality: 'Narodowość',
+      maritalStatus: 'Stan cywilny', education: 'Wykształcenie', fatherName: 'Imię ojca', motherName: 'Imię matki',
+      motherMaidenName: 'Nazwisko panieńskie matki', passportSeries: 'Seria paszportu', passportNumber: 'Numer paszportu',
+      passportIssuedBy: 'Paszport wydany przez', passportIssuedAt: 'Data wydania paszportu', passportExpiresAt: 'Paszport ważny do',
+      originCountryAddress: 'Adres w kraju pochodzenia', previousResidenceAddress: 'Poprzedni adres zamieszkania',
+      legalTitle: 'Tytuł prawny do lokalu', rentalEndDate: 'Koniec najmu', stayBasis: 'Podstawa pobytu',
+      lastEntryDate: 'Data ostatniego wjazdu', residenceCardExpiry: 'Ważność karty pobytu', finesInPoland: 'Mandaty w Polsce',
+      finesDescription: 'Opis mandatów', height: 'Wzrost', eyeColor: 'Kolor oczu', specialSigns: 'Znaki szczególne',
+    },
+    case: {
+      status: 'Status sprawy', totalValue: 'Wartość', totalPaid: 'Opłacono', notes: 'Notatki',
+      filingDate: 'Data złożenia', contractDate: 'Data umowy', caseNumber: 'Numer sprawy', service: 'Usługa',
+      stayPurpose: 'Główny cel pobytu', stayType: 'Typ pobytu', trustee: 'Pełnomocnik',
+      personalAppearDate: 'Stawiennictwo osobiste', legalStayDeadline: 'Termin legalnego pobytu',
+      fingerprintsDate: 'Odciski palców', predictedDecisionDate: 'Przewidywana data decyzji', mosNumber: 'Numer MOS',
+      mosSentAt: 'Data przekazania do MOS', cabinetLogin: 'Login do konta', cabinetPassword: 'Hasło do konta',
+      contractType: 'Typ umowy', contractNumber: 'Numer umowy', contractSigned: 'Umowa podpisana',
+      workContractType: 'Typ zatrudnienia', workContractNumber: 'Numer umowy pracy',
+      workContractDate: 'Data umowy pracy', workContractEndDate: 'Data zakończenia umowy',
+      workContractSigned: 'Umowa pracy podpisana',
+    },
+  },
+}
+
 function recalculateUnknown(headers: string[], columnMap: ImportColumnMap): string[] {
   const selected = new Set([
     ...Object.values(columnMap.client || {}),
@@ -111,18 +325,20 @@ function recalculateUnknown(headers: string[], columnMap: ImportColumnMap): stri
   return headers.filter(header => !selected.has(header))
 }
 
-async function readApiJson(res: Response) {
+async function readApiJson(res: Response, text: typeof exportText.ru) {
   const contentType = res.headers.get('content-type') || ''
   if (contentType.includes('application/json')) return res.json()
 
-  const text = await res.text()
-  const message = text.trim()
+  const responseText = await res.text()
+  const message = responseText.trim()
   throw new Error(message
-    ? `Сервер вернул техническую ошибку: ${message.slice(0, 220)}`
-    : `Сервер вернул пустой ответ (${res.status})`)
+    ? text.techError.replace('{message}', message.slice(0, 220))
+    : text.emptyResponse.replace('{status}', String(res.status)))
 }
 
 export default function ExportPage() {
+  const { lang } = useLanguage()
+  const text = exportText[lang] || exportText.ru
   const [loading, setLoading] = useState<string | null>(null)
   const [lastError, setLastError] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
@@ -139,7 +355,7 @@ export default function ExportPage() {
 
       if (!res.ok || contentType.includes('json')) {
         const data = await res.json()
-        setLastError(data.details || data.error || 'Неизвестная ошибка')
+        setLastError(data.details || data.error || text.unknownError)
         return
       }
 
@@ -159,7 +375,7 @@ export default function ExportPage() {
 
   async function doPreview() {
     if (!file) {
-      setLastError('Выберите CSV-файл для импорта')
+      setLastError(text.chooseFile)
       return
     }
     setLoading('import-preview')
@@ -169,9 +385,9 @@ export default function ExportPage() {
       const formData = new FormData()
       formData.append('file', file)
       const res = await fetch('/api/import', { method: 'POST', body: formData })
-      const data = await readApiJson(res)
+      const data = await readApiJson(res, text)
       if (!res.ok) {
-        setLastError(data.details || data.error || 'Не удалось прочитать файл')
+        setLastError(data.details || data.error || text.readFailed)
         return
       }
       setPreview(data)
@@ -185,7 +401,7 @@ export default function ExportPage() {
 
   async function doImport() {
     if (!file || !preview) {
-      setLastError('Сначала сделайте предпросмотр файла')
+      setLastError(text.previewFirst)
       return
     }
     setLoading('import-confirm')
@@ -201,9 +417,9 @@ export default function ExportPage() {
         case: preview.columnMap.case,
       }))
       const res = await fetch('/api/import', { method: 'POST', body: formData })
-      const data = await readApiJson(res)
+      const data = await readApiJson(res, text)
       if (!res.ok) {
-        setLastError(data.details || data.error || 'Не удалось импортировать файл')
+        setLastError(data.details || data.error || text.importFailed)
         return
       }
       setImportResult(data)
@@ -216,6 +432,8 @@ export default function ExportPage() {
 
   const mappedClient = preview ? Object.entries(preview.columnMap.client) : []
   const mappedCase = preview ? Object.entries(preview.columnMap.case) : []
+  const clientFieldLabel = (field: string) => fieldLabelOverrides[lang as 'uk' | 'pl']?.client[field] || clientLabels[field] || field
+  const caseFieldLabel = (field: string) => fieldLabelOverrides[lang as 'uk' | 'pl']?.case[field] || caseLabels[field] || field
 
   function updateColumnMap(scope: 'client' | 'case', field: string, header: string) {
     setPreview(current => {
@@ -238,31 +456,36 @@ export default function ExportPage() {
     <div className="fade-in">
       <div className="page-header">
         <div>
-          <div className="page-title">Экспорт и импорт данных</div>
-          <div className="page-subtitle">CSV-файлы для переноса клиентов, дел и резервной копии LegalHub</div>
+          <div className="page-title">{text.title}</div>
+          <div className="page-subtitle">{text.subtitle}</div>
         </div>
-        <Link href="/settings" className="btn btn-secondary">Назад</Link>
+        <Link href="/settings" className="btn btn-secondary">{text.back}</Link>
       </div>
 
       <div className="page-body">
         {lastError && (
           <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#dc2626', fontSize: 13 }}>
-            <strong>Ошибка:</strong> {lastError}
+            <strong>{text.error}</strong> {lastError}
           </div>
         )}
 
         {importResult && (
           <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#166534', fontSize: 13 }}>
-            Импортировано строк: <strong>{importResult.importedRows}</strong>. Клиентов создано: <strong>{importResult.clientsCreated}</strong>, найдено существующих: <strong>{importResult.clientsReused}</strong>, дел создано: <strong>{importResult.casesCreated}</strong>. Дополнительных значений сохранено: <strong>{importResult.customValuesSaved}</strong>.
+            {text.importResult
+              .replace('{rows}', String(importResult.importedRows))
+              .replace('{created}', String(importResult.clientsCreated))
+              .replace('{reused}', String(importResult.clientsReused))
+              .replace('{cases}', String(importResult.casesCreated))
+              .replace('{custom}', String(importResult.customValuesSaved))}
           </div>
         )}
 
         <div className="card" style={{ marginBottom: 20, border: '2px solid var(--brand)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 16 }}>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>Импорт клиентов и дел из CSV</div>
+              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>{text.importTitle}</div>
               <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5, maxWidth: 760 }}>
-                Сначала файл только проверяется. Распознанные колонки попадут в клиента и дело, а неизвестные колонки автоматически создадут поля в деле в секции <strong>Импортированные данные</strong>.
+                {text.importHint} <strong>{text.importedData}</strong>.
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -272,7 +495,7 @@ export default function ExportPage() {
                 disabled={loading === 'import-template'}
                 style={{ whiteSpace: 'nowrap' }}
               >
-                {loading === 'import-template' ? 'Скачиваю...' : 'Скачать бланк CSV'}
+                {loading === 'import-template' ? text.downloading : text.downloadTemplate}
               </button>
               <span style={{ fontSize: 28 }}>📥</span>
             </div>
@@ -290,10 +513,10 @@ export default function ExportPage() {
               }}
             />
             <button className="btn btn-secondary" onClick={doPreview} disabled={loading === 'import-preview'}>
-              {loading === 'import-preview' ? 'Проверяю...' : 'Предпросмотр'}
+              {loading === 'import-preview' ? text.checking : text.preview}
             </button>
             <button className="btn btn-primary" onClick={doImport} disabled={!preview || loading === 'import-confirm'}>
-              {loading === 'import-confirm' ? 'Импортирую...' : 'Импортировать'}
+              {loading === 'import-confirm' ? text.importing : text.import}
             </button>
           </div>
 
@@ -301,42 +524,42 @@ export default function ExportPage() {
             <div style={{ marginTop: 18 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10, marginBottom: 14 }}>
                 <div className="card" style={{ padding: 12 }}>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>Строк в файле</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{text.fileRows}</div>
                   <div style={{ fontSize: 24, fontWeight: 800 }}>{preview.rowCount}</div>
                 </div>
                 <div className="card" style={{ padding: 12 }}>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>Колонок</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{text.columns}</div>
                   <div style={{ fontSize: 24, fontWeight: 800 }}>{preview.headers.length}</div>
                 </div>
                 <div className="card" style={{ padding: 12 }}>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>Распознано</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{text.recognized}</div>
                   <div style={{ fontSize: 24, fontWeight: 800 }}>{mappedClient.length + mappedCase.length}</div>
                 </div>
                 <div className="card" style={{ padding: 12 }}>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>Доп. поля</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{text.extraFields}</div>
                   <div style={{ fontSize: 24, fontWeight: 800 }}>{preview.columnMap.unknown.length}</div>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
                 <div>
-                  <div style={{ fontWeight: 700, marginBottom: 8 }}>Что попадет в карточку клиента</div>
+                  <div style={{ fontWeight: 700, marginBottom: 8 }}>{text.clientCardTarget}</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {mappedClient.length === 0 && <span style={{ color: 'var(--muted)', fontSize: 13 }}>Пока не распознано</span>}
+                    {mappedClient.length === 0 && <span style={{ color: 'var(--muted)', fontSize: 13 }}>{text.notRecognized}</span>}
                     {mappedClient.map(([field, header]) => (
                       <span key={field} style={{ border: '1px solid var(--border)', borderRadius: 999, padding: '5px 9px', fontSize: 12 }}>
-                        {clientLabels[field] || field}: <strong>{header}</strong>
+                        {clientFieldLabel(field)}: <strong>{header}</strong>
                       </span>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontWeight: 700, marginBottom: 8 }}>Что попадет в дело</div>
+                  <div style={{ fontWeight: 700, marginBottom: 8 }}>{text.caseTarget}</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {mappedCase.length === 0 && <span style={{ color: 'var(--muted)', fontSize: 13 }}>Пока не распознано</span>}
+                    {mappedCase.length === 0 && <span style={{ color: 'var(--muted)', fontSize: 13 }}>{text.notRecognized}</span>}
                     {mappedCase.map(([field, header]) => (
                       <span key={field} style={{ border: '1px solid var(--border)', borderRadius: 999, padding: '5px 9px', fontSize: 12 }}>
-                        {caseLabels[field] || field}: <strong>{header}</strong>
+                        {caseFieldLabel(field)}: <strong>{header}</strong>
                       </span>
                     ))}
                   </div>
@@ -344,23 +567,23 @@ export default function ExportPage() {
               </div>
 
               <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 14, background: 'var(--surface)' }}>
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>Ручное сопоставление колонок</div>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>{text.manualMapping}</div>
                 <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
-                  Если CRM распознала колонку неправильно, выберите нужный столбец вручную. Пустое значение означает, что поле не будет заполняться напрямую.
+                  {text.manualMappingHint}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div>
-                    <div style={{ fontWeight: 700, marginBottom: 8 }}>Поля клиента</div>
+                    <div style={{ fontWeight: 700, marginBottom: 8 }}>{text.clientFields}</div>
                     <div style={{ display: 'grid', gap: 8 }}>
                       {clientFieldOrder.map(field => (
                         <label key={field} style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 8, alignItems: 'center', fontSize: 13 }}>
-                          <span>{clientLabels[field] || field}</span>
+                          <span>{clientFieldLabel(field)}</span>
                           <select
                             className="select"
                             value={preview.columnMap.client[field] || ''}
                             onChange={event => updateColumnMap('client', field, event.target.value)}
                           >
-                            <option value="">— Не импортировать —</option>
+                            <option value="">{text.doNotImport}</option>
                             {preview.headers.map(header => (
                               <option key={header} value={header}>{header}</option>
                             ))}
@@ -370,17 +593,17 @@ export default function ExportPage() {
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontWeight: 700, marginBottom: 8 }}>Поля дела</div>
+                    <div style={{ fontWeight: 700, marginBottom: 8 }}>{text.caseFields}</div>
                     <div style={{ display: 'grid', gap: 8 }}>
                       {caseFieldOrder.map(field => (
                         <label key={field} style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 8, alignItems: 'center', fontSize: 13 }}>
-                          <span>{caseLabels[field] || field}</span>
+                          <span>{caseFieldLabel(field)}</span>
                           <select
                             className="select"
                             value={preview.columnMap.case[field] || ''}
                             onChange={event => updateColumnMap('case', field, event.target.value)}
                           >
-                            <option value="">— Не импортировать —</option>
+                            <option value="">{text.doNotImport}</option>
                             {preview.headers.map(header => (
                               <option key={header} value={header}>{header}</option>
                             ))}
@@ -393,9 +616,9 @@ export default function ExportPage() {
               </div>
 
               <div className="card" style={{ padding: 12, marginBottom: 14 }}>
-                <div style={{ fontWeight: 700, marginBottom: 8 }}>Неизвестные колонки</div>
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>{text.unknownColumns}</div>
                 <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>
-                  Эти колонки будут сохранены в деле как настраиваемые поля. Например, <strong>pracodawca</strong> не потеряется.
+                  {text.unknownColumnsHint} <strong>pracodawca</strong> {text.willStay}
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {preview.columnMap.unknown.slice(0, 80).map(header => (
@@ -405,7 +628,7 @@ export default function ExportPage() {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <label style={{ fontWeight: 600, fontSize: 13 }}>Сколько строк импортировать сейчас</label>
+                <label style={{ fontWeight: 600, fontSize: 13 }}>{text.rowsNow}</label>
                 <input
                   type="number"
                   min={1}
@@ -414,7 +637,7 @@ export default function ExportPage() {
                   onChange={event => setLimit(Math.max(1, Math.min(preview.rowCount, Number(event.target.value) || 1)))}
                   style={{ width: 110 }}
                 />
-                <span style={{ color: 'var(--muted)', fontSize: 13 }}>Для теста лучше начать с 3-5 строк.</span>
+                <span style={{ color: 'var(--muted)', fontSize: 13 }}>{text.testHint}</span>
               </div>
 
               <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
@@ -445,25 +668,25 @@ export default function ExportPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
             <div style={{ width: 60, height: 60, borderRadius: 14, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, flexShrink: 0 }}>📦</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>Полная база данных</div>
+              <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>{text.fullDb}</div>
               <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>
-                Один файл: клиенты, дела, оплаты и дополнительные поля.
+                {text.fullDbDesc}
               </div>
             </div>
             <button onClick={() => doExport('all', 'LegalHubCRM_baza')}
               className="btn btn-primary" disabled={loading === 'all'}
               style={{ padding: '12px 24px', fontSize: 15, flexShrink: 0 }}>
-              {loading === 'all' ? 'Подготовка...' : 'Скачать все'}
+              {loading === 'all' ? text.preparing : text.downloadAll}
             </button>
           </div>
         </div>
 
-        <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, fontWeight: 500 }}>Или скачать отдельно:</div>
+        <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, fontWeight: 500 }}>{text.downloadSeparately}</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           {[
-            { id: 'clients', icon: '👥', title: 'Только клиенты', desc: 'Личные данные', filename: 'LegalHubCRM_clients', color: '#eff6ff' },
-            { id: 'cases', icon: '📋', title: 'Только дела', desc: 'Дела и суммы', filename: 'LegalHubCRM_cases', color: '#fef3c7' },
-            { id: 'payments', icon: '💳', title: 'Только оплаты', desc: 'История платежей', filename: 'LegalHubCRM_payments', color: '#dcfce7' },
+            { id: 'clients', icon: '👥', title: text.onlyClients, desc: text.personalData, filename: 'LegalHubCRM_clients', color: '#eff6ff' },
+            { id: 'cases', icon: '📋', title: text.onlyCases, desc: text.casesAndSums, filename: 'LegalHubCRM_cases', color: '#fef3c7' },
+            { id: 'payments', icon: '💳', title: text.onlyPayments, desc: text.paymentHistory, filename: 'LegalHubCRM_payments', color: '#dcfce7' },
           ].map(exp => (
             <div key={exp.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 40, height: 40, borderRadius: 10, background: exp.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{exp.icon}</div>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { DOCUMENT_TEMPLATE_VARIABLES } from '@/lib/documentTemplates'
+import { useLanguage } from '@/context/LanguageContext'
 
 type TemplateType = {
   type: string
@@ -17,7 +18,69 @@ type Template = {
   updatedAt: string
 }
 
+const templateText = {
+  ru: {
+    subtitle: 'Добавляйте несколько DOCX-бланков договоров, доверенностей и других документов для одной организации',
+    loadFailed: 'Не удалось загрузить шаблоны',
+    saveFailed: 'Не удалось сохранить шаблон',
+    deleteFailed: 'Не удалось удалить шаблон',
+    deleteConfirm: 'Удалить шаблон "{name}"?',
+    addTitle: 'Добавить шаблон',
+    documentType: 'Тип документа',
+    name: 'Название',
+    namePlaceholder: 'Например: Umowa - Pakiet Podstawowy',
+    saving: 'Сохраняю...',
+    addTemplate: 'Добавить шаблон',
+    emptyType: 'Шаблонов этого типа пока нет',
+    updated: 'Обновлён',
+    delete: 'Удалить',
+    variablesTitle: 'Переменные для Word',
+    variablesHint: 'Вставьте нужные переменные прямо в текст договора. При генерации система заменит их на данные клиента, дела и плана платежей.',
+    locale: 'ru-RU',
+  },
+  uk: {
+    subtitle: 'Додавайте кілька DOCX-бланків договорів, довіреностей та інших документів для однієї організації',
+    loadFailed: 'Не вдалося завантажити шаблони',
+    saveFailed: 'Не вдалося зберегти шаблон',
+    deleteFailed: 'Не вдалося видалити шаблон',
+    deleteConfirm: 'Видалити шаблон "{name}"?',
+    addTitle: 'Додати шаблон',
+    documentType: 'Тип документа',
+    name: 'Назва',
+    namePlaceholder: 'Наприклад: Umowa - Pakiet Podstawowy',
+    saving: 'Зберігаю...',
+    addTemplate: 'Додати шаблон',
+    emptyType: 'Шаблонів цього типу поки немає',
+    updated: 'Оновлено',
+    delete: 'Видалити',
+    variablesTitle: 'Змінні для Word',
+    variablesHint: 'Вставте потрібні змінні прямо в текст договору. Під час генерації система замінить їх на дані клієнта, справи та плану платежів.',
+    locale: 'uk-UA',
+  },
+  pl: {
+    subtitle: 'Dodawaj kilka szablonów DOCX umów, pełnomocnictw i innych dokumentów dla jednej organizacji',
+    loadFailed: 'Nie udało się załadować szablonów',
+    saveFailed: 'Nie udało się zapisać szablonu',
+    deleteFailed: 'Nie udało się usunąć szablonu',
+    deleteConfirm: 'Usunąć szablon „{name}”?',
+    addTitle: 'Dodaj szablon',
+    documentType: 'Typ dokumentu',
+    name: 'Nazwa',
+    namePlaceholder: 'Na przykład: Umowa - Pakiet Podstawowy',
+    saving: 'Zapisuję...',
+    addTemplate: 'Dodaj szablon',
+    emptyType: 'Nie ma jeszcze szablonów tego typu',
+    updated: 'Zaktualizowano',
+    delete: 'Usuń',
+    variablesTitle: 'Zmienne do Worda',
+    variablesHint: 'Wstaw potrzebne zmienne bezpośrednio w treść umowy. Podczas generowania system zastąpi je danymi klienta, sprawy i planu płatności.',
+    locale: 'pl-PL',
+  },
+}
+
 export default function DocumentTemplatesPage() {
+  const { lang, t } = useLanguage()
+  const text = templateText[lang] || templateText.ru
   const [types, setTypes] = useState<TemplateType[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
   const [selectedType, setSelectedType] = useState('client_contract')
@@ -38,7 +101,7 @@ export default function DocumentTemplatesPage() {
     const res = await fetch('/api/document-templates', { cache: 'no-store' })
     const data = await res.json()
     if (!res.ok) {
-      setError(data.error || 'Не удалось загрузить шаблоны')
+      setError(data.error || text.loadFailed)
       return
     }
     setTypes(data.types || [])
@@ -62,7 +125,7 @@ export default function DocumentTemplatesPage() {
       const res = await fetch('/api/document-templates', { method: 'POST', body: formData })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Не удалось сохранить шаблон')
+        setError(data.error || text.saveFailed)
         return
       }
       setName('')
@@ -74,14 +137,14 @@ export default function DocumentTemplatesPage() {
   }
 
   async function deleteTemplate(template: Template) {
-    if (!confirm(`Удалить шаблон "${template.name}"?`)) return
+    if (!confirm(text.deleteConfirm.replace('{name}', template.name))) return
     setLoading(`delete-${template.id}`)
     setError('')
     try {
       const res = await fetch(`/api/document-templates/${template.id}`, { method: 'DELETE' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(data.error || 'Не удалось удалить шаблон')
+        setError(data.error || text.deleteFailed)
         return
       }
       await loadTemplates()
@@ -94,10 +157,10 @@ export default function DocumentTemplatesPage() {
     <div className="fade-in">
       <div className="page-header">
         <div>
-          <div className="page-title">Шаблоны документов</div>
-          <div className="page-subtitle">Добавляйте несколько DOCX-бланков договоров, доверенностей и других документов для одной организации</div>
+          <div className="page-title">{t('document_templates_title')}</div>
+          <div className="page-subtitle">{text.subtitle}</div>
         </div>
-        <Link href="/settings" className="btn btn-secondary">Назад</Link>
+        <Link href="/settings" className="btn btn-secondary">{t('back')}</Link>
       </div>
 
       <div className="page-body">
@@ -109,21 +172,21 @@ export default function DocumentTemplatesPage() {
 
         <div style={{ display: 'grid', gap: 16, maxWidth: 980 }}>
           <div className="card">
-            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 12 }}>Добавить шаблон</div>
+            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 12 }}>{text.addTitle}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '220px minmax(220px, 1fr)', gap: 10, marginBottom: 10 }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="label">Тип документа</label>
+                <label className="label">{text.documentType}</label>
                 <select className="select" value={selectedType} onChange={event => setSelectedType(event.target.value)}>
                   {types.map(type => <option key={type.type} value={type.type}>{type.label}</option>)}
                 </select>
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="label">Название</label>
+                <label className="label">{text.name}</label>
                 <input
                   className="input"
                   value={name}
                   onChange={event => setName(event.target.value)}
-                  placeholder="Например: Umowa - Pakiet Podstawowy"
+                  placeholder={text.namePlaceholder}
                 />
               </div>
             </div>
@@ -139,7 +202,7 @@ export default function DocumentTemplatesPage() {
                 onClick={uploadTemplate}
                 disabled={!file || !name.trim() || loading === 'upload'}
               >
-                {loading === 'upload' ? 'Сохраняю...' : 'Добавить шаблон'}
+                {loading === 'upload' ? text.saving : text.addTemplate}
               </button>
             </div>
           </div>
@@ -148,7 +211,7 @@ export default function DocumentTemplatesPage() {
             <div key={group.type} className="card">
               <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 10 }}>{group.label}</div>
               {group.templates.length === 0 ? (
-                <div style={{ color: 'var(--muted)', fontSize: 13 }}>Шаблонов этого типа пока нет</div>
+                <div style={{ color: 'var(--muted)', fontSize: 13 }}>{text.emptyType}</div>
               ) : (
                 <div style={{ display: 'grid', gap: 8 }}>
                   {group.templates.map(template => (
@@ -158,7 +221,7 @@ export default function DocumentTemplatesPage() {
                     >
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{template.name}</div>
-                        <div style={{ color: 'var(--muted)', fontSize: 12 }}>Обновлён: {new Date(template.updatedAt).toLocaleDateString('ru')}</div>
+                        <div style={{ color: 'var(--muted)', fontSize: 12 }}>{text.updated}: {new Date(template.updatedAt).toLocaleDateString(text.locale)}</div>
                       </div>
                       <div style={{ color: 'var(--muted)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={template.fileName}>
                         {template.fileName}
@@ -168,7 +231,7 @@ export default function DocumentTemplatesPage() {
                         onClick={() => deleteTemplate(template)}
                         disabled={loading === `delete-${template.id}`}
                       >
-                        Удалить
+                        {text.delete}
                       </button>
                     </div>
                   ))}
@@ -178,9 +241,9 @@ export default function DocumentTemplatesPage() {
           ))}
 
           <div className="card">
-            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 8 }}>Переменные для Word</div>
+            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 8 }}>{text.variablesTitle}</div>
             <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 12 }}>
-              Вставьте нужные переменные прямо в текст договора. При генерации система заменит их на данные клиента, дела и плана платежей.
+              {text.variablesHint}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {DOCUMENT_TEMPLATE_VARIABLES.map(variable => (

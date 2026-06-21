@@ -3,10 +3,64 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import type { LeadSourceOption } from '@/lib/leads'
+import { useLanguage } from '@/context/LanguageContext'
 
 type SourceDraft = LeadSourceOption & { isNew?: boolean }
 
+const sourceText = {
+  ru: {
+    loadFailed: 'Не удалось загрузить источники',
+    saveFailed: 'Не удалось сохранить источники',
+    deleteConfirm: 'Удалить источник? Старые лиды с этим источником останутся, но источник исчезнет из новых списков.',
+    addTitle: 'Добавить источник',
+    name: 'Название',
+    placeholder: 'Например: TikTok, Рекомендация, OLX',
+    saving: 'Сохраняю...',
+    add: '+ Добавить',
+    listTitle: 'Список источников',
+    loading: 'Загрузка...',
+    empty: 'Источников пока нет',
+    willBeCreated: 'будет создан',
+    save: 'Сохранить',
+    delete: 'Удалить',
+  },
+  uk: {
+    loadFailed: 'Не вдалося завантажити джерела',
+    saveFailed: 'Не вдалося зберегти джерела',
+    deleteConfirm: 'Видалити джерело? Старі ліди з цим джерелом залишаться, але джерело зникне з нових списків.',
+    addTitle: 'Додати джерело',
+    name: 'Назва',
+    placeholder: 'Наприклад: TikTok, Рекомендація, OLX',
+    saving: 'Зберігаю...',
+    add: '+ Додати',
+    listTitle: 'Список джерел',
+    loading: 'Завантаження...',
+    empty: 'Джерел поки немає',
+    willBeCreated: 'буде створено',
+    save: 'Зберегти',
+    delete: 'Видалити',
+  },
+  pl: {
+    loadFailed: 'Nie udało się załadować źródeł',
+    saveFailed: 'Nie udało się zapisać źródeł',
+    deleteConfirm: 'Usunąć źródło? Stare leady z tym źródłem zostaną, ale źródło zniknie z nowych list.',
+    addTitle: 'Dodaj źródło',
+    name: 'Nazwa',
+    placeholder: 'Na przykład: TikTok, Polecenie, OLX',
+    saving: 'Zapisuję...',
+    add: '+ Dodaj',
+    listTitle: 'Lista źródeł',
+    loading: 'Ładowanie...',
+    empty: 'Nie ma jeszcze źródeł',
+    willBeCreated: 'zostanie utworzone',
+    save: 'Zapisz',
+    delete: 'Usuń',
+  },
+}
+
 export default function LeadSourcesSettingsPage() {
+  const { lang, t } = useLanguage()
+  const text = sourceText[lang] || sourceText.ru
   const [sources, setSources] = useState<SourceDraft[]>([])
   const [newLabel, setNewLabel] = useState('')
   const [loading, setLoading] = useState(true)
@@ -26,7 +80,7 @@ export default function LeadSourcesSettingsPage() {
       const response = await fetch('/api/lead-sources', { cache: 'no-store' })
       const data = await response.json()
       if (!response.ok) {
-        setError(data.error || 'Не удалось загрузить источники')
+        setError(data.error || text.loadFailed)
         return
       }
       setSources(Array.isArray(data.sources) ? data.sources : [])
@@ -53,7 +107,7 @@ export default function LeadSourcesSettingsPage() {
       })
       const data = await response.json()
       if (!response.ok) {
-        setError(data.error || 'Не удалось сохранить источники')
+        setError(data.error || text.saveFailed)
         return
       }
       setSources(Array.isArray(data.sources) ? data.sources : [])
@@ -75,7 +129,7 @@ export default function LeadSourcesSettingsPage() {
   }
 
   function deleteSource(index: number) {
-    if (!confirm('Удалить источник? Старые лиды с этим источником останутся, но источник исчезнет из новых списков.')) return
+    if (!confirm(text.deleteConfirm)) return
     const next = sources.filter((_, sourceIndex) => sourceIndex !== index)
     save(next)
   }
@@ -105,29 +159,29 @@ export default function LeadSourcesSettingsPage() {
     <div className="fade-in">
       <div className="page-header">
         <div>
-          <div className="page-title">Источники лидов</div>
-          <div className="page-subtitle">Список источников для фильтров, карточек и создания лидов</div>
+          <div className="page-title">{t('lead_sources_title')}</div>
+          <div className="page-subtitle">{t('lead_sources_sub')}</div>
         </div>
-        <Link href="/settings" className="btn btn-secondary">Назад</Link>
+        <Link href="/settings" className="btn btn-secondary">{t('back')}</Link>
       </div>
 
       <div className="page-body">
         <div style={{ maxWidth: 720 }}>
           <div className="card" style={{ marginBottom: 16 }}>
-            <div className="section-title"><span>+</span>Добавить источник</div>
+            <div className="section-title"><span>+</span>{text.addTitle}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) auto', gap: 10, alignItems: 'end' }}>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="label">Название</label>
+                <label className="label">{text.name}</label>
                 <input
                   className="input"
                   value={newLabel}
                   onChange={event => setNewLabel(event.target.value)}
                   onKeyDown={event => event.key === 'Enter' && addSource()}
-                  placeholder="Например: TikTok, Рекомендация, OLX"
+                  placeholder={text.placeholder}
                 />
               </div>
               <button className="btn btn-primary" type="button" onClick={addSource} disabled={saving || !newLabel.trim()}>
-                {saving ? 'Сохраняю...' : '+ Добавить'}
+                {saving ? text.saving : text.add}
               </button>
             </div>
             {error && <div className="error-msg" style={{ marginTop: 12 }}>{error}</div>}
@@ -135,16 +189,16 @@ export default function LeadSourcesSettingsPage() {
 
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <div className="section-title" style={{ margin: 0 }}>Список источников</div>
+              <div className="section-title" style={{ margin: 0 }}>{text.listTitle}</div>
               <button className="btn btn-primary" type="button" onClick={() => save()} disabled={saving || loading}>
-                {saving ? 'Сохраняю...' : 'Сохранить'}
+                {saving ? text.saving : text.save}
               </button>
             </div>
 
             {loading ? (
-              <div style={{ color: 'var(--muted)', padding: '16px 0' }}>Загрузка...</div>
+              <div style={{ color: 'var(--muted)', padding: '16px 0' }}>{text.loading}</div>
             ) : sources.length === 0 ? (
-              <div style={{ color: 'var(--muted)', padding: '16px 0' }}>Источников пока нет</div>
+              <div style={{ color: 'var(--muted)', padding: '16px 0' }}>{text.empty}</div>
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {sources.map((source, index) => (
@@ -174,10 +228,10 @@ export default function LeadSourcesSettingsPage() {
                       onBlur={() => save()}
                     />
                     <code style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {source.value || 'будет создан'}
+                      {source.value || text.willBeCreated}
                     </code>
                     <button className="btn btn-danger" type="button" onClick={() => deleteSource(index)} disabled={saving || sources.length <= 1}>
-                      Удалить
+                      {text.delete}
                     </button>
                   </div>
                 ))}

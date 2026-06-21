@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useLanguage } from '@/context/LanguageContext'
 
 type WebhookSettings = {
   slug: string
@@ -120,6 +121,342 @@ const targetFields = [
   { value: 'nextContactNote', label: 'О чем сконтактироваться' },
 ]
 
+const integrationText = {
+  ru: {
+    title: 'Интеграции',
+    subtitle: 'Подключение заявок с сайта, квиза, рекламы и внешних сервисов',
+    back: 'Назад',
+    loading: 'Загрузка...',
+    loadFailed: 'Не удалось загрузить интеграции',
+    saveFailed: 'Не удалось сохранить интеграции',
+    storageSaveFailed: 'Не удалось сохранить хранилище документов',
+    noDiagnostics: 'Нет данных диагностики',
+    tokenNotSaved: 'Токен не сохранен',
+    metaRejected: 'Meta не приняла токен',
+    metaOk: 'Meta вернула OK',
+    storageTitle: 'Хранение документов',
+    storageHint: 'CRM всегда сохраняет документ в Cloudinary как основное хранилище. Если Dropbox подключен, туда дополнительно отправляется копия для папок организации.',
+    storageEnabled: 'Делать копию новых документов в Dropbox',
+    dropboxFolder: 'Папка в Dropbox',
+    tokenSavedPlaceholder: 'Токен уже сохранен. Вставьте новый только для замены.',
+    show: 'Показать',
+    hide: 'Скрыть',
+    saving: 'Сохраняю...',
+    save: 'Сохранить',
+    webhookTitle: 'Webhook для лидов',
+    webhookHint: 'Этот адрес можно указать в квизе, форме сайта, Make, Zapier или другом сервисе. Каждая новая заявка будет создавать лида в этой организации.',
+    webhookEnabled: 'Принимать лиды через webhook',
+    webliumUrl: 'Webhook URL для Weblium',
+    webliumHidden: 'Покажите ключ, чтобы увидеть URL для Weblium',
+    copy: 'Копировать',
+    webliumHint: 'Используйте этот вариант, если сервис не умеет отправлять заголовок x-reziflow-key.',
+    accessKey: 'Ключ доступа',
+    newKey: 'Новый ключ',
+    regenerateConfirm: 'Пересоздать ключ? Старые подключения перестанут работать.',
+    keyHint: 'Ключ можно передавать в заголовке x-reziflow-key или как Bearer token в Authorization.',
+    requestExample: 'Пример запроса',
+    requestHint: 'Минимально достаточно передать имя, телефон, email, Instagram или Facebook. Остальные поля можно добавлять постепенно.',
+    mappingTitle: 'Маппинг полей',
+    mappingHint: 'CRM уже автоматически понимает частые названия вроде name, phone, telefon, email, usluga, service. Здесь можно добавить свои правила для конкретного квиза или формы.',
+    addField: '+ Поле',
+    noMapping: 'Ручных правил пока нет. Автораспознавание все равно работает.',
+    externalFieldPlaceholder: 'Поле из формы, например phone_number',
+    delete: 'Удалить',
+    saveMapping: 'Сохранить маппинг',
+    assignmentTitle: 'Автораспределение лидов',
+    assignmentHint: 'Новые лиды из webhook можно сразу назначать ответственному. Если внешний сервис передаст assignedToId, он будет иметь приоритет.',
+    mode: 'Режим',
+    modeOff: 'Не назначать автоматически',
+    modeSingle: 'Назначать одного сотрудника',
+    modeRoundRobin: 'По очереди между сотрудниками',
+    responsible: 'Ответственный',
+    notSelected: '— Не выбран —',
+    queueMembers: 'Участники очереди',
+    noUsers: 'Нет пользователей для выбора',
+    saveAssignment: 'Сохранить распределение',
+    facebookTitle: 'Facebook Lead Ads',
+    facebookHint: 'Подключение лид-форм Meta/Facebook. В Meta App укажите Callback URL и Verify Token, а в CRM сохраните Page Access Token страницы.',
+    publicPages: 'Публичные страницы для публикации Meta App',
+    publicPagesHint: 'Эти ссылки можно вставить в Meta Developers в поля Privacy Policy URL и Data Deletion URL. Страницы открываются без входа в CRM.',
+    open: 'Открыть',
+    facebookEnabled: 'Принимать лиды из Facebook Lead Ads',
+    messagesEnabled: 'Принимать сообщения из Instagram Direct и Facebook Messenger',
+    metaCallback: 'Callback URL для Meta',
+    messagesCallback: 'Callback URL для сообщений Instagram/Facebook',
+    messagesHint: 'Этот URL добавляем в Meta Webhooks для событий сообщений. Verify Token общий, а Page Access Token можно указать отдельно для Facebook Messenger и Instagram Direct.',
+    metaChecking: 'Проверяю Meta...',
+    subscribeMeta: 'Подписать страницу на messages / message_echoes',
+    facebookTokenPlaceholder: 'Токен страницы Facebook для Lead Ads и Messenger',
+    facebookTokenHint: 'Используется для Facebook Lead Ads и исходящих сообщений Facebook Messenger.',
+    instagramTokenPlaceholder: 'Токен для Instagram Direct',
+    instagramTokenHint: 'Используется для профиля отправителя и ответов в Instagram Direct. Если поле пустое, CRM временно попробует Facebook token.',
+    diagnosticsTitle: 'Диагностика Meta токенов',
+    diagnosticsHint: 'Проверяет сохраненные токены и показывает Page ID / Instagram account, которые Meta возвращает CRM.',
+    checking: 'Проверяю...',
+    checkTokens: 'Проверить токены',
+    newVerifyToken: 'Новый Verify Token',
+    saveFacebook: 'Сохранить Facebook',
+    googleSheetsTitle: 'Google Sheets',
+    googleSheetsHint: 'Если лиды уже попадают в Google таблицу, можно поставить в таблицу Apps Script. Он отправит новую строку в CRM без Make и Zapier.',
+    googleSheetsUrl: 'Webhook URL для Google Sheets',
+    scriptHint: 'Первый запуск: один раз выполните markExistingRowsAsSent для старых строк. Триггер: sendLastRowToReziFlow, источник From spreadsheet, событие On change. Скрипт больше не добавляет видимые колонки и хранит отметки отправки внутри Apps Script properties.',
+    copyScript: 'Копировать скрипт',
+    telegramHint: 'Этот вариант нужен для группы, куда уже приходят уведомления. Создайте своего Telegram-бота, добавьте его в группу и установите webhook на URL ниже. Если Telegram даст боту читать сообщения WebJackBot, CRM будет создавать лиды из этих текстов.',
+    telegramCommand: 'Команда для подключения webhook:',
+    logsTitle: 'Журнал входящих заявок',
+    logsHint: 'Последние 50 запросов из внешних форм и сервисов',
+    showLogs: 'Показать журнал',
+    collapse: 'Свернуть',
+    refreshing: 'Обновляю...',
+    refresh: 'Обновить',
+    logsCollapsed: 'Журнал свернут. Записей загружено: {count}.',
+    noLogs: 'Входящих заявок пока нет',
+    date: 'Дата',
+    status: 'Статус',
+    source: 'Источник',
+    lead: 'Лид',
+    payloadError: 'Payload / ошибка',
+    created: 'Создан',
+    test: 'Тест',
+    message: 'Сообщение',
+    ignored: 'Пропущено',
+    comment: 'Комментарий',
+    service: 'Сервис',
+    failed: 'Ошибка',
+    rejected: 'Отклонен',
+    showPayload: 'Показать payload',
+    leadFallback: 'Лид',
+    locale: 'ru-RU',
+  },
+  uk: {
+    title: 'Інтеграції',
+    subtitle: 'Підключення заявок із сайту, квізу, реклами та зовнішніх сервісів',
+    back: 'Назад',
+    loading: 'Завантаження...',
+    loadFailed: 'Не вдалося завантажити інтеграції',
+    saveFailed: 'Не вдалося зберегти інтеграції',
+    storageSaveFailed: 'Не вдалося зберегти сховище документів',
+    noDiagnostics: 'Немає даних діагностики',
+    tokenNotSaved: 'Токен не збережено',
+    metaRejected: 'Meta не прийняла токен',
+    metaOk: 'Meta повернула OK',
+    storageTitle: 'Зберігання документів',
+    storageHint: 'CRM завжди зберігає документ у Cloudinary як основне сховище. Якщо Dropbox підключено, туди додатково надсилається копія для папок організації.',
+    storageEnabled: 'Робити копію нових документів у Dropbox',
+    dropboxFolder: 'Папка в Dropbox',
+    tokenSavedPlaceholder: 'Токен уже збережено. Вставте новий тільки для заміни.',
+    show: 'Показати',
+    hide: 'Сховати',
+    saving: 'Зберігаю...',
+    save: 'Зберегти',
+    webhookTitle: 'Webhook для лідів',
+    webhookHint: 'Цю адресу можна вказати у квізі, формі сайту, Make, Zapier або іншому сервісі. Кожна нова заявка створюватиме ліда в цій організації.',
+    webhookEnabled: 'Приймати ліди через webhook',
+    webliumUrl: 'Webhook URL для Weblium',
+    webliumHidden: 'Покажіть ключ, щоб побачити URL для Weblium',
+    copy: 'Копіювати',
+    webliumHint: 'Використовуйте цей варіант, якщо сервіс не вміє надсилати заголовок x-reziflow-key.',
+    accessKey: 'Ключ доступу',
+    newKey: 'Новий ключ',
+    regenerateConfirm: 'Пересоздати ключ? Старі підключення перестануть працювати.',
+    keyHint: 'Ключ можна передавати в заголовку x-reziflow-key або як Bearer token в Authorization.',
+    requestExample: 'Приклад запиту',
+    requestHint: 'Мінімально достатньо передати ім’я, телефон, email, Instagram або Facebook. Інші поля можна додавати поступово.',
+    mappingTitle: 'Мапінг полів',
+    mappingHint: 'CRM уже автоматично розуміє часті назви на кшталт name, phone, telefon, email, usluga, service. Тут можна додати свої правила для конкретного квізу або форми.',
+    addField: '+ Поле',
+    noMapping: 'Ручних правил поки немає. Авторозпізнавання все одно працює.',
+    externalFieldPlaceholder: 'Поле з форми, наприклад phone_number',
+    delete: 'Видалити',
+    saveMapping: 'Зберегти мапінг',
+    assignmentTitle: 'Авторозподіл лідів',
+    assignmentHint: 'Нові ліди з webhook можна одразу призначати відповідальному. Якщо зовнішній сервіс передасть assignedToId, він матиме пріоритет.',
+    mode: 'Режим',
+    modeOff: 'Не призначати автоматично',
+    modeSingle: 'Призначати одного співробітника',
+    modeRoundRobin: 'По черзі між співробітниками',
+    responsible: 'Відповідальний',
+    notSelected: '— Не вибрано —',
+    queueMembers: 'Учасники черги',
+    noUsers: 'Немає користувачів для вибору',
+    saveAssignment: 'Зберегти розподіл',
+    facebookTitle: 'Facebook Lead Ads',
+    facebookHint: 'Підключення лід-форм Meta/Facebook. У Meta App вкажіть Callback URL і Verify Token, а в CRM збережіть Page Access Token сторінки.',
+    publicPages: 'Публічні сторінки для публікації Meta App',
+    publicPagesHint: 'Ці посилання можна вставити в Meta Developers у поля Privacy Policy URL і Data Deletion URL. Сторінки відкриваються без входу в CRM.',
+    open: 'Відкрити',
+    facebookEnabled: 'Приймати ліди з Facebook Lead Ads',
+    messagesEnabled: 'Приймати повідомлення з Instagram Direct і Facebook Messenger',
+    metaCallback: 'Callback URL для Meta',
+    messagesCallback: 'Callback URL для повідомлень Instagram/Facebook',
+    messagesHint: 'Цей URL додаємо в Meta Webhooks для подій повідомлень. Verify Token спільний, а Page Access Token можна вказати окремо для Facebook Messenger і Instagram Direct.',
+    metaChecking: 'Перевіряю Meta...',
+    subscribeMeta: 'Підписати сторінку на messages / message_echoes',
+    facebookTokenPlaceholder: 'Токен сторінки Facebook для Lead Ads і Messenger',
+    facebookTokenHint: 'Використовується для Facebook Lead Ads і вихідних повідомлень Facebook Messenger.',
+    instagramTokenPlaceholder: 'Токен для Instagram Direct',
+    instagramTokenHint: 'Використовується для профілю відправника і відповідей в Instagram Direct. Якщо поле порожнє, CRM тимчасово спробує Facebook token.',
+    diagnosticsTitle: 'Діагностика Meta токенів',
+    diagnosticsHint: 'Перевіряє збережені токени і показує Page ID / Instagram account, які Meta повертає CRM.',
+    checking: 'Перевіряю...',
+    checkTokens: 'Перевірити токени',
+    newVerifyToken: 'Новий Verify Token',
+    saveFacebook: 'Зберегти Facebook',
+    googleSheetsTitle: 'Google Sheets',
+    googleSheetsHint: 'Якщо ліди вже потрапляють у Google таблицю, можна встановити Apps Script у таблицю. Він надсилатиме новий рядок у CRM без Make і Zapier.',
+    googleSheetsUrl: 'Webhook URL для Google Sheets',
+    scriptHint: 'Перший запуск: один раз виконайте markExistingRowsAsSent для старих рядків. Тригер: sendLastRowToReziFlow, джерело From spreadsheet, подія On change. Скрипт більше не додає видимі колонки і зберігає позначки відправки в Apps Script properties.',
+    copyScript: 'Копіювати скрипт',
+    telegramHint: 'Цей варіант потрібен для групи, куди вже приходять повідомлення. Створіть свого Telegram-бота, додайте його в групу і встановіть webhook на URL нижче. Якщо Telegram дасть боту читати повідомлення WebJackBot, CRM створюватиме ліди з цих текстів.',
+    telegramCommand: 'Команда для підключення webhook:',
+    logsTitle: 'Журнал вхідних заявок',
+    logsHint: 'Останні 50 запитів із зовнішніх форм і сервісів',
+    showLogs: 'Показати журнал',
+    collapse: 'Згорнути',
+    refreshing: 'Оновлюю...',
+    refresh: 'Оновити',
+    logsCollapsed: 'Журнал згорнуто. Завантажено записів: {count}.',
+    noLogs: 'Вхідних заявок поки немає',
+    date: 'Дата',
+    status: 'Статус',
+    source: 'Джерело',
+    lead: 'Лід',
+    payloadError: 'Payload / помилка',
+    created: 'Створено',
+    test: 'Тест',
+    message: 'Повідомлення',
+    ignored: 'Пропущено',
+    comment: 'Коментар',
+    service: 'Сервіс',
+    failed: 'Помилка',
+    rejected: 'Відхилено',
+    showPayload: 'Показати payload',
+    leadFallback: 'Лід',
+    locale: 'uk-UA',
+  },
+  pl: {
+    title: 'Integracje',
+    subtitle: 'Podłączenie zgłoszeń ze strony, quizu, reklam i zewnętrznych serwisów',
+    back: 'Wstecz',
+    loading: 'Ładowanie...',
+    loadFailed: 'Nie udało się załadować integracji',
+    saveFailed: 'Nie udało się zapisać integracji',
+    storageSaveFailed: 'Nie udało się zapisać przechowywania dokumentów',
+    noDiagnostics: 'Brak danych diagnostycznych',
+    tokenNotSaved: 'Token nie jest zapisany',
+    metaRejected: 'Meta nie przyjęła tokenu',
+    metaOk: 'Meta zwróciła OK',
+    storageTitle: 'Przechowywanie dokumentów',
+    storageHint: 'CRM zawsze zapisuje dokument w Cloudinary jako głównym magazynie. Jeśli Dropbox jest podłączony, dodatkowa kopia trafia do folderów organizacji.',
+    storageEnabled: 'Tworzyć kopię nowych dokumentów w Dropbox',
+    dropboxFolder: 'Folder w Dropbox',
+    tokenSavedPlaceholder: 'Token jest już zapisany. Wklej nowy tylko, aby go zmienić.',
+    show: 'Pokaż',
+    hide: 'Ukryj',
+    saving: 'Zapisuję...',
+    save: 'Zapisz',
+    webhookTitle: 'Webhook dla leadów',
+    webhookHint: 'Ten adres można podać w quizie, formularzu strony, Make, Zapier lub innym serwisie. Każde nowe zgłoszenie utworzy leada w tej organizacji.',
+    webhookEnabled: 'Przyjmować leady przez webhook',
+    webliumUrl: 'Webhook URL dla Weblium',
+    webliumHidden: 'Pokaż klucz, aby zobaczyć URL dla Weblium',
+    copy: 'Kopiuj',
+    webliumHint: 'Użyj tej opcji, jeśli serwis nie umie wysłać nagłówka x-reziflow-key.',
+    accessKey: 'Klucz dostępu',
+    newKey: 'Nowy klucz',
+    regenerateConfirm: 'Wygenerować klucz ponownie? Stare podłączenia przestaną działać.',
+    keyHint: 'Klucz można przekazywać w nagłówku x-reziflow-key albo jako Bearer token w Authorization.',
+    requestExample: 'Przykład zapytania',
+    requestHint: 'Minimalnie wystarczy przekazać imię, telefon, email, Instagram albo Facebook. Pozostałe pola można dodawać stopniowo.',
+    mappingTitle: 'Mapowanie pól',
+    mappingHint: 'CRM automatycznie rozumie częste nazwy, np. name, phone, telefon, email, usluga, service. Tutaj można dodać własne reguły dla konkretnego quizu lub formularza.',
+    addField: '+ Pole',
+    noMapping: 'Nie ma jeszcze ręcznych reguł. Automatyczne rozpoznawanie nadal działa.',
+    externalFieldPlaceholder: 'Pole z formularza, np. phone_number',
+    delete: 'Usuń',
+    saveMapping: 'Zapisz mapowanie',
+    assignmentTitle: 'Automatyczny przydział leadów',
+    assignmentHint: 'Nowe leady z webhook można od razu przypisywać osobie odpowiedzialnej. Jeśli zewnętrzny serwis przekaże assignedToId, będzie miał priorytet.',
+    mode: 'Tryb',
+    modeOff: 'Nie przypisywać automatycznie',
+    modeSingle: 'Przypisywać jednego pracownika',
+    modeRoundRobin: 'Po kolei między pracownikami',
+    responsible: 'Odpowiedzialny',
+    notSelected: '— Nie wybrano —',
+    queueMembers: 'Uczestnicy kolejki',
+    noUsers: 'Brak użytkowników do wyboru',
+    saveAssignment: 'Zapisz przydział',
+    facebookTitle: 'Facebook Lead Ads',
+    facebookHint: 'Podłączenie formularzy leadowych Meta/Facebook. W Meta App podaj Callback URL i Verify Token, a w CRM zapisz Page Access Token strony.',
+    publicPages: 'Publiczne strony dla publikacji Meta App',
+    publicPagesHint: 'Te linki można wkleić w Meta Developers w pola Privacy Policy URL i Data Deletion URL. Strony otwierają się bez logowania do CRM.',
+    open: 'Otwórz',
+    facebookEnabled: 'Przyjmować leady z Facebook Lead Ads',
+    messagesEnabled: 'Przyjmować wiadomości z Instagram Direct i Facebook Messenger',
+    metaCallback: 'Callback URL dla Meta',
+    messagesCallback: 'Callback URL dla wiadomości Instagram/Facebook',
+    messagesHint: 'Ten URL dodajemy w Meta Webhooks dla zdarzeń wiadomości. Verify Token jest wspólny, a Page Access Token można podać osobno dla Facebook Messenger i Instagram Direct.',
+    metaChecking: 'Sprawdzam Meta...',
+    subscribeMeta: 'Subskrybuj stronę na messages / message_echoes',
+    facebookTokenPlaceholder: 'Token strony Facebook dla Lead Ads i Messenger',
+    facebookTokenHint: 'Używany dla Facebook Lead Ads i wiadomości wychodzących Facebook Messenger.',
+    instagramTokenPlaceholder: 'Token dla Instagram Direct',
+    instagramTokenHint: 'Używany dla profilu nadawcy i odpowiedzi w Instagram Direct. Jeśli pole jest puste, CRM tymczasowo spróbuje użyć Facebook token.',
+    diagnosticsTitle: 'Diagnostyka tokenów Meta',
+    diagnosticsHint: 'Sprawdza zapisane tokeny i pokazuje Page ID / Instagram account, które Meta zwraca do CRM.',
+    checking: 'Sprawdzam...',
+    checkTokens: 'Sprawdź tokeny',
+    newVerifyToken: 'Nowy Verify Token',
+    saveFacebook: 'Zapisz Facebook',
+    googleSheetsTitle: 'Google Sheets',
+    googleSheetsHint: 'Jeśli leady już trafiają do arkusza Google, można dodać Apps Script w arkuszu. Wyśle nowy wiersz do CRM bez Make i Zapier.',
+    googleSheetsUrl: 'Webhook URL dla Google Sheets',
+    scriptHint: 'Pierwsze uruchomienie: wykonaj raz markExistingRowsAsSent dla starych wierszy. Trigger: sendLastRowToReziFlow, źródło From spreadsheet, zdarzenie On change. Skrypt nie dodaje już widocznych kolumn i przechowuje znaczniki wysyłki w Apps Script properties.',
+    copyScript: 'Kopiuj skrypt',
+    telegramHint: 'Ta opcja jest potrzebna dla grupy, do której już trafiają powiadomienia. Utwórz własnego bota Telegram, dodaj go do grupy i ustaw webhook na URL poniżej. Jeśli Telegram pozwoli botowi czytać wiadomości WebJackBot, CRM będzie tworzyć leady z tych tekstów.',
+    telegramCommand: 'Komenda do podłączenia webhook:',
+    logsTitle: 'Dziennik przychodzących zgłoszeń',
+    logsHint: 'Ostatnie 50 zapytań z zewnętrznych formularzy i serwisów',
+    showLogs: 'Pokaż dziennik',
+    collapse: 'Zwiń',
+    refreshing: 'Odświeżam...',
+    refresh: 'Odśwież',
+    logsCollapsed: 'Dziennik zwinięty. Załadowano wpisów: {count}.',
+    noLogs: 'Brak przychodzących zgłoszeń',
+    date: 'Data',
+    status: 'Status',
+    source: 'Źródło',
+    lead: 'Lead',
+    payloadError: 'Payload / błąd',
+    created: 'Utworzono',
+    test: 'Test',
+    message: 'Wiadomość',
+    ignored: 'Pominięto',
+    comment: 'Komentarz',
+    service: 'Serwis',
+    failed: 'Błąd',
+    rejected: 'Odrzucono',
+    showPayload: 'Pokaż payload',
+    leadFallback: 'Lead',
+    locale: 'pl-PL',
+  },
+}
+
+const targetFieldLabels: Record<'uk' | 'pl', Record<string, string>> = {
+  uk: {
+    firstName: 'Ім’я', lastName: 'Прізвище', fullName: 'Повне ім’я', phone: 'Телефон', city: 'Місто',
+    country: 'Країна / громадянство', language: 'Мова', serviceInterest: 'Цікава послуга', budget: 'Бюджет',
+    urgency: 'Терміновість', notes: 'Нотатки', source: 'Джерело', nextContactAt: 'Наступний контакт',
+    nextContactNote: 'Про що сконтактувати',
+  },
+  pl: {
+    firstName: 'Imię', lastName: 'Nazwisko', fullName: 'Pełne imię i nazwisko', phone: 'Telefon', city: 'Miasto',
+    country: 'Kraj / obywatelstwo', language: 'Język', serviceInterest: 'Interesująca usługa', budget: 'Budżet',
+    urgency: 'Pilność', notes: 'Notatki', source: 'Źródło', nextContactAt: 'Następny kontakt',
+    nextContactNote: 'W sprawie kontaktu',
+  },
+}
+
 const DEFAULT_FACEBOOK_DRAFT: FacebookLeadSettings = {
   enabled: false,
   messagesEnabled: false,
@@ -138,23 +475,25 @@ function metaAccountSummary(account?: { id?: string; name?: string; username?: s
   ].filter(Boolean).join(' · ')
 }
 
-function metaDiagnosticDetails(item?: MetaTokenDiagnostic) {
-  if (!item) return 'Нет данных диагностики'
-  if (!item.configured) return 'Токен не сохранен'
-  if (!item.ok) return item.error || 'Meta не приняла токен'
+function metaDiagnosticDetails(item: MetaTokenDiagnostic | undefined, text: typeof integrationText.ru) {
+  if (!item) return text.noDiagnostics
+  if (!item.configured) return text.tokenNotSaved
+  if (!item.ok) return item.error || text.metaRejected
 
   const page = metaAccountSummary(item.data)
   const instagramBusiness = metaAccountSummary(item.data?.instagram_business_account)
   const connectedInstagram = metaAccountSummary(item.data?.connected_instagram_account)
 
   return [
-    page || 'Meta вернула OK',
+    page || text.metaOk,
     instagramBusiness ? `Instagram Business: ${instagramBusiness}` : '',
     connectedInstagram ? `Connected Instagram: ${connectedInstagram}` : '',
   ].filter(Boolean).join(' | ')
 }
 
 export default function IntegrationsPage() {
+  const { lang } = useLanguage()
+  const text = integrationText[lang] || integrationText.ru
   const [settings, setSettings] = useState<WebhookSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -383,7 +722,7 @@ function onFormSubmit(e) {
       const res = await fetch('/api/lead-webhook-settings', { cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Failed to load integrations')
+        setError(data.error || text.loadFailed)
         return
       }
       setSettings(data)
@@ -406,7 +745,7 @@ function onFormSubmit(e) {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Failed to save integrations')
+        setError(data.error || text.saveFailed)
         return
       }
       setSettings(data)
@@ -459,7 +798,7 @@ function onFormSubmit(e) {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Failed to save document storage')
+        setError(data.error || text.storageSaveFailed)
         return
       }
       setStorageSettings(data)
@@ -471,7 +810,7 @@ function onFormSubmit(e) {
 
   function leadName(lead: WebhookLog['lead']) {
     if (!lead) return ''
-    return lead.fullName || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.phone || lead.email || 'Лид'
+    return lead.fullName || `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.phone || lead.email || text.leadFallback
   }
 
   function payloadSummary(payload?: Record<string, unknown> | null) {
@@ -570,7 +909,7 @@ function onFormSubmit(e) {
       const res = await fetch('/api/meta/token-diagnostics', { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(data.error || 'Не удалось проверить Meta токены')
+        setError(data.error || text.saveFailed)
         return
       }
       setMetaDiagnostics(data)
@@ -580,15 +919,16 @@ function onFormSubmit(e) {
   }
 
   const maskedKey = settings?.key ? `${settings.key.slice(0, 8)}••••••••••••${settings.key.slice(-6)}` : ''
+  const targetLabel = (field: { value: string; label: string }) => targetFieldLabels[lang as 'uk' | 'pl']?.[field.value] || field.label
 
   return (
     <div className="fade-in">
       <div className="page-header">
         <div>
-          <div className="page-title">Интеграции</div>
-          <div className="page-subtitle">Подключение заявок с сайта, квиза, рекламы и внешних сервисов</div>
+          <div className="page-title">{text.title}</div>
+          <div className="page-subtitle">{text.subtitle}</div>
         </div>
-        <Link href="/settings" className="btn btn-secondary">Назад</Link>
+        <Link href="/settings" className="btn btn-secondary">{text.back}</Link>
       </div>
 
       <div className="page-body">
@@ -599,14 +939,14 @@ function onFormSubmit(e) {
         )}
 
         {loading ? (
-          <div className="card">Загрузка...</div>
+          <div className="card">{text.loading}</div>
         ) : settings ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(320px, 0.9fr)', gap: 16, alignItems: 'start' }}>
             {storageSettings && (
               <div className="card" style={{ gridColumn: '1 / -1' }}>
-                <div className="section-title" style={{ marginBottom: 4 }}><span>📁</span>Хранение документов</div>
+                <div className="section-title" style={{ marginBottom: 4 }}><span>📁</span>{text.storageTitle}</div>
                   <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
-                   CRM всегда сохраняет документ в Cloudinary как основное хранилище. Если Dropbox подключен, туда дополнительно отправляется копия для папок организации.
+                   {text.storageHint}
                   </div>
 
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, fontWeight: 700 }}>
@@ -616,12 +956,12 @@ function onFormSubmit(e) {
                     disabled={!storageSettings.canManage || saving}
                     onChange={event => setStorageDraft(current => ({ ...current, enabled: event.target.checked }))}
                   />
-                   Делать копию новых документов в Dropbox
+                   {text.storageEnabled}
                   </label>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(260px, 1.3fr) auto', gap: 10, alignItems: 'end' }}>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="label">Папка в Dropbox</label>
+                    <label className="label">{text.dropboxFolder}</label>
                     <input
                       className="input"
                       value={storageDraft.rootFolder}
@@ -638,24 +978,24 @@ function onFormSubmit(e) {
                       value={storageDraft.accessToken || ''}
                       disabled={!storageSettings.canManage || saving}
                       onChange={event => setStorageDraft(current => ({ ...current, accessToken: event.target.value }))}
-                      placeholder={storageDraft.hasAccessToken ? 'Токен уже сохранен. Вставьте новый только для замены.' : 'sl....'}
+                      placeholder={storageDraft.hasAccessToken ? text.tokenSavedPlaceholder : 'sl....'}
                     />
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button className="btn btn-secondary" type="button" onClick={() => setShowDropboxToken(value => !value)}>
-                      {showDropboxToken ? 'Скрыть' : 'Показать'}
+                      {showDropboxToken ? text.hide : text.show}
                     </button>
                     <button className="btn btn-primary" type="button" onClick={saveStorageSettings} disabled={!storageSettings.canManage || saving}>
-                      {saving ? 'Сохраняю...' : 'Сохранить'}
+                      {saving ? text.saving : text.save}
                     </button>
                   </div>
                 </div>
               </div>
             )}
             <div className="card">
-              <div className="section-title"><span>🔌</span>Webhook для лидов</div>
+              <div className="section-title"><span>🔌</span>{text.webhookTitle}</div>
               <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 16 }}>
-                Этот адрес можно указать в квизе, форме сайта, Make, Zapier или другом сервисе. Каждая новая заявка будет создавать лида в этой организации.
+                {text.webhookHint}
               </div>
 
               <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, fontWeight: 700 }}>
@@ -665,7 +1005,7 @@ function onFormSubmit(e) {
                   onChange={event => updateSettings({ enabled: event.target.checked })}
                   disabled={saving}
                 />
-                Принимать лиды через webhook
+                {text.webhookEnabled}
               </label>
 
               <div className="form-group">
@@ -677,35 +1017,35 @@ function onFormSubmit(e) {
               </div>
 
               <div className="form-group">
-                <label className="label">Webhook URL для Weblium</label>
+                <label className="label">{text.webliumUrl}</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
-                  <input className="input" readOnly value={showKey ? webliumWebhookUrl : 'Покажите ключ, чтобы увидеть URL для Weblium'} />
-                  <button className="btn btn-secondary" type="button" onClick={() => copy(webliumWebhookUrl)} disabled={!showKey}>Копировать</button>
+                  <input className="input" readOnly value={showKey ? webliumWebhookUrl : text.webliumHidden} />
+                  <button className="btn btn-secondary" type="button" onClick={() => copy(webliumWebhookUrl)} disabled={!showKey}>{text.copy}</button>
                 </div>
                 <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
-                  Используйте этот вариант, если сервис не умеет отправлять заголовок x-reziflow-key.
+                  {text.webliumHint}
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="label">Ключ доступа</label>
+                <label className="label">{text.accessKey}</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 8 }}>
                   <input className="input" readOnly value={showKey ? settings.key : maskedKey} />
-                  <button className="btn btn-secondary" type="button" onClick={() => setShowKey(value => !value)}>{showKey ? 'Скрыть' : 'Показать'}</button>
-                  <button className="btn btn-secondary" type="button" onClick={() => copy(settings.key)}>Копировать</button>
+                  <button className="btn btn-secondary" type="button" onClick={() => setShowKey(value => !value)}>{showKey ? text.hide : text.show}</button>
+                  <button className="btn btn-secondary" type="button" onClick={() => copy(settings.key)}>{text.copy}</button>
                   <button className="btn btn-danger" type="button" disabled={saving} onClick={() => {
-                    if (confirm('Пересоздать ключ? Старые подключения перестанут работать.')) updateSettings({ regenerateKey: true })
-                  }}>Новый ключ</button>
+                    if (confirm(text.regenerateConfirm)) updateSettings({ regenerateKey: true })
+                  }}>{text.newKey}</button>
                 </div>
               </div>
 
               <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, padding: 12, fontSize: 13, color: 'var(--muted)' }}>
-                Ключ можно передавать в заголовке <strong>x-reziflow-key</strong> или как Bearer token в Authorization.
+                {text.keyHint}
               </div>
             </div>
 
             <div className="card">
-              <div className="section-title"><span>🧪</span>Пример запроса</div>
+              <div className="section-title"><span>🧪</span>{text.requestExample}</div>
               <pre style={{ whiteSpace: 'pre-wrap', background: '#0f172a', color: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 12, lineHeight: 1.5, overflowX: 'auto' }}>
 {`POST ${webhookUrl}
 x-reziflow-key: ${showKey ? settings.key : 'YOUR_KEY'}
@@ -714,7 +1054,7 @@ Content-Type: application/json
 ${samplePayload}`}
               </pre>
               <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5 }}>
-                Минимально достаточно передать имя, телефон, email, Instagram или Facebook. Остальные поля можно добавлять постепенно.
+                {text.requestHint}
               </div>
             </div>
           </div>
@@ -724,16 +1064,16 @@ ${samplePayload}`}
           <div className="card" style={{ marginTop: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
               <div>
-                <div className="section-title" style={{ marginBottom: 4 }}><span>⇄</span>Маппинг полей</div>
+                <div className="section-title" style={{ marginBottom: 4 }}><span>⇄</span>{text.mappingTitle}</div>
                 <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5 }}>
-                  CRM уже автоматически понимает частые названия вроде name, phone, telefon, email, usluga, service. Здесь можно добавить свои правила для конкретного квиза или формы.
+                  {text.mappingHint}
                 </div>
               </div>
-              <button type="button" className="btn btn-secondary" onClick={addFieldMapRow}>+ Поле</button>
+              <button type="button" className="btn btn-secondary" onClick={addFieldMapRow}>{text.addField}</button>
             </div>
 
             {fieldMapDraft.length === 0 ? (
-              <div style={{ color: 'var(--muted)', fontSize: 13, padding: '10px 0' }}>Ручных правил пока нет. Автораспознавание все равно работает.</div>
+              <div style={{ color: 'var(--muted)', fontSize: 13, padding: '10px 0' }}>{text.noMapping}</div>
             ) : (
               <div style={{ display: 'grid', gap: 10 }}>
                 {fieldMapDraft.map((row, index) => (
@@ -742,12 +1082,12 @@ ${samplePayload}`}
                       className="input"
                       value={row.external}
                       onChange={event => updateFieldMapRow(index, { external: event.target.value })}
-                      placeholder="Поле из формы, например phone_number"
+                      placeholder={text.externalFieldPlaceholder}
                     />
                     <select className="input" value={row.target} onChange={event => updateFieldMapRow(index, { target: event.target.value })}>
-                      {targetFields.map(field => <option key={field.value} value={field.value}>{field.label}</option>)}
+                      {targetFields.map(field => <option key={field.value} value={field.value}>{targetLabel(field)}</option>)}
                     </select>
-                    <button type="button" className="btn btn-danger" onClick={() => removeFieldMapRow(index)}>Удалить</button>
+                    <button type="button" className="btn btn-danger" onClick={() => removeFieldMapRow(index)}>{text.delete}</button>
                   </div>
                 ))}
               </div>
@@ -755,7 +1095,7 @@ ${samplePayload}`}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
               <button type="button" className="btn btn-primary" onClick={saveFieldMap} disabled={saving}>
-                {saving ? 'Сохраняю...' : 'Сохранить маппинг'}
+                {saving ? text.saving : text.saveMapping}
               </button>
             </div>
           </div>
@@ -763,34 +1103,34 @@ ${samplePayload}`}
 
         {!loading && settings && (
           <div className="card" style={{ marginTop: 16 }}>
-            <div className="section-title" style={{ marginBottom: 4 }}><span>👤</span>Автораспределение лидов</div>
+            <div className="section-title" style={{ marginBottom: 4 }}><span>👤</span>{text.assignmentTitle}</div>
             <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
-              Новые лиды из webhook можно сразу назначать ответственному. Если внешний сервис передаст assignedToId, он будет иметь приоритет.
+              {text.assignmentHint}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 320px) 1fr', gap: 16, alignItems: 'start' }}>
               <div className="form-group">
-                <label className="label">Режим</label>
+                <label className="label">{text.mode}</label>
                 <select
                   className="input"
                   value={assignmentDraft.mode}
                   onChange={event => setAssignmentDraft(current => ({ ...current, mode: event.target.value as AssignmentSettings['mode'] }))}
                 >
-                  <option value="off">Не назначать автоматически</option>
-                  <option value="single">Назначать одного сотрудника</option>
-                  <option value="round_robin">По очереди между сотрудниками</option>
+                  <option value="off">{text.modeOff}</option>
+                  <option value="single">{text.modeSingle}</option>
+                  <option value="round_robin">{text.modeRoundRobin}</option>
                 </select>
               </div>
 
               {assignmentDraft.mode === 'single' && (
                 <div className="form-group">
-                  <label className="label">Ответственный</label>
+                  <label className="label">{text.responsible}</label>
                   <select
                     className="input"
                     value={assignmentDraft.userId || ''}
                     onChange={event => setAssignmentDraft(current => ({ ...current, userId: event.target.value ? Number(event.target.value) : null }))}
                   >
-                    <option value="">— Не выбран —</option>
+                    <option value="">{text.notSelected}</option>
                     {users.map(user => <option key={user.id} value={user.id}>{user.name} · {user.email}</option>)}
                   </select>
                 </div>
@@ -798,9 +1138,9 @@ ${samplePayload}`}
 
               {assignmentDraft.mode === 'round_robin' && (
                 <div>
-                  <div className="label" style={{ marginBottom: 8 }}>Участники очереди</div>
+                  <div className="label" style={{ marginBottom: 8 }}>{text.queueMembers}</div>
                   {users.length === 0 ? (
-                    <div style={{ color: 'var(--muted)', fontSize: 13 }}>Нет пользователей для выбора</div>
+                    <div style={{ color: 'var(--muted)', fontSize: 13 }}>{text.noUsers}</div>
                   ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
                       {users.map(user => (
@@ -824,7 +1164,7 @@ ${samplePayload}`}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
               <button type="button" className="btn btn-primary" onClick={saveAssignment} disabled={saving}>
-                {saving ? 'Сохраняю...' : 'Сохранить распределение'}
+                {saving ? text.saving : text.saveAssignment}
               </button>
             </div>
           </div>
@@ -832,28 +1172,28 @@ ${samplePayload}`}
 
         {!loading && settings && (
           <div className="card" style={{ marginTop: 16 }}>
-            <div className="section-title" style={{ marginBottom: 4 }}><span>📣</span>Facebook Lead Ads</div>
+            <div className="section-title" style={{ marginBottom: 4 }}><span>📣</span>{text.facebookTitle}</div>
             <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
-              Подключение лид-форм Meta/Facebook. В Meta App укажите Callback URL и Verify Token, а в CRM сохраните Page Access Token страницы.
+              {text.facebookHint}
             </div>
 
             <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, marginBottom: 8 }}>Публичные страницы для публикации Meta App</div>
+              <div style={{ fontWeight: 800, marginBottom: 8 }}>{text.publicPages}</div>
               <div style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, marginBottom: 10 }}>
-                Эти ссылки можно вставить в Meta Developers в поля Privacy Policy URL и Data Deletion URL. Страницы открываются без входа в CRM.
+                {text.publicPagesHint}
               </div>
               <div style={{ display: 'grid', gap: 8 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr auto auto', gap: 8, alignItems: 'center' }}>
                   <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 700 }}>Privacy Policy</span>
                   <input className="input" readOnly value={privacyPolicyUrl} />
-                  <a className="btn btn-secondary" href="/privacy" target="_blank" rel="noreferrer">Открыть</a>
-                  <button className="btn btn-secondary" type="button" onClick={() => copy(privacyPolicyUrl)}>Копировать</button>
+                  <a className="btn btn-secondary" href="/privacy" target="_blank" rel="noreferrer">{text.open}</a>
+                  <button className="btn btn-secondary" type="button" onClick={() => copy(privacyPolicyUrl)}>{text.copy}</button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr auto auto', gap: 8, alignItems: 'center' }}>
                   <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 700 }}>Data Deletion</span>
                   <input className="input" readOnly value={dataDeletionUrl} />
-                  <a className="btn btn-secondary" href="/data-deletion" target="_blank" rel="noreferrer">Открыть</a>
-                  <button className="btn btn-secondary" type="button" onClick={() => copy(dataDeletionUrl)}>Копировать</button>
+                  <a className="btn btn-secondary" href="/data-deletion" target="_blank" rel="noreferrer">{text.open}</a>
+                  <button className="btn btn-secondary" type="button" onClick={() => copy(dataDeletionUrl)}>{text.copy}</button>
                 </div>
               </div>
             </div>
@@ -864,7 +1204,7 @@ ${samplePayload}`}
                 checked={facebookDraft.enabled}
                 onChange={event => setFacebookDraft(current => ({ ...current, enabled: event.target.checked }))}
               />
-              Принимать лиды из Facebook Lead Ads
+              {text.facebookEnabled}
             </label>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, fontWeight: 700 }}>
@@ -873,29 +1213,29 @@ ${samplePayload}`}
                 checked={facebookDraft.messagesEnabled}
                 onChange={event => setFacebookDraft(current => ({ ...current, messagesEnabled: event.target.checked }))}
               />
-              Принимать сообщения из Instagram Direct и Facebook Messenger
+              {text.messagesEnabled}
             </label>
 
             <div className="form-group">
-              <label className="label">Callback URL для Meta</label>
+              <label className="label">{text.metaCallback}</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
                 <input className="input" readOnly value={facebookCallbackUrl} />
-                <button className="btn btn-secondary" type="button" onClick={() => copy(facebookCallbackUrl)}>Копировать</button>
+                <button className="btn btn-secondary" type="button" onClick={() => copy(facebookCallbackUrl)}>{text.copy}</button>
               </div>
             </div>
 
             <div className="form-group">
-              <label className="label">Callback URL для сообщений Instagram/Facebook</label>
+              <label className="label">{text.messagesCallback}</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
                 <input className="input" readOnly value={facebookMessagesCallbackUrl} />
-                <button className="btn btn-secondary" type="button" onClick={() => copy(facebookMessagesCallbackUrl)}>Копировать</button>
+                <button className="btn btn-secondary" type="button" onClick={() => copy(facebookMessagesCallbackUrl)}>{text.copy}</button>
               </div>
               <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
-                Этот URL добавляем в Meta Webhooks для событий сообщений. Verify Token общий, а Page Access Token можно указать отдельно для Facebook Messenger и Instagram Direct.
+                {text.messagesHint}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
                 <button className="btn btn-secondary" type="button" onClick={subscribeMetaPage} disabled={metaSubscriptionLoading || saving}>
-                  {metaSubscriptionLoading ? 'Проверяю Meta...' : 'Подписать страницу на messages / message_echoes'}
+                  {metaSubscriptionLoading ? text.metaChecking : text.subscribeMeta}
                 </button>
                 {metaSubscriptionStatus && (
                   <span style={{ fontSize: 12, color: metaSubscriptionStatus.includes('не приняла') || metaSubscriptionStatus.includes('failed') ? '#991b1b' : 'var(--muted)' }}>
@@ -915,7 +1255,7 @@ ${samplePayload}`}
                     onChange={event => setFacebookDraft(current => ({ ...current, verifyToken: event.target.value }))}
                     placeholder="rzfb_..."
                   />
-                  <button className="btn btn-secondary" type="button" onClick={() => copy(facebookDraft.verifyToken)}>Копировать</button>
+                  <button className="btn btn-secondary" type="button" onClick={() => copy(facebookDraft.verifyToken)}>{text.copy}</button>
                 </div>
               </div>
 
@@ -941,14 +1281,14 @@ ${samplePayload}`}
                   spellCheck={false}
                   value={facebookDraft.pageAccessToken}
                   onChange={event => setFacebookDraft(current => ({ ...current, pageAccessToken: event.target.value }))}
-                  placeholder="Токен страницы Facebook для Lead Ads и Messenger"
+                  placeholder={text.facebookTokenPlaceholder}
                 />
                 <button className="btn btn-secondary" type="button" onClick={() => setShowFacebookToken(value => !value)}>
-                  {showFacebookToken ? 'Скрыть' : 'Показать'}
+                  {showFacebookToken ? text.hide : text.show}
                 </button>
               </div>
               <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
-                Используется для Facebook Lead Ads и исходящих сообщений Facebook Messenger.
+                {text.facebookTokenHint}
               </div>
             </div>
 
@@ -963,27 +1303,27 @@ ${samplePayload}`}
                   spellCheck={false}
                   value={facebookDraft.instagramPageAccessToken || ''}
                   onChange={event => setFacebookDraft(current => ({ ...current, instagramPageAccessToken: event.target.value }))}
-                  placeholder="Токен для Instagram Direct"
+                  placeholder={text.instagramTokenPlaceholder}
                 />
                 <button className="btn btn-secondary" type="button" onClick={() => setShowInstagramToken(value => !value)}>
-                  {showInstagramToken ? 'Скрыть' : 'Показать'}
+                  {showInstagramToken ? text.hide : text.show}
                 </button>
               </div>
               <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
-                Используется для профиля отправителя и ответов в Instagram Direct. Если поле пустое, CRM временно попробует Facebook token.
+                {text.instagramTokenHint}
               </div>
             </div>
 
             <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginTop: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: metaDiagnostics ? 12 : 0 }}>
                 <div>
-                  <div style={{ fontWeight: 800, marginBottom: 4 }}>Диагностика Meta токенов</div>
+                  <div style={{ fontWeight: 800, marginBottom: 4 }}>{text.diagnosticsTitle}</div>
                   <div style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5 }}>
-                    Проверяет сохраненные токены и показывает Page ID / Instagram account, которые Meta возвращает CRM.
+                    {text.diagnosticsHint}
                   </div>
                 </div>
                 <button className="btn btn-secondary" type="button" onClick={runMetaTokenDiagnostics} disabled={metaDiagnosticsLoading || saving}>
-                  {metaDiagnosticsLoading ? 'Проверяю...' : 'Проверить токены'}
+                  {metaDiagnosticsLoading ? text.checking : text.checkTokens}
                 </button>
               </div>
 
@@ -1001,7 +1341,7 @@ ${samplePayload}`}
                             {!item?.configured ? 'NO TOKEN' : item.ok ? 'OK' : 'ERROR'}
                           </span>
                         </div>
-                        <div style={{ color: tone, fontSize: 12, lineHeight: 1.5 }}>{metaDiagnosticDetails(item)}</div>
+                        <div style={{ color: tone, fontSize: 12, lineHeight: 1.5 }}>{metaDiagnosticDetails(item, text)}</div>
                       </div>
                     )
                   })}
@@ -1026,10 +1366,10 @@ ${samplePayload}`}
                 disabled={saving}
                 onClick={() => updateSettings({ regenerateFacebookVerifyToken: true, facebook: facebookDraft })}
               >
-                Новый Verify Token
+                {text.newVerifyToken}
               </button>
               <button type="button" className="btn btn-primary" onClick={() => saveFacebookSettings()} disabled={saving}>
-                {saving ? 'Сохраняю...' : 'Сохранить Facebook'}
+                {saving ? text.saving : text.saveFacebook}
               </button>
             </div>
           </div>
@@ -1037,29 +1377,29 @@ ${samplePayload}`}
 
         {!loading && settings && (
           <div className="card" style={{ marginTop: 16 }}>
-            <div className="section-title" style={{ marginBottom: 4 }}><span>📊</span>Google Sheets</div>
+            <div className="section-title" style={{ marginBottom: 4 }}><span>📊</span>{text.googleSheetsTitle}</div>
             <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
-              Если лиды уже попадают в Google таблицу, можно поставить в таблицу Apps Script. Он отправит новую строку в CRM без Make и Zapier.
+              {text.googleSheetsHint}
             </div>
 
             <div className="form-group">
-              <label className="label">Webhook URL для Google Sheets</label>
+              <label className="label">{text.googleSheetsUrl}</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
                 <input className="input" readOnly value={webliumWebhookUrl} />
-                <button className="btn btn-secondary" type="button" onClick={() => copy(webliumWebhookUrl)}>Копировать</button>
+                <button className="btn btn-secondary" type="button" onClick={() => copy(webliumWebhookUrl)}>{text.copy}</button>
               </div>
             </div>
 
             <div className="form-group">
               <label className="label">Apps Script</label>
               <div style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, marginBottom: 8 }}>
-                First setup: run markExistingRowsAsSent once for old rows. Trigger: sendLastRowToReziFlow, source From spreadsheet, event On change. The script no longer adds visible columns and stores sent marks inside Apps Script properties.
+                {text.scriptHint}
               </div>
               <pre style={{ whiteSpace: 'pre-wrap', background: '#0f172a', color: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 12, lineHeight: 1.5, overflowX: 'auto', maxHeight: 360 }}>
 {googleSheetsScript}
               </pre>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                <button className="btn btn-secondary" type="button" onClick={() => copy(googleSheetsScript)}>Копировать скрипт</button>
+                <button className="btn btn-secondary" type="button" onClick={() => copy(googleSheetsScript)}>{text.copyScript}</button>
               </div>
             </div>
           </div>
@@ -1069,19 +1409,19 @@ ${samplePayload}`}
           <div className="card" style={{ marginTop: 16 }}>
             <div className="section-title" style={{ marginBottom: 4 }}><span>✈️</span>Telegram</div>
             <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
-              Этот вариант нужен для группы, куда уже приходят уведомления. Создайте своего Telegram-бота, добавьте его в группу и установите webhook на URL ниже. Если Telegram даст боту читать сообщения WebJackBot, CRM будет создавать лиды из этих текстов.
+              {text.telegramHint}
             </div>
 
             <div className="form-group">
               <label className="label">Telegram webhook URL</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
                 <input className="input" readOnly value={telegramWebhookUrl} />
-                <button className="btn btn-secondary" type="button" onClick={() => copy(telegramWebhookUrl)}>Копировать</button>
+                <button className="btn btn-secondary" type="button" onClick={() => copy(telegramWebhookUrl)}>{text.copy}</button>
               </div>
             </div>
 
             <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, padding: 12, fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>
-              Команда для подключения webhook:
+              {text.telegramCommand}
               <pre style={{ whiteSpace: 'pre-wrap', margin: '8px 0 0', color: '#0f172a' }}>{`https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=${telegramWebhookUrl}`}</pre>
             </div>
           </div>
@@ -1091,8 +1431,8 @@ ${samplePayload}`}
           <div className="card" style={{ marginTop: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
               <div>
-                <div className="section-title" style={{ marginBottom: 4 }}><span>📥</span>Журнал входящих заявок</div>
-                <div style={{ color: 'var(--muted)', fontSize: 13 }}>Последние 50 запросов из внешних форм и сервисов</div>
+                <div className="section-title" style={{ marginBottom: 4 }}><span>📥</span>{text.logsTitle}</div>
+                <div style={{ color: 'var(--muted)', fontSize: 13 }}>{text.logsHint}</div>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <button
@@ -1101,30 +1441,30 @@ ${samplePayload}`}
                   onClick={() => setLogsCollapsed(current => !current)}
                   aria-expanded={!logsCollapsed}
                 >
-                  {logsCollapsed ? 'Показать журнал' : 'Свернуть'}
+                  {logsCollapsed ? text.showLogs : text.collapse}
                 </button>
                 <button type="button" className="btn btn-secondary" onClick={loadLogs} disabled={logsLoading}>
-                  {logsLoading ? 'Обновляю...' : 'Обновить'}
+                  {logsLoading ? text.refreshing : text.refresh}
                 </button>
               </div>
             </div>
 
             {logsCollapsed ? (
               <div style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>
-                Журнал свернут. Записей загружено: {logs.length}.
+                {text.logsCollapsed.replace('{count}', String(logs.length))}
               </div>
             ) : logs.length === 0 ? (
-              <div style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>Входящих заявок пока нет</div>
+              <div style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 0' }}>{text.noLogs}</div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>Дата</th>
-                      <th>Статус</th>
-                      <th>Источник</th>
-                      <th>Лид</th>
-                      <th>Payload / ошибка</th>
+                      <th>{text.date}</th>
+                      <th>{text.status}</th>
+                      <th>{text.source}</th>
+                      <th>{text.lead}</th>
+                      <th>{text.payloadError}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1139,10 +1479,10 @@ ${samplePayload}`}
                       const fullPayload = payloadJson(log.payload)
                       return (
                         <tr key={log.id}>
-                          <td style={{ fontSize: 13 }}>{new Date(log.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                          <td style={{ fontSize: 13 }}>{new Date(log.createdAt).toLocaleString(text.locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                           <td>
                             <span style={{ display: 'inline-flex', borderRadius: 999, padding: '4px 8px', fontSize: 12, fontWeight: 800, background: isCreated ? '#dcfce7' : isPing ? '#dbeafe' : isMessage ? '#ede9fe' : isIgnored ? '#fef3c7' : isComment ? '#e0f2fe' : isService ? '#f1f5f9' : '#fee2e2', color: isCreated ? '#166534' : isPing ? '#1d4ed8' : isMessage ? '#6d28d9' : isIgnored ? '#92400e' : isComment ? '#0369a1' : isService ? '#475569' : '#991b1b' }}>
-                              {isCreated ? 'Создан' : isPing ? 'Тест' : isMessage ? 'Сообщение' : isIgnored ? 'Пропущено' : isComment ? 'Комментарий' : isService ? 'Сервис' : log.status === 'failed' ? 'Ошибка' : 'Отклонен'}
+                              {isCreated ? text.created : isPing ? text.test : isMessage ? text.message : isIgnored ? text.ignored : isComment ? text.comment : isService ? text.service : log.status === 'failed' ? text.failed : text.rejected}
                             </span>
                           </td>
                           <td style={{ fontSize: 13 }}>{log.source || '—'}</td>
@@ -1153,7 +1493,7 @@ ${samplePayload}`}
                             <div>{log.error || payload || '—'}</div>
                             {fullPayload && (
                               <details style={{ marginTop: 6, color: 'var(--muted)' }}>
-                                <summary style={{ cursor: 'pointer', fontWeight: 800 }}>Показать payload</summary>
+                                <summary style={{ cursor: 'pointer', fontWeight: 800 }}>{text.showPayload}</summary>
                                 <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 260, overflow: 'auto', marginTop: 8, padding: 10, borderRadius: 6, background: 'var(--bg-soft)', color: 'var(--text)' }}>
                                   {fullPayload}
                                 </pre>

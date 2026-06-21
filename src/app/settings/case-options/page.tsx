@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { useLanguage } from '@/context/LanguageContext'
 
 type OptionType = 'stayPurpose' | 'stayType' | 'contractType' | 'mosDocument'
 
@@ -43,12 +44,7 @@ const MOS_DOCUMENT_SUGGESTIONS = [
   'Присяжный перевод / Tłumaczenie przysięgłe любого документа, составленного не на польском языке',
 ]
 
-const TYPE_LABELS: Record<OptionType, string> = {
-  stayPurpose: 'Цель пребывания',
-  stayType: 'Тип занятости',
-  contractType: 'Тип договора',
-  mosDocument: 'Документы для MOS',
-}
+const OPTION_TYPES: OptionType[] = ['stayPurpose', 'stayType', 'contractType', 'mosDocument']
 
 const TYPE_ICONS: Record<OptionType, string> = {
   stayPurpose: '🏠',
@@ -94,7 +90,84 @@ interface Service {
   active?: boolean
 }
 
+const caseOptionText = {
+  ru: {
+    title: 'Варианты полей дела',
+    subtitle: 'Управление выпадающими списками при создании дела',
+    loadError: 'Ошибка загрузки: {message}. Возможно таблица ещё не создана — подождите деплой.',
+    addFailed: 'Не удалось добавить: {message}',
+    defaultsFailed: 'Ошибка загрузки стандартных: {message}',
+    saveFailed: 'Не удалось сохранить: {message}',
+    deleteFailed: 'Не удалось удалить: {message}',
+    deleteConfirm: 'Удалить этот вариант?',
+    labels: {
+      stayPurpose: 'Цель пребывания',
+      stayType: 'Тип занятости',
+      contractType: 'Тип договора',
+      mosDocument: 'Документы для MOS',
+    },
+    variantsCount: '{count} вариантов',
+    loadingDefaults: '⏳ Загрузка...',
+    loadDefaults: '📥 Загрузить стандартные',
+    service: 'Услуга',
+    generalList: 'Общий список',
+    empty: 'Нет вариантов. Добавьте или нажмите «Загрузить стандартные» ↑',
+    newPlaceholder: 'Новый вариант...',
+    add: '+ Добавить',
+  },
+  uk: {
+    title: 'Варіанти полів справи',
+    subtitle: 'Керування випадаючими списками під час створення справи',
+    loadError: 'Помилка завантаження: {message}. Можливо, таблиця ще не створена — дочекайтеся деплою.',
+    addFailed: 'Не вдалося додати: {message}',
+    defaultsFailed: 'Помилка завантаження стандартних: {message}',
+    saveFailed: 'Не вдалося зберегти: {message}',
+    deleteFailed: 'Не вдалося видалити: {message}',
+    deleteConfirm: 'Видалити цей варіант?',
+    labels: {
+      stayPurpose: 'Мета перебування',
+      stayType: 'Тип зайнятості',
+      contractType: 'Тип договору',
+      mosDocument: 'Документи для MOS',
+    },
+    variantsCount: '{count} варіантів',
+    loadingDefaults: '⏳ Завантаження...',
+    loadDefaults: '📥 Завантажити стандартні',
+    service: 'Послуга',
+    generalList: 'Загальний список',
+    empty: 'Варіантів немає. Додайте або натисніть «Завантажити стандартні» ↑',
+    newPlaceholder: 'Новий варіант...',
+    add: '+ Додати',
+  },
+  pl: {
+    title: 'Opcje pól sprawy',
+    subtitle: 'Zarządzanie listami rozwijanymi podczas tworzenia sprawy',
+    loadError: 'Błąd ładowania: {message}. Możliwe, że tabela nie została jeszcze utworzona — poczekaj na deploy.',
+    addFailed: 'Nie udało się dodać: {message}',
+    defaultsFailed: 'Błąd ładowania standardowych opcji: {message}',
+    saveFailed: 'Nie udało się zapisać: {message}',
+    deleteFailed: 'Nie udało się usunąć: {message}',
+    deleteConfirm: 'Usunąć tę opcję?',
+    labels: {
+      stayPurpose: 'Cel pobytu',
+      stayType: 'Typ zatrudnienia',
+      contractType: 'Typ umowy',
+      mosDocument: 'Dokumenty do MOS',
+    },
+    variantsCount: '{count} opcji',
+    loadingDefaults: '⏳ Ładowanie...',
+    loadDefaults: '📥 Załaduj standardowe',
+    service: 'Usługa',
+    generalList: 'Lista ogólna',
+    empty: 'Brak opcji. Dodaj albo kliknij „Załaduj standardowe” ↑',
+    newPlaceholder: 'Nowa opcja...',
+    add: '+ Dodaj',
+  },
+}
+
 export default function CaseOptionsPage() {
+  const { lang, t } = useLanguage()
+  const text = caseOptionText[lang] || caseOptionText.ru
   const searchParams = useSearchParams()
   const returnTo = searchParams.get('returnTo') || '/settings'
   const initialMosServiceId = searchParams.get('mosServiceId') || ''
@@ -118,7 +191,7 @@ export default function CaseOptionsPage() {
         return r.json()
       })
       .then(d => setOptions(Array.isArray(d) ? d : []))
-      .catch(e => setFetchError(`Ошибка загрузки: ${e.message}. Возможно таблица ещё не создана — подождите деплой.`))
+      .catch(e => setFetchError(text.loadError.replace('{message}', e.message)))
     fetch('/api/services')
       .then(r => r.ok ? r.json() : [])
       .then(d => setServices(Array.isArray(d) ? d.filter((s: Service) => s.active !== false) : []))
@@ -158,7 +231,7 @@ export default function CaseOptionsPage() {
       setOptions(prev => [...prev, created])
       setNewValues(prev => ({ ...prev, [type]: '' }))
     } catch (e: any) {
-      setError(`Не удалось добавить: ${e.message}`)
+      setError(text.addFailed.replace('{message}', e.message))
     }
     setLoading(false)
   }
@@ -186,7 +259,7 @@ export default function CaseOptionsPage() {
         setOptions(prev => [...prev, created])
       }
     } catch (e: any) {
-      setError(`Ошибка загрузки стандартных: ${e.message}`)
+      setError(text.defaultsFailed.replace('{message}', e.message))
     }
     setSeeding(null)
   }
@@ -210,19 +283,19 @@ export default function CaseOptionsPage() {
       setOptions(prev => prev.map(o => o.id === id ? updated : o))
       setEditingId(null)
     } catch (e: any) {
-      setError(`Не удалось сохранить: ${e.message}`)
+      setError(text.saveFailed.replace('{message}', e.message))
     }
   }
 
   async function remove(id: number) {
-    if (!confirm('Удалить этот вариант?')) return
+    if (!confirm(text.deleteConfirm)) return
     setError(null)
     try {
       const res = await fetch(`/api/case-options/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setOptions(prev => prev.filter(o => o.id !== id))
     } catch (e: any) {
-      setError(`Не удалось удалить: ${e.message}`)
+      setError(text.deleteFailed.replace('{message}', e.message))
     }
   }
 
@@ -235,10 +308,10 @@ export default function CaseOptionsPage() {
     <div className="fade-in">
       <div className="page-header">
         <div>
-          <div className="page-title">Варианты полей дела</div>
-          <div className="page-subtitle">Управление выпадающими списками при создании дела</div>
+          <div className="page-title">{text.title}</div>
+          <div className="page-subtitle">{text.subtitle}</div>
         </div>
-        <Link href={returnTo} className="btn btn-secondary">Назад</Link>
+        <Link href={returnTo} className="btn btn-secondary">{t('back')}</Link>
       </div>
 
       <div className="page-body">
@@ -263,7 +336,7 @@ export default function CaseOptionsPage() {
         </datalist>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-          {(Object.keys(TYPE_LABELS) as OptionType[]).map(type => {
+          {OPTION_TYPES.map(type => {
             const items = optionsByType(type)
             const hasMissingDefaults = DEFAULTS[type].some(value => !items.some(item => item.value === value))
             return (
@@ -273,8 +346,8 @@ export default function CaseOptionsPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 22 }}>{TYPE_ICONS[type]}</span>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: 15 }}>{TYPE_LABELS[type]}</div>
-                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{items.length} вариантов</div>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>{text.labels[type]}</div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{text.variantsCount.replace('{count}', String(items.length))}</div>
                     </div>
                   </div>
                   {/* Кнопка загрузки стандартных */}
@@ -284,14 +357,14 @@ export default function CaseOptionsPage() {
                       disabled={seeding === type}
                       style={{ fontSize: 11, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', color: 'var(--muted)', whiteSpace: 'nowrap' }}
                     >
-                      {seeding === type ? '⏳ Загрузка...' : '📥 Загрузить стандартные'}
+                      {seeding === type ? text.loadingDefaults : text.loadDefaults}
                     </button>
                   )}
                 </div>
 
                 {type === 'mosDocument' && (
                   <div className="form-group" style={{ marginBottom: 14 }}>
-                    <label className="label">Услуга</label>
+                    <label className="label">{text.service}</label>
                     <select
                       className="select"
                       value={selectedMosServiceId}
@@ -300,7 +373,7 @@ export default function CaseOptionsPage() {
                         setEditingId(null)
                       }}
                     >
-                      <option value="">Общий список</option>
+                      <option value="">{text.generalList}</option>
                       {services.map(service => (
                         <option key={service.id} value={service.id.toString()}>{service.name}</option>
                       ))}
@@ -312,7 +385,7 @@ export default function CaseOptionsPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14, minHeight: 40 }}>
                   {items.length === 0 && (
                     <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '10px 0' }}>
-                      Нет вариантов. Добавьте или нажмите «Загрузить стандартные» ↑
+                      {text.empty}
                     </div>
                   )}
                   {items.map(opt => (
@@ -364,7 +437,7 @@ export default function CaseOptionsPage() {
                     value={newValues[type]}
                     onChange={e => setNewValues(prev => ({ ...prev, [type]: e.target.value }))}
                     onKeyDown={e => { if (e.key === 'Enter') add(type) }}
-                    placeholder="Новый вариант..."
+                    placeholder={text.newPlaceholder}
                     style={{ flex: 1, fontSize: 13 }}
                   />
                   <button
@@ -373,7 +446,7 @@ export default function CaseOptionsPage() {
                     disabled={loading || !newValues[type].trim()}
                     style={{ padding: '8px 14px', fontSize: 13, whiteSpace: 'nowrap' }}
                   >
-                    + Добавить
+                    {text.add}
                   </button>
                 </div>
               </div>

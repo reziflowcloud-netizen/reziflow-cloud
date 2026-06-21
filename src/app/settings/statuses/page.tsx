@@ -7,8 +7,66 @@ function isArchiveStatusName(name: string) {
   return ['архив', 'архів', 'archive', 'archiwum'].includes(String(name || '').trim().toLowerCase())
 }
 
+const statusText = {
+  ru: {
+    addStatus: 'Добавить статус',
+    name: 'Название',
+    color: 'Цвет',
+    namePlaceholder: 'Напр.: Ожидание решения',
+    adding: 'Добавление...',
+    add: '+ Добавить',
+    listTitle: 'Список статусов — всего: {count}',
+    dragHint: '⠿ Перетащите для сортировки',
+    empty: 'Нет статусов',
+    save: '💾 Сохранить',
+    cancel: 'Отмена',
+    deleteConfirm: 'Удалить статус?',
+    serverError: 'Ошибка сервера: {status}',
+    connectionError: 'Ошибка соединения с сервером.',
+    updateError: 'Ошибка при обновлении',
+    deleteError: 'Ошибка при удалении.',
+  },
+  uk: {
+    addStatus: 'Додати статус',
+    name: 'Назва',
+    color: 'Колір',
+    namePlaceholder: 'Напр.: Очікування рішення',
+    adding: 'Додавання...',
+    add: '+ Додати',
+    listTitle: 'Список статусів — всього: {count}',
+    dragHint: '⠿ Перетягніть для сортування',
+    empty: 'Статусів немає',
+    save: '💾 Зберегти',
+    cancel: 'Скасувати',
+    deleteConfirm: 'Видалити статус?',
+    serverError: 'Помилка сервера: {status}',
+    connectionError: 'Помилка з’єднання з сервером.',
+    updateError: 'Помилка під час оновлення',
+    deleteError: 'Помилка під час видалення.',
+  },
+  pl: {
+    addStatus: 'Dodaj status',
+    name: 'Nazwa',
+    color: 'Kolor',
+    namePlaceholder: 'Np.: Oczekiwanie na decyzję',
+    adding: 'Dodawanie...',
+    add: '+ Dodaj',
+    listTitle: 'Lista statusów — razem: {count}',
+    dragHint: '⠿ Przeciągnij, aby sortować',
+    empty: 'Brak statusów',
+    save: '💾 Zapisz',
+    cancel: 'Anuluj',
+    deleteConfirm: 'Usunąć status?',
+    serverError: 'Błąd serwera: {status}',
+    connectionError: 'Błąd połączenia z serwerem.',
+    updateError: 'Błąd podczas aktualizacji',
+    deleteError: 'Błąd podczas usuwania.',
+  },
+}
+
 export default function StatusesPage() {
-  const { t } = useLanguage()
+  const { lang, t } = useLanguage()
+  const text = statusText[lang] || statusText.ru
   const [statuses, setStatuses] = useState<any[]>([])
   const [name, setName] = useState('')
   const [color, setColor] = useState('#3b82f6')
@@ -37,11 +95,11 @@ export default function StatusesPage() {
       })
       let s: any
       try { s = await res.json() } catch { s = {} }
-      if (!res.ok) { setError(s?.error || `Ошибка сервера: ${res.status}`); return }
+      if (!res.ok) { setError(s?.error || text.serverError.replace('{status}', String(res.status))); return }
       setStatuses(prev => [...prev, s])
       setName('')
       setColor('#3b82f6')
-    } catch { setError('Ошибка соединения с сервером.') }
+    } catch { setError(text.connectionError) }
     finally { setLoading(false) }
   }
 
@@ -55,10 +113,10 @@ export default function StatusesPage() {
       })
       let updated: any
       try { updated = await res.json() } catch { updated = {} }
-      if (!res.ok) { setError(updated?.error || 'Ошибка при обновлении'); return }
+      if (!res.ok) { setError(updated?.error || text.updateError); return }
       setStatuses(prev => prev.map(s => s.id === id ? updated : s))
       setEditingId(null)
-    } catch { setError('Ошибка соединения.') }
+    } catch { setError(text.connectionError) }
   }
 
   async function deleteStatus(id: number) {
@@ -67,12 +125,12 @@ export default function StatusesPage() {
       setError(t('archive_status_protected'))
       return
     }
-    if (!confirm('Удалить статус?')) return
+    if (!confirm(text.deleteConfirm)) return
     setError('')
     try {
       await fetch(`/api/statuses/${id}`, { method: 'DELETE' })
       setStatuses(prev => prev.filter(s => s.id !== id))
-    } catch { setError('Ошибка при удалении.') }
+    } catch { setError(text.deleteError) }
   }
 
   function startEdit(s: any) {
@@ -119,29 +177,29 @@ export default function StatusesPage() {
           <div className="page-title">{t('statuses_title')}</div>
           <div className="page-subtitle">{t('statuses_sub')}</div>
         </div>
-        <Link href="/settings" className="btn btn-secondary">Назад</Link>
+        <Link href="/settings" className="btn btn-secondary">{t('back')}</Link>
       </div>
 
       <div className="page-body">
         <div style={{ maxWidth: 640 }}>
           {/* Add form */}
           <div className="card" style={{ marginBottom: 20 }}>
-            <div className="section-title"><span>➕</span>Добавить статус</div>
+            <div className="section-title"><span>➕</span>{text.addStatus}</div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
               <div className="form-group" style={{ flex: 1, margin: 0 }}>
-                <label className="label">Название</label>
+                <label className="label">{text.name}</label>
                 <input className="input" value={name}
                   onChange={e => { setName(e.target.value); setError('') }}
-                  placeholder="Напр.: Ожидание решения"
+                  placeholder={text.namePlaceholder}
                   onKeyDown={e => e.key === 'Enter' && add()} />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="label">Цвет</label>
+                <label className="label">{text.color}</label>
                 <input type="color" value={color} onChange={e => setColor(e.target.value)}
                   style={{ height: 38, width: 60, padding: 4, border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer' }} />
               </div>
               <button onClick={add} className="btn btn-primary" disabled={loading || !name.trim()}>
-                {loading ? 'Добавление...' : '+ Добавить'}
+                {loading ? text.adding : text.add}
               </button>
             </div>
             {error && (
@@ -154,12 +212,12 @@ export default function StatusesPage() {
           {/* List */}
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div className="section-title" style={{ margin: 0 }}>Список статусов — всего: {statuses.length}</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>⠿ Перетащите для сортировки</div>
+              <div className="section-title" style={{ margin: 0 }}>{text.listTitle.replace('{count}', String(statuses.length))}</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }}>{text.dragHint}</div>
             </div>
 
             {statuses.length === 0 && (
-              <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '20px 0' }}>Нет статусов</div>
+              <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '20px 0' }}>{text.empty}</div>
             )}
 
             {statuses.map((s, i) => (
@@ -194,15 +252,15 @@ export default function StatusesPage() {
                       style={{ flex: 1 }}
                       onKeyDown={e => e.key === 'Enter' && updateStatus(s.id)}
                       autoFocus />
-                    <button onClick={() => updateStatus(s.id)} className="btn btn-primary" style={{ fontSize: 13, padding: '6px 14px' }}>💾 Сохранить</button>
-                    <button onClick={() => setEditingId(null)} className="btn btn-secondary" style={{ fontSize: 13, padding: '6px 12px' }}>Отмена</button>
+                    <button onClick={() => updateStatus(s.id)} className="btn btn-primary" style={{ fontSize: 13, padding: '6px 14px' }}>{text.save}</button>
+                    <button onClick={() => setEditingId(null)} className="btn btn-secondary" style={{ fontSize: 13, padding: '6px 12px' }}>{text.cancel}</button>
                   </>
                 ) : (
                   <>
                     <div style={{ width: 14, height: 14, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
                     <span style={{ flex: 1, fontWeight: 500 }}>{s.name}</span>
                     <span style={{ fontSize: 12, color: 'var(--muted)', marginRight: 8 }}>
-                      {new Date(s.createdAt).toLocaleDateString('ru')}
+                      {new Date(s.createdAt).toLocaleDateString(lang === 'uk' ? 'uk-UA' : lang === 'pl' ? 'pl-PL' : 'ru-RU')}
                     </span>
                     <button onClick={() => startEdit(s)}
                       style={{ background: '#f3f4f6', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 13 }}>✏️</button>
