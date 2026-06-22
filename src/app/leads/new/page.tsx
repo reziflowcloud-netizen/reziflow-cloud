@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, POLISH_VOIVODESHIPS, type LeadSourceOption } from '@/lib/leads'
 import { useLanguage } from '@/context/LanguageContext'
 import { leadSourceOptionLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
+import { normalizeLang } from '@/lib/translations'
 import PhoneListEditor, { ensurePhoneRows } from '@/components/PhoneListEditor'
 
 const initialForm = {
@@ -35,7 +36,8 @@ const initialForm = {
 
 export default function NewLeadPage() {
   const router = useRouter()
-  const { lang } = useLanguage()
+  const { lang: currentLang } = useLanguage()
+  const lang = normalizeLang(currentLang)
   const lt = (key: string) => leadText(lang, key)
   const [form, setForm] = useState(initialForm)
   const [services, setServices] = useState<any[]>([])

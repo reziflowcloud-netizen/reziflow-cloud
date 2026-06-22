@@ -3,8 +3,8 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import MetaMessageNotifier from '@/components/MetaMessageNotifier'
+import { normalizeLang, type Lang } from '@/lib/translations'
 
-type Lang = 'ru' | 'uk' | 'pl'
 type Theme = 'light' | 'dark' | 'slate'
 
 const TRANSLATIONS: Record<Lang, Record<string, string>> = {
@@ -57,10 +57,20 @@ export default function Sidebar({
   useEffect(() => {
     const savedThemeRaw = localStorage.getItem('rezi_theme') || 'light'
     const savedTheme = THEME_OPTIONS.includes(savedThemeRaw as Theme) ? savedThemeRaw as Theme : 'light'
-    const savedLang = (localStorage.getItem('rezi_lang') || 'ru') as Lang
+    const savedLang = normalizeLang(localStorage.getItem('rezi_lang'))
     setTheme(savedTheme)
     setLang(savedLang)
+    localStorage.setItem('rezi_lang', savedLang)
     document.documentElement.setAttribute('data-theme', savedTheme)
+
+    function onLangChange(event: Event) {
+      const next = normalizeLang((event as CustomEvent).detail)
+      setLang(next)
+      localStorage.setItem('rezi_lang', next)
+    }
+
+    window.addEventListener('langchange', onLangChange)
+    return () => window.removeEventListener('langchange', onLangChange)
   }, [])
 
   function setThemeChoice(next: Theme) {
@@ -70,9 +80,10 @@ export default function Sidebar({
   }
 
   function changeLang(l: Lang) {
-    setLang(l)
-    localStorage.setItem('rezi_lang', l)
-    window.dispatchEvent(new CustomEvent('langchange', { detail: l }))
+    const next = normalizeLang(l)
+    setLang(next)
+    localStorage.setItem('rezi_lang', next)
+    window.dispatchEvent(new CustomEvent('langchange', { detail: next }))
   }
 
   async function handleLogout() {

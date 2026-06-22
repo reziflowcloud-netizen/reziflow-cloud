@@ -1,7 +1,7 @@
 // src/context/LanguageContext.tsx
 'use client'
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { T, Lang } from '@/lib/translations'
+import { T, Lang, normalizeLang } from '@/lib/translations'
 
 interface LangCtx {
   lang: Lang
@@ -19,22 +19,25 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>('ru')
 
   useEffect(() => {
-    const saved = (localStorage.getItem('rezi_lang') || 'ru') as Lang
+    const saved = normalizeLang(localStorage.getItem('rezi_lang'))
     setLangState(saved)
+    localStorage.setItem('rezi_lang', saved)
 
     // Listen for lang changes from Sidebar
     function onLangChange(e: Event) {
-      const detail = (e as CustomEvent).detail as Lang
+      const detail = normalizeLang((e as CustomEvent).detail)
       setLangState(detail)
+      localStorage.setItem('rezi_lang', detail)
     }
     window.addEventListener('langchange', onLangChange)
     return () => window.removeEventListener('langchange', onLangChange)
   }, [])
 
   function setLang(l: Lang) {
-    setLangState(l)
-    localStorage.setItem('rezi_lang', l)
-    window.dispatchEvent(new CustomEvent('langchange', { detail: l }))
+    const next = normalizeLang(l)
+    setLangState(next)
+    localStorage.setItem('rezi_lang', next)
+    window.dispatchEvent(new CustomEvent('langchange', { detail: next }))
   }
 
   function t(key: string): string {

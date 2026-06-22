@@ -1,6 +1,13 @@
 // src/lib/translations.ts
 export type Lang = 'ru' | 'uk' | 'pl'
 
+export function normalizeLang(value: unknown): Lang {
+  const lang = String(value || '').toLowerCase()
+  if (lang === 'ua' || lang === 'uk') return 'uk'
+  if (lang === 'pl') return 'pl'
+  return 'ru'
+}
+
 export const T: Record<Lang, Record<string, string>> = {
   ru: {
     // Nav

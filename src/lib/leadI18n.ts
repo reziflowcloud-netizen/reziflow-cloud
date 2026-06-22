@@ -1,5 +1,5 @@
 import { DEFAULT_LEAD_STATUSES } from '@/lib/leads'
-import type { Lang } from '@/lib/translations'
+import { normalizeLang, type Lang } from '@/lib/translations'
 
 export const LEAD_TEXT: Record<Lang, Record<string, string>> = {
   ru: {
@@ -129,6 +129,7 @@ export const LEAD_TEXT: Record<Lang, Record<string, string>> = {
     schedule_next_contact: 'Запланировать контакт',
     service: 'Услуга',
     reason: 'Причина',
+    reasons: 'Причины',
     without_reason: 'Без причины',
     reason_required_on_status: 'Причина при переводе',
     reasons_placeholder: 'Причины, каждая с новой строки',
@@ -170,6 +171,8 @@ export const LEAD_TEXT: Record<Lang, Record<string, string>> = {
     reminder_done: 'Выполнено',
     reminder_active: 'Активно',
     mark_completed: 'Отметить выполненным',
+    open_instagram: 'Открыть Instagram',
+    open_facebook: 'Открыть Facebook',
   },
   uk: {
     leads: 'Ліди',
@@ -298,6 +301,7 @@ export const LEAD_TEXT: Record<Lang, Record<string, string>> = {
     schedule_next_contact: 'Запланувати контакт',
     service: 'Послуга',
     reason: 'Причина',
+    reasons: 'Причини',
     without_reason: 'Без причини',
     reason_required_on_status: 'Причина під час переведення',
     reasons_placeholder: 'Причини, кожна з нового рядка',
@@ -339,6 +343,8 @@ export const LEAD_TEXT: Record<Lang, Record<string, string>> = {
     reminder_done: 'Виконано',
     reminder_active: 'Активно',
     mark_completed: 'Позначити виконаним',
+    open_instagram: 'Відкрити Instagram',
+    open_facebook: 'Відкрити Facebook',
   },
   pl: {
     leads: 'Leady',
@@ -467,6 +473,7 @@ export const LEAD_TEXT: Record<Lang, Record<string, string>> = {
     schedule_next_contact: 'Zaplanuj kontakt',
     service: 'Usługa',
     reason: 'Powód',
+    reasons: 'Powody',
     without_reason: 'Bez powodu',
     reason_required_on_status: 'Powód przy zmianie statusu',
     reasons_placeholder: 'Powody, każdy w nowej linii',
@@ -508,6 +515,8 @@ export const LEAD_TEXT: Record<Lang, Record<string, string>> = {
     reminder_done: 'Wykonano',
     reminder_active: 'Aktywne',
     mark_completed: 'Oznacz jako wykonane',
+    open_instagram: 'Otwórz Instagram',
+    open_facebook: 'Otwórz Facebook',
   },
 }
 
@@ -541,24 +550,34 @@ export const LEAD_WEEKDAYS: Record<Lang, string[]> = {
   pl: ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb', 'Nd'],
 }
 
-export function leadText(lang: Lang, key: string) {
-  return LEAD_TEXT[lang]?.[key] || LEAD_TEXT.ru[key] || key
+type LeadLangInput = Lang | string | null | undefined
+
+function leadLang(lang: LeadLangInput): Lang {
+  return normalizeLang(lang)
 }
 
-export function leadSourceLabel(lang: Lang, value: string) {
-  return LEAD_SOURCE_TRANSLATIONS[lang]?.[value] || LEAD_SOURCE_TRANSLATIONS.ru[value] || value
+export function leadText(lang: LeadLangInput, key: string) {
+  const safeLang = leadLang(lang)
+  return LEAD_TEXT[safeLang]?.[key] || LEAD_TEXT.ru[key] || key
 }
 
-export function leadSourceOptionLabel(lang: Lang, source: { value: string; label: string }) {
+export function leadSourceLabel(lang: LeadLangInput, value: string) {
+  const safeLang = leadLang(lang)
+  return LEAD_SOURCE_TRANSLATIONS[safeLang]?.[value] || LEAD_SOURCE_TRANSLATIONS.ru[value] || value
+}
+
+export function leadSourceOptionLabel(lang: LeadLangInput, source: { value: string; label: string }) {
   const translated = leadSourceLabel(lang, source.value)
   return translated === source.value ? source.label : translated
 }
 
-export function leadTemperatureLabel(lang: Lang, value: string) {
-  return LEAD_TEMPERATURE_TRANSLATIONS[lang]?.[value] || LEAD_TEMPERATURE_TRANSLATIONS.ru[value] || value
+export function leadTemperatureLabel(lang: LeadLangInput, value: string) {
+  const safeLang = leadLang(lang)
+  return LEAD_TEMPERATURE_TRANSLATIONS[safeLang]?.[value] || LEAD_TEMPERATURE_TRANSLATIONS.ru[value] || value
 }
 
-export function leadStatusLabel(lang: Lang, name: string) {
+export function leadStatusLabel(lang: LeadLangInput, name: string) {
+  const safeLang = leadLang(lang)
   const index = DEFAULT_LEAD_STATUSES.findIndex(status => status.name === name)
-  return index >= 0 ? LEAD_STATUS_TRANSLATIONS[lang][index] : name
+  return index >= 0 ? LEAD_STATUS_TRANSLATIONS[safeLang]?.[index] || LEAD_STATUS_TRANSLATIONS.ru[index] : name
 }

@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { normalizeLang, type Lang } from '@/lib/translations'
 
 const LABELS: Record<string, Record<string, string>> = {
   ru: { dashboard: 'Пульт', cases: 'Дела', leads: 'Лиды', clients: 'Клиенты', stages: 'Этапы', tasks: 'Задачи', calendar: 'Календарь' },
@@ -92,14 +93,20 @@ const THEME_LABELS: Record<string, Record<string, string>> = {
 export default function MobileNav() {
   const pathname = usePathname()
   const router = useRouter()
-  const [lang, setLang] = useState<'ru' | 'uk' | 'pl'>('ru')
+  const [lang, setLang] = useState<Lang>('ru')
   const [theme, setTheme] = useState<'light' | 'dark' | 'slate'>('light')
   const [actionsOpen, setActionsOpen] = useState(false)
 
   useEffect(() => {
-    setLang((localStorage.getItem('rezi_lang') || 'ru') as 'ru' | 'uk' | 'pl')
+    const savedLang = normalizeLang(localStorage.getItem('rezi_lang'))
+    setLang(savedLang)
+    localStorage.setItem('rezi_lang', savedLang)
     setTheme((localStorage.getItem('rezi_theme') || 'light') as 'light' | 'dark' | 'slate')
-    const handler = (e: any) => setLang(e.detail)
+    const handler = (e: any) => {
+      const next = normalizeLang(e.detail)
+      setLang(next)
+      localStorage.setItem('rezi_lang', next)
+    }
     window.addEventListener('langchange', handler)
     return () => window.removeEventListener('langchange', handler)
   }, [])
@@ -110,7 +117,8 @@ export default function MobileNav() {
   const isActive = (href: string) =>
     href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href)
 
-  function changeLang(next: 'ru' | 'uk' | 'pl') {
+  function changeLang(nextValue: Lang) {
+    const next = normalizeLang(nextValue)
     setLang(next)
     localStorage.setItem('rezi_lang', next)
     window.dispatchEvent(new CustomEvent('langchange', { detail: next }))

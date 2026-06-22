@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, POLISH_VOIVODESHIPS, leadDisplayName, type LeadSourceOption } from '@/lib/leads'
 import { useLanguage } from '@/context/LanguageContext'
 import { LEAD_LOCALES, leadSourceLabel, leadSourceOptionLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
+import { normalizeLang } from '@/lib/translations'
 import PhoneListEditor, { ensurePhoneRows } from '@/components/PhoneListEditor'
 
 function safeLeadBackHref(value: string | null) {
@@ -15,7 +16,8 @@ function safeLeadBackHref(value: string | null) {
 export default function LeadDetailPage() {
   const { id } = useParams()
   const router = useRouter()
-  const { lang } = useLanguage()
+  const { lang: currentLang } = useLanguage()
+  const lang = normalizeLang(currentLang)
   const locale = LEAD_LOCALES[lang] || 'ru-RU'
   const lt = (key: string) => leadText(lang, key)
   const [lead, setLead] = useState<any>(null)
@@ -539,7 +541,7 @@ export default function LeadDetailPage() {
                   <input className="input" value={form.instagram} onChange={set('instagram')} />
                   {instagramHref(form.instagram) && (
                     <a href={instagramHref(form.instagram)} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', marginTop: 6, fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}>
-                      Открыть Instagram
+                      {lt('open_instagram')}
                     </a>
                   )}
                 </div>
@@ -548,7 +550,7 @@ export default function LeadDetailPage() {
                   <input className="input" value={form.facebook} onChange={set('facebook')} />
                   {facebookHref(form.facebook) && (
                     <a href={facebookHref(form.facebook)} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', marginTop: 6, fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}>
-                      Открыть Facebook
+                      {lt('open_facebook')}
                     </a>
                   )}
                 </div>

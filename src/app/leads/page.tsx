@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, leadDisplayName, type LeadSourceOption } from '@/lib/leads'
 import { useLanguage } from '@/context/LanguageContext'
 import { LEAD_LOCALES, LEAD_WEEKDAYS, leadSourceLabel, leadSourceOptionLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
+import { normalizeLang } from '@/lib/translations'
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -187,7 +188,8 @@ function isOverdue(value?: string) {
 
 export default function LeadsPage() {
   const router = useRouter()
-  const { lang, t } = useLanguage()
+  const { lang: currentLang, t } = useLanguage()
+  const lang = normalizeLang(currentLang)
   const locale = LEAD_LOCALES[lang] || 'ru-RU'
   const lt = (key: string) => leadText(lang, key)
   const [leads, setLeads] = useState<any[]>([])
@@ -1182,8 +1184,8 @@ export default function LeadsPage() {
         {showStatusReasons && (
           <div className="card" style={{ marginBottom: 12, padding: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 8 }}>
-              <strong>Причины: {leadStatusLabel(lang, status)}</strong>
-                  <button type="button" className="btn btn-secondary" style={{ padding: '5px 8px' }} onClick={() => setStatusReasonFilter('')}>{lt('all_reasons')}</button>
+              <strong>{lt('reasons')}: {leadStatusLabel(lang, status)}</strong>
+              <button type="button" className="btn btn-secondary" style={{ padding: '5px 8px' }} onClick={() => setStatusReasonFilter('')}>{lt('all_reasons')}</button>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {Array.from(new Set([...selectedStatusReasons, ...Object.keys(statusReasonCounts)])).map(reason => (

@@ -169,6 +169,7 @@ export type MarketingCopy = {
 }
 
 export function normalizeMarketingLang(value: string | null | undefined): MarketingLang {
+  if (value === 'ua') return 'uk'
   return LANGUAGE_OPTIONS.some(option => option.code === value) ? value as MarketingLang : DEFAULT_MARKETING_LANG
 }
 
