@@ -80,6 +80,21 @@ type MetaTokenDiagnostic = {
     instagram_business_account?: { id?: string; username?: string }
     connected_instagram_account?: { id?: string; username?: string }
   }
+  debug?: {
+    configured: boolean
+    ok?: boolean
+    error?: string
+    appId?: string
+    appName?: string
+    type?: string
+    isValid?: boolean
+    expiresAt?: number | null
+    scopes?: string[]
+    requiredPermissions?: string[]
+    missingPermissions?: string[]
+    expectedAppId?: string | null
+    appMatchesExpected?: boolean | null
+  }
 }
 
 type MetaTokenDiagnostics = {
@@ -134,6 +149,15 @@ const integrationText = {
     tokenNotSaved: 'Токен не сохранен',
     metaRejected: 'Meta не приняла токен',
     metaOk: 'Meta вернула OK',
+    metaNeedsAttention: 'Проверить',
+    metaDebugNotConfigured: 'Для проверки permissions добавьте в Vercel META_APP_ID и META_APP_SECRET или META_APP_ACCESS_TOKEN.',
+    metaDebugError: 'debug_token не сработал',
+    metaTokenApp: 'Meta App',
+    metaTokenWrongApp: 'Токен выдан другим приложением. Ожидаемый App ID: {appId}',
+    metaTokenPermissionsOk: 'Нужные permissions есть в токене',
+    metaTokenMissingPermissions: 'Не хватает permissions',
+    metaTokenExpires: 'Истекает',
+    metaAdvancedAccessHint: 'Если permissions есть в токене, но реальные Instagram-лиды все равно блокируются, проверьте Advanced Access/App Review для instagram_manage_messages в Meta Developers и переподключите токен через это же приложение.',
     storageTitle: 'Хранение документов',
     storageHint: 'CRM всегда сохраняет документ в Cloudinary как основное хранилище. Если Dropbox подключен, туда дополнительно отправляется копия для папок организации.',
     storageEnabled: 'Делать копию новых документов в Dropbox',
@@ -191,7 +215,7 @@ const integrationText = {
     instagramTokenPlaceholder: 'Токен для Instagram Direct',
     instagramTokenHint: 'Используется для профиля отправителя и ответов в Instagram Direct. Если поле пустое, CRM временно попробует Facebook token.',
     diagnosticsTitle: 'Диагностика Meta токенов',
-    diagnosticsHint: 'Проверяет сохраненные токены и показывает Page ID / Instagram account, которые Meta возвращает CRM.',
+    diagnosticsHint: 'Проверяет сохраненные токены, Page ID / Instagram account, приложение Meta и permissions для сообщений.',
     checking: 'Проверяю...',
     checkTokens: 'Проверить токены',
     newVerifyToken: 'Новый Verify Token',
@@ -240,6 +264,15 @@ const integrationText = {
     tokenNotSaved: 'Токен не збережено',
     metaRejected: 'Meta не прийняла токен',
     metaOk: 'Meta повернула OK',
+    metaNeedsAttention: 'Перевірити',
+    metaDebugNotConfigured: 'Для перевірки permissions додайте у Vercel META_APP_ID і META_APP_SECRET або META_APP_ACCESS_TOKEN.',
+    metaDebugError: 'debug_token не спрацював',
+    metaTokenApp: 'Meta App',
+    metaTokenWrongApp: 'Токен виданий іншим застосунком. Очікуваний App ID: {appId}',
+    metaTokenPermissionsOk: 'Потрібні permissions є в токені',
+    metaTokenMissingPermissions: 'Не вистачає permissions',
+    metaTokenExpires: 'Закінчується',
+    metaAdvancedAccessHint: 'Якщо permissions є в токені, але реальні Instagram-ліди все одно блокуються, перевірте Advanced Access/App Review для instagram_manage_messages у Meta Developers і перепідключіть токен через цей самий застосунок.',
     storageTitle: 'Зберігання документів',
     storageHint: 'CRM завжди зберігає документ у Cloudinary як основне сховище. Якщо Dropbox підключено, туди додатково надсилається копія для папок організації.',
     storageEnabled: 'Робити копію нових документів у Dropbox',
@@ -297,7 +330,7 @@ const integrationText = {
     instagramTokenPlaceholder: 'Токен для Instagram Direct',
     instagramTokenHint: 'Використовується для профілю відправника і відповідей в Instagram Direct. Якщо поле порожнє, CRM тимчасово спробує Facebook token.',
     diagnosticsTitle: 'Діагностика Meta токенів',
-    diagnosticsHint: 'Перевіряє збережені токени і показує Page ID / Instagram account, які Meta повертає CRM.',
+    diagnosticsHint: 'Перевіряє збережені токени, Page ID / Instagram account, застосунок Meta і permissions для повідомлень.',
     checking: 'Перевіряю...',
     checkTokens: 'Перевірити токени',
     newVerifyToken: 'Новий Verify Token',
@@ -346,6 +379,15 @@ const integrationText = {
     tokenNotSaved: 'Token nie jest zapisany',
     metaRejected: 'Meta nie przyjęła tokenu',
     metaOk: 'Meta zwróciła OK',
+    metaNeedsAttention: 'Sprawdź',
+    metaDebugNotConfigured: 'Aby sprawdzić permissions, dodaj w Vercel META_APP_ID i META_APP_SECRET albo META_APP_ACCESS_TOKEN.',
+    metaDebugError: 'debug_token nie zadziałał',
+    metaTokenApp: 'Meta App',
+    metaTokenWrongApp: 'Token został wydany przez inną aplikację. Oczekiwany App ID: {appId}',
+    metaTokenPermissionsOk: 'Wymagane permissions są w tokenie',
+    metaTokenMissingPermissions: 'Brakuje permissions',
+    metaTokenExpires: 'Wygasa',
+    metaAdvancedAccessHint: 'Jeśli permissions są w tokenie, ale prawdziwe leady z Instagrama nadal są blokowane, sprawdź Advanced Access/App Review dla instagram_manage_messages w Meta Developers i podłącz token ponownie przez tę samą aplikację.',
     storageTitle: 'Przechowywanie dokumentów',
     storageHint: 'CRM zawsze zapisuje dokument w Cloudinary jako głównym magazynie. Jeśli Dropbox jest podłączony, dodatkowa kopia trafia do folderów organizacji.',
     storageEnabled: 'Tworzyć kopię nowych dokumentów w Dropbox',
@@ -403,7 +445,7 @@ const integrationText = {
     instagramTokenPlaceholder: 'Token dla Instagram Direct',
     instagramTokenHint: 'Używany dla profilu nadawcy i odpowiedzi w Instagram Direct. Jeśli pole jest puste, CRM tymczasowo spróbuje użyć Facebook token.',
     diagnosticsTitle: 'Diagnostyka tokenów Meta',
-    diagnosticsHint: 'Sprawdza zapisane tokeny i pokazuje Page ID / Instagram account, które Meta zwraca do CRM.',
+    diagnosticsHint: 'Sprawdza zapisane tokeny, Page ID / Instagram account, aplikację Meta i permissions dla wiadomości.',
     checking: 'Sprawdzam...',
     checkTokens: 'Sprawdź tokeny',
     newVerifyToken: 'Nowy Verify Token',
@@ -483,11 +525,36 @@ function metaDiagnosticDetails(item: MetaTokenDiagnostic | undefined, text: type
   const page = metaAccountSummary(item.data)
   const instagramBusiness = metaAccountSummary(item.data?.instagram_business_account)
   const connectedInstagram = metaAccountSummary(item.data?.connected_instagram_account)
+  const debug = item.debug
+  const debugDetails: string[] = []
+
+  if (debug) {
+    if (!debug.configured) {
+      debugDetails.push(text.metaDebugNotConfigured)
+    } else if (debug.ok === false) {
+      debugDetails.push(`${text.metaDebugError}: ${debug.error || text.metaRejected}`)
+    } else {
+      const app = [debug.appName, debug.appId ? `App ID ${debug.appId}` : ''].filter(Boolean).join(' · ')
+      if (app) debugDetails.push(`${text.metaTokenApp}: ${app}`)
+      if (debug.expectedAppId && debug.appMatchesExpected === false) {
+        debugDetails.push(text.metaTokenWrongApp.replace('{appId}', debug.expectedAppId))
+      }
+      if (debug.missingPermissions?.length) {
+        debugDetails.push(`${text.metaTokenMissingPermissions}: ${debug.missingPermissions.join(', ')}`)
+      } else if (debug.requiredPermissions?.length) {
+        debugDetails.push(text.metaTokenPermissionsOk)
+      }
+      if (debug.expiresAt) {
+        debugDetails.push(`${text.metaTokenExpires}: ${new Date(debug.expiresAt * 1000).toLocaleDateString(text.locale)}`)
+      }
+    }
+  }
 
   return [
     page || text.metaOk,
     instagramBusiness ? `Instagram Business: ${instagramBusiness}` : '',
     connectedInstagram ? `Connected Instagram: ${connectedInstagram}` : '',
+    ...debugDetails,
   ].filter(Boolean).join(' | ')
 }
 
@@ -1331,14 +1398,20 @@ ${samplePayload}`}
                 <div style={{ display: 'grid', gap: 8 }}>
                   {(['facebook', 'instagram'] as const).map(key => {
                     const item = metaDiagnostics[key]
-                    const tone = !item?.configured ? '#92400e' : item.ok ? '#166534' : '#991b1b'
-                    const background = !item?.configured ? '#fffbeb' : item.ok ? '#f0fdf4' : '#fef2f2'
+                    const needsAttention = Boolean(
+                      item?.ok &&
+                      item.debug?.configured &&
+                      item.debug.ok !== false &&
+                      ((item.debug.missingPermissions?.length || 0) > 0 || item.debug.appMatchesExpected === false)
+                    )
+                    const tone = !item?.configured ? '#92400e' : needsAttention ? '#92400e' : item.ok ? '#166534' : '#991b1b'
+                    const background = !item?.configured ? '#fffbeb' : needsAttention ? '#fffbeb' : item.ok ? '#f0fdf4' : '#fef2f2'
                     return (
                       <div key={key} style={{ border: `1px solid ${tone}22`, borderRadius: 8, background, padding: 10 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 4 }}>
                           <strong style={{ color: '#0f172a', fontSize: 13 }}>{item?.label || key}</strong>
                           <span style={{ color: tone, fontSize: 12, fontWeight: 800 }}>
-                            {!item?.configured ? 'NO TOKEN' : item.ok ? 'OK' : 'ERROR'}
+                            {!item?.configured ? 'NO TOKEN' : needsAttention ? text.metaNeedsAttention : item.ok ? 'OK' : 'ERROR'}
                           </span>
                         </div>
                         <div style={{ color: tone, fontSize: 12, lineHeight: 1.5 }}>{metaDiagnosticDetails(item, text)}</div>
@@ -1352,7 +1425,7 @@ ${samplePayload}`}
                   )}
                   {metaDiagnostics.hint && (
                     <div style={{ color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 10, fontSize: 12, lineHeight: 1.5 }}>
-                      {metaDiagnostics.hint}
+                      {text.metaAdvancedAccessHint}
                     </div>
                   )}
                 </div>
