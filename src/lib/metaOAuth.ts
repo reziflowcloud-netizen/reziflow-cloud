@@ -12,6 +12,7 @@ export const META_MESSAGE_FIELDS = [
 
 const DEFAULT_META_SCOPES = [
   'public_profile',
+  'business_management',
   'pages_show_list',
   'pages_read_engagement',
   'pages_manage_metadata',

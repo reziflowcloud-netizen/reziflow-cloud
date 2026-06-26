@@ -14,6 +14,12 @@ import {
 
 export const dynamic = 'force-dynamic'
 
+type MetaPageCandidate = {
+  id: string
+  name: string
+  hasAccessToken: boolean
+}
+
 function canManage(user: any) {
   return user?.role === 'admin' || user?.role === 'owner'
 }
@@ -28,11 +34,22 @@ function integrationRedirect(request: NextRequest, params: Record<string, string
   return response
 }
 
-function noPagesMessage(grantedScopes: string) {
+function noPagesMessage(grantedScopes: string, candidates: MetaPageCandidate[]) {
   const granted = new Set(grantedScopes.split(',').map(scope => scope.trim()).filter(Boolean))
-  const missing = ['pages_show_list', 'pages_read_engagement', 'pages_manage_metadata']
+  const missing = ['business_management', 'pages_show_list', 'pages_read_engagement', 'pages_manage_metadata']
     .filter(scope => grantedScopes && !granted.has(scope))
   const missingText = missing.length ? ` Missing scopes: ${missing.join(', ')}.` : ''
+  if (candidates.length) {
+    const pageNames = candidates
+      .slice(0, 3)
+      .map(page => page.name || page.id)
+      .join(', ')
+    const withoutToken = candidates.filter(page => !page.hasAccessToken).length
+    const tokenText = withoutToken
+      ? ` Meta returned ${withoutToken} Page(s) without a Page Access Token.`
+      : ''
+    return `Meta connected the user and returned Page candidate(s): ${pageNames}, but CRM could not save a usable Page connection.${tokenText}${missingText}`
+  }
   return `Meta connected the user, but returned no Facebook Pages. In the Meta dialog click "Edit settings" and allow access to the Facebook Page, or remove this app from Facebook Business Integrations and connect again.${missingText}`
 }
 
@@ -73,6 +90,7 @@ async function fetchMetaUser(version: string, userToken: string) {
 
 async function fetchMetaPages(version: string, userToken: string) {
   const pages: MetaGraphPage[] = []
+  const candidates: MetaPageCandidate[] = []
   let nextUrl: URL | null = new URL(`https://graph.facebook.com/${version}/me/accounts`)
   nextUrl.searchParams.set('fields', 'id,name,access_token,tasks,instagram_business_account{id,username},connected_instagram_account{id,username}')
   nextUrl.searchParams.set('limit', '100')
@@ -85,7 +103,9 @@ async function fetchMetaPages(version: string, userToken: string) {
       const id = String(item?.id || '').trim()
       const name = String(item?.name || '').trim()
       const accessToken = String(item?.access_token || '').trim()
-      if (!id || !name || !accessToken) continue
+      if (!id || !name) continue
+      candidates.push({ id, name, hasAccessToken: Boolean(accessToken) })
+      if (!accessToken) continue
 
       pages.push({
         id,
@@ -111,7 +131,7 @@ async function fetchMetaPages(version: string, userToken: string) {
     nextUrl = next ? new URL(next) : null
   }
 
-  return pages
+  return { pages, candidates }
 }
 
 export async function GET(request: NextRequest) {
@@ -156,10 +176,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const userToken = await exchangeCodeForUserToken(version, appId, appSecret, redirectUri, code)
-    const [metaUser, pages] = await Promise.all([
+    const [metaUser, pageLookup] = await Promise.all([
       fetchMetaUser(version, userToken),
       fetchMetaPages(version, userToken),
     ])
+    const pages = pageLookup.pages
 
     await prisma.organization.update({
       where: { id: organization.id },
@@ -170,6 +191,7 @@ export async function GET(request: NextRequest) {
           metaOAuthUserId: metaUser.id,
           metaOAuthUserName: metaUser.name,
           metaOAuthPendingPages: pages,
+          metaOAuthPageCandidates: pageLookup.candidates,
           metaOAuthGrantedScopes: grantedScopes,
           metaOAuthDeniedScopes: deniedScopes,
           metaOAuthSubscriptionError: '',
@@ -179,7 +201,7 @@ export async function GET(request: NextRequest) {
     })
 
     if (!pages.length) {
-      return integrationRedirect(request, { meta_error: noPagesMessage(grantedScopes) })
+      return integrationRedirect(request, { meta_error: noPagesMessage(grantedScopes, pageLookup.candidates) })
     }
 
     return integrationRedirect(request, { meta_oauth: 'select' })
