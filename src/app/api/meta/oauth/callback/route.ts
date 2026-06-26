@@ -28,6 +28,14 @@ function integrationRedirect(request: NextRequest, params: Record<string, string
   return response
 }
 
+function noPagesMessage(grantedScopes: string) {
+  const granted = new Set(grantedScopes.split(',').map(scope => scope.trim()).filter(Boolean))
+  const missing = ['pages_show_list', 'pages_read_engagement', 'pages_manage_metadata']
+    .filter(scope => grantedScopes && !granted.has(scope))
+  const missingText = missing.length ? ` Missing scopes: ${missing.join(', ')}.` : ''
+  return `Meta connected the user, but returned no Facebook Pages. In the Meta dialog click "Edit settings" and allow access to the Facebook Page, or remove this app from Facebook Business Integrations and connect again.${missingText}`
+}
+
 async function exchangeCodeForUserToken(version: string, appId: string, appSecret: string, redirectUri: string, code: string) {
   const codeUrl = new URL(`https://graph.facebook.com/${version}/oauth/access_token`)
   codeUrl.searchParams.set('client_id', appId)
@@ -126,6 +134,8 @@ export async function GET(request: NextRequest) {
 
   const code = request.nextUrl.searchParams.get('code') || ''
   if (!code) return integrationRedirect(request, { meta_error: 'Meta did not return an authorization code.' })
+  const grantedScopes = request.nextUrl.searchParams.get('granted_scopes') || ''
+  const deniedScopes = request.nextUrl.searchParams.get('denied_scopes') || ''
 
   const appId = getMetaAppId()
   const appSecret = getMetaAppSecret()
@@ -160,6 +170,8 @@ export async function GET(request: NextRequest) {
           metaOAuthUserId: metaUser.id,
           metaOAuthUserName: metaUser.name,
           metaOAuthPendingPages: pages,
+          metaOAuthGrantedScopes: grantedScopes,
+          metaOAuthDeniedScopes: deniedScopes,
           metaOAuthSubscriptionError: '',
           facebookLeadApiVersion: version,
         },
@@ -167,7 +179,7 @@ export async function GET(request: NextRequest) {
     })
 
     if (!pages.length) {
-      return integrationRedirect(request, { meta_error: 'Meta connected, but no Facebook Pages were returned for this account.' })
+      return integrationRedirect(request, { meta_error: noPagesMessage(grantedScopes) })
     }
 
     return integrationRedirect(request, { meta_oauth: 'select' })

@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
   loginUrl.searchParams.set('response_type', 'code')
   loginUrl.searchParams.set('scope', getMetaOAuthScopes().join(','))
   loginUrl.searchParams.set('auth_type', 'rerequest')
+  loginUrl.searchParams.set('return_scopes', 'true')
 
   const configurationId = (process.env.META_LOGIN_CONFIG_ID || '').trim()
   if (configurationId) loginUrl.searchParams.set('config_id', configurationId)
