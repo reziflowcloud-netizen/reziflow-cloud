@@ -18,8 +18,6 @@ const DEFAULT_META_SCOPES = [
   'pages_messaging',
   'instagram_basic',
   'instagram_manage_messages',
-  'instagram_business_basic',
-  'instagram_business_manage_messages',
 ]
 
 export type MetaOAuthState = {
