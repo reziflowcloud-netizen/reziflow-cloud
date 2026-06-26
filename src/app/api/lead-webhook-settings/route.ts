@@ -19,6 +19,41 @@ function normalizeAccessToken(value: unknown) {
     : ''
 }
 
+function publicPendingPages(settings: ReturnType<typeof getLeadWebhookSettings>) {
+  return (settings.metaOAuthPendingPages || []).map(page => ({
+    id: page.id,
+    name: page.name,
+    tasks: page.tasks || [],
+    instagramBusinessAccount: page.instagramBusinessAccount || null,
+    connectedInstagramAccount: page.connectedInstagramAccount || null,
+  }))
+}
+
+function facebookResponse(settings: ReturnType<typeof getLeadWebhookSettings>) {
+  return {
+    enabled: settings.facebookLeadEnabled === true,
+    messagesEnabled: settings.facebookMessagesEnabled === true,
+    verifyToken: settings.facebookLeadVerifyToken || '',
+    pageAccessToken: settings.facebookLeadPageAccessToken || '',
+    instagramPageAccessToken: settings.instagramMessagesPageAccessToken || '',
+    instagramAccessToken: settings.instagramMessagesPageAccessToken || '',
+    apiVersion: settings.facebookLeadApiVersion || 'v23.0',
+    oauth: {
+      connected: settings.metaOAuthConnected === true,
+      connectedAt: settings.metaOAuthConnectedAt || '',
+      userId: settings.metaOAuthUserId || '',
+      userName: settings.metaOAuthUserName || '',
+      pageId: settings.metaOAuthPageId || '',
+      pageName: settings.metaOAuthPageName || '',
+      instagramId: settings.metaOAuthInstagramId || '',
+      instagramUsername: settings.metaOAuthInstagramUsername || '',
+      pendingPages: publicPendingPages(settings),
+      subscriptionError: settings.metaOAuthSubscriptionError || '',
+      subscribedAt: settings.metaOAuthSubscribedAt || '',
+    },
+  }
+}
+
 async function getOrganizationForUser(user: any) {
   const organizationId = getOrganizationId(user)
   return prisma.organization.findUnique({
@@ -90,15 +125,7 @@ export async function GET() {
       userId: settings.leadWebhookAssignmentUserId || null,
       userIds: settings.leadWebhookAssignmentUserIds || [],
     },
-    facebook: {
-      enabled: settings.facebookLeadEnabled === true,
-      messagesEnabled: settings.facebookMessagesEnabled === true,
-      verifyToken: settings.facebookLeadVerifyToken || '',
-      pageAccessToken: settings.facebookLeadPageAccessToken || '',
-      instagramPageAccessToken: settings.instagramMessagesPageAccessToken || '',
-      instagramAccessToken: settings.instagramMessagesPageAccessToken || '',
-      apiVersion: settings.facebookLeadApiVersion || 'v23.0',
-    },
+    facebook: facebookResponse(settings),
   })
 }
 
@@ -188,14 +215,15 @@ export async function PATCH(request: NextRequest) {
       userId: Number.isFinite(nextAssignmentUserId) ? nextAssignmentUserId : null,
       userIds: nextAssignmentUserIds,
     },
-    facebook: {
-      enabled: nextFacebookEnabled,
-      messagesEnabled: nextFacebookMessagesEnabled,
-      verifyToken: nextFacebookVerifyToken,
-      pageAccessToken: nextFacebookPageAccessToken,
-      instagramPageAccessToken: nextInstagramPageAccessToken,
-      instagramAccessToken: nextInstagramPageAccessToken,
-      apiVersion: nextFacebookApiVersion,
-    },
+    facebook: facebookResponse({
+      ...previous,
+      facebookLeadEnabled: nextFacebookEnabled,
+      facebookMessagesEnabled: nextFacebookMessagesEnabled,
+      facebookLeadVerifyToken: nextFacebookVerifyToken,
+      facebookLeadPageAccessToken: nextFacebookPageAccessToken,
+      instagramMessagesPageAccessToken: nextInstagramPageAccessToken,
+      instagramDirectAccessToken: nextInstagramPageAccessToken,
+      facebookLeadApiVersion: nextFacebookApiVersion,
+    }),
   })
 }

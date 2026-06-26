@@ -2,18 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { getLeadWebhookSettings } from '@/lib/leadWebhook'
+import { META_MESSAGE_FIELDS, graphJson, normalizeMetaApiVersion, subscribePageToMetaMessages } from '@/lib/metaOAuth'
 
 export const dynamic = 'force-dynamic'
 
 const REQUIRED_FIELDS = ['messages', 'message_echoes']
-const OPTIONAL_FIELDS = ['message_deliveries', 'message_reads', 'messaging_postbacks']
+const OPTIONAL_FIELDS = META_MESSAGE_FIELDS.filter(field => !REQUIRED_FIELDS.includes(field))
 
 function canManage(user: any) {
   return user?.role === 'admin' || user?.role === 'owner'
-}
-
-function apiVersion(value: string) {
-  return value.startsWith('v') ? value : `v${value || '23.0'}`
 }
 
 async function loadMetaSettings(user: any) {
@@ -27,18 +24,8 @@ async function loadMetaSettings(user: any) {
   const settings = getLeadWebhookSettings(organization.settings)
   return {
     token: settings.facebookLeadPageAccessToken || '',
-    version: apiVersion(settings.facebookLeadApiVersion || 'v23.0'),
+    version: normalizeMetaApiVersion(settings.facebookLeadApiVersion || 'v23.0'),
   }
-}
-
-async function graphJson(url: URL, init?: RequestInit) {
-  const response = await fetch(url, { cache: 'no-store', ...init })
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    const message = data?.error?.message || data?.error || `Meta request failed with status ${response.status}`
-    throw new Error(typeof message === 'string' ? message : JSON.stringify(message))
-  }
-  return data
 }
 
 async function pageInfo(version: string, token: string) {
@@ -92,11 +79,7 @@ export async function POST(_request: NextRequest) {
     const page = await pageInfo(settings.version, settings.token)
     if (!page.id) return NextResponse.json({ error: 'Meta did not return a Page id for this token' }, { status: 400 })
 
-    const url = new URL(`https://graph.facebook.com/${settings.version}/${page.id}/subscribed_apps`)
-    const body = new URLSearchParams()
-    body.set('access_token', settings.token)
-    body.set('subscribed_fields', [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS].join(','))
-    await graphJson(url, { method: 'POST', body })
+    await subscribePageToMetaMessages(settings.version, page.id, settings.token)
 
     const apps = await subscribedApps(settings.version, page.id, settings.token)
     return NextResponse.json({ ok: true, page, apps, requiredFields: REQUIRED_FIELDS, optionalFields: OPTIONAL_FIELDS })

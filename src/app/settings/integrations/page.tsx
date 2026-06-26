@@ -31,6 +31,35 @@ type FacebookLeadSettings = {
   pageAccessToken: string
   instagramPageAccessToken: string
   apiVersion: string
+  oauth?: MetaOAuthConnection
+}
+
+type MetaOAuthPageOption = {
+  id: string
+  name: string
+  tasks?: string[]
+  instagramBusinessAccount?: {
+    id?: string
+    username?: string
+  } | null
+  connectedInstagramAccount?: {
+    id?: string
+    username?: string
+  } | null
+}
+
+type MetaOAuthConnection = {
+  connected: boolean
+  connectedAt?: string
+  userId?: string
+  userName?: string
+  pageId?: string
+  pageName?: string
+  instagramId?: string
+  instagramUsername?: string
+  pendingPages?: MetaOAuthPageOption[]
+  subscriptionError?: string
+  subscribedAt?: string
 }
 
 type StorageSettings = {
@@ -499,6 +528,75 @@ const targetFieldLabels: Record<'uk' | 'pl', Record<string, string>> = {
   },
 }
 
+const metaOAuthText = {
+  ru: {
+    title: 'Подключение Meta через CRM',
+    hint: 'Администратор входит в Meta, выбирает Facebook Page и привязанный Instagram Business аккаунт. Токен сохраняется только для текущей организации.',
+    connected: 'Подключено',
+    notConnected: 'Не подключено',
+    connect: 'Подключить Meta',
+    reconnect: 'Переподключить Meta',
+    connecting: 'Открываю Meta...',
+    page: 'Страница',
+    instagram: 'Instagram',
+    noInstagram: 'Instagram Business аккаунт не найден у выбранной страницы',
+    selectTitle: 'Выберите страницу Meta',
+    selectHint: 'Meta вернула несколько страниц. Выберите ту, с которой CRM должна принимать и отправлять сообщения.',
+    choosePage: 'Выберите страницу',
+    usePage: 'Использовать эту страницу',
+    selecting: 'Подключаю...',
+    manualTitle: 'Ручной режим и технические поля',
+    manualHint: 'Оставлено как резерв: callback URL, verify token и ручная вставка Page Access Token.',
+    subscriptionWarning: 'Подписка на сообщения требует внимания',
+    connectedAs: 'Meta-пользователь',
+    noPages: 'Страницы пока не загружены. Нажмите «Подключить Meta».',
+  },
+  uk: {
+    title: 'Підключення Meta через CRM',
+    hint: 'Адміністратор входить у Meta, вибирає Facebook Page і прив’язаний Instagram Business акаунт. Токен зберігається тільки для поточної організації.',
+    connected: 'Підключено',
+    notConnected: 'Не підключено',
+    connect: 'Підключити Meta',
+    reconnect: 'Перепідключити Meta',
+    connecting: 'Відкриваю Meta...',
+    page: 'Сторінка',
+    instagram: 'Instagram',
+    noInstagram: 'Instagram Business акаунт не знайдено у вибраної сторінки',
+    selectTitle: 'Виберіть сторінку Meta',
+    selectHint: 'Meta повернула кілька сторінок. Виберіть ту, з якої CRM має приймати і надсилати повідомлення.',
+    choosePage: 'Виберіть сторінку',
+    usePage: 'Використати цю сторінку',
+    selecting: 'Підключаю...',
+    manualTitle: 'Ручний режим і технічні поля',
+    manualHint: 'Залишено як резерв: callback URL, verify token і ручна вставка Page Access Token.',
+    subscriptionWarning: 'Підписка на повідомлення потребує уваги',
+    connectedAs: 'Meta-користувач',
+    noPages: 'Сторінки поки не завантажені. Натисніть «Підключити Meta».',
+  },
+  pl: {
+    title: 'Połączenie Meta przez CRM',
+    hint: 'Administrator loguje się do Meta, wybiera Facebook Page i powiązane konto Instagram Business. Token jest zapisywany tylko dla bieżącej organizacji.',
+    connected: 'Połączono',
+    notConnected: 'Nie połączono',
+    connect: 'Połącz Meta',
+    reconnect: 'Połącz ponownie Meta',
+    connecting: 'Otwieram Meta...',
+    page: 'Strona',
+    instagram: 'Instagram',
+    noInstagram: 'Nie znaleziono konta Instagram Business dla wybranej strony',
+    selectTitle: 'Wybierz stronę Meta',
+    selectHint: 'Meta zwróciła kilka stron. Wybierz tę, z której CRM ma odbierać i wysyłać wiadomości.',
+    choosePage: 'Wybierz stronę',
+    usePage: 'Użyj tej strony',
+    selecting: 'Łączę...',
+    manualTitle: 'Tryb ręczny i pola techniczne',
+    manualHint: 'Zostawione jako rezerwa: callback URL, verify token i ręczne wklejenie Page Access Token.',
+    subscriptionWarning: 'Subskrypcja wiadomości wymaga uwagi',
+    connectedAs: 'Użytkownik Meta',
+    noPages: 'Strony nie zostały jeszcze załadowane. Kliknij „Połącz Meta”.',
+  },
+}
+
 const DEFAULT_FACEBOOK_DRAFT: FacebookLeadSettings = {
   enabled: false,
   messagesEnabled: false,
@@ -506,6 +604,10 @@ const DEFAULT_FACEBOOK_DRAFT: FacebookLeadSettings = {
   pageAccessToken: '',
   instagramPageAccessToken: '',
   apiVersion: 'v23.0',
+  oauth: {
+    connected: false,
+    pendingPages: [],
+  },
 }
 
 function metaAccountSummary(account?: { id?: string; name?: string; username?: string } | null) {
@@ -561,6 +663,7 @@ function metaDiagnosticDetails(item: MetaTokenDiagnostic | undefined, text: type
 export default function IntegrationsPage() {
   const { lang } = useLanguage()
   const text = integrationText[lang] || integrationText.ru
+  const metaText = metaOAuthText[lang] || metaOAuthText.ru
   const [settings, setSettings] = useState<WebhookSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -579,6 +682,9 @@ export default function IntegrationsPage() {
   const [metaSubscriptionStatus, setMetaSubscriptionStatus] = useState('')
   const [metaDiagnosticsLoading, setMetaDiagnosticsLoading] = useState(false)
   const [metaDiagnostics, setMetaDiagnostics] = useState<MetaTokenDiagnostics | null>(null)
+  const [metaOAuthLoading, setMetaOAuthLoading] = useState(false)
+  const [metaOAuthSelecting, setMetaOAuthSelecting] = useState(false)
+  const [metaOAuthPageId, setMetaOAuthPageId] = useState('')
   const [storageSettings, setStorageSettings] = useState<StorageSettings | null>(null)
   const [storageDraft, setStorageDraft] = useState<StorageSettings['dropbox']>({ enabled: false, rootFolder: '/LegalHub', hasAccessToken: false, accessToken: '' })
   const [showDropboxToken, setShowDropboxToken] = useState(false)
@@ -782,6 +888,18 @@ function onFormSubmit(e) {
     loadStorageSettings()
   }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const metaError = params.get('meta_error')
+    const oauthStatus = params.get('meta_oauth')
+    if (metaError) setError(metaError)
+    if (oauthStatus === 'select') setMetaSubscriptionStatus(metaText.selectTitle)
+    if (metaError || oauthStatus) {
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }, [metaText.selectTitle])
+
   async function loadSettings() {
     setLoading(true)
     setError('')
@@ -795,7 +913,10 @@ function onFormSubmit(e) {
       setSettings(data)
       setFieldMapDraft(Array.isArray(data.fieldMap) ? data.fieldMap : [])
       setAssignmentDraft(data.assignment || { mode: 'off', userId: null, userIds: [] })
-      setFacebookDraft({ ...DEFAULT_FACEBOOK_DRAFT, ...(data.facebook || {}) })
+      const nextFacebook = { ...DEFAULT_FACEBOOK_DRAFT, ...(data.facebook || {}) }
+      setFacebookDraft(nextFacebook)
+      const pendingPages: MetaOAuthPageOption[] = nextFacebook.oauth?.pendingPages || []
+      setMetaOAuthPageId(current => pendingPages.some(page => page.id === current) ? current : pendingPages[0]?.id || '')
     } finally {
       setLoading(false)
     }
@@ -818,7 +939,12 @@ function onFormSubmit(e) {
       setSettings(data)
       if (Array.isArray(data.fieldMap)) setFieldMapDraft(data.fieldMap)
       if (data.assignment) setAssignmentDraft(data.assignment)
-      if (data.facebook) setFacebookDraft({ ...DEFAULT_FACEBOOK_DRAFT, ...data.facebook })
+      if (data.facebook) {
+        const nextFacebook = { ...DEFAULT_FACEBOOK_DRAFT, ...data.facebook }
+        setFacebookDraft(nextFacebook)
+        const pendingPages: MetaOAuthPageOption[] = nextFacebook.oauth?.pendingPages || []
+        setMetaOAuthPageId(current => pendingPages.some(page => page.id === current) ? current : pendingPages[0]?.id || '')
+      }
     } finally {
       setSaving(false)
     }
@@ -946,6 +1072,53 @@ function onFormSubmit(e) {
     updateSettings({ facebook: { ...facebookDraft, ...patch } })
   }
 
+  function metaPageLabel(page: MetaOAuthPageOption) {
+    const instagram = page.instagramBusinessAccount || page.connectedInstagramAccount
+    return [
+      `${page.name} (ID ${page.id})`,
+      instagram?.username ? `Instagram @${instagram.username}` : '',
+    ].filter(Boolean).join(' · ')
+  }
+
+  function metaConnectionDate(value?: string) {
+    if (!value) return ''
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return ''
+    return date.toLocaleString(text.locale)
+  }
+
+  function startMetaOAuth() {
+    setMetaOAuthLoading(true)
+    setError('')
+    window.location.href = '/api/meta/oauth/start'
+  }
+
+  async function selectMetaOAuthPage() {
+    if (!metaOAuthPageId) {
+      setError(metaText.choosePage)
+      return
+    }
+    setMetaOAuthSelecting(true)
+    setError('')
+    setMetaSubscriptionStatus('')
+    try {
+      const res = await fetch('/api/meta/oauth/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageId: metaOAuthPageId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error || text.saveFailed)
+        return
+      }
+      if (data.subscriptionError) setMetaSubscriptionStatus(`${metaText.subscriptionWarning}: ${data.subscriptionError}`)
+      await loadSettings()
+    } finally {
+      setMetaOAuthSelecting(false)
+    }
+  }
+
   async function subscribeMetaPage() {
     setMetaSubscriptionLoading(true)
     setMetaSubscriptionStatus('')
@@ -987,6 +1160,9 @@ function onFormSubmit(e) {
 
   const maskedKey = settings?.key ? `${settings.key.slice(0, 8)}••••••••••••${settings.key.slice(-6)}` : ''
   const targetLabel = (field: { value: string; label: string }) => targetFieldLabels[lang as 'uk' | 'pl']?.[field.value] || field.label
+  const metaOAuth = facebookDraft.oauth
+  const pendingMetaPages = metaOAuth?.pendingPages || []
+  const selectedMetaPage = pendingMetaPages.find(page => page.id === metaOAuthPageId) || pendingMetaPages[0]
 
   return (
     <div className="fade-in">
@@ -1265,6 +1441,96 @@ ${samplePayload}`}
               </div>
             </div>
 
+            <div style={{ background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: 8, padding: 14, marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontWeight: 900, marginBottom: 4 }}>{metaText.title}</div>
+                  <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, maxWidth: 820 }}>
+                    {metaText.hint}
+                  </div>
+                </div>
+                <span style={{
+                  borderRadius: 999,
+                  padding: '6px 10px',
+                  background: metaOAuth?.connected ? '#dcfce7' : '#fff7ed',
+                  color: metaOAuth?.connected ? '#166534' : '#9a3412',
+                  fontSize: 12,
+                  fontWeight: 900,
+                  whiteSpace: 'nowrap',
+                }}>
+                  {metaOAuth?.connected ? metaText.connected : metaText.notConnected}
+                </span>
+              </div>
+
+              {metaOAuth?.connected && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginTop: 12 }}>
+                  <div style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>{metaText.page}</div>
+                    <div style={{ fontWeight: 800, marginTop: 4 }}>{metaOAuth.pageName || '—'}</div>
+                    <div style={{ color: 'var(--muted)', fontSize: 12 }}>{metaOAuth.pageId ? `ID ${metaOAuth.pageId}` : ''}</div>
+                  </div>
+                  <div style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>{metaText.instagram}</div>
+                    <div style={{ fontWeight: 800, marginTop: 4 }}>
+                      {metaOAuth.instagramUsername ? `@${metaOAuth.instagramUsername}` : metaText.noInstagram}
+                    </div>
+                    <div style={{ color: 'var(--muted)', fontSize: 12 }}>{metaOAuth.instagramId ? `ID ${metaOAuth.instagramId}` : ''}</div>
+                  </div>
+                  <div style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>{metaText.connectedAs}</div>
+                    <div style={{ fontWeight: 800, marginTop: 4 }}>{metaOAuth.userName || '—'}</div>
+                    <div style={{ color: 'var(--muted)', fontSize: 12 }}>{metaConnectionDate(metaOAuth.connectedAt)}</div>
+                  </div>
+                </div>
+              )}
+
+              {pendingMetaPages.length > 0 && (
+                <div style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginTop: 12 }}>
+                  <div style={{ fontWeight: 900, marginBottom: 4 }}>{metaText.selectTitle}</div>
+                  <div style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, marginBottom: 10 }}>
+                    {metaText.selectHint}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) auto', gap: 10, alignItems: 'end' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="label">{metaText.choosePage}</label>
+                      <select
+                        className="input"
+                        value={metaOAuthPageId || selectedMetaPage?.id || ''}
+                        onChange={event => setMetaOAuthPageId(event.target.value)}
+                      >
+                        {pendingMetaPages.map(page => (
+                          <option key={page.id} value={page.id}>{metaPageLabel(page)}</option>
+                        ))}
+                      </select>
+                      {selectedMetaPage && (
+                        <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
+                          {metaPageLabel(selectedMetaPage)}
+                        </div>
+                      )}
+                    </div>
+                    <button className="btn btn-primary" type="button" onClick={selectMetaOAuthPage} disabled={metaOAuthSelecting || saving}>
+                      {metaOAuthSelecting ? metaText.selecting : metaText.usePage}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {metaOAuth?.subscriptionError && (
+                <div style={{ marginTop: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 10, fontSize: 12, lineHeight: 1.5 }}>
+                  {metaText.subscriptionWarning}: {metaOAuth.subscriptionError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12 }}>
+                <button className="btn btn-primary" type="button" onClick={startMetaOAuth} disabled={metaOAuthLoading || saving}>
+                  {metaOAuthLoading ? metaText.connecting : metaOAuth?.connected ? metaText.reconnect : metaText.connect}
+                </button>
+                {!pendingMetaPages.length && !metaOAuth?.connected && (
+                  <span style={{ color: 'var(--muted)', fontSize: 12 }}>{metaText.noPages}</span>
+                )}
+              </div>
+            </div>
+
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, fontWeight: 700 }}>
               <input
                 type="checkbox"
@@ -1311,6 +1577,12 @@ ${samplePayload}`}
                 )}
               </div>
             </div>
+
+            <details style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, background: '#f8fafc', marginBottom: 14 }}>
+              <summary style={{ cursor: 'pointer', fontWeight: 900 }}>{metaText.manualTitle}</summary>
+              <div style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, marginTop: 8, marginBottom: 12 }}>
+                {metaText.manualHint}
+              </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(220px, 1fr)', gap: 12 }}>
               <div className="form-group">
@@ -1380,6 +1652,7 @@ ${samplePayload}`}
                 {text.instagramTokenHint}
               </div>
             </div>
+            </details>
 
             <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginTop: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: metaDiagnostics ? 12 : 0 }}>

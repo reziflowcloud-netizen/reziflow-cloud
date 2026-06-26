@@ -15,9 +15,35 @@ export type LeadWebhookSettings = {
   instagramMessagesPageAccessToken?: string
   instagramDirectAccessToken?: string
   facebookLeadApiVersion?: string
+  metaOAuthConnected?: boolean
+  metaOAuthConnectedAt?: string
+  metaOAuthUserId?: string
+  metaOAuthUserName?: string
+  metaOAuthPageId?: string
+  metaOAuthPageName?: string
+  metaOAuthInstagramId?: string
+  metaOAuthInstagramUsername?: string
+  metaOAuthPendingPages?: MetaOAuthPendingPage[]
+  metaOAuthSubscriptionError?: string
+  metaOAuthSubscribedAt?: string
 }
 
 export type LeadWebhookAssignmentMode = 'off' | 'single' | 'round_robin'
+
+export type MetaOAuthPendingPage = {
+  id: string
+  name: string
+  accessToken?: string
+  tasks?: string[]
+  instagramBusinessAccount?: {
+    id?: string
+    username?: string
+  } | null
+  connectedInstagramAccount?: {
+    id?: string
+    username?: string
+  } | null
+}
 
 export type LeadWebhookFieldMapping = {
   external: string
@@ -102,6 +128,28 @@ export function getLeadWebhookSettings(value: unknown): LeadWebhookSettings {
       : typeof raw.instagramDirectAccessToken === 'string'
         ? raw.instagramDirectAccessToken
         : ''
+  const pendingPages = Array.isArray(raw.metaOAuthPendingPages)
+    ? raw.metaOAuthPendingPages
+        .map((page: any) => ({
+          id: String(page?.id || '').trim(),
+          name: String(page?.name || '').trim(),
+          accessToken: typeof page?.accessToken === 'string' ? page.accessToken : '',
+          tasks: Array.isArray(page?.tasks) ? page.tasks.map(String).filter(Boolean) : [],
+          instagramBusinessAccount: page?.instagramBusinessAccount && typeof page.instagramBusinessAccount === 'object'
+            ? {
+                id: String(page.instagramBusinessAccount.id || '').trim(),
+                username: String(page.instagramBusinessAccount.username || '').trim(),
+              }
+            : null,
+          connectedInstagramAccount: page?.connectedInstagramAccount && typeof page.connectedInstagramAccount === 'object'
+            ? {
+                id: String(page.connectedInstagramAccount.id || '').trim(),
+                username: String(page.connectedInstagramAccount.username || '').trim(),
+              }
+            : null,
+        }))
+        .filter(page => page.id && page.name)
+    : []
   return {
     leadWebhookEnabled: raw.leadWebhookEnabled !== false,
     leadWebhookKey: typeof raw.leadWebhookKey === 'string' ? raw.leadWebhookKey : '',
@@ -117,6 +165,17 @@ export function getLeadWebhookSettings(value: unknown): LeadWebhookSettings {
     instagramMessagesPageAccessToken,
     instagramDirectAccessToken: typeof raw.instagramDirectAccessToken === 'string' ? raw.instagramDirectAccessToken : '',
     facebookLeadApiVersion: typeof raw.facebookLeadApiVersion === 'string' && raw.facebookLeadApiVersion ? raw.facebookLeadApiVersion : 'v23.0',
+    metaOAuthConnected: raw.metaOAuthConnected === true,
+    metaOAuthConnectedAt: typeof raw.metaOAuthConnectedAt === 'string' ? raw.metaOAuthConnectedAt : '',
+    metaOAuthUserId: typeof raw.metaOAuthUserId === 'string' ? raw.metaOAuthUserId : '',
+    metaOAuthUserName: typeof raw.metaOAuthUserName === 'string' ? raw.metaOAuthUserName : '',
+    metaOAuthPageId: typeof raw.metaOAuthPageId === 'string' ? raw.metaOAuthPageId : '',
+    metaOAuthPageName: typeof raw.metaOAuthPageName === 'string' ? raw.metaOAuthPageName : '',
+    metaOAuthInstagramId: typeof raw.metaOAuthInstagramId === 'string' ? raw.metaOAuthInstagramId : '',
+    metaOAuthInstagramUsername: typeof raw.metaOAuthInstagramUsername === 'string' ? raw.metaOAuthInstagramUsername : '',
+    metaOAuthPendingPages: pendingPages,
+    metaOAuthSubscriptionError: typeof raw.metaOAuthSubscriptionError === 'string' ? raw.metaOAuthSubscriptionError : '',
+    metaOAuthSubscribedAt: typeof raw.metaOAuthSubscribedAt === 'string' ? raw.metaOAuthSubscribedAt : '',
   }
 }
 
