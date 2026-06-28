@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
+import TutorialVideoButton from '@/components/TutorialVideoButton'
 
 type StatusItem = {
   id: number
@@ -61,7 +62,10 @@ export default function StagesClient({ statuses, clients }: { statuses: StatusIt
           <div className="page-title">{t('stages_title')}</div>
           <div className="page-subtitle">{t('stages_sub')}</div>
         </div>
-        <Link href="/settings/statuses" className="btn btn-secondary">Настроить статусы</Link>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <TutorialVideoButton videoKey="stages" />
+          <Link href="/settings/statuses" className="btn btn-secondary">Настроить статусы</Link>
+        </div>
       </div>
 
       <div className="page-body">

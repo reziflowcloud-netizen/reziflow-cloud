@@ -7,6 +7,7 @@ import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, leadDisplayName
 import { useLanguage } from '@/context/LanguageContext'
 import { LEAD_LOCALES, LEAD_WEEKDAYS, leadSourceLabel, leadSourceOptionLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
 import { normalizeLang } from '@/lib/translations'
+import TutorialVideoButton from '@/components/TutorialVideoButton'
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -1076,6 +1077,7 @@ export default function LeadsPage() {
           <div className="page-subtitle">{lt('total')}: {leads.length}. {lt('active')}: {activeLeadCount}. {lt('leads_subtitle')}</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <TutorialVideoButton videoKey="leads" />
           <Link href="/dashboard" className="btn btn-secondary">{lt('dashboard')}</Link>
           <Link href="/leads/new" className="btn btn-primary">{lt('add_lead')}</Link>
         </div>

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
+import TutorialVideoButton from '@/components/TutorialVideoButton'
 
 function clientLabel(client: any) {
   return `${client?.firstName || ''} ${client?.lastName || ''}`.trim()
@@ -411,6 +412,7 @@ export default function CalendarPage() {
           <div className="page-subtitle">{t('calendar_sub')}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <TutorialVideoButton videoKey="calendar" />
           <button
             onClick={() => openNewTask(selectedCell ? `${selectedCell.year}-${String(selectedCell.month+1).padStart(2,'0')}-${String(selectedCell.day).padStart(2,'0')}` : '')}
             className="btn btn-primary"

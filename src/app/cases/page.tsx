@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
 import { caseStatusLabel, isActiveCaseStatus, isArchiveCaseStatus } from '@/lib/caseI18n'
+import TutorialVideoButton from '@/components/TutorialVideoButton'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый':               { bg: '#eff6ff', color: '#1d4ed8' },
@@ -143,7 +144,10 @@ export default function CasesPage() {
           <div className="page-title">{t('cases_title')}</div>
           <div className="page-subtitle">{filterTitle}</div>
         </div>
-        <Link href="/cases/new" className="btn btn-primary">{t('new_case')}</Link>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <TutorialVideoButton videoKey="cases" />
+          <Link href="/cases/new" className="btn btn-primary">{t('new_case')}</Link>
+        </div>
       </div>
       <div className="page-body">
         {/* Фильтры */}

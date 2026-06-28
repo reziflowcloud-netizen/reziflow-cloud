@@ -38,6 +38,7 @@ type CustomSection = {
 
 type OrganizationSettings = {
   mosAutoRemindersEnabled: boolean
+  tutorialVideosEnabled: boolean
 }
 
 const fieldTypeValues = ['text', 'textarea', 'date', 'number', 'checkbox', 'select'] as const
@@ -80,6 +81,11 @@ const pageText = {
     autoRemindersTitle: 'Автоматические напоминания',
     mosAutoRemindersTitle: 'Автоматические напоминания с момента передачи документов в MOS',
     mosAutoRemindersDesc: 'Если включено, при сохранении дела с датой передачи в MOS автоматически создаются 4 напоминания: донести документы, получить ID, запросить логин и пароль от кабинета, проверить статус.',
+    tutorialVideosTitle: 'Обучающие видео',
+    tutorialVideosToggleTitle: 'Показывать кнопки обучающих видео в разделах CRM',
+    tutorialVideosDesc: 'Если включено, в рабочих разделах меню появятся кнопки с видео-инструкциями. Раздел настроек пока без видео.',
+    tutorialVideosSaved: 'Настройки обучающих видео сохранены',
+    tutorialVideosSaveFailed: 'Не удалось сохранить настройки обучающих видео',
     addCustomSection: 'Добавить свою секцию',
     clientCard: 'Карточка клиента',
     caseCard: 'Дело клиента',
@@ -156,6 +162,11 @@ const pageText = {
     autoRemindersTitle: 'Автоматичні нагадування',
     mosAutoRemindersTitle: 'Автоматичні нагадування з моменту передачі документів у MOS',
     mosAutoRemindersDesc: 'Якщо увімкнено, під час збереження справи з датою передачі в MOS автоматично створюються 4 нагадування: донести документи, отримати ID, запросити логін і пароль від кабінету, перевірити статус.',
+    tutorialVideosTitle: 'Навчальні відео',
+    tutorialVideosToggleTitle: 'Показувати кнопки навчальних відео в розділах CRM',
+    tutorialVideosDesc: 'Якщо увімкнено, у робочих розділах меню зʼявляться кнопки з відео-інструкціями. Розділ налаштувань поки без відео.',
+    tutorialVideosSaved: 'Налаштування навчальних відео збережено',
+    tutorialVideosSaveFailed: 'Не вдалося зберегти налаштування навчальних відео',
     addCustomSection: 'Додати свою секцію',
     clientCard: 'Картка клієнта',
     caseCard: 'Справа клієнта',
@@ -232,6 +243,11 @@ const pageText = {
     autoRemindersTitle: 'Automatyczne przypomnienia',
     mosAutoRemindersTitle: 'Automatyczne przypomnienia od momentu przekazania dokumentów do MOS',
     mosAutoRemindersDesc: 'Jeśli włączone, przy zapisie sprawy z datą przekazania do MOS automatycznie powstaną 4 przypomnienia: donieść dokumenty, otrzymać ID, poprosić o login i hasło do konta, sprawdzić status.',
+    tutorialVideosTitle: 'Filmy szkoleniowe',
+    tutorialVideosToggleTitle: 'Pokazuj przyciski filmów szkoleniowych w sekcjach CRM',
+    tutorialVideosDesc: 'Jeśli włączone, w roboczych sekcjach menu pojawią się przyciski z instrukcjami wideo. Sekcja ustawień na razie bez filmu.',
+    tutorialVideosSaved: 'Ustawienia filmów szkoleniowych zapisane',
+    tutorialVideosSaveFailed: 'Nie udało się zapisać ustawień filmów szkoleniowych',
     addCustomSection: 'Dodaj własną sekcję',
     clientCard: 'Karta klienta',
     caseCard: 'Sprawa klienta',
@@ -291,6 +307,7 @@ export default function SectionSettingsPage() {
   const [newFields, setNewFields] = useState<Record<number, any>>({})
   const [organizationSettings, setOrganizationSettings] = useState<OrganizationSettings>({
     mosAutoRemindersEnabled: true,
+    tutorialVideosEnabled: false,
   })
 
   useEffect(() => {
@@ -311,6 +328,7 @@ export default function SectionSettingsPage() {
     setSections(custom.sections || [])
     setOrganizationSettings({
       mosAutoRemindersEnabled: organization?.settings?.mosAutoRemindersEnabled !== false,
+      tutorialVideosEnabled: organization?.settings?.tutorialVideosEnabled === true,
     })
     setCanManage(Boolean(ui.canManage || custom.canManage || organization.canManage))
     setLoading(false)
@@ -347,7 +365,11 @@ export default function SectionSettingsPage() {
     setMessage(res.ok ? text.standardSaved : text.standardSaveFailed)
   }
 
-  async function saveOrganizationSettings(nextSettings = organizationSettings) {
+  async function saveOrganizationSettings(
+    nextSettings = organizationSettings,
+    successMessage = text.autoSaved,
+    failureMessage = text.autoSaveFailed,
+  ) {
     setSavingOrganizationSettings(true)
     setMessage('')
     const res = await fetch('/api/organization-settings', {
@@ -360,10 +382,11 @@ export default function SectionSettingsPage() {
       const data = await res.json()
       setOrganizationSettings({
         mosAutoRemindersEnabled: data?.settings?.mosAutoRemindersEnabled !== false,
+        tutorialVideosEnabled: data?.settings?.tutorialVideosEnabled === true,
       })
-      setMessage(text.autoSaved)
+      setMessage(successMessage)
     } else {
-      setMessage(text.autoSaveFailed)
+      setMessage(failureMessage)
     }
   }
 
@@ -615,6 +638,62 @@ export default function SectionSettingsPage() {
                     className="btn btn-primary"
                     disabled={savingOrganizationSettings}
                     onClick={() => saveOrganizationSettings()}
+                  >
+                    {savingOrganizationSettings ? text.saving : text.save}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="section-title" style={{ marginBottom: 12 }}>
+                <span>▶</span>{text.tutorialVideosTitle}
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr auto',
+                  gap: 14,
+                  alignItems: 'center',
+                  padding: 14,
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  background: 'var(--bg)',
+                }}
+              >
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <input
+                    type="checkbox"
+                    checked={organizationSettings.tutorialVideosEnabled}
+                    disabled={!canManage}
+                    onChange={e => {
+                      setOrganizationSettings(current => ({
+                        ...current,
+                        tutorialVideosEnabled: e.target.checked,
+                      }))
+                      setMessage('')
+                    }}
+                    style={{ width: 20, height: 20, marginTop: 2 }}
+                  />
+                  <span>
+                    <strong style={{ display: 'block', marginBottom: 4 }}>
+                      {text.tutorialVideosToggleTitle}
+                    </strong>
+                    <span style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.45 }}>
+                      {text.tutorialVideosDesc}
+                    </span>
+                  </span>
+                </label>
+                {canManage && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={savingOrganizationSettings}
+                    onClick={() => saveOrganizationSettings(
+                      organizationSettings,
+                      text.tutorialVideosSaved,
+                      text.tutorialVideosSaveFailed,
+                    )}
                   >
                     {savingOrganizationSettings ? text.saving : text.save}
                   </button>

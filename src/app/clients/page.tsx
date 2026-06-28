@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
 import { caseStatusLabel, isActiveCaseStatus, isClosedCaseStatus } from '@/lib/caseI18n'
+import TutorialVideoButton from '@/components/TutorialVideoButton'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый':               { bg: '#eff6ff', color: '#1d4ed8' },
@@ -114,7 +115,10 @@ export default function ClientsPage() {
           <div className="page-title">{t('clients_title')}</div>
           <div className="page-subtitle">{t('total')}: {clients.length}</div>
         </div>
-        <Link href="/clients/new" className="btn btn-primary">{t('add_client')}</Link>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <TutorialVideoButton videoKey="clients" />
+          <Link href="/clients/new" className="btn btn-primary">{t('add_client')}</Link>
+        </div>
       </div>
       <div className="page-body">
         {/* Поиск и колонки */}

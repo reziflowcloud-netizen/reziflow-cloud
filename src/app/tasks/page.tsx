@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
+import TutorialVideoButton from '@/components/TutorialVideoButton'
 
 interface Task { id: string; title: string; priority: string; dueDate?: string; clientName?: string; description?: string; status?: string }
 interface Priority { id: number; name: string; color: string; order: number }
@@ -445,6 +446,7 @@ export default function TasksPage() {
           <div className="page-subtitle">{t('kanban')} · {t('total_tasks')}: {tasks.length}</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <TutorialVideoButton videoKey="tasks" />
           <button onClick={() => setShowPriorityManager(v => !v)} className="btn btn-secondary">{t('sections')}</button>
           <button onClick={() => setShowForm(v => !v)} className="btn btn-primary">{showForm ? '✕ ' + t('close') : t('new_task')}</button>
         </div>

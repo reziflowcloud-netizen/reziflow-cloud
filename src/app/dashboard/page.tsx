@@ -8,6 +8,7 @@ import UpcomingEvents from '@/components/UpcomingEvents'
 import Tr from '@/components/Tr'
 import DashboardOnboarding, { DashboardOnboardingStep } from '@/components/DashboardOnboarding'
 import { LocalizedMonthLabel } from '@/components/DashboardI18n'
+import TutorialVideoButton from '@/components/TutorialVideoButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -109,6 +110,9 @@ export default async function DashboardPage() {
         <div>
           <div className="page-title"><Tr k="dashboard_title" /></div>
           <div className="page-subtitle"><Tr k="dashboard_welcome" />, {user?.name as string}!</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <TutorialVideoButton videoKey="dashboard" />
         </div>
       </div>
 

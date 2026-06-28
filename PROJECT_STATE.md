@@ -1,6 +1,6 @@
 # Project State
 
-Last updated by Codex: 2026-06-27.
+Last updated by Codex: 2026-06-28.
 
 ## Project
 
@@ -57,7 +57,7 @@ At the time this file was written:
 branch: main
 remote: origin/main
 status: local uncommitted changes
-latest commit: 9facd46 Improve Meta page OAuth diagnostics
+latest commit: 1a9f18c Add employee assignment for leads
 ```
 
 Always run this again in a new chat before editing:
@@ -84,6 +84,10 @@ git status --short --branch
 - `src/app/settings/employees/page.tsx` - responsible employees settings UI.
 - `src/app/api/employees/route.ts` and `src/app/api/employees/[id]/route.ts` - Employee API.
 - `prisma/migrations/20260627120000_lead_employee_assignment/migration.sql` - adds `Lead.employeeId`.
+- `src/app/api/organization-settings/route.ts` - organization-level CRM feature toggles.
+- `src/app/settings/sections/page.tsx` - Fields and sectors settings page, including automatic reminders and tutorial videos toggles.
+- `src/components/TutorialVideoButton.tsx` - shared header button for opening CRM tutorial videos.
+- `src/lib/tutorialVideos.ts` - central map of CRM sections to YouTube URLs.
 
 ## Current Data Model Notes
 
@@ -145,6 +149,25 @@ Database/migration status as of 2026-06-28:
 - `npx prisma migrate deploy` was run via `DIRECT_URL` and applied that migration successfully.
 - Verification confirmed `Lead.employeeId`, `Lead_organizationId_employeeId_idx`, `Lead_employeeId_fkey`, and the `_prisma_migrations` record exist.
 - The connected database is not empty: at verification time it contained 294 leads and 7 employees.
+
+## Current Tutorial Video Work
+
+Tutorial video infrastructure has been started locally:
+
+- `Organization.settings.tutorialVideosEnabled` controls whether tutorial video buttons are shown.
+- The default is `false`, so old and new organizations do not see tutorial buttons until an admin enables them.
+- Settings -> Fields and sectors now has a separate "Training videos" card under automatic reminders.
+- A shared `TutorialVideoButton` component is placed in the header action area for Dashboard, Cases, Leads, Clients, Stages, Tasks, and Calendar.
+- Settings and import/export are intentionally excluded for now.
+- Video URLs are centralized in `src/lib/tutorialVideos.ts`.
+- Final YouTube URLs have been added for Dashboard, Cases, Leads, Clients, Stages, Tasks, and Calendar.
+- Stages, Tasks, and Calendar intentionally share one tutorial video.
+
+Verification already run for this local work:
+
+```bash
+cmd /c npx next build
+```
 
 Context from the earlier integration chat:
 

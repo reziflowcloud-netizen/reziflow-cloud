@@ -20,7 +20,7 @@ First:
 5. Briefly summarize what is already done and what the next step is.
 
 Current state:
-Lead -> Employee assignment has been implemented locally but is not committed yet. Review git status/diff first, then continue with UI testing, commit/deploy, or the next product task.
+Lead -> Employee assignment is committed and deployed. Current active task: tutorial video buttons for the main CRM sections. The checkbox/settings/API/component are implemented locally, and YouTube URLs have been added to src/lib/tutorialVideos.ts.
 ```
 
 ## Quick Context
@@ -55,17 +55,22 @@ src/app/leads/new/page.tsx
 src/app/leads/[id]/page.tsx
 src/app/settings/employees/page.tsx
 src/app/api/employees/route.ts
+src/app/api/organization-settings/route.ts
+src/app/settings/sections/page.tsx
+src/components/TutorialVideoButton.tsx
+src/lib/tutorialVideos.ts
 ```
 
 ## Next Task Checklist
 
 - Confirm current git status.
-- Review the uncommitted Lead -> Employee implementation.
-- Test lead create/edit/list/bulk assignment in the browser.
+- Review the uncommitted tutorial video implementation.
+- Keep tutorial videos disabled by default for every organization.
+- Test Settings -> Fields and sectors checkbox and the header button on Dashboard, Cases, Leads, Clients, Stages, Tasks, and Calendar.
 - Local `.env` now points to Supabase pooler URLs and passed connection checks on 2026-06-28.
 - Confirm restricted CRM user access still scopes by `assignedToId`.
 - The `20260627120000_lead_employee_assignment` migration has already been applied through `DIRECT_URL`.
-- Commit the implementation when satisfied.
+- Commit and deploy when satisfied.
 - Pick the next CRM task.
 
 ## Useful Commands
@@ -86,5 +91,7 @@ cmd /c npx next build
 - `employeeId` should be for business responsible employees only.
 - Restricted users must remain scoped by their `User.id`.
 - The visible lead "Responsible" field is `Employee`; `assignedToId` remains internal and is not shown as a lead UI field.
+- Tutorial video buttons are controlled by `Organization.settings.tutorialVideosEnabled`; default is false.
+- Video URLs live in `src/lib/tutorialVideos.ts`; Stages, Tasks, and Calendar intentionally share one video URL.
 - Do not read, print, or commit `.env`.
 - Do not do broad refactors or encoding cleanup while implementing this feature.

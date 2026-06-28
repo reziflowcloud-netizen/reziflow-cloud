@@ -4,10 +4,12 @@ import { getOrganizationId, getUser } from '@/lib/auth'
 
 type OrganizationSettings = {
   mosAutoRemindersEnabled: boolean
+  tutorialVideosEnabled: boolean
 }
 
 const defaultSettings: OrganizationSettings = {
   mosAutoRemindersEnabled: true,
+  tutorialVideosEnabled: false,
 }
 
 function canManageSettings(user: any) {
@@ -22,6 +24,7 @@ function normalizeSettings(value: unknown): OrganizationSettings {
   const raw = toObject(value)
   return {
     mosAutoRemindersEnabled: raw.mosAutoRemindersEnabled !== false,
+    tutorialVideosEnabled: raw.tutorialVideosEnabled === true,
   }
 }
 
@@ -56,10 +59,19 @@ export async function PATCH(req: NextRequest) {
   })
   if (!organization) return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
 
-  const current = { ...defaultSettings, ...toObject(organization.settings) }
+  const current = normalizeSettings(organization.settings)
+  const rawCurrent = toObject(organization.settings)
+  const hasMosAutoReminders = Object.prototype.hasOwnProperty.call(incoming, 'mosAutoRemindersEnabled')
+  const hasTutorialVideos = Object.prototype.hasOwnProperty.call(incoming, 'tutorialVideosEnabled')
   const nextSettings: OrganizationSettings = {
-    ...current,
-    mosAutoRemindersEnabled: incoming.mosAutoRemindersEnabled !== false,
+    ...defaultSettings,
+    ...rawCurrent,
+    mosAutoRemindersEnabled: hasMosAutoReminders
+      ? incoming.mosAutoRemindersEnabled !== false
+      : current.mosAutoRemindersEnabled,
+    tutorialVideosEnabled: hasTutorialVideos
+      ? incoming.tutorialVideosEnabled === true
+      : current.tutorialVideosEnabled,
   }
 
   await prisma.organization.update({
