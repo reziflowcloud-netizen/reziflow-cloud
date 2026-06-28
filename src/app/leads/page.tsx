@@ -115,6 +115,10 @@ function initials(lead: any) {
   return leadDisplayName(lead).slice(0, 2).toUpperCase()
 }
 
+function leadResponsibleName(lead: any) {
+  return lead.employee?.name || lead.assignedTo?.name || ''
+}
+
 function dateKey(value: Date | string) {
   const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) return ''
@@ -200,7 +204,7 @@ export default function LeadsPage() {
   const [source, setSource] = useState(DEFAULT_LEAD_LIST_STATE.source)
   const [temperature, setTemperature] = useState(DEFAULT_LEAD_LIST_STATE.temperature)
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(DEFAULT_LEAD_LIST_STATE.quickFilter)
-  const [users, setUsers] = useState<any[]>([])
+  const [employees, setEmployees] = useState<any[]>([])
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
   const [bulkSaving, setBulkSaving] = useState(false)
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
@@ -305,9 +309,9 @@ export default function LeadsPage() {
     fetch('/api/lead-statuses', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => setLeadStatuses(Array.isArray(data) ? data : []))
-    fetch('/api/users')
+    fetch('/api/employees')
       .then(res => res.json())
-      .then(data => setUsers(Array.isArray(data) ? data : []))
+      .then(data => setEmployees(Array.isArray(data) ? data.filter((item: any) => item.active) : []))
     fetch('/api/lead-sources', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => setLeadSources(Array.isArray(data.sources) ? data.sources : LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true }))))
@@ -355,7 +359,7 @@ export default function LeadsPage() {
       if (sortConfig.key === 'createdAt') result = compareDate(a.createdAt, b.createdAt)
       if (sortConfig.key === 'lastContact') result = compareDate(latestLeadContactAt(a), latestLeadContactAt(b))
       if (sortConfig.key === 'nextContact') result = compareDate(a.nextContactAt, b.nextContactAt)
-      if (sortConfig.key === 'responsible') result = compareText(a.assignedTo?.name, b.assignedTo?.name)
+      if (sortConfig.key === 'responsible') result = compareText(leadResponsibleName(a), leadResponsibleName(b))
       if (sortConfig.direction === 'desc') result *= -1
       return result || rank(a) - rank(b) || new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
     }
@@ -367,7 +371,7 @@ export default function LeadsPage() {
       if (temperature && lead.urgency !== temperature) return false
       if (quickFilter === 'today') return isToday(lead.nextContactAt) && !isConvertedLead(lead)
       if (quickFilter === 'overdue') return isOverdue(lead.nextContactAt) && !isConvertedLead(lead)
-      if (quickFilter === 'unassigned') return !lead.assignedToId && !isConvertedLead(lead)
+      if (quickFilter === 'unassigned') return !leadResponsibleName(lead) && !isConvertedLead(lead)
       if (quickFilter === 'no_next_contact') return !lead.nextContactAt && !isConvertedLead(lead)
       return true
     })
@@ -382,6 +386,7 @@ export default function LeadsPage() {
       lead.city,
       lead.voivodeship,
       lead.notes,
+      leadResponsibleName(lead),
     ].filter(Boolean).join(' ').toLowerCase().includes(q)) : byFilters
     return [...searched].sort(compareLeads)
   }, [leads, search, status, statusReasonFilter, source, temperature, quickFilter, showStatusReasons, statusNames.join('|'), sortConfig, lang])
@@ -393,7 +398,7 @@ export default function LeadsPage() {
     all: leads.length,
     today: leads.filter(lead => isToday(lead.nextContactAt) && !isConvertedLead(lead)).length,
     overdue: leads.filter(lead => isOverdue(lead.nextContactAt) && !isConvertedLead(lead)).length,
-    unassigned: leads.filter(lead => !lead.assignedToId && !isConvertedLead(lead)).length,
+    unassigned: leads.filter(lead => !leadResponsibleName(lead) && !isConvertedLead(lead)).length,
     no_next_contact: leads.filter(lead => !lead.nextContactAt && !isConvertedLead(lead)).length,
   }), [leads])
 
@@ -1280,10 +1285,10 @@ export default function LeadsPage() {
                 <option value="">{lt('bulk_status')}</option>
                 {statusNames.map(item => <option key={item} value={item}>{leadStatusLabel(lang, item)}</option>)}
               </select>
-              <select className="select" defaultValue="" disabled={bulkSaving} onChange={event => event.target.value && bulkPatch({ assignedToId: event.target.value === '__none' ? '' : event.target.value })}>
+              <select className="select" defaultValue="" disabled={bulkSaving} onChange={event => event.target.value && bulkPatch({ employeeId: event.target.value === '__none' ? '' : event.target.value })}>
                 <option value="">{lt('bulk_responsible')}</option>
                 <option value="__none">{lt('not_assigned')}</option>
-                {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+                {employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
               </select>
               <select className="select" defaultValue="" disabled={bulkSaving} onChange={event => event.target.value && bulkPatch({ source: event.target.value })}>
                 <option value="">{lt('bulk_source')}</option>
@@ -1338,6 +1343,7 @@ export default function LeadsPage() {
                     const overdue = isOverdue(lead.nextContactAt) && !isConvertedLead(lead)
                     const dueToday = isToday(lead.nextContactAt) && !isConvertedLead(lead)
                     const lastContactAt = latestLeadContactAt(lead)
+                    const responsible = leadResponsibleName(lead)
                     return (
                       <tr key={lead.id} onClick={() => openLeadCard(lead.id)} style={{ cursor: 'pointer', background: overdue ? '#fef2f2' : undefined }}>
                         <td onClick={event => event.stopPropagation()}>
@@ -1409,7 +1415,7 @@ export default function LeadsPage() {
                             ) : lt('no_value')}
                           </td>
                         )}
-                        {isColumnVisible('responsible') && <td style={{ fontSize: 13 }}>{lead.assignedTo?.name || lt('no_value')}</td>}
+                        {isColumnVisible('responsible') && <td style={{ fontSize: 13 }}>{responsible || lt('no_value')}</td>}
                       </tr>
                     )
                   })}
@@ -1439,6 +1445,7 @@ export default function LeadsPage() {
                           <div style={{ border: '1px dashed var(--border)', borderRadius: 8, padding: 12, color: 'var(--muted)', fontSize: 12, textAlign: 'center' }}>{lt('drag_lead_here')}</div>
                         ) : columnLeads.map(lead => {
                           const temp = temperatureMeta(lead.urgency)
+                          const responsible = leadResponsibleName(lead)
                           return (
                           <div
                             key={lead.id}
@@ -1465,6 +1472,7 @@ export default function LeadsPage() {
                               </div>
                             </div>
                             {lead.serviceInterest && <div style={{ fontSize: 12, marginBottom: 6 }}>{lead.serviceInterest}</div>}
+                            {responsible && <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--muted)' }}>{responsible}</div>}
                             {lead.statusReason && <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--muted)' }}>{lt('reason_prefix')}: {lead.statusReason}</div>}
                             {lead.nextContactAt && (
                               <div style={{ color: isOverdue(lead.nextContactAt) && !isConvertedLead(lead) ? '#b91c1c' : 'var(--muted)', fontSize: 12, fontWeight: isOverdue(lead.nextContactAt) && !isConvertedLead(lead) ? 800 : 500 }}>

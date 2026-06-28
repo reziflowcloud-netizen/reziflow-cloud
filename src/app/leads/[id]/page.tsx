@@ -23,7 +23,7 @@ export default function LeadDetailPage() {
   const [lead, setLead] = useState<any>(null)
   const [form, setForm] = useState<any>({})
   const [services, setServices] = useState<any[]>([])
-  const [users, setUsers] = useState<any[]>([])
+  const [employees, setEmployees] = useState<any[]>([])
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
   const [leadSources, setLeadSources] = useState<LeadSourceOption[]>(LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true })))
   const [messages, setMessages] = useState<any[]>([])
@@ -69,7 +69,7 @@ export default function LeadDetailPage() {
 
   useEffect(() => {
     fetch('/api/services').then(r => r.json()).then(data => setServices(Array.isArray(data) ? data.filter((s: any) => s.active) : []))
-    fetch('/api/users').then(r => r.json()).then(data => setUsers(Array.isArray(data) ? data : []))
+    fetch('/api/employees').then(r => r.json()).then(data => setEmployees(Array.isArray(data) ? data.filter((item: any) => item.active || String(item.id) === String(lead?.employeeId || '')) : []))
     fetch('/api/lead-statuses').then(r => r.json()).then(data => setLeadStatuses(Array.isArray(data) ? data : []))
     fetch('/api/lead-sources', { cache: 'no-store' }).then(r => r.json()).then(data => {
       if (Array.isArray(data.sources)) setLeadSources(data.sources)
@@ -101,6 +101,7 @@ export default function LeadDetailPage() {
           statusReason: data.statusReason || '',
           statusReasonComment: data.statusReasonComment || '',
           deadlineAt: data.deadlineAt?.slice(0, 10) || '',
+          employeeId: data.employeeId ? String(data.employeeId) : '',
           assignedToId: data.assignedToId ? String(data.assignedToId) : '',
           nextContactAt: data.nextContactAt?.slice(0, 16) || '',
           nextContactNote: data.nextContactNote || '',
@@ -374,6 +375,7 @@ export default function LeadDetailPage() {
         ...current,
         phone: data.phone || current.phone || '',
         phones: ensurePhoneRows(data.phones, data.phone || current.phone || ''),
+        employeeId: data.employeeId ? String(data.employeeId) : '',
         assignedToId: data.assignedToId ? String(data.assignedToId) : '',
       }))
     } finally {
@@ -489,9 +491,9 @@ export default function LeadDetailPage() {
                 </div>
                 <div className="form-group">
                   <label className="label">{lt('responsible')}</label>
-                  <select className="select" value={form.assignedToId || ''} onChange={set('assignedToId')}>
+                  <select className="select" value={form.employeeId || ''} onChange={set('employeeId')}>
                     <option value="">{lt('not_assigned')}</option>
-                    {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+                    {employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
@@ -778,7 +780,7 @@ export default function LeadDetailPage() {
               <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>{lt('created')}</span><strong>{new Date(lead.createdAt).toLocaleDateString(locale)}</strong></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>{lt('updated')}</span><strong>{new Date(lead.updatedAt).toLocaleDateString(locale)}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>{lt('responsible')}</span><strong>{users.find(user => String(user.id) === String(form.assignedToId))?.name || lt('no_value')}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>{lt('responsible')}</span><strong>{employees.find(employee => String(employee.id) === String(form.employeeId))?.name || lead.employee?.name || lead.assignedTo?.name || lt('no_value')}</strong></div>
               </div>
             </div>
 
@@ -817,13 +819,6 @@ export default function LeadDetailPage() {
                     </select>
                   </div>
                   <div className="form-group"><label className="label">{lt('cost')}</label><input className="input" type="number" step="0.01" value={convertForm.totalValue} onChange={setConvert('totalValue')} /></div>
-                  <div className="form-group">
-                    <label className="label">{lt('responsible')}</label>
-                    <select className="select" value={convertForm.assignedToId} onChange={setConvert('assignedToId')}>
-                      <option value="">{lt('not_assigned')}</option>
-                      {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
-                    </select>
-                  </div>
                   <div className="form-group" style={{ gridColumn: '1/-1' }}>
                     <label className="label">{lt('case_note')}</label>
                     <textarea className="input" rows={3} value={convertForm.caseNotes} onChange={setConvert('caseNotes')} />

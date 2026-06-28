@@ -28,6 +28,7 @@ const initialForm = {
   budget: '',
   urgency: '',
   deadlineAt: '',
+  employeeId: '',
   assignedToId: '',
   nextContactAt: '',
   nextContactNote: '',
@@ -41,7 +42,7 @@ export default function NewLeadPage() {
   const lt = (key: string) => leadText(lang, key)
   const [form, setForm] = useState(initialForm)
   const [services, setServices] = useState<any[]>([])
-  const [users, setUsers] = useState<any[]>([])
+  const [employees, setEmployees] = useState<any[]>([])
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
   const [leadSources, setLeadSources] = useState<LeadSourceOption[]>(LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true })))
   const [loading, setLoading] = useState(false)
@@ -49,7 +50,7 @@ export default function NewLeadPage() {
 
   useEffect(() => {
     fetch('/api/services').then(r => r.json()).then(data => setServices(Array.isArray(data) ? data.filter((s: any) => s.active) : []))
-    fetch('/api/users').then(r => r.json()).then(data => setUsers(Array.isArray(data) ? data : []))
+    fetch('/api/employees').then(r => r.json()).then(data => setEmployees(Array.isArray(data) ? data.filter((item: any) => item.active) : []))
     fetch('/api/lead-sources', { cache: 'no-store' }).then(r => r.json()).then(data => {
       if (Array.isArray(data.sources)) setLeadSources(data.sources)
     })
@@ -135,11 +136,11 @@ export default function NewLeadPage() {
                   {leadSources.map(source => <option key={source.value} value={source.value}>{leadSourceOptionLabel(lang, source)}</option>)}
                 </select>
               </div>
-              <div className="form-group" style={{ gridColumn: '1/-1' }}>
+              <div className="form-group">
                 <label className="label">{lt('responsible')}</label>
-                <select className="select" value={form.assignedToId} onChange={set('assignedToId')}>
+                <select className="select" value={form.employeeId} onChange={set('employeeId')}>
                   <option value="">{lt('not_assigned')}</option>
-                  {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+                  {employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
                 </select>
               </div>
             </div>

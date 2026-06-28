@@ -70,6 +70,7 @@ export async function GET(request: NextRequest) {
     where,
     include: {
       assignedTo: { select: { id: true, name: true } },
+      employee: { select: { id: true, name: true } },
       phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
     },
     orderBy: { updatedAt: 'desc' },
@@ -141,6 +142,13 @@ export async function POST(request: NextRequest) {
   }
   const phones = normalizePhones(body.phones, data.phone)
   data.phone = primaryPhone(phones, data.phone)
+  if (data.employeeId) {
+    const employee = await (prisma as any).employee.findFirst({
+      where: { id: data.employeeId, organizationId, active: true },
+      select: { id: true },
+    })
+    if (!employee) return NextResponse.json({ error: 'Employee not found' }, { status: 400 })
+  }
 
   if (!data.fullName && !data.phone && !data.email && !data.instagram && !data.facebook) {
     return NextResponse.json({ error: 'Укажите имя, телефон, email или профиль соцсети' }, { status: 400 })
@@ -152,7 +160,11 @@ export async function POST(request: NextRequest) {
       ...data,
       phones: phones.length ? { create: phones.map(phone => ({ organizationId, ...phone })) } : undefined,
     },
-    include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
+    include: {
+      assignedTo: { select: { id: true, name: true } },
+      employee: { select: { id: true, name: true } },
+      phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
+    },
   })
   await createNextContactTask(lead, organizationId, scope.restricted && scope.userId ? scope.userId : Number(user.id))
 

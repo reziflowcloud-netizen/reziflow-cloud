@@ -90,6 +90,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
           status: body.caseStatus || 'Новый',
           totalValue: parseFloat(body.totalValue) || 0,
           assignedToId: scope.restricted && scope.userId ? scope.userId : body.assignedToId ? parseInt(body.assignedToId) : lead.assignedToId || null,
+          employeeId: lead.employeeId || null,
           serviceId: body.serviceId ? parseInt(body.serviceId) : null,
           notes: body.caseNotes || `Создано при переводе лида: ${leadDisplayName(lead)}`,
         },

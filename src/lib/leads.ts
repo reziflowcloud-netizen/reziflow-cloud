@@ -121,6 +121,7 @@ export function normalizeLeadBody(body: any) {
     statusReasonComment: body.statusReasonComment || null,
     notes: body.notes || null,
     assignedToId: body.assignedToId ? Number(body.assignedToId) : null,
+    employeeId: body.employeeId ? Number(body.employeeId) : null,
     deadlineAt: body.deadlineAt ? new Date(body.deadlineAt) : null,
     nextContactAt: body.nextContactAt ? new Date(body.nextContactAt) : null,
     nextContactNote: body.nextContactNote || null,

@@ -63,6 +63,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     where: leadWhereForScope(await getDataAccessScope(user, organizationId), organizationId, { id: params.id }),
     include: {
       assignedTo: { select: { id: true, name: true } },
+      employee: { select: { id: true, name: true } },
       phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
     },
   })
@@ -80,6 +81,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     where: leadWhereForScope(scope, organizationId, { id: params.id }),
     include: {
       assignedTo: { select: { id: true, name: true } },
+      employee: { select: { id: true, name: true } },
       phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
     },
   })
@@ -108,11 +110,22 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       data.statusReasonComment = null
     }
   }
+  if (body.employeeId !== undefined && data.employeeId && data.employeeId !== existing.employeeId) {
+    const employee = await (prisma as any).employee.findFirst({
+      where: { id: data.employeeId, organizationId, active: true },
+      select: { id: true },
+    })
+    if (!employee) return NextResponse.json({ error: 'Employee not found' }, { status: 400 })
+  }
   const lead = await (prisma as any).$transaction(async (tx: any) => {
     const updated = await tx.lead.update({
       where: { id: params.id },
       data,
-      include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
+      include: {
+        assignedTo: { select: { id: true, name: true } },
+        employee: { select: { id: true, name: true } },
+        phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
+      },
     })
     if (shouldUpdatePhones) {
       await tx.leadPhone.deleteMany({ where: { leadId: params.id, organizationId } })
@@ -184,7 +197,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return shouldUpdatePhones
       ? await tx.lead.findUnique({
           where: { id: params.id },
-          include: { assignedTo: { select: { id: true, name: true } }, phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
+          include: {
+            assignedTo: { select: { id: true, name: true } },
+            employee: { select: { id: true, name: true } },
+            phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
+          },
         })
       : updated
   })
