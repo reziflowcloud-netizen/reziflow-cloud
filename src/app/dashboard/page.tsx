@@ -40,8 +40,15 @@ function settingsObject(value: unknown): Record<string, unknown> {
 export default async function DashboardPage() {
   const user = await getUser()
   const organizationId = getOrganizationId(user)
-  const scope = await getDataAccessScope(user, organizationId)
+  const [scope, organization] = await Promise.all([
+    getDataAccessScope(user, organizationId),
+    prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { settings: true },
+    }),
+  ])
   const canManageSetup = user?.role === 'admin' || user?.role === 'owner'
+  const quickStartEnabled = settingsObject(organization?.settings).quickStartEnabled !== false
 
   return (
     <div className="fade-in">
@@ -122,7 +129,7 @@ export default async function DashboardPage() {
 
       <div className="page-body">
 
-        {canManageSetup && (
+        {canManageSetup && quickStartEnabled && (
           <Suspense fallback={<DashboardOnboardingFallback />}>
             <DashboardOnboardingSection organizationId={organizationId} />
           </Suspense>
@@ -161,12 +168,6 @@ function DashboardOnboardingFallback() {
 }
 
 async function DashboardOnboardingSection({ organizationId }: { organizationId: string }) {
-  const organization = await prisma.organization.findUnique({
-    where: { id: organizationId },
-    select: { settings: true },
-  })
-  if (settingsObject(organization?.settings).quickStartEnabled === false) return null
-
   const [
     serviceCount,
     statusCount,
