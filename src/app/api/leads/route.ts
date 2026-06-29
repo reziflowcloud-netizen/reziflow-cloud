@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
   const scope = await getDataAccessScope(user, organizationId)
   const status = request.nextUrl.searchParams.get('status') || ''
   const source = request.nextUrl.searchParams.get('source') || ''
+  const listView = request.nextUrl.searchParams.get('view') === 'list'
 
   const where: any = leadWhereForScope(scope, organizationId)
   if (status) where.status = status
@@ -68,11 +69,50 @@ export async function GET(request: NextRequest) {
 
   const leads = await (prisma as any).lead.findMany({
     where,
-    include: {
-      assignedTo: { select: { id: true, name: true } },
-      employee: { select: { id: true, name: true } },
-      phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
-    },
+    ...(listView
+      ? {
+          select: {
+            id: true,
+            assignedToId: true,
+            employeeId: true,
+            convertedClientId: true,
+            status: true,
+            source: true,
+            firstName: true,
+            lastName: true,
+            fullName: true,
+            phone: true,
+            email: true,
+            instagram: true,
+            facebook: true,
+            city: true,
+            voivodeship: true,
+            country: true,
+            language: true,
+            serviceInterest: true,
+            budget: true,
+            urgency: true,
+            statusReason: true,
+            statusReasonComment: true,
+            notes: true,
+            deadlineAt: true,
+            lastContactAt: true,
+            lastContactNote: true,
+            nextContactAt: true,
+            nextContactNote: true,
+            createdAt: true,
+            updatedAt: true,
+            assignedTo: { select: { id: true, name: true } },
+            employee: { select: { id: true, name: true } },
+          },
+        }
+      : {
+          include: {
+            assignedTo: { select: { id: true, name: true } },
+            employee: { select: { id: true, name: true } },
+            phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
+          },
+        }),
     orderBy: { updatedAt: 'desc' },
   })
 
@@ -91,7 +131,7 @@ export async function GET(request: NextRequest) {
       status: { not: 'done' },
       description: { contains: '"leadId":"' },
     }),
-    include: { assignedTo: { select: { id: true, name: true } } },
+    select: { id: true, title: true, description: true, dueDate: true },
     orderBy: { dueDate: 'asc' },
   })
 

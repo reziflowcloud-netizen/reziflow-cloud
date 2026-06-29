@@ -45,7 +45,7 @@ export default function ClientsPage() {
   const colMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    fetch('/api/clients').then(r => r.json()).then(data => {
+    fetch('/api/clients?view=list').then(r => r.json()).then(data => {
       setClients(Array.isArray(data) ? data : [])
       setLoading(false)
     })

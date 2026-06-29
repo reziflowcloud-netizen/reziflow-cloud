@@ -4,12 +4,31 @@ import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { caseWhereForScope, findScopedClient, getDataAccessScope } from '@/lib/apiScope'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
   const scope = await getDataAccessScope(user, organizationId)
+  const listView = request.nextUrl.searchParams.get('view') === 'list'
   try {
+    if (listView) {
+      const cases = await prisma.case.findMany({
+        where: caseWhereForScope(scope, organizationId),
+        select: {
+          id: true,
+          status: true,
+          contractSigned: true,
+          totalValue: true,
+          totalPaid: true,
+          createdAt: true,
+          client: { select: { firstName: true, lastName: true, phone: true } },
+          service: { select: { name: true, color: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+      return NextResponse.json(cases)
+    }
+
     const cases = await prisma.case.findMany({
       where: caseWhereForScope(scope, organizationId),
       include: { client: true, assignedTo: true, service: true },

@@ -48,7 +48,7 @@ export default function CasesPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/cases').then(r => r.json()),
+      fetch('/api/cases?view=list').then(r => r.json()),
       fetch('/api/statuses').then(r => r.json()),
     ]).then(([c, s]) => {
       setCases(Array.isArray(c) ? c : [])

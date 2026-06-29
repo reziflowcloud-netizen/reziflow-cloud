@@ -287,7 +287,7 @@ export default function LeadsPage() {
 
   function loadLeads() {
     setLoading(true)
-    return fetch('/api/leads', { cache: 'no-store' })
+    return fetch('/api/leads?view=list', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => setLeads(Array.isArray(data) ? data : []))
       .finally(() => setLoading(false))

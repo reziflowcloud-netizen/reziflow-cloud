@@ -25,12 +25,59 @@ async function updateClientMosFields(clientId: string, organizationId: string, b
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const user = await getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const organizationId = getOrganizationId(user)
     const scope = await getDataAccessScope(user, organizationId)
+    const listView = request.nextUrl.searchParams.get('view') === 'list'
+
+    if (listView) {
+      const [clients, allCases, statuses] = await Promise.all([
+        prisma.client.findMany({
+          where: clientWhereForScope(scope, organizationId),
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            email: true,
+            pesel: true,
+            citizenship: true,
+            birthDate: true,
+            branch: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.case.findMany({
+          where: caseWhereForScope(scope, organizationId),
+          select: {
+            id: true,
+            caseNumber: true,
+            status: true,
+            clientId: true,
+            service: { select: { id: true, name: true, color: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.caseStatus.findMany({ where: { organizationId }, select: { name: true, color: true } }),
+      ])
+      const statusColorMap = new Map(statuses.map(status => [status.name, status.color]))
+      const casesMap: Record<string, any[]> = {}
+      for (const caseItem of allCases) {
+        if (!casesMap[caseItem.clientId]) casesMap[caseItem.clientId] = []
+        casesMap[caseItem.clientId].push({
+          ...caseItem,
+          statusColor: statusColorMap.get(caseItem.status) || null,
+        })
+      }
+      return NextResponse.json(clients.map(client => ({
+        ...client,
+        cases: casesMap[client.id] || [],
+      })))
+    }
 
     // Загружаем клиентов — сначала без связей
     const clients = await prisma.client.findMany({
