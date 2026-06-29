@@ -162,6 +162,10 @@ Tutorial video infrastructure has been started locally:
 - Video URLs are centralized in `src/lib/tutorialVideos.ts`.
 - Final YouTube URLs have been added for Dashboard, Cases, Leads, Clients, Stages, Tasks, and Calendar.
 - Stages, Tasks, and Calendar intentionally share one tutorial video.
+- `Organization.settings.quickStartEnabled` controls whether the Dashboard "Quick start / First steps in CRM" panel appears.
+- Quick start is enabled by default, matching the previous behavior for new organizations.
+- Settings -> Fields and sectors now includes a quick start visibility checkbox in the training/quick start card.
+- Each quick start step has a tutorial video key and final YouTube URL in `src/lib/tutorialVideos.ts`.
 
 Verification already run for this local work:
 

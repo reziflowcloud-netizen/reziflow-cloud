@@ -39,6 +39,7 @@ type CustomSection = {
 type OrganizationSettings = {
   mosAutoRemindersEnabled: boolean
   tutorialVideosEnabled: boolean
+  quickStartEnabled: boolean
 }
 
 const fieldTypeValues = ['text', 'textarea', 'date', 'number', 'checkbox', 'select'] as const
@@ -81,11 +82,13 @@ const pageText = {
     autoRemindersTitle: 'Автоматические напоминания',
     mosAutoRemindersTitle: 'Автоматические напоминания с момента передачи документов в MOS',
     mosAutoRemindersDesc: 'Если включено, при сохранении дела с датой передачи в MOS автоматически создаются 4 напоминания: донести документы, получить ID, запросить логин и пароль от кабинета, проверить статус.',
-    tutorialVideosTitle: 'Обучающие видео',
+    tutorialVideosTitle: 'Обучение и быстрый старт',
     tutorialVideosToggleTitle: 'Показывать кнопки обучающих видео в разделах CRM',
     tutorialVideosDesc: 'Если включено, в рабочих разделах меню появятся кнопки с видео-инструкциями. Раздел настроек пока без видео.',
-    tutorialVideosSaved: 'Настройки обучающих видео сохранены',
-    tutorialVideosSaveFailed: 'Не удалось сохранить настройки обучающих видео',
+    quickStartToggleTitle: 'Показывать блок "Быстрый старт" на Dashboard',
+    quickStartDesc: 'Если включено, администратор фирмы видит первые шаги настройки CRM на главной странице.',
+    tutorialVideosSaved: 'Настройки обучения сохранены',
+    tutorialVideosSaveFailed: 'Не удалось сохранить настройки обучения',
     addCustomSection: 'Добавить свою секцию',
     clientCard: 'Карточка клиента',
     caseCard: 'Дело клиента',
@@ -162,11 +165,13 @@ const pageText = {
     autoRemindersTitle: 'Автоматичні нагадування',
     mosAutoRemindersTitle: 'Автоматичні нагадування з моменту передачі документів у MOS',
     mosAutoRemindersDesc: 'Якщо увімкнено, під час збереження справи з датою передачі в MOS автоматично створюються 4 нагадування: донести документи, отримати ID, запросити логін і пароль від кабінету, перевірити статус.',
-    tutorialVideosTitle: 'Навчальні відео',
+    tutorialVideosTitle: 'Навчання і швидкий старт',
     tutorialVideosToggleTitle: 'Показувати кнопки навчальних відео в розділах CRM',
     tutorialVideosDesc: 'Якщо увімкнено, у робочих розділах меню зʼявляться кнопки з відео-інструкціями. Розділ налаштувань поки без відео.',
-    tutorialVideosSaved: 'Налаштування навчальних відео збережено',
-    tutorialVideosSaveFailed: 'Не вдалося зберегти налаштування навчальних відео',
+    quickStartToggleTitle: 'Показувати блок "Швидкий старт" на Dashboard',
+    quickStartDesc: 'Якщо увімкнено, адміністратор фірми бачить перші кроки налаштування CRM на головній сторінці.',
+    tutorialVideosSaved: 'Налаштування навчання збережено',
+    tutorialVideosSaveFailed: 'Не вдалося зберегти налаштування навчання',
     addCustomSection: 'Додати свою секцію',
     clientCard: 'Картка клієнта',
     caseCard: 'Справа клієнта',
@@ -243,11 +248,13 @@ const pageText = {
     autoRemindersTitle: 'Automatyczne przypomnienia',
     mosAutoRemindersTitle: 'Automatyczne przypomnienia od momentu przekazania dokumentów do MOS',
     mosAutoRemindersDesc: 'Jeśli włączone, przy zapisie sprawy z datą przekazania do MOS automatycznie powstaną 4 przypomnienia: donieść dokumenty, otrzymać ID, poprosić o login i hasło do konta, sprawdzić status.',
-    tutorialVideosTitle: 'Filmy szkoleniowe',
+    tutorialVideosTitle: 'Szkolenie i szybki start',
     tutorialVideosToggleTitle: 'Pokazuj przyciski filmów szkoleniowych w sekcjach CRM',
     tutorialVideosDesc: 'Jeśli włączone, w roboczych sekcjach menu pojawią się przyciski z instrukcjami wideo. Sekcja ustawień na razie bez filmu.',
-    tutorialVideosSaved: 'Ustawienia filmów szkoleniowych zapisane',
-    tutorialVideosSaveFailed: 'Nie udało się zapisać ustawień filmów szkoleniowych',
+    quickStartToggleTitle: 'Pokazuj blok "Szybki start" na Dashboard',
+    quickStartDesc: 'Jeśli włączone, administrator firmy widzi pierwsze kroki konfiguracji CRM na stronie głównej.',
+    tutorialVideosSaved: 'Ustawienia szkolenia zapisane',
+    tutorialVideosSaveFailed: 'Nie udało się zapisać ustawień szkolenia',
     addCustomSection: 'Dodaj własną sekcję',
     clientCard: 'Karta klienta',
     caseCard: 'Sprawa klienta',
@@ -308,6 +315,7 @@ export default function SectionSettingsPage() {
   const [organizationSettings, setOrganizationSettings] = useState<OrganizationSettings>({
     mosAutoRemindersEnabled: true,
     tutorialVideosEnabled: false,
+    quickStartEnabled: true,
   })
 
   useEffect(() => {
@@ -329,6 +337,7 @@ export default function SectionSettingsPage() {
     setOrganizationSettings({
       mosAutoRemindersEnabled: organization?.settings?.mosAutoRemindersEnabled !== false,
       tutorialVideosEnabled: organization?.settings?.tutorialVideosEnabled === true,
+      quickStartEnabled: organization?.settings?.quickStartEnabled !== false,
     })
     setCanManage(Boolean(ui.canManage || custom.canManage || organization.canManage))
     setLoading(false)
@@ -383,6 +392,7 @@ export default function SectionSettingsPage() {
       setOrganizationSettings({
         mosAutoRemindersEnabled: data?.settings?.mosAutoRemindersEnabled !== false,
         tutorialVideosEnabled: data?.settings?.tutorialVideosEnabled === true,
+        quickStartEnabled: data?.settings?.quickStartEnabled !== false,
       })
       setMessage(successMessage)
     } else {
@@ -684,11 +694,35 @@ export default function SectionSettingsPage() {
                     </span>
                   </span>
                 </label>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <input
+                    type="checkbox"
+                    checked={organizationSettings.quickStartEnabled}
+                    disabled={!canManage}
+                    onChange={e => {
+                      setOrganizationSettings(current => ({
+                        ...current,
+                        quickStartEnabled: e.target.checked,
+                      }))
+                      setMessage('')
+                    }}
+                    style={{ width: 20, height: 20, marginTop: 2 }}
+                  />
+                  <span>
+                    <strong style={{ display: 'block', marginBottom: 4 }}>
+                      {text.quickStartToggleTitle}
+                    </strong>
+                    <span style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.45 }}>
+                      {text.quickStartDesc}
+                    </span>
+                  </span>
+                </label>
                 {canManage && (
                   <button
                     type="button"
                     className="btn btn-primary"
                     disabled={savingOrganizationSettings}
+                    style={{ gridColumn: '2', gridRow: '1 / span 2' }}
                     onClick={() => saveOrganizationSettings(
                       organizationSettings,
                       text.tutorialVideosSaved,

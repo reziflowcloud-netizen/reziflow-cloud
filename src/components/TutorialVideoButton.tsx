@@ -1,25 +1,45 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
 import { tutorialVideos, type TutorialVideoKey } from '@/lib/tutorialVideos'
 
 const copy = {
   ru: {
     button: 'Видео',
+    missing: 'Видео скоро',
     title: 'Открыть обучающее видео',
   },
   uk: {
     button: 'Відео',
+    missing: 'Відео скоро',
     title: 'Відкрити навчальне відео',
   },
   pl: {
     button: 'Wideo',
+    missing: 'Wideo wkrótce',
     title: 'Otwórz wideo szkoleniowe',
   },
 }
 
-export default function TutorialVideoButton({ videoKey }: { videoKey: TutorialVideoKey }) {
+type TutorialVideoButtonProps = {
+  videoKey: TutorialVideoKey
+  label?: string
+  missingLabel?: string
+  missingBehavior?: 'hide' | 'disabled'
+  className?: string
+  style?: CSSProperties
+}
+
+export default function TutorialVideoButton({
+  videoKey,
+  label,
+  missingLabel,
+  missingBehavior = 'hide',
+  className = '',
+  style,
+}: TutorialVideoButtonProps) {
   const { lang } = useLanguage()
   const [enabled, setEnabled] = useState(false)
   const video = tutorialVideos[videoKey]
@@ -43,9 +63,12 @@ export default function TutorialVideoButton({ videoKey }: { videoKey: TutorialVi
     }
   }, [])
 
-  if (!enabled || !url) return null
+  if (!enabled) return null
+  if (!url && missingBehavior === 'hide') return null
 
   function openVideo() {
+    if (!url) return
+
     const popup = window.open(
       url,
       `legalhub_tutorial_${videoKey}`,
@@ -62,14 +85,15 @@ export default function TutorialVideoButton({ videoKey }: { videoKey: TutorialVi
   return (
     <button
       type="button"
-      className="btn btn-secondary"
+      className={`btn btn-secondary ${className}`.trim()}
       onClick={openVideo}
-      title={`${text.title}: ${video.title}`}
-      aria-label={`${text.title}: ${video.title}`}
-      style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 7 }}
+      disabled={!url}
+      title={url ? `${text.title}: ${video.title}` : video.title}
+      aria-label={url ? `${text.title}: ${video.title}` : video.title}
+      style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 7, ...style }}
     >
       <span aria-hidden="true" style={{ fontSize: 12 }}>▶</span>
-      {text.button}
+      {url ? (label || text.button) : (missingLabel || text.missing)}
     </button>
   )
 }

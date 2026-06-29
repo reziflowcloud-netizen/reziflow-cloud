@@ -33,6 +33,10 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Отказ':               { bg: '#fef2f2', color: '#991b1b' },
 }
 
+function settingsObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
 export default async function DashboardPage() {
   const user = await getUser()
   const organizationId = getOrganizationId(user)
@@ -157,6 +161,12 @@ function DashboardOnboardingFallback() {
 }
 
 async function DashboardOnboardingSection({ organizationId }: { organizationId: string }) {
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { settings: true },
+  })
+  if (settingsObject(organization?.settings).quickStartEnabled === false) return null
+
   const [
     serviceCount,
     statusCount,

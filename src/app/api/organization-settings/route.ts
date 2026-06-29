@@ -5,11 +5,13 @@ import { getOrganizationId, getUser } from '@/lib/auth'
 type OrganizationSettings = {
   mosAutoRemindersEnabled: boolean
   tutorialVideosEnabled: boolean
+  quickStartEnabled: boolean
 }
 
 const defaultSettings: OrganizationSettings = {
   mosAutoRemindersEnabled: true,
   tutorialVideosEnabled: false,
+  quickStartEnabled: true,
 }
 
 function canManageSettings(user: any) {
@@ -25,6 +27,7 @@ function normalizeSettings(value: unknown): OrganizationSettings {
   return {
     mosAutoRemindersEnabled: raw.mosAutoRemindersEnabled !== false,
     tutorialVideosEnabled: raw.tutorialVideosEnabled === true,
+    quickStartEnabled: raw.quickStartEnabled !== false,
   }
 }
 
@@ -63,6 +66,7 @@ export async function PATCH(req: NextRequest) {
   const rawCurrent = toObject(organization.settings)
   const hasMosAutoReminders = Object.prototype.hasOwnProperty.call(incoming, 'mosAutoRemindersEnabled')
   const hasTutorialVideos = Object.prototype.hasOwnProperty.call(incoming, 'tutorialVideosEnabled')
+  const hasQuickStart = Object.prototype.hasOwnProperty.call(incoming, 'quickStartEnabled')
   const nextSettings: OrganizationSettings = {
     ...defaultSettings,
     ...rawCurrent,
@@ -72,6 +76,9 @@ export async function PATCH(req: NextRequest) {
     tutorialVideosEnabled: hasTutorialVideos
       ? incoming.tutorialVideosEnabled === true
       : current.tutorialVideosEnabled,
+    quickStartEnabled: hasQuickStart
+      ? incoming.quickStartEnabled !== false
+      : current.quickStartEnabled,
   }
 
   await prisma.organization.update({

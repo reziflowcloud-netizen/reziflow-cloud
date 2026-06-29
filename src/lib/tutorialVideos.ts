@@ -6,6 +6,11 @@ export type TutorialVideoKey =
   | 'stages'
   | 'tasks'
   | 'calendar'
+  | 'quickStartServices'
+  | 'quickStartStatuses'
+  | 'quickStartTeam'
+  | 'quickStartClients'
+  | 'quickStartFirstCase'
 
 export type TutorialVideo = {
   title: string
@@ -40,5 +45,25 @@ export const tutorialVideos: Record<TutorialVideoKey, TutorialVideo> = {
   calendar: {
     title: 'Календарь',
     url: 'https://youtu.be/Is3FaT2eugc?si=noFT8VRQPfxz8p-2',
+  },
+  quickStartServices: {
+    title: 'Быстрый старт: услуги',
+    url: 'https://youtu.be/VxGUsadsPxo',
+  },
+  quickStartStatuses: {
+    title: 'Быстрый старт: статусы дел',
+    url: 'https://youtu.be/mau-7D0BYKY',
+  },
+  quickStartTeam: {
+    title: 'Быстрый старт: команда',
+    url: 'https://youtu.be/cyoC4HGV1uQ',
+  },
+  quickStartClients: {
+    title: 'Быстрый старт: первые клиенты',
+    url: 'https://youtu.be/dbF68PoIRfc',
+  },
+  quickStartFirstCase: {
+    title: 'Быстрый старт: первое дело',
+    url: 'https://youtu.be/pTdhXahw8qM',
   },
 }

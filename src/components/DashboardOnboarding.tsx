@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
 import type { Lang } from '@/lib/translations'
+import TutorialVideoButton from '@/components/TutorialVideoButton'
+import type { TutorialVideoKey } from '@/lib/tutorialVideos'
 
 export type DashboardOnboardingStepId = 'services' | 'statuses' | 'team' | 'clients' | 'first-case'
 
@@ -32,6 +34,8 @@ type OnboardingCopy = {
   skipped: string
   skip: string
   restore: string
+  watchVideo: string
+  videoComingSoon: string
   newCase: string
   newClient: string
   closedText: (resolved: number, total: number) => string
@@ -55,6 +59,8 @@ const COPY: Record<Lang, OnboardingCopy> = {
     skipped: 'Пропущено',
     skip: 'Пропустить',
     restore: 'Вернуть шаг',
+    watchVideo: 'Смотреть видео',
+    videoComingSoon: 'Видео скоро',
     newCase: '+ Новое дело',
     newClient: '+ Новый клиент',
     closedText: (resolved, total) => `${resolved}/${total} шагов закрыто. Можно продолжить настройку позже.`,
@@ -98,6 +104,8 @@ const COPY: Record<Lang, OnboardingCopy> = {
     skipped: 'Пропущено',
     skip: 'Пропустити',
     restore: 'Повернути крок',
+    watchVideo: 'Дивитися відео',
+    videoComingSoon: 'Відео скоро',
     newCase: '+ Нова справа',
     newClient: '+ Новий клієнт',
     closedText: (resolved, total) => `${resolved}/${total} кроків закрито. Можна продовжити налаштування пізніше.`,
@@ -141,6 +149,8 @@ const COPY: Record<Lang, OnboardingCopy> = {
     skipped: 'Pominięto',
     skip: 'Pomiń',
     restore: 'Przywróć krok',
+    watchVideo: 'Obejrzyj wideo',
+    videoComingSoon: 'Wideo wkrótce',
     newCase: '+ Nowa sprawa',
     newClient: '+ Nowy klient',
     closedText: (resolved, total) => `${resolved}/${total} kroków zamknięto. Możesz kontynuować konfigurację później.`,
@@ -173,6 +183,14 @@ const COPY: Record<Lang, OnboardingCopy> = {
       },
     },
   },
+}
+
+const STEP_VIDEO_KEYS: Record<DashboardOnboardingStepId, TutorialVideoKey> = {
+  services: 'quickStartServices',
+  statuses: 'quickStartStatuses',
+  team: 'quickStartTeam',
+  clients: 'quickStartClients',
+  'first-case': 'quickStartFirstCase',
 }
 
 function stepMeta(step: DashboardOnboardingStep, lang: Lang) {
@@ -338,6 +356,15 @@ export default function DashboardOnboarding({ organizationId, steps }: Dashboard
                   {skipped ? copy.restore : copy.skip}
                 </button>
               )}
+              <div className="onboarding-step-tools">
+                <TutorialVideoButton
+                  videoKey={STEP_VIDEO_KEYS[step.id]}
+                  label={copy.watchVideo}
+                  missingLabel={copy.videoComingSoon}
+                  missingBehavior="disabled"
+                  className="onboarding-step-video"
+                />
+              </div>
             </article>
           )
         })}

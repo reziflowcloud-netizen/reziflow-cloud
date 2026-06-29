@@ -20,7 +20,7 @@ First:
 5. Briefly summarize what is already done and what the next step is.
 
 Current state:
-Lead -> Employee assignment is committed and deployed. Current active task: tutorial video buttons for the main CRM sections. The checkbox/settings/API/component are implemented locally, and YouTube URLs have been added to src/lib/tutorialVideos.ts.
+Lead -> Employee assignment and main CRM tutorial video buttons are committed and deployed. Current active task: Dashboard quick start visibility + per-step tutorial buttons. The code is implemented locally, and YouTube URLs for all individual quick start steps have been added to src/lib/tutorialVideos.ts.
 ```
 
 ## Quick Context
@@ -64,9 +64,10 @@ src/lib/tutorialVideos.ts
 ## Next Task Checklist
 
 - Confirm current git status.
-- Review the uncommitted tutorial video implementation.
+- Review the uncommitted Dashboard quick start implementation.
 - Keep tutorial videos disabled by default for every organization.
-- Test Settings -> Fields and sectors checkbox and the header button on Dashboard, Cases, Leads, Clients, Stages, Tasks, and Calendar.
+- Keep Dashboard quick start enabled by default, but allow admins to hide it from Settings -> Fields and sectors.
+- Test Settings -> Fields and sectors checkbox, Dashboard quick start visibility, and per-step video buttons.
 - Local `.env` now points to Supabase pooler URLs and passed connection checks on 2026-06-28.
 - Confirm restricted CRM user access still scopes by `assignedToId`.
 - The `20260627120000_lead_employee_assignment` migration has already been applied through `DIRECT_URL`.
@@ -93,5 +94,7 @@ cmd /c npx next build
 - The visible lead "Responsible" field is `Employee`; `assignedToId` remains internal and is not shown as a lead UI field.
 - Tutorial video buttons are controlled by `Organization.settings.tutorialVideosEnabled`; default is false.
 - Video URLs live in `src/lib/tutorialVideos.ts`; Stages, Tasks, and Calendar intentionally share one video URL.
+- Dashboard quick start is controlled by `Organization.settings.quickStartEnabled`; default is true.
+- Quick start step video URLs live in `src/lib/tutorialVideos.ts`.
 - Do not read, print, or commit `.env`.
 - Do not do broad refactors or encoding cleanup while implementing this feature.

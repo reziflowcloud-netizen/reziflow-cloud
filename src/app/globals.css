@@ -369,6 +369,24 @@ body { background: var(--bg); color: var(--text); transition: background 0.2s, c
 .onboarding-step-skip:hover {
   color: var(--brand);
 }
+.onboarding-step-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.onboarding-step-tools:empty {
+  display: none;
+}
+.onboarding-step-video {
+  padding: 6px 9px;
+  font-size: 11px;
+  justify-content: center;
+}
+.onboarding-step-video:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
 .onboarding-panel-foot {
   display: flex;
   flex-wrap: wrap;
