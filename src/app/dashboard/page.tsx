@@ -1,7 +1,7 @@
 // src/app/dashboard/page.tsx
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
-import { DataAccessScope, caseWhereForScope, clientWhereForScope, getDataAccessScope } from '@/lib/apiScope'
+import { DataAccessScope, caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import UpcomingEvents from '@/components/UpcomingEvents'
@@ -11,18 +11,6 @@ import { LocalizedMonthLabel } from '@/components/DashboardI18n'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
 
 export const dynamic = 'force-dynamic'
-
-function dashboardCaseMonthWhere(organizationId: string, start: Date, end: Date, scope: DataAccessScope) {
-  return caseWhereForScope(scope, organizationId, {
-    OR: [
-      { contractSigned: true, contractDate: { gte: start, lt: end } },
-      {
-        createdAt: { gte: start, lt: end },
-        OR: [{ contractSigned: false }, { contractDate: null }],
-      },
-    ],
-  })
-}
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый':               { bg: '#eff6ff', color: '#1d4ed8' },
@@ -35,6 +23,21 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 
 function settingsObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+type DashboardMonthSummary = {
+  monthKey: string
+  cases: number
+  clients: number
+}
+
+type DashboardStatsSummary = {
+  totalClients: number
+  totalCases: number
+  activeCases: number
+  monthlyIncome: number
+  totalDebt: number
+  contractsNoPay: number
 }
 
 export default async function DashboardPage() {
@@ -130,7 +133,7 @@ export default async function DashboardPage() {
       <div className="page-body">
 
         {canManageSetup && quickStartEnabled && (
-          <Suspense fallback={<DashboardOnboardingFallback />}>
+          <Suspense fallback={null}>
             <DashboardOnboardingSection organizationId={organizationId} />
           </Suspense>
         )}
@@ -163,26 +166,30 @@ export default async function DashboardPage() {
   )
 }
 
-function DashboardOnboardingFallback() {
-  return <div className="onboarding-panel" style={{ minHeight: 210, opacity: 0.72 }} />
-}
-
 async function DashboardOnboardingSection({ organizationId }: { organizationId: string }) {
-  const [
-    serviceCount,
-    statusCount,
-    userCount,
-    employeeCount,
-    clientCount,
-    caseCount,
-  ] = await Promise.all([
-    prisma.service.count({ where: { organizationId, active: true } }),
-    prisma.caseStatus.count({ where: { organizationId } }),
-    prisma.user.count({ where: { organizationId } }),
-    prisma.employee.count({ where: { organizationId, active: true } }),
-    prisma.client.count({ where: { organizationId } }),
-    prisma.case.count({ where: { organizationId } }),
-  ])
+  const [counts] = await prisma.$queryRaw<Array<{
+    serviceCount: number
+    statusCount: number
+    userCount: number
+    employeeCount: number
+    clientCount: number
+    caseCount: number
+  }>>`
+    SELECT
+      (SELECT COUNT(*)::int FROM "Service" WHERE "organizationId" = ${organizationId} AND "active" = true) AS "serviceCount",
+      (SELECT COUNT(*)::int FROM "CaseStatus" WHERE "organizationId" = ${organizationId}) AS "statusCount",
+      (SELECT COUNT(*)::int FROM "User" WHERE "organizationId" = ${organizationId}) AS "userCount",
+      (SELECT COUNT(*)::int FROM "Employee" WHERE "organizationId" = ${organizationId} AND "active" = true) AS "employeeCount",
+      (SELECT COUNT(*)::int FROM "Client" WHERE "organizationId" = ${organizationId}) AS "clientCount",
+      (SELECT COUNT(*)::int FROM "Case" WHERE "organizationId" = ${organizationId}) AS "caseCount"
+  `
+
+  const serviceCount = Number(counts?.serviceCount || 0)
+  const statusCount = Number(counts?.statusCount || 0)
+  const userCount = Number(counts?.userCount || 0)
+  const employeeCount = Number(counts?.employeeCount || 0)
+  const clientCount = Number(counts?.clientCount || 0)
+  const caseCount = Number(counts?.caseCount || 0)
 
   const hasTeam = userCount > 1 || employeeCount > 0
 
@@ -245,45 +252,79 @@ async function DashboardStats({ organizationId, scope }: { organizationId: strin
 
   try {
     const scopedUserId = scope.restricted ? scope.userId : null
-    const caseWhere = caseWhereForScope(scope, organizationId)
-    const [clientCount, caseStats, payments] = await Promise.all([
-      prisma.client.count({ where: clientWhereForScope(scope, organizationId) }),
-      prisma.$queryRaw<Array<{ totalCases: number; activeCases: number; totalDebt: number; contractsNoPay: number }>>`
-        SELECT
-          COUNT(*)::int AS "totalCases",
-          COUNT(*) FILTER (
-            WHERE lower(status) NOT LIKE '%архив%'
-              AND lower(status) NOT LIKE '%архів%'
-              AND lower(status) NOT LIKE '%archive%'
-              AND lower(status) NOT LIKE '%archiw%'
-              AND lower(status) NOT LIKE '%отказ%'
-              AND lower(status) NOT LIKE '%відмова%'
-              AND lower(status) NOT LIKE '%odmowa%'
-              AND lower(status) NOT LIKE '%refusal%'
-              AND lower(status) NOT LIKE '%rejected%'
-              AND lower(status) NOT LIKE '%закрыт%'
-              AND lower(status) NOT LIKE '%закрит%'
-              AND lower(status) NOT LIKE '%closed%'
-              AND lower(status) NOT LIKE '%zamkni%'
-          )::int AS "activeCases",
-          COALESCE(SUM(GREATEST("totalValue" - "totalPaid", 0)), 0)::double precision AS "totalDebt",
-          COUNT(*) FILTER (WHERE "contractSigned" = true AND "totalPaid" = 0 AND "totalValue" > 0)::int AS "contractsNoPay"
-        FROM "Case"
-        WHERE "organizationId" = ${organizationId}
-          AND (${scopedUserId}::int IS NULL OR "assignedToId" = ${scopedUserId})
-      `,
-      prisma.payment.aggregate({
-        where: { date: { gte: startOfMonth }, case: caseWhere },
-        _sum: { amount: true },
-      }),
-    ])
-    const stats = caseStats[0] || { totalCases: 0, activeCases: 0, totalDebt: 0, contractsNoPay: 0 }
-    totalClients = clientCount
-    totalCases = Number(stats.totalCases || 0)
-    activeCases = Number(stats.activeCases || 0)
-    monthlyIncome = payments._sum.amount || 0
-    totalDebt = Number(stats.totalDebt || 0)
-    contractsNoPay = Number(stats.contractsNoPay || 0)
+    const [stats] = await prisma.$queryRaw<DashboardStatsSummary[]>`
+      SELECT
+        (
+          SELECT COUNT(*)::int
+          FROM "Client" cl
+          WHERE cl."organizationId" = ${organizationId}
+            AND (
+              ${scopedUserId}::int IS NULL
+              OR cl."assignedToId" = ${scopedUserId}
+              OR EXISTS (
+                SELECT 1
+                FROM "Case" scoped_case
+                WHERE scoped_case."clientId" = cl."id"
+                  AND scoped_case."organizationId" = ${organizationId}
+                  AND scoped_case."assignedToId" = ${scopedUserId}
+              )
+            )
+        ) AS "totalClients",
+        (
+          SELECT COUNT(*)::int
+          FROM "Case" c
+          WHERE c."organizationId" = ${organizationId}
+            AND (${scopedUserId}::int IS NULL OR c."assignedToId" = ${scopedUserId})
+        ) AS "totalCases",
+        (
+          SELECT COUNT(*)::int
+          FROM "Case" c
+          WHERE c."organizationId" = ${organizationId}
+            AND (${scopedUserId}::int IS NULL OR c."assignedToId" = ${scopedUserId})
+            AND lower(c."status") NOT LIKE '%архив%'
+            AND lower(c."status") NOT LIKE '%архів%'
+            AND lower(c."status") NOT LIKE '%archive%'
+            AND lower(c."status") NOT LIKE '%archiw%'
+            AND lower(c."status") NOT LIKE '%отказ%'
+            AND lower(c."status") NOT LIKE '%відмова%'
+            AND lower(c."status") NOT LIKE '%odmowa%'
+            AND lower(c."status") NOT LIKE '%refusal%'
+            AND lower(c."status") NOT LIKE '%rejected%'
+            AND lower(c."status") NOT LIKE '%закрыт%'
+            AND lower(c."status") NOT LIKE '%закрит%'
+            AND lower(c."status") NOT LIKE '%closed%'
+            AND lower(c."status") NOT LIKE '%zamkni%'
+        ) AS "activeCases",
+        (
+          SELECT COALESCE(SUM(p."amount"), 0)::double precision
+          FROM "Payment" p
+          JOIN "Case" c ON c."id" = p."caseId"
+          WHERE p."date" >= ${startOfMonth}
+            AND c."organizationId" = ${organizationId}
+            AND (${scopedUserId}::int IS NULL OR c."assignedToId" = ${scopedUserId})
+        ) AS "monthlyIncome",
+        (
+          SELECT COALESCE(SUM(GREATEST(c."totalValue" - c."totalPaid", 0)), 0)::double precision
+          FROM "Case" c
+          WHERE c."organizationId" = ${organizationId}
+            AND (${scopedUserId}::int IS NULL OR c."assignedToId" = ${scopedUserId})
+        ) AS "totalDebt",
+        (
+          SELECT COUNT(*)::int
+          FROM "Case" c
+          WHERE c."organizationId" = ${organizationId}
+            AND (${scopedUserId}::int IS NULL OR c."assignedToId" = ${scopedUserId})
+            AND c."contractSigned" = true
+            AND c."totalPaid" = 0
+            AND c."totalValue" > 0
+        ) AS "contractsNoPay"
+    `
+    totalClients = Number(stats?.totalClients || 0)
+    totalCases = Number(stats?.totalCases || 0)
+    activeCases = Number(stats?.activeCases || 0)
+    monthlyIncome = Number(stats?.monthlyIncome || 0)
+    totalDebt = Number(stats?.totalDebt || 0)
+    contractsNoPay = Number(stats?.contractsNoPay || 0)
   } catch (e) { console.error(e) }
 
   return (
@@ -366,17 +407,48 @@ function DashboardChartsFallback() {
 }
 
 async function DashboardCharts({ organizationId, scope }: { organizationId: string; scope: DataAccessScope }) {
-  const lastMonths = await Promise.all(dashboardMonthRanges().map(async ({ start, end }) => {
-    const [cases, clients] = await Promise.all([
-      prisma.case.count({ where: dashboardCaseMonthWhere(organizationId, start, end, scope) }),
-      prisma.client.count({ where: clientWhereForScope(scope, organizationId, { createdAt: { gte: start, lt: end } }) }),
-    ])
-    return {
-      monthKey: `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, '0')}`,
-      cases,
-      clients,
-    }
-  }))
+  const monthRanges = dashboardMonthRanges()
+  const firstMonthStart = monthRanges[0].start
+  const lastMonthStart = monthRanges[monthRanges.length - 1].start
+  const scopedUserId = scope.restricted ? scope.userId : null
+  const lastMonths = await prisma.$queryRaw<DashboardMonthSummary[]>`
+    SELECT
+      to_char(months.month_start, 'YYYY-MM') AS "monthKey",
+      (
+        SELECT COUNT(*)::int
+        FROM "Case" c
+        WHERE c."organizationId" = ${organizationId}
+          AND (${scopedUserId}::int IS NULL OR c."assignedToId" = ${scopedUserId})
+          AND (
+            (c."contractSigned" = true AND c."contractDate" >= months.month_start AND c."contractDate" < months.month_start + interval '1 month')
+            OR (
+              c."createdAt" >= months.month_start
+              AND c."createdAt" < months.month_start + interval '1 month'
+              AND (c."contractSigned" = false OR c."contractDate" IS NULL)
+            )
+          )
+      ) AS "cases",
+      (
+        SELECT COUNT(*)::int
+        FROM "Client" cl
+        WHERE cl."organizationId" = ${organizationId}
+          AND cl."createdAt" >= months.month_start
+          AND cl."createdAt" < months.month_start + interval '1 month'
+          AND (
+            ${scopedUserId}::int IS NULL
+            OR cl."assignedToId" = ${scopedUserId}
+            OR EXISTS (
+              SELECT 1
+              FROM "Case" scoped_case
+              WHERE scoped_case."clientId" = cl."id"
+                AND scoped_case."organizationId" = ${organizationId}
+                AND scoped_case."assignedToId" = ${scopedUserId}
+            )
+          )
+      ) AS "clients"
+    FROM generate_series(${firstMonthStart}::timestamp, ${lastMonthStart}::timestamp, interval '1 month') AS months(month_start)
+    ORDER BY months.month_start
+  `
   const maxCases = Math.max(...lastMonths.map(m => m.cases), 1)
   const maxClients = Math.max(...lastMonths.map(m => m.clients), 1)
   const makeBars = (metric: 'cases' | 'clients', max: number) => lastMonths.map(m => ({
