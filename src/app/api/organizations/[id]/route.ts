@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
+import path from 'path'
+import { unlink } from 'fs/promises'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { deleteCloudinaryResources } from '@/lib/cloudinary'
+import { deleteDropboxFile, getDropboxSettings } from '@/lib/dropbox'
 import { isSystemAdmin, organizationInclude } from '@/lib/organizationProvisioning'
 
 const BILLING_LIMIT_KEYS = ['users', 'clients', 'cases', 'leads'] as const
@@ -31,6 +35,68 @@ function normalizeBillingLimits(value: unknown) {
   }
 
   return limits
+}
+
+async function deleteLocalDocument(publicId: string | null | undefined) {
+  if (!publicId || !String(publicId).startsWith('local:')) return false
+
+  const publicRoot = path.resolve(process.cwd(), 'public')
+  const publicPath = String(publicId).replace(/^local:/, '').replace(/^\/+/, '')
+  const filePath = path.resolve(publicRoot, publicPath)
+  if (!filePath.startsWith(`${publicRoot}${path.sep}`)) return false
+
+  try {
+    await unlink(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function cleanupOrganizationDocumentFiles(organizationId: string, organizationSettings: unknown) {
+  const documents = await (prisma as any).caseDocument.findMany({
+    where: { case: { organizationId } },
+    select: {
+      publicId: true,
+      storageProvider: true,
+      storageId: true,
+      storagePath: true,
+      dropboxStorageId: true,
+      dropboxPath: true,
+    },
+  })
+
+  const cloudinaryPublicIds = documents
+    .filter((doc: any) => doc.publicId && doc.storageProvider !== 'dropbox' && !String(doc.publicId).startsWith('local:'))
+    .map((doc: any) => doc.publicId)
+
+  const [deletedCloudinaryFiles, localResults] = await Promise.all([
+    deleteCloudinaryResources(cloudinaryPublicIds),
+    Promise.all(documents.map((doc: any) => deleteLocalDocument(doc.publicId))),
+  ])
+
+  const dropbox = getDropboxSettings(organizationSettings)
+  let deletedDropboxFiles = 0
+  if (dropbox.accessToken) {
+    for (const doc of documents as any[]) {
+      const isDropboxOnly = doc.storageProvider === 'dropbox'
+      const dropboxPathOrId = doc.dropboxStorageId || doc.dropboxPath || doc.storageId || doc.storagePath || (isDropboxOnly ? doc.publicId : null)
+      if (!dropboxPathOrId) continue
+      try {
+        await deleteDropboxFile(dropbox.accessToken, dropboxPathOrId)
+        deletedDropboxFiles += 1
+      } catch (error) {
+        console.error('Dropbox organization document delete error:', error)
+      }
+    }
+  }
+
+  return {
+    documentsFound: documents.length,
+    deletedCloudinaryFiles,
+    deletedDropboxFiles,
+    deletedLocalFiles: localResults.filter(Boolean).length,
+  }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -144,7 +210,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   try {
     const organization = await prisma.organization.findUnique({
       where: { id: params.id },
-      select: { id: true, name: true },
+      select: { id: true, name: true, settings: true },
     })
     if (!organization) {
       return NextResponse.json({ error: 'Организация не найдена' }, { status: 404 })
@@ -154,6 +220,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     if (organizationCount <= 1) {
       return NextResponse.json({ error: 'Нельзя удалить последнюю организацию' }, { status: 400 })
     }
+
+    const fileCleanup = await cleanupOrganizationDocumentFiles(params.id, organization.settings)
 
     await prisma.$transaction(async tx => {
       const cases = await tx.case.findMany({
@@ -238,7 +306,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
       await tx.organization.delete({ where: { id: params.id } })
     })
 
-    return NextResponse.json({ success: true, id: organization.id, name: organization.name })
+    return NextResponse.json({ success: true, id: organization.id, name: organization.name, fileCleanup })
   } catch (e: any) {
     console.error('Organization delete error:', e)
     return NextResponse.json({ error: e.message || 'Ошибка удаления организации' }, { status: 500 })
