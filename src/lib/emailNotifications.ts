@@ -8,6 +8,20 @@ type ContactNotificationInput = {
   replyTo?: string | null
 }
 
+type RegistrationNotificationInput = {
+  organizationId: string
+  organizationName: string
+  organizationSlug?: string | null
+  adminName: string
+  adminEmail: string
+  plan?: string | null
+  status?: string | null
+  billingStatus?: string | null
+  referralCode?: string | null
+  landingPath?: string | null
+  sourcePage?: string | null
+}
+
 function recipientsFromEnv() {
   const raw = process.env.CONTACT_EMAIL_TO || process.env.NOTIFICATION_EMAIL || DEFAULT_CONTACT_EMAIL
   return raw
@@ -108,4 +122,29 @@ export async function sendContactNotification(input: ContactNotificationInput) {
   }
 
   return { sent: true, skipped: false }
+}
+
+export async function sendRegistrationNotification(input: RegistrationNotificationInput) {
+  const createdAt = new Date().toLocaleString('pl-PL', { timeZone: 'Europe/Warsaw' })
+
+  return sendContactNotification({
+    subject: `New LegalHub CRM registration: ${input.organizationName}`,
+    title: 'New LegalHub CRM registration',
+    replyTo: input.adminEmail,
+    lines: [
+      ['Organization', input.organizationName],
+      ['Organization slug', input.organizationSlug],
+      ['Organization ID', input.organizationId],
+      ['Admin name', input.adminName],
+      ['Admin email', input.adminEmail],
+      ['Plan', input.plan],
+      ['Organization status', input.status],
+      ['Billing status', input.billingStatus],
+      ['Referral code', input.referralCode],
+      ['Landing path', input.landingPath],
+      ['Registration page', input.sourcePage],
+      ['Created at', `${createdAt} Europe/Warsaw`],
+    ],
+    message: 'A new organization was created in LegalHub CRM. You can reply directly to this email to contact the new administrator.',
+  })
 }

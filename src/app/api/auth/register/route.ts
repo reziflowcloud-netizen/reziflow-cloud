@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { signToken } from '@/lib/auth'
+import { sendRegistrationNotification } from '@/lib/emailNotifications'
 import { ensureDefaultOrganization, provisionOrganization } from '@/lib/organizationProvisioning'
 
 const ALLOWED_PLANS = new Set(['free', 'starter', 'pro', 'agency'])
@@ -43,6 +44,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Не удалось создать администратора организации' }, { status: 500 })
     }
 
+    const notification = await sendRegistrationNotification({
+      organizationId: organization.id,
+      organizationName: organization.name,
+      organizationSlug: organization.slug,
+      adminName: admin.name,
+      adminEmail: admin.email,
+      plan: organization.plan,
+      status: organization.status,
+      billingStatus: (organization as any).billingStatus,
+      referralCode,
+      landingPath,
+      sourcePage: request.headers.get('referer'),
+    }).catch(error => {
+      console.error('Registration notification failed:', error)
+      return { sent: false, skipped: false }
+    })
+
     const token = await signToken({
       id: admin.id,
       email: admin.email,
@@ -78,6 +96,7 @@ export async function POST(request: NextRequest) {
         billingStatus: (organization as any).billingStatus,
         trialEndsAt: organization.trialEndsAt,
       },
+      notificationSent: notification.sent,
     })
   } catch (error: any) {
     console.error('Register organization error:', error)
