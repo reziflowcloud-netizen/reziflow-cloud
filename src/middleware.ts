@@ -12,6 +12,7 @@ const PUBLIC_PATHS = [
   '/privacy',
   '/data-deletion',
   '/delete-data',
+  '/regulamin',
   '/favicon.svg',
   '/favicon.png',
   '/manifest.json',

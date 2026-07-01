@@ -15,16 +15,53 @@ function normalizePlan(value: string): PlanId {
   return PLAN_IDS.includes(value as PlanId) ? value as PlanId : 'free'
 }
 
+const LEGAL_CONSENT_COPY = {
+  ru: {
+    prefix: 'Я принимаю',
+    and: 'и',
+    terms: 'Regulamin',
+    privacy: 'Privacy Policy',
+    dataDeletion: 'Data Deletion Instructions',
+    required: 'Подтвердите согласие с документами LegalHub.',
+  },
+  uk: {
+    prefix: 'Я приймаю',
+    and: 'та',
+    terms: 'Regulamin',
+    privacy: 'Privacy Policy',
+    dataDeletion: 'Data Deletion Instructions',
+    required: 'Підтвердьте згоду з документами LegalHub.',
+  },
+  pl: {
+    prefix: 'Akceptuję',
+    and: 'oraz',
+    terms: 'Regulamin',
+    privacy: 'Privacy Policy',
+    dataDeletion: 'Data Deletion Instructions',
+    required: 'Potwierdź akceptację dokumentów LegalHub.',
+  },
+  en: {
+    prefix: 'I accept',
+    and: 'and',
+    terms: 'Regulamin',
+    privacy: 'Privacy Policy',
+    dataDeletion: 'Data Deletion Instructions',
+    required: 'Please confirm that you accept the LegalHub documents.',
+  },
+}
+
 export default function RegisterClient({ initialPlan, referralCode }: { initialPlan: string, referralCode?: string }) {
   const router = useRouter()
   const { lang } = useMarketingLanguage()
   const copy = getAuthCopy(lang).register
+  const legalCopy = LEGAL_CONSENT_COPY[lang] || LEGAL_CONSENT_COPY.ru
   const [companyName, setCompanyName] = useState('')
   const [adminName, setAdminName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [plan, setPlan] = useState<PlanId>(normalizePlan(initialPlan))
+  const [acceptedLegal, setAcceptedLegal] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -33,6 +70,10 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    if (!acceptedLegal) {
+      setError(legalCopy.required)
+      return
+    }
     setLoading(true)
 
     try {
@@ -142,7 +183,36 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
             </div>
           </div>
 
-          <button className="btn btn-primary register-submit" type="submit" disabled={loading}>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+              color: 'var(--muted)',
+              fontSize: 13,
+              lineHeight: 1.45,
+              margin: '4px 0 14px',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={acceptedLegal}
+              onChange={event => setAcceptedLegal(event.target.checked)}
+              required
+              style={{ width: 18, height: 18, marginTop: 1, accentColor: 'var(--brand)', flex: '0 0 auto' }}
+            />
+            <span>
+              {legalCopy.prefix}{' '}
+              <Link href="/regulamin" target="_blank" rel="noreferrer" style={{ color: 'var(--brand)', fontWeight: 700 }}>{legalCopy.terms}</Link>
+              {', '}
+              <Link href="/privacy" target="_blank" rel="noreferrer" style={{ color: 'var(--brand)', fontWeight: 700 }}>{legalCopy.privacy}</Link>
+              {' '}
+              {legalCopy.and}{' '}
+              <Link href="/data-deletion" target="_blank" rel="noreferrer" style={{ color: 'var(--brand)', fontWeight: 700 }}>{legalCopy.dataDeletion}</Link>.
+            </span>
+          </label>
+
+          <button className="btn btn-primary register-submit" type="submit" disabled={loading || !acceptedLegal}>
             {loading ? copy.loading : plan === 'free' ? copy.submitFree : copy.submitPlan.replace('{plan}', planName)}
           </button>
         </form>

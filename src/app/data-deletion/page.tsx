@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: 'Instructions for deleting data processed by LegalHub and Meta integrations.',
 }
 
-const updatedAt = 'May 18, 2026'
+const updatedAt = 'July 1, 2026'
 
 export default function DataDeletionPage() {
   return (
@@ -51,10 +51,11 @@ export default function DataDeletionPage() {
 
         <h2>4. Service-Level Deletion Request</h2>
         <p>
-          If data cannot be deleted directly in the CRM interface, the agency administrator should contact the
-          LegalHub service owner through the agreed support channel and provide enough information to identify
-          the organization and the records to delete. LegalHub will process valid deletion requests within a
-          reasonable period, unless retention is required for legal, security or fraud-prevention reasons.
+          If data cannot be deleted directly in the CRM interface, the agency administrator should contact
+          LegalHub support at <a href="mailto:office@legalhubcrm.com" style={{ color: '#0891b2', fontWeight: 700 }}>office@legalhubcrm.com</a>,
+          providing enough information to identify the organization and the records to delete.
+          LegalHub will process valid deletion requests within a reasonable period, unless retention is
+          required for legal, security or fraud-prevention reasons.
         </p>
 
         <h2>5. What Happens After Deletion</h2>

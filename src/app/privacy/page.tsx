@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: 'Privacy policy for LegalHub integrations and customer communication features.',
 }
 
-const updatedAt = 'May 18, 2026'
+const updatedAt = 'July 1, 2026'
 
 export default function PrivacyPolicyPage() {
   return (
@@ -15,6 +15,16 @@ export default function PrivacyPolicyPage() {
         <Link href="/" style={{ color: '#0891b2', fontWeight: 700, textDecoration: 'none' }}>LegalHub</Link>
         <h1 style={{ fontSize: 34, lineHeight: 1.15, margin: '18px 0 8px' }}>Privacy Policy</h1>
         <p style={{ color: '#64748b', marginBottom: 28 }}>Last updated: {updatedAt}</p>
+
+        <section style={{ background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: 10, padding: 16, marginBottom: 24 }}>
+          <h2 style={{ marginTop: 0, fontSize: 18 }}>Administrator Danych:</h2>
+          <p style={{ marginBottom: 0 }}>
+            LegalHub CRM JDG Valentyn Verbelchuk<br />
+            Adres: 02-786 Warszawa, ul. Zamiany 8, lu 202<br />
+            NIP: 9512609364<br />
+            Kontakt: <a href="mailto:office@legalhubcrm.com" style={{ color: '#0891b2', fontWeight: 700 }}>office@legalhubcrm.com</a>
+          </p>
+        </section>
 
         <p>
           LegalHub is a customer relationship management system for immigration and legalization agencies.
@@ -41,7 +51,10 @@ export default function PrivacyPolicyPage() {
         </ul>
 
         <h2>3. How We Use Information</h2>
-        <p>Information is processed only to provide and maintain the CRM service, including to:</p>
+        <p>
+          Information is processed only to provide and maintain the CRM service, based on Article 6(1)(b)
+          of the GDPR (performance of a contract), including to:
+        </p>
         <ul>
           <li>create and update leads and client records;</li>
           <li>show incoming messages from Facebook Messenger and Instagram Direct inside the CRM;</li>
@@ -74,24 +87,29 @@ export default function PrivacyPolicyPage() {
           administrators.
         </p>
 
-        <h2>7. Data Retention</h2>
+        <h2>7. Data Location</h2>
+        <p>
+          Data is processed and stored primarily on servers located within the European Economic Area (EEA).
+        </p>
+
+        <h2>8. Data Retention</h2>
         <p>
           Data is retained while the agency uses LegalHub and as needed for operational, legal or security
           reasons. Agencies can delete records inside the CRM where the product provides deletion controls, or
           request broader deletion as described in our data deletion instructions.
         </p>
 
-        <h2>8. Data Deletion</h2>
+        <h2>9. Data Deletion</h2>
         <p>
           Instructions for requesting deletion of CRM data and Meta integration data are available at{' '}
           <Link href="/data-deletion" style={{ color: '#0891b2', fontWeight: 700 }}>Data Deletion Instructions</Link>.
         </p>
 
-        <h2>9. Contact</h2>
+        <h2>10. Contact</h2>
         <p>
           For privacy or data deletion requests, contact the organization that manages your case in LegalHub.
           If you are a LegalHub administrator and need service-level assistance, contact the LegalHub
-          service owner through your support channel.
+          service owner at <a href="mailto:office@legalhubcrm.com" style={{ color: '#0891b2', fontWeight: 700 }}>office@legalhubcrm.com</a>.
         </p>
       </article>
     </main>
