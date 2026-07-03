@@ -19,16 +19,17 @@ const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
 const ALL_COLUMNS = [
   { key: 'name',        labelKey: 'name_and_lastname',   always: true },
   { key: 'phone',       labelKey: 'phone' },
+  { key: 'responsible', labelKey: 'responsible' },
   { key: 'email',       labelKey: 'email' },
   { key: 'pesel',       labelKey: 'pesel' },
   { key: 'citizenship', labelKey: 'citizenship' },
   { key: 'birthDate',   labelKey: 'birth_date' },
   { key: 'cases',       labelKey: 'cases_title' },
 ]
-const DEFAULT_VISIBLE_COLUMNS = ['name','phone','pesel','citizenship','birthDate','cases']
+const DEFAULT_VISIBLE_COLUMNS = ['name','phone','responsible','pesel','citizenship','birthDate','cases']
 const COLUMN_KEYS = ALL_COLUMNS.map(col => col.key)
 
-type SortKey = 'name' | 'cases' | 'birthDate' | 'date'
+type SortKey = 'name' | 'responsible' | 'cases' | 'birthDate' | 'date'
 type SortDir = 'asc' | 'desc'
 
 export default function ClientsPage() {
@@ -98,6 +99,7 @@ export default function ClientsPage() {
     .sort((a, b) => {
       let va: any, vb: any
       if (sortKey === 'name') { va = `${a.firstName} ${a.lastName}`; vb = `${b.firstName} ${b.lastName}` }
+      else if (sortKey === 'responsible') { va = responsibleName(a); vb = responsibleName(b) }
       else if (sortKey === 'cases') { va = a.cases?.length || 0; vb = b.cases?.length || 0 }
       else if (sortKey === 'birthDate') { va = a.birthDate || ''; vb = b.birthDate || '' }
       else { va = new Date(a.createdAt).getTime(); vb = new Date(b.createdAt).getTime() }
@@ -191,7 +193,11 @@ export default function ClientsPage() {
                     </th>
                   )}
                   {visibleCols.includes('phone') && <th style={{ minWidth: 130 }}>{t('phone')}</th>}
-                  <th style={{ minWidth: 150 }}>{t('responsible')}</th>
+                  {visibleCols.includes('responsible') && (
+                    <th onClick={() => toggleSort('responsible')} style={{ cursor: 'pointer', userSelect: 'none', minWidth: 150 }}>
+                      {t('responsible')} <SortIcon k="responsible" />
+                    </th>
+                  )}
                   {visibleCols.includes('email') && <th style={{ minWidth: 180 }}>E-mail</th>}
                   {visibleCols.includes('pesel') && <th style={{ minWidth: 120 }}>PESEL</th>}
                   {visibleCols.includes('citizenship') && <th style={{ minWidth: 120 }}>{t('citizenship')}</th>}
@@ -236,9 +242,11 @@ export default function ClientsPage() {
                         </td>
                       )}
                       {visibleCols.includes('phone') && <td style={{ fontSize: 13 }}>{client.phone || '—'}</td>}
-                      <td style={{ fontSize: 13, color: responsibleName(client) ? 'var(--text)' : 'var(--muted)' }}>
-                        {responsibleName(client) || '—'}
-                      </td>
+                      {visibleCols.includes('responsible') && (
+                        <td style={{ fontSize: 13, color: responsibleName(client) ? 'var(--text)' : 'var(--muted)' }}>
+                          {responsibleName(client) || '—'}
+                        </td>
+                      )}
                       {visibleCols.includes('email') && <td style={{ fontSize: 12, color: 'var(--muted)' }}>{client.email || '—'}</td>}
                       {visibleCols.includes('pesel') && <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{client.pesel || '—'}</td>}
                       {visibleCols.includes('citizenship') && <td style={{ fontSize: 13 }}>{client.citizenship || '—'}</td>}
