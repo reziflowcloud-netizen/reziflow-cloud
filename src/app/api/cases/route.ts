@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { caseWhereForScope, findScopedClient, getDataAccessScope } from '@/lib/apiScope'
 import { assertBillingLimit, billingLimitResponsePayload, isBillableActiveCaseStatus, isBillingLimitError } from '@/lib/billing'
+import { resolveUserIdForEmployee } from '@/lib/employeeSync'
 
 export async function GET(request: NextRequest) {
   const user = await getUser()
@@ -24,6 +25,7 @@ export async function GET(request: NextRequest) {
           createdAt: true,
           client: { select: { firstName: true, lastName: true, phone: true } },
           assignedTo: { select: { id: true, name: true, email: true } },
+          employee: { select: { id: true, name: true } },
           service: { select: { name: true, color: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -33,14 +35,14 @@ export async function GET(request: NextRequest) {
 
     const cases = await prisma.case.findMany({
       where: caseWhereForScope(scope, organizationId),
-      include: { client: true, assignedTo: true, service: true },
+      include: { client: true, assignedTo: true, employee: true, service: true },
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json(cases)
   } catch (e: any) {
     const cases = await prisma.case.findMany({
       where: caseWhereForScope(scope, organizationId),
-      include: { client: true, assignedTo: true },
+      include: { client: true, assignedTo: true, employee: true },
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json(cases)
@@ -61,6 +63,10 @@ export async function POST(request: NextRequest) {
 
     const caseNumber = body.caseNumber?.trim() || null
     const status = body.status || 'Новый'
+    const employeeId = body.employeeId ? parseInt(body.employeeId) : null
+    const employeeUserId = !scope.restricted && employeeId
+      ? await resolveUserIdForEmployee(organizationId, employeeId)
+      : null
     if (isBillableActiveCaseStatus(status)) {
       await assertBillingLimit(organizationId, 'cases')
     }
@@ -75,7 +81,8 @@ export async function POST(request: NextRequest) {
         stayType: body.stayType || null,
         contractType: body.contractType || null,
         totalValue: parseFloat(body.totalValue) || 0,
-        assignedToId: scope.restricted && scope.userId ? scope.userId : body.assignedToId ? parseInt(body.assignedToId) : null,
+        assignedToId: scope.restricted && scope.userId ? scope.userId : body.assignedToId ? parseInt(body.assignedToId) : employeeUserId,
+        employeeId,
         serviceId: body.serviceId ? parseInt(body.serviceId) : null,
         notes: body.notes || null,
       }

@@ -263,6 +263,13 @@ export async function provisionOrganization(input: {
         organizationId: org.id,
       },
     })
+    await (tx as any).employee.create({
+      data: {
+        organizationId: org.id,
+        name: adminName,
+        active: true,
+      },
+    })
 
     await tx.caseStatus.createMany({
       data: template.statuses.map(item => ({ ...item, organizationId: org.id })),

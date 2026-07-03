@@ -5,6 +5,7 @@ import { getOrganizationId, getUser, signToken } from '@/lib/auth'
 import bcrypt from 'bcryptjs'
 import { deleteCloudinaryResource } from '@/lib/cloudinary'
 import { cookies } from 'next/headers'
+import { ensureUserEmployees } from '@/lib/employeeSync'
 
 function canManageUsers(user: any) {
   return user?.role === 'admin' || user?.role === 'owner'
@@ -66,6 +67,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       data,
       select: { id: true, name: true, email: true, role: true, restrictedAccess: true, avatarUrl: true, createdAt: true },
     })
+    if (data.name) await ensureUserEmployees(organizationId)
     if (isSelf) await refreshUserCookie(updated, user)
     return NextResponse.json(updated)
   } catch (e: any) {

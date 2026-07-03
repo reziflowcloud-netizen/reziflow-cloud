@@ -5,6 +5,7 @@ import { getOrganizationId, getUser } from '@/lib/auth'
 import { deleteCloudinaryResources } from '@/lib/cloudinary'
 import { deleteDropboxFile, getDropboxSettings } from '@/lib/dropbox'
 import { caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
+import { resolveUserIdForEmployee } from '@/lib/employeeSync'
 
 function taskBelongsToCase(
   task: { title: string | null; description: string | null },
@@ -143,6 +144,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       where: caseWhereForScope(scope, organizationId, { id: params.id }),
       include: {
         client: true, service: true,
+        assignedTo: { select: { id: true, name: true, email: true } },
         payments: { orderBy: { date: 'desc' } },
         comments: { orderBy: { createdAt: 'desc' } },
         statusHistory: { orderBy: { changedAt: 'desc' } },
@@ -162,6 +164,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       where: caseWhereForScope(scope, organizationId, { id: params.id }),
       include: {
         client: true, service: true,
+        assignedTo: { select: { id: true, name: true, email: true } },
         payments: { orderBy: { date: 'desc' } },
         comments: { orderBy: { createdAt: 'desc' } },
         statusHistory: { orderBy: { changedAt: 'desc' } },
@@ -184,41 +187,52 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     // Базовые поля — всегда существуют
-    const baseData: any = {
-      caseNumber: body.caseNumber?.trim() || null,
-      status: body.status,
-      stayPurpose: body.stayPurpose || null,
-      stayType: body.stayType || null,
-      contractType: body.contractType || null,
-      contractDate: body.contractDate ? new Date(body.contractDate) : null,
-      contractNumber: body.contractNumber || null,
-      contractSigned: body.contractSigned ?? false,
-      totalValue: parseFloat(body.totalValue) || 0,
-      mosNumber: body.mosNumber || null,
-      mosSentAt: body.mosSentAt ? new Date(body.mosSentAt) : null,
-      mosSentByPost: body.mosSentByPost ?? false,
-      predictedDecisionDate: body.predictedDecisionDate ? new Date(body.predictedDecisionDate) : null,
-      fingerprintsDate: body.fingerprintsDate ? new Date(body.fingerprintsDate) : null,
-      cabinetLogin: body.cabinetLogin || null,
-      cabinetPassword: body.cabinetPassword || null,
-      filingDate: body.filingDate ? new Date(body.filingDate) : null,
-      personalAppearDate: body.personalAppearDate ? new Date(body.personalAppearDate) : null,
-      legalStayDeadline: body.legalStayDeadline ? new Date(body.legalStayDeadline) : null,
-      notes: body.notes || null,
-      serviceId: body.serviceId ? parseInt(body.serviceId) : null,
-    }
+    const has = (key: string) => Object.prototype.hasOwnProperty.call(body, key)
+    const nullableText = (key: string) => String(body[key] || '').trim() || null
+    const nullableDate = (key: string) => body[key] ? new Date(body[key]) : null
+
+    const baseData: any = {}
+    if (has('caseNumber')) baseData.caseNumber = nullableText('caseNumber')
+    if (has('status')) baseData.status = body.status
+    if (has('stayPurpose')) baseData.stayPurpose = body.stayPurpose || null
+    if (has('stayType')) baseData.stayType = body.stayType || null
+    if (has('contractType')) baseData.contractType = body.contractType || null
+    if (has('contractDate')) baseData.contractDate = nullableDate('contractDate')
+    if (has('contractNumber')) baseData.contractNumber = body.contractNumber || null
+    if (has('contractSigned')) baseData.contractSigned = body.contractSigned ?? false
+    if (has('totalValue')) baseData.totalValue = parseFloat(body.totalValue) || 0
+    if (has('mosNumber')) baseData.mosNumber = body.mosNumber || null
+    if (has('mosSentAt')) baseData.mosSentAt = nullableDate('mosSentAt')
+    if (has('mosSentByPost')) baseData.mosSentByPost = body.mosSentByPost ?? false
+    if (has('predictedDecisionDate')) baseData.predictedDecisionDate = nullableDate('predictedDecisionDate')
+    if (has('fingerprintsDate')) baseData.fingerprintsDate = nullableDate('fingerprintsDate')
+    if (has('cabinetLogin')) baseData.cabinetLogin = body.cabinetLogin || null
+    if (has('cabinetPassword')) baseData.cabinetPassword = body.cabinetPassword || null
+    if (has('filingDate')) baseData.filingDate = nullableDate('filingDate')
+    if (has('personalAppearDate')) baseData.personalAppearDate = nullableDate('personalAppearDate')
+    if (has('legalStayDeadline')) baseData.legalStayDeadline = nullableDate('legalStayDeadline')
+    if (has('notes')) baseData.notes = body.notes || null
+    if (has('serviceId')) baseData.serviceId = body.serviceId ? parseInt(body.serviceId) : null
 
     // Дополнительные поля (появились после миграции 20260105)
-    const caseDetailsData: any = {
-      trustee: body.trustee || null,
-      employeeId: body.employeeId ? parseInt(body.employeeId) : null,
-      workContractType: body.workContractType || null,
-      workContractNumber: body.workContractNumber || null,
-      workContractDate: body.workContractDate ? new Date(body.workContractDate) : null,
-      workContractSigned: body.workContractSigned ?? false,
-      staySubPurpose: body.staySubPurpose || null,
-      workContractEndDate: body.workContractEndDate ? new Date(body.workContractEndDate) : null,
+    const employeeId = has('employeeId') && body.employeeId ? parseInt(body.employeeId) : null
+    if (scope.restricted && scope.userId) {
+      baseData.assignedToId = scope.userId
+    } else if (has('employeeId')) {
+      baseData.assignedToId = employeeId
+        ? await resolveUserIdForEmployee(organizationId, employeeId)
+        : null
     }
+
+    const caseDetailsData: any = {}
+    if (has('trustee')) caseDetailsData.trustee = body.trustee || null
+    if (has('employeeId')) caseDetailsData.employeeId = employeeId
+    if (has('workContractType')) caseDetailsData.workContractType = body.workContractType || null
+    if (has('workContractNumber')) caseDetailsData.workContractNumber = body.workContractNumber || null
+    if (has('workContractDate')) caseDetailsData.workContractDate = nullableDate('workContractDate')
+    if (has('workContractSigned')) caseDetailsData.workContractSigned = body.workContractSigned ?? false
+    if (has('staySubPurpose')) caseDetailsData.staySubPurpose = body.staySubPurpose || null
+    if (has('workContractEndDate')) caseDetailsData.workContractEndDate = nullableDate('workContractEndDate')
 
     const updated = await (prisma as any).case.update({
       where: { id: params.id },

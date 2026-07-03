@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { ensureUserEmployees } from '@/lib/employeeSync'
 
 export async function GET() {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
   try {
-    const employees = await (prisma as any).employee.findMany({ where: { organizationId }, orderBy: { name: 'asc' } })
+    const employees = await ensureUserEmployees(organizationId)
     return NextResponse.json(employees)
   } catch { return NextResponse.json([]) }
 }

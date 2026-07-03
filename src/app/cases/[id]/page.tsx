@@ -122,6 +122,19 @@ export default function CaseDetailPage() {
     fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(data => setCurrentUser(data)).catch(() => setCurrentUser(null))
   }, [id])
 
+  useEffect(() => {
+    if (!c?.assignedTo || form.employeeId || employees.length === 0) return
+    const assignedName = normalizePersonName(c.assignedTo.name || c.assignedTo.email)
+    const matchingEmployee = employees.find((employee: any) => normalizePersonName(employee.name) === assignedName)
+    if (matchingEmployee?.id) {
+      setForm((prev: any) => prev.employeeId ? prev : { ...prev, employeeId: String(matchingEmployee.id) })
+    }
+  }, [c?.assignedTo?.id, employees, form.employeeId])
+
+  function normalizePersonName(value: unknown) {
+    return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase()
+  }
+
   function optionsByType(type: string) {
     const opts = caseOptions.filter((o: any) => o.type === type).sort((a: any, b: any) => a.order - b.order)
     return opts

@@ -99,7 +99,7 @@ export default function CasesPage() {
   }
 
   function responsibleName(record: any) {
-    return record?.assignedTo?.name || record?.assignedTo?.email || ''
+    return record?.employee?.name || record?.assignedTo?.name || record?.assignedTo?.email || ''
   }
 
   function caseMatchesStatus(caseStatus: string, filterStatus: string) {
