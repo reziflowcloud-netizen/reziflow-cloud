@@ -187,11 +187,11 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
             style={{
               display: 'flex',
               alignItems: 'flex-start',
-              gap: 10,
+              gap: 8,
               color: 'var(--muted)',
-              fontSize: 13,
-              lineHeight: 1.45,
-              margin: '4px 0 14px',
+              fontSize: 11.5,
+              lineHeight: 1.35,
+              margin: '2px 0 12px',
             }}
           >
             <input
@@ -199,7 +199,7 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
               checked={acceptedLegal}
               onChange={event => setAcceptedLegal(event.target.checked)}
               required
-              style={{ width: 18, height: 18, marginTop: 1, accentColor: 'var(--brand)', flex: '0 0 auto' }}
+              style={{ width: 15, height: 15, marginTop: 1, accentColor: 'var(--brand)', flex: '0 0 auto' }}
             />
             <span>
               {legalCopy.prefix}{' '}
