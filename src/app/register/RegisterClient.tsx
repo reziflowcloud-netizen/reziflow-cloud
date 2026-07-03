@@ -215,6 +215,7 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
           <button className="btn btn-primary register-submit" type="submit" disabled={loading || !acceptedLegal}>
             {loading ? copy.loading : plan === 'free' ? copy.submitFree : copy.submitPlan.replace('{plan}', planName)}
           </button>
+          <div className="register-free-note">{copy.freeNote}</div>
         </form>
 
         <p className="register-bottom">

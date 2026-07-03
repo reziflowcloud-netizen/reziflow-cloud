@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeLeadBody } from '@/lib/leads'
 import { applyLeadWebhookMapping, getLeadWebhookSettings, keyMatches, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
+import { assertBillingLimit, billingLimitResponsePayload, isBillingLimitError } from '@/lib/billing'
 
 export const dynamic = 'force-dynamic'
 
@@ -117,6 +118,24 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       },
     })
     return NextResponse.json({ error: 'Telegram message does not contain recognizable lead data' }, { status: 400 })
+  }
+
+  try {
+    await assertBillingLimit(organization.id, 'leads')
+  } catch (error: any) {
+    if (isBillingLimitError(error)) {
+      await (prisma as any).leadWebhookLog.create({
+        data: {
+          organizationId: organization.id,
+          status: 'failed',
+          source: 'telegram',
+          payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
+          error: error.message,
+        },
+      })
+      return NextResponse.json(billingLimitResponsePayload(error), { status: 402 })
+    }
+    throw error
   }
 
   const lead = await (prisma as any).$transaction(async (tx: any) => {

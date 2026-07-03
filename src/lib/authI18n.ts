@@ -56,6 +56,7 @@ export type AuthCopy = {
     loading: string
     submitFree: string
     submitPlan: string
+    freeNote: string
     already: string
     loginLink: string
   }
@@ -118,6 +119,7 @@ const ru: AuthCopy = {
     loading: 'Создаем организацию...',
     submitFree: 'Создать организацию бесплатно',
     submitPlan: 'Начать бесплатно на тарифе {plan}',
+    freeNote: 'Карта не нужна · Free доступен без ограничения по времени',
     already: 'Уже есть аккаунт?',
     loginLink: 'Войти',
   },
@@ -180,6 +182,7 @@ const uk: AuthCopy = {
     loading: 'Створюємо організацію...',
     submitFree: 'Створити організацію безкоштовно',
     submitPlan: 'Почати безкоштовно на тарифі {plan}',
+    freeNote: 'Картка не потрібна · Free доступний без обмеження за часом',
     already: 'Вже є акаунт?',
     loginLink: 'Увійти',
   },
@@ -242,6 +245,7 @@ const pl: AuthCopy = {
     loading: 'Tworzymy organizację...',
     submitFree: 'Utwórz organizację bezpłatnie',
     submitPlan: 'Zacznij bezpłatnie w taryfie {plan}',
+    freeNote: 'Karta nie jest potrzebna · Free dostępny bez limitu czasu',
     already: 'Masz już konto?',
     loginLink: 'Zaloguj',
   },
@@ -304,6 +308,7 @@ const en: AuthCopy = {
     loading: 'Creating organization...',
     submitFree: 'Create organization for free',
     submitPlan: 'Start for free on {plan}',
+    freeNote: 'No card needed · Free has no time limit',
     already: 'Already have an account?',
     loginLink: 'Sign in',
   },

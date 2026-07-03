@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeLeadBody } from '@/lib/leads'
 import { applyLeadWebhookMapping, getLeadWebhookSettings, keyMatches, sanitizeLeadWebhookPayload, settingsObject } from '@/lib/leadWebhook'
+import { assertBillingLimit, billingLimitResponsePayload, isBillingLimitError } from '@/lib/billing'
 
 export function readWebhookKey(request: NextRequest, body: any, pathKey?: string) {
   const authorization = request.headers.get('authorization') || ''
@@ -202,62 +203,81 @@ export async function handleLeadWebhookPost(request: NextRequest, slug: string, 
     return NextResponse.json({ error: 'Provide firstName, lastName, fullName, phone, email, Instagram or Facebook' }, { status: 400 })
   }
 
-  const lead = await (prisma as any).$transaction(async (tx: any) => {
-    const duplicateWhere: any[] = []
-    if (data.phone) duplicateWhere.push({ phone: data.phone })
-    if (data.email) duplicateWhere.push({ email: data.email })
-    if (data.instagram) duplicateWhere.push({ instagram: data.instagram })
-    if (data.facebook) duplicateWhere.push({ facebook: data.facebook })
+  let lead: any
+  try {
+    lead = await (prisma as any).$transaction(async (tx: any) => {
+      const duplicateWhere: any[] = []
+      if (data.phone) duplicateWhere.push({ phone: data.phone })
+      if (data.email) duplicateWhere.push({ email: data.email })
+      if (data.instagram) duplicateWhere.push({ instagram: data.instagram })
+      if (data.facebook) duplicateWhere.push({ facebook: data.facebook })
 
-    if (duplicateWhere.length) {
-      const duplicate = await tx.lead.findFirst({
-        where: {
+      if (duplicateWhere.length) {
+        const duplicate = await tx.lead.findFirst({
+          where: {
+            organizationId: organization.id,
+            source: data.source || undefined,
+            createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) },
+            OR: duplicateWhere,
+          },
+          include: {
+            assignedTo: { select: { id: true, name: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+
+        if (duplicate) {
+          await tx.leadWebhookLog.create({
+            data: {
+              organizationId: organization.id,
+              leadId: duplicate.id,
+              status: 'duplicate',
+              source: data.source || null,
+              payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
+            },
+          })
+          return duplicate
+        }
+      }
+
+      await assertBillingLimit(organization.id, 'leads')
+
+      const created = await tx.lead.create({
+        data: {
           organizationId: organization.id,
-          source: data.source || undefined,
-          createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) },
-          OR: duplicateWhere,
+          ...data,
+          notes: appendPayloadNote(data.notes, body),
         },
         include: {
           assignedTo: { select: { id: true, name: true } },
         },
-        orderBy: { createdAt: 'desc' },
       })
-
-      if (duplicate) {
-        await tx.leadWebhookLog.create({
-          data: {
-            organizationId: organization.id,
-            leadId: duplicate.id,
-            status: 'duplicate',
-            source: data.source || null,
-            payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
-          },
-        })
-        return duplicate
-      }
+      await tx.leadWebhookLog.create({
+        data: {
+          organizationId: organization.id,
+          leadId: created.id,
+          status: 'created',
+          source: data.source || null,
+          payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
+        },
+      })
+      return created
+    })
+  } catch (error: any) {
+    if (isBillingLimitError(error)) {
+      await (prisma as any).leadWebhookLog.create({
+        data: {
+          organizationId: organization.id,
+          status: 'failed',
+          source: data.source || null,
+          payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
+          error: error.message,
+        },
+      })
+      return NextResponse.json(billingLimitResponsePayload(error), { status: 402 })
     }
-
-    const created = await tx.lead.create({
-      data: {
-        organizationId: organization.id,
-        ...data,
-        notes: appendPayloadNote(data.notes, body),
-      },
-      include: {
-        assignedTo: { select: { id: true, name: true } },
-      },
-    })
-    await tx.leadWebhookLog.create({
-      data: {
-        organizationId: organization.id,
-        leadId: created.id,
-        status: 'created',
-        source: data.source || null,
-        payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
-      },
-    })
-    return created
-  })
+    throw error
+  }
 
   return NextResponse.json({ ok: true, leadId: lead.id, lead }, { status: 201 })
 }

@@ -4,6 +4,7 @@ import { getOrganizationId, getUser } from '@/lib/auth'
 import { leadDisplayName } from '@/lib/leads'
 import { normalizePhones, primaryPhone } from '@/lib/phones'
 import { getDataAccessScope, leadWhereForScope } from '@/lib/apiScope'
+import { assertBillingLimit, billingLimitResponsePayload, isBillableActiveCaseStatus, isBillingLimitError } from '@/lib/billing'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,6 +60,17 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     body.phone || lead.phone
   )
   const clientPrimaryPhone = body.phone || primaryPhone(leadPhones, lead.phone)
+  const caseStatus = body.caseStatus || 'Новый'
+
+  try {
+    await assertBillingLimit(organizationId, 'clients')
+    if (body.createCase && isBillableActiveCaseStatus(caseStatus)) {
+      await assertBillingLimit(organizationId, 'cases')
+    }
+  } catch (error) {
+    if (isBillingLimitError(error)) return NextResponse.json(billingLimitResponsePayload(error), { status: 402 })
+    throw error
+  }
 
   const result = await (prisma as any).$transaction(async (tx: any) => {
     const client = await tx.client.create({
@@ -87,7 +99,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         data: {
           organizationId,
           clientId: client.id,
-          status: body.caseStatus || 'Новый',
+          status: caseStatus,
           totalValue: parseFloat(body.totalValue) || 0,
           assignedToId: scope.restricted && scope.userId ? scope.userId : body.assignedToId ? parseInt(body.assignedToId) : lead.assignedToId || null,
           employeeId: lead.employeeId || null,

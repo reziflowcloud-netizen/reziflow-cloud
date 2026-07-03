@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { normalizePhones, phonesWithLegacy, primaryPhone } from '@/lib/phones'
 import { caseWhereForScope, clientWhereForScope, getDataAccessScope, taskWhereForScope } from '@/lib/apiScope'
+import { assertBillingLimit, billingLimitResponsePayload, isBillingLimitError } from '@/lib/billing'
 
 function dateOrNull(value: any) {
   return value ? new Date(value) : null
@@ -166,6 +167,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const phones = normalizePhones(body.phones, body.phone)
     const mainPhone = primaryPhone(phones, body.phone)
+    await assertBillingLimit(organizationId, 'clients')
     const client = await prisma.client.create({
       data: {
         organizationId,
@@ -196,6 +198,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(client)
   } catch (e: any) {
     console.error(e)
+    if (isBillingLimitError(e)) return NextResponse.json(billingLimitResponsePayload(e), { status: 402 })
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
 }

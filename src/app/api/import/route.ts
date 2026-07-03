@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { assertBillingLimit, billingLimitResponsePayload, isBillableActiveCaseStatus, isBillingLimitError } from '@/lib/billing'
 
 export const dynamic = 'force-dynamic'
 
@@ -476,6 +477,29 @@ export async function POST(request: NextRequest) {
       : []
     const clientByEmail = new Map(existingClients.filter(client => client.email).map(client => [client.email as string, client]))
     const clientByPhone = new Map(existingClients.filter(client => client.phone).map(client => [client.phone as string, client]))
+    const newClientKeys = new Set<string>()
+    let clientsToCreate = 0
+    let activeCasesToCreate = 0
+
+    rows.forEach((row, index) => {
+      const phone = read(row, columnMap.client.phone) || null
+      const email = read(row, columnMap.client.email) || null
+      const existing = (email && clientByEmail.has(email)) || (phone && clientByPhone.has(phone))
+      const clientKey = email ? `email:${email}` : phone ? `phone:${phone}` : `row:${index}`
+
+      if (!existing && !newClientKeys.has(clientKey)) {
+        newClientKeys.add(clientKey)
+        clientsToCreate++
+      }
+
+      const importedStatus = read(row, columnMap.case.status)
+      const status = importedStatus.trim() ? (statusByName.get(importedStatus.trim()) || importedStatus.trim()) : fallbackStatus
+      if (isBillableActiveCaseStatus(status)) activeCasesToCreate++
+    })
+
+    await assertBillingLimit(organizationId, 'clients', clientsToCreate)
+    await assertBillingLimit(organizationId, 'cases', activeCasesToCreate)
+
     const statusHistoryRows: any[] = []
     const customValueRows: any[] = []
     let clientsCreated = 0
@@ -626,6 +650,9 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('Import error:', error)
+    if (isBillingLimitError(error)) {
+      return NextResponse.json(billingLimitResponsePayload(error), { status: 402 })
+    }
     return NextResponse.json({ error: 'Import failed', details: error?.message || String(error) }, { status: 500 })
   }
 }

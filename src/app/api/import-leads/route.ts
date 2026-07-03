@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { DEFAULT_LEAD_STATUSES } from '@/lib/leads'
 import { normalizePhones, primaryPhone } from '@/lib/phones'
+import { assertBillingLimit, billingLimitResponsePayload, isBillingLimitError } from '@/lib/billing'
 
 export const dynamic = 'force-dynamic'
 
@@ -377,6 +378,17 @@ export async function POST(request: NextRequest) {
       if (lead.email) existingKeys.add(`email:${lead.email}`)
     }
 
+    const previewDuplicateKeys = new Set<string>()
+    let leadsToCreate = 0
+    for (const data of candidatePayloads) {
+      const keys = [data.phone ? `phone:${data.phone}` : '', data.email ? `email:${data.email}` : ''].filter(Boolean)
+      if (keys.some(key => existingKeys.has(key) || previewDuplicateKeys.has(key))) continue
+      keys.forEach(key => previewDuplicateKeys.add(key))
+      leadsToCreate++
+    }
+
+    await assertBillingLimit(organizationId, 'leads', leadsToCreate)
+
     for (const data of candidatePayloads) {
       const keys = [data.phone ? `phone:${data.phone}` : '', data.email ? `email:${data.email}` : ''].filter(Boolean)
       if (keys.some(key => existingKeys.has(key) || duplicateKeys.has(key))) {
@@ -431,6 +443,9 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('Lead import error:', error)
+    if (isBillingLimitError(error)) {
+      return NextResponse.json(billingLimitResponsePayload(error), { status: 402 })
+    }
     return NextResponse.json({
       error: 'Ошибка импорта лидов',
       details: error?.message || String(error),

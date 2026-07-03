@@ -5458,6 +5458,14 @@ textarea.input { resize: vertical; }
   color: #ffffff;
   font-weight: 800;
 }
+.auth-register-page .register-free-note {
+  margin-top: 8px;
+  color: rgba(226,232,240,0.82);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+}
 .auth-register-page .register-bottom {
   width: min(100%, 560px);
   margin: 14px 0 0;

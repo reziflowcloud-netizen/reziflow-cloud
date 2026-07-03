@@ -4,6 +4,7 @@ import { getOrganizationId, getUser } from '@/lib/auth'
 import { normalizeLeadBody } from '@/lib/leads'
 import { normalizePhones, phonesWithLegacy, primaryPhone } from '@/lib/phones'
 import { getDataAccessScope, leadWhereForScope, taskWhereForScope } from '@/lib/apiScope'
+import { assertBillingLimit, billingLimitResponsePayload, isBillingLimitError } from '@/lib/billing'
 
 export const dynamic = 'force-dynamic'
 
@@ -192,6 +193,13 @@ export async function POST(request: NextRequest) {
 
   if (!data.fullName && !data.phone && !data.email && !data.instagram && !data.facebook) {
     return NextResponse.json({ error: 'Укажите имя, телефон, email или профиль соцсети' }, { status: 400 })
+  }
+
+  try {
+    await assertBillingLimit(organizationId, 'leads')
+  } catch (error) {
+    if (isBillingLimitError(error)) return NextResponse.json(billingLimitResponsePayload(error), { status: 402 })
+    throw error
   }
 
   const lead = await (prisma as any).lead.create({

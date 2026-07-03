@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getLeadWebhookSettings, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
+import { assertBillingLimit, isBillingLimitError } from '@/lib/billing'
 
 export const dynamic = 'force-dynamic'
 
@@ -215,6 +216,7 @@ async function syncMetaConversationMessages(args: {
     })
 
     if (!lead) {
+      await assertBillingLimit(args.organizationId, 'leads')
       lead = await tx.lead.create({
           data: {
             organizationId: args.organizationId,
@@ -492,6 +494,24 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       where: { organizationId: organization.id, messengerId: { in: messengerIds } },
       select: { id: true, messengerId: true },
     })
+    if (!existingLead) {
+      try {
+        await assertBillingLimit(organization.id, 'leads')
+      } catch (error: any) {
+        if (!isBillingLimitError(error)) throw error
+        await (prisma as any).leadWebhookLog.create({
+          data: {
+            organizationId: organization.id,
+            status: 'failed',
+            source,
+            payload: { metaEvent: eventSummary, raw: safePayload },
+            error: error.message,
+          },
+        })
+        continue
+      }
+    }
+
     const messengerId = existingLead?.messengerId || messengerIds[0]
     const participantId = String(messengerId).replace(`${channel}:`, '')
 

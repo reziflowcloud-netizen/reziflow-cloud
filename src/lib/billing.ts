@@ -32,58 +32,79 @@ export type BillingSnapshot = {
 }
 
 const BILLING_METRIC_KEYS: BillingMetricKey[] = ['users', 'clients', 'cases', 'leads']
+const INACTIVE_CASE_STATUS_TERMS = [
+  'архив',
+  'архів',
+  'archive',
+  'archiw',
+  'заверш',
+  'completed',
+  'closed',
+  'закрыт',
+  'закрит',
+  'zamkni',
+  'отказ',
+  'відмова',
+  'odmowa',
+  'refusal',
+  'rejected',
+]
 
 export const PLAN_DEFINITIONS: Record<string, PlanDefinition> = {
   free: {
     key: 'free',
     name: 'Free',
-    subtitle: 'Для небольшого старта и проверки CRM',
-    price: '0 PLN',
-    limits: { users: 1, clients: 25, cases: 25, leads: 50 },
+    subtitle: 'Для знакомства и первых клиентов',
+    price: '0 zł навсегда',
+    limits: { users: 1, clients: 10, cases: 10, leads: 20 },
     features: [
-      'Базовая CRM: клиенты, дела, задачи и календарь',
-      'Импорт и экспорт CSV',
-      'Один администратор организации',
-      'Ручная оплата и ручное сопровождение',
+      '1 пользователь',
+      'До 10 клиентов',
+      'До 10 активных дел',
+      'До 20 лидов',
+      'Базовые услуги, статусы, задачи, календарь и документы',
     ],
   },
   starter: {
     key: 'starter',
     name: 'Starter',
-    subtitle: 'Для небольшой команды с регулярной работой',
-    price: '99 PLN / мес.',
-    limits: { users: 3, clients: 150, cases: 150, leads: 300 },
+    subtitle: 'Для одного специалиста или маленькой команды',
+    price: '249 zł / мес.',
+    limits: { users: 3, clients: 50, cases: 50, leads: 80 },
     features: [
       'До 3 пользователей',
-      'Работа с лидами и клиентской базой',
-      'Настройки процессов и шаблоны документов',
-      'Подходит для небольшой фирмы',
+      'До 50 клиентов',
+      'До 50 активных дел',
+      'До 80 лидов',
+      'Импорт базы, документы, оплаты, задачи и календарь',
     ],
   },
   pro: {
     key: 'pro',
     name: 'Pro',
-    subtitle: 'Для активной команды и роста продаж',
-    price: '199 PLN / мес.',
-    limits: { users: 10, clients: null, cases: null, leads: null },
+    subtitle: 'Основной тариф для растущего агентства',
+    price: '499 zł / мес.',
+    limits: { users: 10, clients: 200, cases: 200, leads: 300 },
     features: [
       'До 10 пользователей',
-      'Без лимита клиентов, дел и лидов',
-      'Интеграции с формами, квизами и рекламой',
-      'Приоритетная настройка рабочего процесса',
+      'До 200 клиентов',
+      'До 200 активных дел',
+      'До 300 лидов',
+      'Роли, доступы, отчёты, шаблоны и расширенный контроль',
     ],
   },
   agency: {
     key: 'agency',
     name: 'Agency',
     subtitle: 'Для агентств с несколькими отделами',
-    price: 'По договоренности',
+    price: 'от 849 zł / мес.',
     limits: { users: null, clients: null, cases: null, leads: null },
     features: [
-      'Неограниченная команда',
-      'Расширенные настройки и интеграции',
+      'Индивидуальные лимиты',
+      'Несколько отделов или офисов',
+      'Приоритетная поддержка',
       'Помощь с переносом данных',
-      'Индивидуальные условия сопровождения',
+      'Индивидуальные шаблоны документов и расширенные интеграции',
     ],
   },
   manual: {
@@ -104,7 +125,7 @@ export const PLAN_DEFINITIONS: Record<string, PlanDefinition> = {
 export const BILLING_METRIC_LABELS: Record<BillingMetricKey, string> = {
   users: 'Пользователи',
   clients: 'Клиенты',
-  cases: 'Дела',
+  cases: 'Активные дела',
   leads: 'Лиды',
 }
 
@@ -199,6 +220,79 @@ export function isSoftLimitWarning(used: number, limit: number | null) {
   return used >= Math.ceil(limit * 0.8)
 }
 
+export function isBillableActiveCaseStatus(status?: string | null) {
+  const value = String(status || '').trim().toLowerCase()
+  return !INACTIVE_CASE_STATUS_TERMS.some(term => value.includes(term))
+}
+
+function activeCasesWhere(organizationId: string) {
+  return {
+    organizationId,
+    NOT: {
+      OR: INACTIVE_CASE_STATUS_TERMS.map(term => ({
+        status: { contains: term, mode: 'insensitive' as const },
+      })),
+    },
+  }
+}
+
+export class BillingLimitError extends Error {
+  code = 'BILLING_LIMIT_REACHED'
+  metric: BillingMetricKey
+  used: number
+  limit: number
+  requested: number
+  planName: string
+
+  constructor(args: { metric: BillingMetricKey; used: number; limit: number; requested: number; planName: string }) {
+    const label = BILLING_METRIC_LABELS[args.metric]
+    super(`Достигнут лимит тарифа ${args.planName}: ${label} ${args.used}/${args.limit}. Чтобы добавить ещё, перейдите на тариф выше или измените индивидуальные лимиты организации.`)
+    this.name = 'BillingLimitError'
+    this.metric = args.metric
+    this.used = args.used
+    this.limit = args.limit
+    this.requested = args.requested
+    this.planName = args.planName
+  }
+}
+
+export function isBillingLimitError(error: unknown): error is BillingLimitError {
+  return error instanceof BillingLimitError || Boolean(error && typeof error === 'object' && (error as any).code === 'BILLING_LIMIT_REACHED')
+}
+
+export function billingLimitResponsePayload(error: BillingLimitError) {
+  return {
+    error: error.message,
+    code: error.code,
+    metric: error.metric,
+    used: error.used,
+    limit: error.limit,
+    requested: error.requested,
+    planName: error.planName,
+    upgradeRequired: true,
+  }
+}
+
+export async function assertBillingLimit(organizationId: string, metric: BillingMetricKey, requested = 1) {
+  const amount = Math.max(0, Math.floor(Number(requested) || 0))
+  if (amount === 0) return
+
+  const snapshot = await getBillingSnapshot(organizationId)
+  const limit = snapshot.plan.limits[metric]
+  if (!limit) return
+
+  const used = snapshot.usage[metric]
+  if (used + amount <= limit) return
+
+  throw new BillingLimitError({
+    metric,
+    used,
+    limit,
+    requested: amount,
+    planName: snapshot.plan.name,
+  })
+}
+
 export async function getBillingSnapshot(organizationId: string): Promise<BillingSnapshot> {
   const organization = await prisma.organization.findUnique({
     where: { id: organizationId },
@@ -222,7 +316,7 @@ export async function getBillingSnapshot(organizationId: string): Promise<Billin
   const [users, clients, cases, leads] = await Promise.all([
     prisma.user.count({ where: { organizationId } }),
     prisma.client.count({ where: { organizationId } }),
-    prisma.case.count({ where: { organizationId } }),
+    prisma.case.count({ where: activeCasesWhere(organizationId) }),
     prisma.lead.count({ where: { organizationId } }),
   ])
 

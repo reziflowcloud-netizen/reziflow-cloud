@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { caseWhereForScope, findScopedClient, getDataAccessScope } from '@/lib/apiScope'
+import { assertBillingLimit, billingLimitResponsePayload, isBillableActiveCaseStatus, isBillingLimitError } from '@/lib/billing'
 
 export async function GET(request: NextRequest) {
   const user = await getUser()
@@ -58,13 +59,17 @@ export async function POST(request: NextRequest) {
     }
 
     const caseNumber = body.caseNumber?.trim() || null
+    const status = body.status || 'Новый'
+    if (isBillableActiveCaseStatus(status)) {
+      await assertBillingLimit(organizationId, 'cases')
+    }
 
     const newCase = await prisma.case.create({
       data: {
         organizationId,
         caseNumber,
         clientId: body.clientId,
-        status: body.status || 'Новый',
+        status,
         stayPurpose: body.stayPurpose || null,
         stayType: body.stayType || null,
         contractType: body.contractType || null,
@@ -80,6 +85,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(newCase)
   } catch (e: any) {
     console.error(e)
+    if (isBillingLimitError(e)) return NextResponse.json(billingLimitResponsePayload(e), { status: 402 })
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
 }

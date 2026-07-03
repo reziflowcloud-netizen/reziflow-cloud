@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeLeadBody } from '@/lib/leads'
 import { applyLeadWebhookMapping, getLeadWebhookSettings, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
+import { assertBillingLimit } from '@/lib/billing'
 
 export const dynamic = 'force-dynamic'
 
@@ -181,6 +182,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       const webhookPayload = metaLeadToWebhookPayload(metaLead, change)
       const mappedBody = applyLeadWebhookMapping(webhookPayload, settings.leadWebhookFieldMap || [])
       const data = normalizeLeadBody(mappedBody)
+      await assertBillingLimit(organization.id, 'leads')
 
       const lead = await (prisma as any).$transaction(async (tx: any) => {
         const created = await tx.lead.create({

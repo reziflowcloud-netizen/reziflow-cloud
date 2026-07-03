@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { assertBillingLimit, billingLimitResponsePayload, isBillingLimitError } from '@/lib/billing'
 import bcrypt from 'bcryptjs'
 
 function canManageUsers(user: any) {
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
     }
     const existing = await prisma.user.findUnique({ where: { email: body.email } })
     if (existing) return NextResponse.json({ error: 'Пользователь с таким email уже существует' }, { status: 400 })
+    await assertBillingLimit(organizationId, 'users')
     const hashed = await bcrypt.hash(body.password, 10)
     const role = body.role || 'employee'
     const newUser = await prisma.user.create({
@@ -53,6 +55,7 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json(newUser)
   } catch (e: any) {
+    if (isBillingLimitError(e)) return NextResponse.json(billingLimitResponsePayload(e), { status: 402 })
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
 }
