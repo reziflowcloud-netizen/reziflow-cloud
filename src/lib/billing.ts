@@ -225,7 +225,7 @@ export function isBillableActiveCaseStatus(status?: string | null) {
   return !INACTIVE_CASE_STATUS_TERMS.some(term => value.includes(term))
 }
 
-function activeCasesWhere(organizationId: string) {
+export function activeCasesWhere(organizationId: string) {
   return {
     organizationId,
     NOT: {

@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { isValidEmail } from '@/lib/apiErrors'
+import { activeCasesWhere } from '@/lib/billing'
 import { prisma } from '@/lib/prisma'
 
 export const DEFAULT_TRIAL_DAYS = Number(process.env.TRIAL_DAYS || 30)
@@ -33,9 +34,41 @@ export const organizationInclude = {
       users: true,
       clients: true,
       cases: true,
+      leads: true,
       tasks: true,
     },
   },
+}
+
+type OrganizationUsageCounts = {
+  _count?: Record<string, number> | null
+  id: string
+}
+
+export async function attachOrganizationUsageStats<T extends OrganizationUsageCounts>(organization: T | null) {
+  if (!organization) return organization
+  const activeCases = await prisma.case.count({ where: activeCasesWhere(organization.id) })
+  return {
+    ...organization,
+    _count: {
+      ...(organization._count || {}),
+      activeCases,
+    },
+  }
+}
+
+export async function attachOrganizationsUsageStats<T extends OrganizationUsageCounts>(organizations: T[]) {
+  const activeCaseCounts = await Promise.all(
+    organizations.map(organization => prisma.case.count({ where: activeCasesWhere(organization.id) }))
+  )
+
+  return organizations.map((organization, index) => ({
+    ...organization,
+    _count: {
+      ...(organization._count || {}),
+      activeCases: activeCaseCounts[index],
+    },
+  }))
 }
 
 const DEFAULT_SYSTEM_ADMIN_EMAILS = [
@@ -281,8 +314,9 @@ export async function provisionOrganization(input: {
     return org
   })
 
-  return prisma.organization.findUnique({
+  const created = await prisma.organization.findUnique({
     where: { id: organization.id },
     include: organizationInclude,
   })
+  return attachOrganizationUsageStats(created)
 }

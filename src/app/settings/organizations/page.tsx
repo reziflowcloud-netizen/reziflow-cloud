@@ -26,6 +26,8 @@ type OrganizationItem = {
     users: number
     clients: number
     cases: number
+    activeCases: number
+    leads: number
     tasks: number
   }
 }
@@ -90,7 +92,7 @@ const orgText = {
     created: 'Фирма "{name}" создана. Администратор может входить по своему email и паролю.',
     saveFailed: 'Не удалось сохранить фирму',
     updated: 'Фирма обновлена',
-    deleteConfirm: 'Удалить организацию "{name}"?\n\nБудут удалены пользователи: {users}\nКлиенты: {clients}\nДела: {cases}\nЗадачи: {tasks}\n\nЭто действие нельзя отменить.',
+    deleteConfirm: 'Удалить организацию "{name}"?\n\nБудут удалены пользователи: {users}\nКлиенты: {clients}\nДела: {cases}\nЛиды: {leads}\nЗадачи: {tasks}\n\nЭто действие нельзя отменить.',
     deleteFailed: 'Не удалось удалить организацию',
     deleted: 'Организация "{name}" удалена',
     expired: 'Trial истек',
@@ -131,6 +133,9 @@ const orgText = {
     unlimited: 'Без лимита',
     customLimitsNote: 'Эти настройки применяются только к выбранной организации и отображаются в разделе “Тариф и оплата”.',
     limitLabels: { users: 'Пользователи', clients: 'Клиенты', cases: 'Дела', leads: 'Лиды' },
+    totalCases: 'Всего дел',
+    activeCases: 'Активные дела',
+    leads: 'Лиды',
   },
   uk: {
     loadFailed: 'Не вдалося завантажити фірми',
@@ -139,7 +144,7 @@ const orgText = {
     created: 'Фірму "{name}" створено. Адміністратор може входити зі своїм email і паролем.',
     saveFailed: 'Не вдалося зберегти фірму',
     updated: 'Фірму оновлено',
-    deleteConfirm: 'Видалити організацію "{name}"?\n\nБудуть видалені користувачі: {users}\nКлієнти: {clients}\nСправи: {cases}\nЗавдання: {tasks}\n\nЦю дію не можна скасувати.',
+    deleteConfirm: 'Видалити організацію "{name}"?\n\nБудуть видалені користувачі: {users}\nКлієнти: {clients}\nСправи: {cases}\nЛіди: {leads}\nЗавдання: {tasks}\n\nЦю дію не можна скасувати.',
     deleteFailed: 'Не вдалося видалити організацію',
     deleted: 'Організацію "{name}" видалено',
     expired: 'Trial завершився',
@@ -180,6 +185,9 @@ const orgText = {
     unlimited: 'Без ліміту',
     customLimitsNote: 'Ці налаштування застосовуються тільки до вибраної організації та відображаються в розділі “Тариф і оплата”.',
     limitLabels: { users: 'Користувачі', clients: 'Клієнти', cases: 'Справи', leads: 'Ліди' },
+    totalCases: 'Усього справ',
+    activeCases: 'Активні справи',
+    leads: 'Ліди',
   },
   pl: {
     loadFailed: 'Nie udało się załadować firm',
@@ -188,7 +196,7 @@ const orgText = {
     created: 'Firma „{name}” została utworzona. Administrator może logować się swoim emailem i hasłem.',
     saveFailed: 'Nie udało się zapisać firmy',
     updated: 'Firma zaktualizowana',
-    deleteConfirm: 'Usunąć organizację „{name}”?\n\nZostaną usunięci użytkownicy: {users}\nKlienci: {clients}\nSprawy: {cases}\nZadania: {tasks}\n\nTej czynności nie można cofnąć.',
+    deleteConfirm: 'Usunąć organizację „{name}”?\n\nZostaną usunięci użytkownicy: {users}\nKlienci: {clients}\nSprawy: {cases}\nLeady: {leads}\nZadania: {tasks}\n\nTej czynności nie można cofnąć.',
     deleteFailed: 'Nie udało się usunąć organizacji',
     deleted: 'Organizacja „{name}” została usunięta',
     expired: 'Trial wygasł',
@@ -229,6 +237,9 @@ const orgText = {
     unlimited: 'Bez limitu',
     customLimitsNote: 'Te ustawienia dotyczą tylko wybranej organizacji i są widoczne w sekcji “Taryf i płatności”.',
     limitLabels: { users: 'Użytkownicy', clients: 'Klienci', cases: 'Sprawy', leads: 'Leady' },
+    totalCases: 'Wszystkie sprawy',
+    activeCases: 'Aktywne sprawy',
+    leads: 'Leady',
   },
 }
 
@@ -401,6 +412,7 @@ export default function OrganizationsPage() {
       .replace('{users}', String(org._count.users))
       .replace('{clients}', String(org._count.clients))
       .replace('{cases}', String(org._count.cases))
+      .replace('{leads}', String(org._count.leads))
       .replace('{tasks}', String(org._count.tasks))
 
     if (!window.confirm(message)) return
@@ -525,17 +537,19 @@ export default function OrganizationsPage() {
                   <th>{t('trial_until')}</th>
                   <th>{t('users_short')}</th>
                   <th>{t('clients_title')}</th>
-                  <th>{t('cases_title')}</th>
+                  <th>{text.totalCases}</th>
+                  <th>{text.activeCases}</th>
+                  <th>{text.leads}</th>
                   <th>{t('tasks_title')}</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {loading && (
-                  <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--muted)' }}>{text.loading}</td></tr>
+                  <tr><td colSpan={13} style={{ textAlign: 'center', color: 'var(--muted)' }}>{text.loading}</td></tr>
                 )}
                 {!loading && organizations.length === 0 && (
-                  <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--muted)' }}>{text.empty}</td></tr>
+                  <tr><td colSpan={13} style={{ textAlign: 'center', color: 'var(--muted)' }}>{text.empty}</td></tr>
                 )}
                 {organizations.map(org => {
                   const primaryAdmin = org.users?.[0]
@@ -612,6 +626,8 @@ export default function OrganizationsPage() {
                     <td>{org._count.users}</td>
                     <td>{org._count.clients}</td>
                     <td>{org._count.cases}</td>
+                    <td>{org._count.activeCases}</td>
+                    <td>{org._count.leads}</td>
                     <td>{org._count.tasks}</td>
                     <td>
                       {editingId === org.id ? (
@@ -636,7 +652,7 @@ export default function OrganizationsPage() {
                   </tr>
                   {editingId === org.id && canManageAll && (
                     <tr className="billing-limit-row">
-                      <td colSpan={11}>
+                      <td colSpan={13}>
                         <div className="billing-limit-panel">
                           <div className="billing-limit-head">
                             <div>

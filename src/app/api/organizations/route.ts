@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
-import { isSystemAdmin, organizationInclude, provisionOrganization } from '@/lib/organizationProvisioning'
+import { attachOrganizationsUsageStats, isSystemAdmin, organizationInclude, provisionOrganization } from '@/lib/organizationProvisioning'
 
 export async function GET() {
   const user = await getUser()
@@ -15,7 +15,7 @@ export async function GET() {
     include: organizationInclude,
   })
 
-  return NextResponse.json({ organizations, canManageAll })
+  return NextResponse.json({ organizations: await attachOrganizationsUsageStats(organizations), canManageAll })
 }
 
 export async function POST(req: NextRequest) {

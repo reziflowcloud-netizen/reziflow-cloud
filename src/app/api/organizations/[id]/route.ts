@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { deleteCloudinaryResources } from '@/lib/cloudinary'
 import { deleteDropboxFile, getDropboxSettings } from '@/lib/dropbox'
-import { isSystemAdmin, organizationInclude } from '@/lib/organizationProvisioning'
+import { attachOrganizationUsageStats, isSystemAdmin, organizationInclude } from '@/lib/organizationProvisioning'
 
 const BILLING_LIMIT_KEYS = ['users', 'clients', 'cases', 'leads'] as const
 type BillingLimitKey = typeof BILLING_LIMIT_KEYS[number]
@@ -191,7 +191,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       })
     })
 
-    return NextResponse.json(updated)
+    return NextResponse.json(await attachOrganizationUsageStats(updated))
   } catch (e: any) {
     return NextResponse.json({ error: e.message || 'Ошибка сохранения фирмы' }, { status: 500 })
   }
