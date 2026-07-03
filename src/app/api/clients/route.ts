@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
             birthDate: true,
             branch: true,
             createdAt: true,
+            assignedTo: { select: { id: true, name: true, email: true } },
           },
           orderBy: { createdAt: 'desc' },
         }),

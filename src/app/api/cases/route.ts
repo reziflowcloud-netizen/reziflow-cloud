@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
           totalPaid: true,
           createdAt: true,
           client: { select: { firstName: true, lastName: true, phone: true } },
+          assignedTo: { select: { id: true, name: true, email: true } },
           service: { select: { name: true, color: true } },
         },
         orderBy: { createdAt: 'desc' },

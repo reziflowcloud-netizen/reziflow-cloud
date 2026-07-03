@@ -91,9 +91,10 @@ export default function ClientsPage() {
       {sortKey === k ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
     </span>
   )
+  const responsibleName = (record: any) => record?.assignedTo?.name || record?.assignedTo?.email || ''
 
   const filtered = clients
-    .filter(c => `${c.firstName} ${c.lastName} ${c.phone||''} ${c.email||''} ${c.pesel||''} ${c.citizenship||''} ${c.branch||''}`.toLowerCase().includes(search.toLowerCase()))
+    .filter(c => `${c.firstName} ${c.lastName} ${c.phone||''} ${c.email||''} ${c.pesel||''} ${c.citizenship||''} ${c.branch||''} ${responsibleName(c)}`.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       let va: any, vb: any
       if (sortKey === 'name') { va = `${a.firstName} ${a.lastName}`; vb = `${b.firstName} ${b.lastName}` }
@@ -190,6 +191,7 @@ export default function ClientsPage() {
                     </th>
                   )}
                   {visibleCols.includes('phone') && <th style={{ minWidth: 130 }}>{t('phone')}</th>}
+                  <th style={{ minWidth: 150 }}>{t('responsible')}</th>
                   {visibleCols.includes('email') && <th style={{ minWidth: 180 }}>E-mail</th>}
                   {visibleCols.includes('pesel') && <th style={{ minWidth: 120 }}>PESEL</th>}
                   {visibleCols.includes('citizenship') && <th style={{ minWidth: 120 }}>{t('citizenship')}</th>}
@@ -234,6 +236,9 @@ export default function ClientsPage() {
                         </td>
                       )}
                       {visibleCols.includes('phone') && <td style={{ fontSize: 13 }}>{client.phone || '—'}</td>}
+                      <td style={{ fontSize: 13, color: responsibleName(client) ? 'var(--text)' : 'var(--muted)' }}>
+                        {responsibleName(client) || '—'}
+                      </td>
                       {visibleCols.includes('email') && <td style={{ fontSize: 12, color: 'var(--muted)' }}>{client.email || '—'}</td>}
                       {visibleCols.includes('pesel') && <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{client.pesel || '—'}</td>}
                       {visibleCols.includes('citizenship') && <td style={{ fontSize: 13 }}>{client.citizenship || '—'}</td>}

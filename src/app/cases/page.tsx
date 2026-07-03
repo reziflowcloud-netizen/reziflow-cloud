@@ -18,7 +18,7 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 const ALL_FILTER = 'all'
 const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
 
-type SortKey = 'client' | 'status' | 'service' | 'value' | 'debt' | 'date'
+type SortKey = 'client' | 'status' | 'service' | 'responsible' | 'value' | 'debt' | 'date'
 type SortDir = 'asc' | 'desc'
 
 export default function CasesPage() {
@@ -98,6 +98,10 @@ export default function CasesPage() {
     return STATUS_COLORS[name] || { bg: '#f3f4f6', color: '#374151' }
   }
 
+  function responsibleName(record: any) {
+    return record?.assignedTo?.name || record?.assignedTo?.email || ''
+  }
+
   function caseMatchesStatus(caseStatus: string, filterStatus: string) {
     if (isArchiveCaseStatus(filterStatus)) return isArchiveCaseStatus(caseStatus)
     return caseStatus === filterStatus
@@ -112,13 +116,14 @@ export default function CasesPage() {
       return caseMatchesStatus(c.status, activeFilter)
     })
     .filter(c => search === '' ||
-      `${c.client?.firstName} ${c.client?.lastName} ${c.client?.phone||''}`.toLowerCase().includes(search.toLowerCase())
+      `${c.client?.firstName} ${c.client?.lastName} ${c.client?.phone||''} ${responsibleName(c)}`.toLowerCase().includes(search.toLowerCase())
     )
     .sort((a, b) => {
       let va: any, vb: any
       if (sortKey === 'client') { va = `${a.client?.firstName} ${a.client?.lastName}`; vb = `${b.client?.firstName} ${b.client?.lastName}` }
       else if (sortKey === 'status') { va = a.status; vb = b.status }
       else if (sortKey === 'service') { va = a.service?.name || ''; vb = b.service?.name || '' }
+      else if (sortKey === 'responsible') { va = responsibleName(a); vb = responsibleName(b) }
       else if (sortKey === 'value') { va = a.totalValue; vb = b.totalValue }
       else if (sortKey === 'debt') { va = a.totalValue - a.totalPaid; vb = b.totalValue - b.totalPaid }
       else { va = new Date(a.createdAt).getTime(); vb = new Date(b.createdAt).getTime() }
@@ -205,6 +210,7 @@ export default function CasesPage() {
                   <th onClick={() => toggleSort('client')} style={{ cursor: 'pointer', userSelect: 'none' }}>{t('client')} <SortIcon k="client" /></th>
                   <th onClick={() => toggleSort('status')} style={{ cursor: 'pointer', userSelect: 'none' }}>{t('status')} <SortIcon k="status" /></th>
                   <th onClick={() => toggleSort('service')} style={{ cursor: 'pointer', userSelect: 'none' }}>{t('service')} <SortIcon k="service" /></th>
+                  <th onClick={() => toggleSort('responsible')} style={{ cursor: 'pointer', userSelect: 'none' }}>{t('responsible')} <SortIcon k="responsible" /></th>
                   <th onClick={() => toggleSort('value')} style={{ cursor: 'pointer', userSelect: 'none' }}>{t('cost')} <SortIcon k="value" /></th>
                   <th onClick={() => toggleSort('debt')} style={{ cursor: 'pointer', userSelect: 'none' }}>{t('debt_col')} <SortIcon k="debt" /></th>
                   <th onClick={() => toggleSort('date')} style={{ cursor: 'pointer', userSelect: 'none' }}>{t('created')} <SortIcon k="date" /></th>
@@ -213,9 +219,9 @@ export default function CasesPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>...</td></tr>
+                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
+                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
                     <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
                     <div>{t('no_cases')}</div>
                   </td></tr>
@@ -279,6 +285,9 @@ export default function CasesPage() {
                             {c.service.name}
                           </span>
                         ) : <span style={{ color: 'var(--muted)', fontSize: 13 }}>—</span>}
+                      </td>
+                      <td style={{ fontSize: 13, color: responsibleName(c) ? 'var(--text)' : 'var(--muted)' }}>
+                        {responsibleName(c) || '—'}
                       </td>
                       <td style={{ fontWeight: 500 }}>{c.totalValue.toFixed(2)} zł</td>
                       <td style={{ color: debt > 0 ? '#dc2626' : '#16a34a', fontWeight: debt > 0 ? 600 : 400 }}>
