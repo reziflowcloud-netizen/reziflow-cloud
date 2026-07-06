@@ -60,8 +60,8 @@ const LEAD_TABLE_COLUMN_WIDTHS: Record<LeadColumnKey, number> = {
   source: 130,
   interest: 170,
   createdAt: 140,
-  lastContact: 140,
-  nextContact: 190,
+  lastContact: 170,
+  nextContact: 230,
   responsible: 150,
 }
 const DEFAULT_LEAD_LIST_STATE: LeadListState = {
@@ -955,8 +955,30 @@ export default function LeadsPage() {
 
         .leads-page .lead-table th,
         .leads-page .lead-table td {
-          white-space: nowrap;
           vertical-align: middle;
+        }
+
+        .leads-page .lead-table th {
+          white-space: normal;
+          line-height: 1.15;
+          overflow-wrap: anywhere;
+        }
+
+        .leads-page .lead-table th button {
+          max-width: 100%;
+          white-space: normal;
+          line-height: 1.15;
+          text-align: left;
+        }
+
+        .leads-page .lead-table td {
+          white-space: nowrap;
+        }
+
+        .leads-page .lead-status-card,
+        .leads-page .lead-status-card button,
+        .leads-page .lead-status-label {
+          color: var(--text);
         }
 
         .leads-page .lead-table-lead-cell,
@@ -1023,6 +1045,34 @@ export default function LeadsPage() {
           background: var(--danger-hover) !important;
           color: var(--danger-text) !important;
           border: 1px solid var(--danger-border);
+        }
+
+        .leads-page .lead-board-column {
+          min-width: 0;
+          overflow: hidden;
+        }
+
+        .leads-page .lead-board-column-title {
+          min-width: 0;
+          overflow: hidden;
+          overflow-wrap: anywhere;
+          line-height: 1.2;
+        }
+
+        .leads-page .lead-board-card {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          overflow: hidden;
+        }
+
+        .leads-page .lead-board-card * {
+          min-width: 0;
+        }
+
+        .leads-page .lead-board-card input[type="checkbox"],
+        .leads-page .lead-board-card .avatar {
+          flex: 0 0 auto;
         }
 
         .leads-page .lead-horizontal-scrollbar {
@@ -1609,13 +1659,14 @@ export default function LeadsPage() {
                   const columnLeads = leadsByStatus[item.name] || []
                   return (
                     <div
+                      className="lead-board-column"
                       key={item.id || item.name}
                       onDragOver={event => event.preventDefault()}
                       onDrop={() => droppedOnStatus(item.name)}
                       style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, minHeight: 420, padding: 10 }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                        <div style={{ fontWeight: 800, color: colors.color }}>{leadStatusLabel(lang, item.name)}</div>
+                        <div className="lead-board-column-title" style={{ fontWeight: 800, color: colors.color }}>{leadStatusLabel(lang, item.name)}</div>
                         <span style={{ background: colors.bg, color: colors.color, borderRadius: 999, padding: '3px 8px', fontSize: 12, fontWeight: 800 }}>{columnLeads.length}</span>
                       </div>
                       <div style={{ display: 'grid', gap: 8 }}>
@@ -1632,7 +1683,7 @@ export default function LeadsPage() {
                             onDragStart={() => setDraggingLeadId(lead.id)}
                             onDragEnd={() => setDraggingLeadId(null)}
                             onClick={() => openLeadCard(lead.id)}
-                            className={overdue ? 'lead-overdue-card' : undefined}
+                            className={`lead-board-card${overdue ? ' lead-overdue-card' : ''}`}
                             style={{ background: overdue ? undefined : 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, cursor: 'grab', boxShadow: 'var(--shadow)' }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
