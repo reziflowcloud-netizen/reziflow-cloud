@@ -205,44 +205,44 @@ export async function handleLeadWebhookPost(request: NextRequest, slug: string, 
 
   let lead: any
   try {
-    lead = await (prisma as any).$transaction(async (tx: any) => {
-      const duplicateWhere: any[] = []
-      if (data.phone) duplicateWhere.push({ phone: data.phone })
-      if (data.email) duplicateWhere.push({ email: data.email })
-      if (data.instagram) duplicateWhere.push({ instagram: data.instagram })
-      if (data.facebook) duplicateWhere.push({ facebook: data.facebook })
+    const duplicateWhere: any[] = []
+    if (data.phone) duplicateWhere.push({ phone: data.phone })
+    if (data.email) duplicateWhere.push({ email: data.email })
+    if (data.instagram) duplicateWhere.push({ instagram: data.instagram })
+    if (data.facebook) duplicateWhere.push({ facebook: data.facebook })
 
-      if (duplicateWhere.length) {
-        const duplicate = await tx.lead.findFirst({
-          where: {
+    if (duplicateWhere.length) {
+      const duplicate = await (prisma as any).lead.findFirst({
+        where: {
+          organizationId: organization.id,
+          source: data.source || undefined,
+          createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) },
+          OR: duplicateWhere,
+        },
+        include: {
+          assignedTo: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+
+      if (duplicate) {
+        await (prisma as any).leadWebhookLog.create({
+          data: {
             organizationId: organization.id,
-            source: data.source || undefined,
-            createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) },
-            OR: duplicateWhere,
+            leadId: duplicate.id,
+            status: 'duplicate',
+            source: data.source || null,
+            payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
           },
-          include: {
-            assignedTo: { select: { id: true, name: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-        })
-
-        if (duplicate) {
-          await tx.leadWebhookLog.create({
-            data: {
-              organizationId: organization.id,
-              leadId: duplicate.id,
-              status: 'duplicate',
-              source: data.source || null,
-              payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
-            },
-          })
-          return duplicate
-        }
+        }).catch(() => null)
+        lead = duplicate
       }
+    }
 
+    if (!lead) {
       await assertBillingLimit(organization.id, 'leads')
 
-      const created = await tx.lead.create({
+      lead = await (prisma as any).lead.create({
         data: {
           organizationId: organization.id,
           ...data,
@@ -252,17 +252,16 @@ export async function handleLeadWebhookPost(request: NextRequest, slug: string, 
           assignedTo: { select: { id: true, name: true } },
         },
       })
-      await tx.leadWebhookLog.create({
+      await (prisma as any).leadWebhookLog.create({
         data: {
           organizationId: organization.id,
-          leadId: created.id,
+          leadId: lead.id,
           status: 'created',
           source: data.source || null,
           payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
         },
-      })
-      return created
-    })
+      }).catch(() => null)
+    }
   } catch (error: any) {
     if (isBillingLimitError(error)) {
       await (prisma as any).leadWebhookLog.create({
@@ -273,10 +272,20 @@ export async function handleLeadWebhookPost(request: NextRequest, slug: string, 
           payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
           error: error.message,
         },
-      })
+      }).catch(() => null)
       return NextResponse.json(billingLimitResponsePayload(error), { status: 402 })
     }
-    throw error
+    const message = error?.message || 'Lead webhook failed'
+    await (prisma as any).leadWebhookLog.create({
+      data: {
+        organizationId: organization.id,
+        status: 'failed',
+        source: data.source || null,
+        payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
+        error: message.slice(0, 1000),
+      },
+    }).catch(() => null)
+    return NextResponse.json({ error: 'Lead webhook failed', detail: message }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true, leadId: lead.id, lead }, { status: 201 })
