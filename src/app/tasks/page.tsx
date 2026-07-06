@@ -423,6 +423,24 @@ export default function TasksPage() {
           gap: 12px;
           grid-template-columns: repeat(${Math.max(priorities.length, 1)}, minmax(200px, 1fr));
         }
+        .task-overdue-card {
+          background: var(--danger-soft) !important;
+          border-color: var(--danger-border) !important;
+          box-shadow: inset 3px 0 0 var(--danger-strong), var(--shadow);
+        }
+        .task-overdue-card:hover {
+          background: var(--danger-hover) !important;
+        }
+        .task-overdue-date {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          color: var(--danger-strong) !important;
+          font-weight: 800 !important;
+        }
+        .task-overdue-card .task-overdue-muted {
+          color: var(--danger-muted) !important;
+        }
         @media (max-width: 768px) {
           .kanban-scroll {
             display: flex;
@@ -629,7 +647,7 @@ export default function TasksPage() {
                       onTouchMove={isMobile ? onTouchMove : undefined}
                       onTouchEnd={isMobile ? onTouchEnd : undefined}
                       onClick={() => { if (!isDragging) openTask(task) }}
-                      className="kanban-card"
+                      className={`kanban-card${overdueTask ? ' task-overdue-card' : ''}`}
                       style={{
                         opacity: isDragging ? 0.4 : 1,
                         cursor: isMobile ? 'pointer' : 'grab',
@@ -657,7 +675,7 @@ export default function TasksPage() {
                       )}
 
                       {task.dueDate && (
-                        <div style={{ fontSize: 11, color: overdueTask ? '#dc2626' : 'var(--muted)', fontWeight: overdueTask ? 600 : 400 }}>
+                        <div className={overdueTask ? 'task-overdue-date' : undefined} style={{ fontSize: 11, color: overdueTask ? undefined : 'var(--muted)', fontWeight: overdueTask ? 800 : 400 }}>
                           {overdueTask ? '⚠️ ' : '📅 '}{new Date(task.dueDate).toLocaleDateString('ru')}
                         </div>
                       )}
@@ -721,11 +739,12 @@ export default function TasksPage() {
                   const reminder = parseReminder(task)
                   const prio = priorities.find(p => p.name === task.priority)
                   const relatedCase = taskRelatedCase(task, selectedService ? serviceCases : clientCases)
+                  const overdueTask = isOverdue(task.dueDate)
                   return (
                     <button
                       key={task.id}
                       onClick={() => openTask(task)}
-                      className="kanban-card"
+                      className={`kanban-card${overdueTask ? ' task-overdue-card' : ''}`}
                       style={{ textAlign: 'left', border: '1px solid var(--border)', borderLeft: `4px solid ${prio?.color || '#6b7280'}`, cursor: 'pointer' }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>

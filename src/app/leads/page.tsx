@@ -52,6 +52,18 @@ const ALL_LEAD_COLUMNS: Array<{ key: LeadColumnKey; labelKey: string; always?: b
 ]
 const DEFAULT_VISIBLE_LEAD_COLUMNS: LeadColumnKey[] = ['lead', 'status', 'reason', 'source', 'interest', 'createdAt', 'lastContact', 'nextContact', 'responsible']
 const LEAD_COLUMN_KEYS = ALL_LEAD_COLUMNS.map(col => col.key)
+const LEAD_SELECT_COLUMN_WIDTH = 42
+const LEAD_TABLE_COLUMN_WIDTHS: Record<LeadColumnKey, number> = {
+  lead: 240,
+  status: 170,
+  reason: 190,
+  source: 130,
+  interest: 170,
+  createdAt: 140,
+  lastContact: 140,
+  nextContact: 190,
+  responsible: 150,
+}
 const DEFAULT_LEAD_LIST_STATE: LeadListState = {
   search: '',
   status: '',
@@ -236,6 +248,10 @@ export default function LeadsPage() {
   const [preferencesReady, setPreferencesReady] = useState(false)
   const [showColMenu, setShowColMenu] = useState(false)
   const colMenuRef = useRef<HTMLDivElement>(null)
+  const leadWorkScrollRef = useRef<HTMLDivElement>(null)
+  const leadBottomScrollRef = useRef<HTMLDivElement>(null)
+  const syncingLeadScrollRef = useRef(false)
+  const [leadScrollState, setLeadScrollState] = useState({ width: 0, visible: false })
 
   const orderedStatuses = leadStatuses.length ? leadStatuses : DEFAULT_LEAD_STATUSES
   const statusNames = orderedStatuses.map(status => status.name)
@@ -269,6 +285,10 @@ export default function LeadsPage() {
   const visibleLeadColumns = useMemo(
     () => availableLeadColumns.filter(col => visibleCols.includes(col.key)).map(col => col.key),
     [availableLeadColumns, visibleCols],
+  )
+  const leadTableMinWidth = useMemo(
+    () => LEAD_SELECT_COLUMN_WIDTH + visibleLeadColumns.reduce((sum, key) => sum + LEAD_TABLE_COLUMN_WIDTHS[key], 0),
+    [visibleLeadColumns],
   )
   const visibleLeadColumnCount = visibleLeadColumns.length
   const totalLeadColumnCount = availableLeadColumns.length
@@ -414,6 +434,33 @@ export default function LeadsPage() {
   useEffect(() => {
     setSelectedLeadIds(current => current.filter(id => leads.some(lead => lead.id === id)))
   }, [leads])
+
+  useEffect(() => {
+    const content = leadWorkScrollRef.current
+    if (!content) return
+
+    const updateScrollState = () => {
+      const scrollWidth = Math.ceil(content.scrollWidth)
+      const clientWidth = Math.ceil(content.clientWidth)
+      setLeadScrollState({ width: scrollWidth, visible: scrollWidth > clientWidth + 2 })
+      if (leadBottomScrollRef.current) leadBottomScrollRef.current.scrollLeft = content.scrollLeft
+    }
+
+    updateScrollState()
+    window.addEventListener('resize', updateScrollState)
+
+    let observer: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(updateScrollState)
+      observer.observe(content)
+      if (content.firstElementChild) observer.observe(content.firstElementChild)
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateScrollState)
+      observer?.disconnect()
+    }
+  }, [viewMode, visibleLeadColumns.join('|'), filtered.length, statusNames.length])
 
   useEffect(() => {
     if (!statusReasonFilter) return
@@ -853,9 +900,163 @@ export default function LeadsPage() {
     }
   }
 
+  function syncLeadContentScroll() {
+    if (syncingLeadScrollRef.current) return
+    const content = leadWorkScrollRef.current
+    const scrollbar = leadBottomScrollRef.current
+    if (!content || !scrollbar) return
+    syncingLeadScrollRef.current = true
+    scrollbar.scrollLeft = content.scrollLeft
+    requestAnimationFrame(() => {
+      syncingLeadScrollRef.current = false
+    })
+  }
+
+  function syncLeadBottomScroll() {
+    if (syncingLeadScrollRef.current) return
+    const content = leadWorkScrollRef.current
+    const scrollbar = leadBottomScrollRef.current
+    if (!content || !scrollbar) return
+    syncingLeadScrollRef.current = true
+    content.scrollLeft = scrollbar.scrollLeft
+    requestAnimationFrame(() => {
+      syncingLeadScrollRef.current = false
+    })
+  }
+
+  const leadHorizontalScrollbar = leadScrollState.visible ? (
+    <div
+      ref={leadBottomScrollRef}
+      className="lead-horizontal-scrollbar"
+      onScroll={syncLeadBottomScroll}
+      aria-hidden="true"
+    >
+      <div style={{ width: leadScrollState.width, height: 1 }} />
+    </div>
+  ) : null
+
   return (
     <div className="fade-in leads-page">
       <style>{`
+        .leads-page .lead-results-shell {
+          min-width: 0;
+          width: 100%;
+        }
+
+        .leads-page .lead-work-scroll {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-gutter: stable;
+        }
+
+        .leads-page .lead-table {
+          table-layout: fixed;
+        }
+
+        .leads-page .lead-table th,
+        .leads-page .lead-table td {
+          white-space: nowrap;
+          vertical-align: middle;
+        }
+
+        .leads-page .lead-table-lead-cell,
+        .leads-page .lead-table-text-cell,
+        .leads-page .lead-table-date-cell {
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .leads-page .lead-table-person {
+          min-width: 0;
+          max-width: 100%;
+        }
+
+        .leads-page .lead-table-person-name,
+        .leads-page .lead-table-person-contact {
+          min-width: 0;
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .leads-page .lead-table-person-name span:last-child {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .leads-page .lead-table .select {
+          max-width: 100%;
+        }
+
+        .leads-page .lead-overdue-row {
+          background: var(--danger-soft);
+        }
+
+        .leads-page .lead-overdue-row td {
+          border-bottom-color: var(--danger-border);
+        }
+
+        .leads-page .lead-overdue-card {
+          background: var(--danger-soft) !important;
+          border-color: var(--danger-border) !important;
+          color: var(--danger-text);
+          box-shadow: inset 3px 0 0 var(--danger-strong), var(--shadow) !important;
+        }
+
+        .leads-page .lead-overdue-card:hover {
+          background: var(--danger-hover) !important;
+        }
+
+        .leads-page .lead-overdue-card .lead-overdue-muted {
+          color: var(--danger-muted) !important;
+        }
+
+        .leads-page .lead-overdue-date {
+          color: var(--danger-strong) !important;
+          font-weight: 800 !important;
+        }
+
+        .leads-page .lead-overdue-badge {
+          background: var(--danger-hover) !important;
+          color: var(--danger-text) !important;
+          border: 1px solid var(--danger-border);
+        }
+
+        .leads-page .lead-horizontal-scrollbar {
+          position: sticky;
+          bottom: 0;
+          z-index: 45;
+          height: 18px;
+          overflow-x: auto;
+          overflow-y: hidden;
+          padding-top: 4px;
+          background: linear-gradient(180deg, rgba(248,250,252,0.15), var(--surface) 48%);
+          border-top: 1px solid var(--border);
+          scrollbar-gutter: stable;
+        }
+
+        .leads-page .lead-horizontal-scrollbar::-webkit-scrollbar,
+        .leads-page .lead-work-scroll::-webkit-scrollbar {
+          height: 12px;
+        }
+
+        .leads-page .lead-horizontal-scrollbar::-webkit-scrollbar-thumb,
+        .leads-page .lead-work-scroll::-webkit-scrollbar-thumb {
+          background: #94a3b8;
+          border-radius: 999px;
+          border: 3px solid transparent;
+          background-clip: content-box;
+        }
+
+        .leads-page .lead-horizontal-scrollbar::-webkit-scrollbar-track,
+        .leads-page .lead-work-scroll::-webkit-scrollbar-track {
+          background: #e5e7eb;
+          border-radius: 999px;
+        }
+
         @media (max-width: 760px) {
           .leads-page {
             overflow-x: hidden;
@@ -951,48 +1152,15 @@ export default function LeadsPage() {
           .leads-page .table-scroll {
             width: 100%;
             max-width: none;
-            overflow-x: visible;
           }
 
           .leads-page .table {
-            min-width: 0;
-            width: 100%;
             table-layout: fixed;
           }
 
           .leads-page .table th,
           .leads-page .table td {
             padding: 7px 6px;
-          }
-
-          .leads-page .table th:first-child,
-          .leads-page .table td:first-child,
-          .leads-page .table th:nth-child(n+4),
-          .leads-page .table td:nth-child(n+4) {
-            display: none;
-          }
-
-          .leads-page .table th:nth-child(2) {
-            width: 58%;
-          }
-
-          .leads-page .table th:nth-child(3) {
-            width: 42%;
-          }
-
-          .leads-page .table .avatar {
-            display: none;
-          }
-
-          .leads-page .table td:nth-child(2) > div {
-            gap: 0 !important;
-          }
-
-          .leads-page .table td:nth-child(2) span,
-          .leads-page .table td:nth-child(2) div {
-            min-width: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
           }
 
           .leads-page .table td:nth-child(3) .select {
@@ -1304,9 +1472,14 @@ export default function LeadsPage() {
 
         <div className="lead-content-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 340px)', gap: 16, alignItems: 'start' }}>
           {viewMode === 'table' ? (
-          <div className="table-container lead-results">
-            <div className="table-scroll">
-              <table className="table">
+          <div className="lead-results lead-results-shell">
+            <div className="table-container">
+              <div ref={leadWorkScrollRef} className="table-scroll lead-work-scroll" onScroll={syncLeadContentScroll}>
+                <table className="table lead-table" style={{ minWidth: leadTableMinWidth, width: `max(100%, ${leadTableMinWidth}px)` }}>
+                <colgroup>
+                  <col style={{ width: LEAD_SELECT_COLUMN_WIDTH }} />
+                  {visibleLeadColumns.map(key => <col key={key} style={{ width: LEAD_TABLE_COLUMN_WIDTHS[key] }} />)}
+                </colgroup>
                 <thead>
                   <tr>
                     <th style={{ width: 42 }}>
@@ -1347,7 +1520,7 @@ export default function LeadsPage() {
                     const lastContactAt = latestLeadContactAt(lead)
                     const responsible = leadResponsibleName(lead)
                     return (
-                      <tr key={lead.id} onClick={() => openLeadCard(lead.id)} style={{ cursor: 'pointer', background: overdue ? '#fef2f2' : undefined }}>
+                      <tr key={lead.id} className={overdue ? 'lead-overdue-row' : undefined} onClick={() => openLeadCard(lead.id)} style={{ cursor: 'pointer' }}>
                         <td onClick={event => event.stopPropagation()}>
                           <input
                             type="checkbox"
@@ -1357,15 +1530,15 @@ export default function LeadsPage() {
                           />
                         </td>
                         {isColumnVisible('lead') && (
-                          <td>
+                          <td className="lead-table-lead-cell">
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                               <div className="avatar" style={{ width: 32, height: 32, fontSize: 12 }}>{initials(lead)}</div>
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13 }}>
+                              <div className="lead-table-person">
+                                <div className="lead-table-person-name" style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13 }}>
                                   {temp && <span title={leadTemperatureLabel(lang, lead.urgency)} style={{ width: 8, height: 8, borderRadius: 999, background: temp.color, flex: '0 0 auto' }} />}
                                   <span>{leadDisplayName(lead)}</span>
                                 </div>
-                                <div style={{ fontSize: 12, color: 'var(--muted)' }}>{lead.phone || lead.email || lead.instagram || lead.facebook || lt('contact_not_set')}</div>
+                                <div className="lead-table-person-contact" style={{ fontSize: 12, color: 'var(--muted)' }}>{lead.phone || lead.email || lead.instagram || lead.facebook || lt('contact_not_set')}</div>
                               </div>
                             </div>
                           </td>
@@ -1383,7 +1556,7 @@ export default function LeadsPage() {
                           </td>
                         )}
                         {isColumnVisible('reason') && (
-                          <td style={{ fontSize: 13 }}>
+                          <td className="lead-table-text-cell" style={{ fontSize: 13 }}>
                             {lead.statusReason ? (
                               <div>
                                 <strong>{lead.statusReason}</strong>
@@ -1392,11 +1565,11 @@ export default function LeadsPage() {
                             ) : lt('no_value')}
                           </td>
                         )}
-                        {isColumnVisible('source') && <td style={{ fontSize: 13 }}>{sourceLabel(lead.source)}</td>}
-                        {isColumnVisible('interest') && <td style={{ fontSize: 13 }}>{lead.serviceInterest || lt('no_value')}</td>}
-                        {isColumnVisible('createdAt') && <td style={{ fontSize: 13, color: 'var(--muted)' }}>{lead.createdAt ? formatLeadCreatedAt(lead.createdAt, locale) : lt('no_value')}</td>}
+                        {isColumnVisible('source') && <td className="lead-table-text-cell" style={{ fontSize: 13 }}>{sourceLabel(lead.source)}</td>}
+                        {isColumnVisible('interest') && <td className="lead-table-text-cell" style={{ fontSize: 13 }}>{lead.serviceInterest || lt('no_value')}</td>}
+                        {isColumnVisible('createdAt') && <td className="lead-table-date-cell" style={{ fontSize: 13, color: 'var(--muted)' }}>{lead.createdAt ? formatLeadCreatedAt(lead.createdAt, locale) : lt('no_value')}</td>}
                         {isColumnVisible('lastContact') && (
-                          <td style={{ fontSize: 13, color: lastContactAt ? 'var(--text)' : 'var(--muted)' }}>
+                          <td className="lead-table-date-cell" style={{ fontSize: 13, color: lastContactAt ? 'var(--text)' : 'var(--muted)' }}>
                             {lastContactAt ? formatLeadCreatedAt(lastContactAt, locale) : lt('no_value')}
                           </td>
                         )}
@@ -1407,7 +1580,7 @@ export default function LeadsPage() {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                   <span>{formatLeadDateTime(lead.nextContactAt, locale)}</span>
                                   {(overdue || dueToday) && (
-                                    <span className="badge" style={{ background: overdue ? '#fee2e2' : '#fef3c7', color: overdue ? '#b91c1c' : '#92400e' }}>
+                                    <span className={overdue ? 'badge lead-overdue-badge' : 'badge'} style={overdue ? undefined : { background: '#fef3c7', color: '#92400e' }}>
                                       {overdue ? lt('overdue') : lt('due_today')}
                                     </span>
                                   )}
@@ -1417,16 +1590,19 @@ export default function LeadsPage() {
                             ) : lt('no_value')}
                           </td>
                         )}
-                        {isColumnVisible('responsible') && <td style={{ fontSize: 13 }}>{responsible || lt('no_value')}</td>}
+                        {isColumnVisible('responsible') && <td className="lead-table-text-cell" style={{ fontSize: 13 }}>{responsible || lt('no_value')}</td>}
                       </tr>
                     )
                   })}
                 </tbody>
               </table>
             </div>
+            </div>
+            {leadHorizontalScrollbar}
           </div>
           ) : (
-            <div className="lead-results lead-board-scroll" style={{ overflowX: 'auto', paddingBottom: 6 }}>
+            <div className="lead-results lead-results-shell">
+            <div ref={leadWorkScrollRef} className="lead-board-scroll lead-work-scroll" onScroll={syncLeadContentScroll} style={{ overflowX: 'auto', paddingBottom: 10 }}>
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(${statusNames.length}, minmax(230px, 1fr))`, gap: 12, minWidth: Math.max(320, statusNames.length * 240) }}>
                 {orderedStatuses.map(item => {
                   const colors = statusColors(item)
@@ -1436,7 +1612,7 @@ export default function LeadsPage() {
                       key={item.id || item.name}
                       onDragOver={event => event.preventDefault()}
                       onDrop={() => droppedOnStatus(item.name)}
-                      style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, minHeight: 420, padding: 10 }}
+                      style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, minHeight: 420, padding: 10 }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 10 }}>
                         <div style={{ fontWeight: 800, color: colors.color }}>{leadStatusLabel(lang, item.name)}</div>
@@ -1448,6 +1624,7 @@ export default function LeadsPage() {
                         ) : columnLeads.map(lead => {
                           const temp = temperatureMeta(lead.urgency)
                           const responsible = leadResponsibleName(lead)
+                          const overdue = isOverdue(lead.nextContactAt) && !isConvertedLead(lead)
                           return (
                           <div
                             key={lead.id}
@@ -1455,7 +1632,8 @@ export default function LeadsPage() {
                             onDragStart={() => setDraggingLeadId(lead.id)}
                             onDragEnd={() => setDraggingLeadId(null)}
                             onClick={() => openLeadCard(lead.id)}
-                            style={{ background: isOverdue(lead.nextContactAt) && !isConvertedLead(lead) ? '#fef2f2' : 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, cursor: 'grab', boxShadow: 'var(--shadow-sm)' }}
+                            className={overdue ? 'lead-overdue-card' : undefined}
+                            style={{ background: overdue ? undefined : 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, cursor: 'grab', boxShadow: 'var(--shadow)' }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                               <input
@@ -1470,14 +1648,14 @@ export default function LeadsPage() {
                                   {temp && <span title={leadTemperatureLabel(lang, lead.urgency)} style={{ width: 8, height: 8, borderRadius: 999, background: temp.color, flex: '0 0 auto' }} />}
                                   <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{leadDisplayName(lead)}</span>
                                 </div>
-                                <div style={{ color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.phone || lead.email || lead.instagram || lt('contact_not_set')}</div>
+                                <div className={overdue ? 'lead-overdue-muted' : undefined} style={{ color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.phone || lead.email || lead.instagram || lt('contact_not_set')}</div>
                               </div>
                             </div>
                             {lead.serviceInterest && <div style={{ fontSize: 12, marginBottom: 6 }}>{lead.serviceInterest}</div>}
-                            {responsible && <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--muted)' }}>{responsible}</div>}
-                            {lead.statusReason && <div style={{ fontSize: 12, marginBottom: 6, color: 'var(--muted)' }}>{lt('reason_prefix')}: {lead.statusReason}</div>}
+                            {responsible && <div className={overdue ? 'lead-overdue-muted' : undefined} style={{ fontSize: 12, marginBottom: 6, color: 'var(--muted)' }}>{responsible}</div>}
+                            {lead.statusReason && <div className={overdue ? 'lead-overdue-muted' : undefined} style={{ fontSize: 12, marginBottom: 6, color: 'var(--muted)' }}>{lt('reason_prefix')}: {lead.statusReason}</div>}
                             {lead.nextContactAt && (
-                              <div style={{ color: isOverdue(lead.nextContactAt) && !isConvertedLead(lead) ? '#b91c1c' : 'var(--muted)', fontSize: 12, fontWeight: isOverdue(lead.nextContactAt) && !isConvertedLead(lead) ? 800 : 500 }}>
+                              <div className={overdue ? 'lead-overdue-date' : undefined} style={{ color: overdue ? undefined : 'var(--muted)', fontSize: 12, fontWeight: overdue ? 800 : 500 }}>
                                 {formatLeadDateTime(lead.nextContactAt, locale)}
                               </div>
                             )}
@@ -1489,6 +1667,8 @@ export default function LeadsPage() {
                   )
                 })}
               </div>
+            </div>
+            {leadHorizontalScrollbar}
             </div>
           )}
 
