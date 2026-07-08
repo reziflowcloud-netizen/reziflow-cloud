@@ -29,6 +29,19 @@ Marketing foundation files:
 
 ## Latest completed work
 
+The first ready-to-produce Instagram launch content batch was created on 2026-07-08.
+
+New deliverables:
+
+- `content-batches/batch-001/REELS_SCRIPTS.md`: 10 complete English Reels scripts with title, goal, persona, pain, hook, scene-by-scene script, on-screen text, voiceover, visual direction, CRM screen to show, caption, CTA, hashtags, and production notes.
+- `content-batches/batch-001/CAROUSELS.md`: 5 complete 8-slide Instagram carousel scripts with audience, pain point, slide copy, final CTA, caption, design direction, and hashtags.
+- `content-batches/batch-001/STORIES_14_DAYS.md`: 14-day Stories plan with morning, afternoon, and evening story prompts, poll/question sticker ideas, CTA, and campaign goal.
+- `content-batches/batch-001/PUBLISHING_PLAN.md`: first 14-day publishing order with format, goal, CTA, and reuse guidance for YouTube Shorts and LinkedIn.
+- `content-batches/batch-001/VISUAL_DIRECTION.md`: Instagram visual style guidance covering colors, Reel covers, carousel style, CRM UI usage, mockups, and B2B-but-not-boring rules.
+- `content-batches/batch-001/PROFILE_OPTIMIZATION.md`: Instagram profile optimization with bio/name/CTA options, highlights, pinned post ideas, link-in-bio structure, and setup checklist.
+
+The batch is practical and publication-oriented. It keeps focus on migration agencies, immigration consultants, legalization agencies in Poland, legal/relocation workflows, documents, deadlines, WhatsApp/Excel chaos, and LegalHub CRM as a system for organizing leads, clients, cases, documents, tasks, payments, and responsibility. Unconfirmed areas remain marked as `Needs clarification`.
+
 An Instagram strategy and content system v1 was created on 2026-07-08 from the repository-audited product source of truth and marketing foundation files.
 
 New deliverables:

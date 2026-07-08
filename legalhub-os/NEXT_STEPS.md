@@ -4,22 +4,22 @@ Last updated: 2026-07-08
 
 ## Recommended next tasks
 
-1. Review and approve or edit `INSTAGRAM_STRATEGY.md`, especially the account positioning, topics to avoid, funnel, and Building in Public boundaries.
-2. Choose the first Instagram production sequence from `INSTAGRAM_30_DAY_PLAN.md`: awareness Reels, product demos, carousels, Stories, or founder posts.
-3. Decide the primary Instagram CTA and sales motion: free demo, workflow audit, early access, onboarding call, free registration, contact form, or consultation.
+1. Review and approve or edit `content-batches/batch-001/` before production.
+2. Decide the final primary Instagram CTA: free demo, workflow audit, early access, onboarding call, free registration, contact form, or consultation.
+3. Create the final booking/link-in-bio destination for the batch CTAs.
 4. Create an approved Instagram demo/screenshot asset inventory from actual CRM routes and modules.
-5. Approve which Reels from `REELS_IDEAS.md` should be scripted and filmed first.
-6. Approve which carousels from `CAROUSEL_IDEAS.md` should be designed first.
-7. Decide how story replies, DM keywords, and comment CTAs will be handled operationally.
-8. Review and approve or edit `MARKETING_POSITIONING.md`, especially the main positioning, slogan options, and one-sentence product descriptions.
-9. Choose the primary ICP for the next campaign from the drafted personas in `CUSTOMER_PERSONAS.md`: migration agency owner, small agency owner, operations manager, legal consultant, or case manager.
-10. Validate public pricing and packaging: Free, Starter, Pro, Agency, VAT/tax wording, trial length, limits, and included features.
-11. Approve the first launch offers from `OFFERS.md`, including what is free, what is manual, what is plan-specific, and what support is included.
+5. Prepare a safe demo organization with fake leads, clients, cases, documents, payments, tasks, employees, services, statuses, and dashboard metrics.
+6. Record the first 5 priority Reels from `content-batches/batch-001/REELS_SCRIPTS.md`.
+7. Design the first 3 priority carousels from `content-batches/batch-001/CAROUSELS.md`.
+8. Set up Instagram profile using `content-batches/batch-001/PROFILE_OPTIMIZATION.md`.
+9. Decide how story replies, DM keywords, and comment CTAs will be handled operationally.
+10. Approve which UI screens can be shown publicly in Reels, Stories, carousels, and product demos.
+11. Validate public pricing and packaging before using pricing in any future content.
 12. Build an approved integration-claims matrix: webhooks, Meta/Facebook/Instagram, Telegram, Google Sheets Apps Script, Cloudinary, Dropbox.
 13. Approve security, privacy, storage, GDPR, data-deletion, and document-template wording before public campaigns.
-14. Turn the approved positioning and messaging into a landing-page copy brief or `LANDING_PAGE_COPY.md`.
+14. Define the onboarding and migration service scope for agencies moving from Excel/WhatsApp.
 15. Create a sales discovery script from `CUSTOMER_PERSONAS.md`, `PAIN_POINTS.md`, `OFFERS.md`, and `OBJECTIONS.md`.
-16. Define the onboarding and migration service scope for agencies moving from Excel/WhatsApp.
+16. Turn approved positioning and messaging into a landing-page copy brief or `LANDING_PAGE_COPY.md`.
 17. Add proof points when available: testimonials, customer quotes, active agency count, usage metrics, screenshots, demo video, case studies, or founder credibility.
 
 ## Questions to answer before campaign production
@@ -49,13 +49,16 @@ Last updated: 2026-07-08
 
 Recommended next deliverable:
 
-- `INSTAGRAM_SCRIPT_BATCH_01.md` inside `/legalhub-os/`.
+- `content-batches/batch-001/PRODUCTION_CHECKLIST.md` inside `/legalhub-os/`.
 
 Suggested sections:
 
-- 10 priority Reels scripts selected from `REELS_IDEAS.md`.
-- 5 priority carousel scripts selected from `CAROUSEL_IDEAS.md`.
-- 7-day Stories sequence selected from `STORIES_IDEAS.md`.
-- Required CRM screen or module for each asset.
-- Exact CTA and caption draft for each asset.
-- `Needs clarification` notes for screenshots, proof, CTA, integrations, or claims.
+- Approved demo data checklist.
+- Required screenshots and screen recordings.
+- First 5 Reels production order.
+- First 3 carousels design order.
+- Story assets needed for the first 14 days.
+- Link-in-bio and CTA setup.
+- DM/comment handling process.
+- Publishing owner and review process.
+- `Needs clarification` notes for screenshots, proof, CTA, integrations, security/privacy, migration support, and document-template claims.

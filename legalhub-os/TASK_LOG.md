@@ -1,5 +1,44 @@
 # Task Log
 
+## 2026-07-08 - Instagram launch content batch 001
+
+Task:
+
+- Create the first ready-to-publish Instagram content package for LegalHub CRM, working only inside `/legalhub-os/` and without modifying application code.
+
+Done:
+
+- Read the required Marketing OS context files: `AGENTS.md`, `CURRENT_STATE.md`, `NEXT_STEPS.md`, `TASK_LOG.md`, `PROJECT_BIBLE.md`, `PRODUCT_MAP.md`, `MARKETING_POSITIONING.md`, `CUSTOMER_PERSONAS.md`, `PAIN_POINTS.md`, `MESSAGING.md`, `OFFERS.md`, `OBJECTIONS.md`, `INSTAGRAM_STRATEGY.md`, `CONTENT_PILLARS.md`, `INSTAGRAM_30_DAY_PLAN.md`, `REELS_IDEAS.md`, `STORIES_IDEAS.md`, and `CAROUSEL_IDEAS.md`.
+- Created `/legalhub-os/content-batches/batch-001/`.
+- Created 10 complete English Reels scripts with hooks, scene-by-scene scripts, on-screen text, voiceover, CRM screen guidance, captions, CTA, hashtags, and production notes.
+- Created 5 ready-to-design English carousel scripts with 8-slide structure, captions, design direction, and hashtags.
+- Created a 14-day Stories plan with morning, afternoon, evening, sticker, CTA, and goal for each day.
+- Created a 14-day publishing plan with format, goal, CTA, and reuse guidance for YouTube Shorts and LinkedIn.
+- Created Instagram visual direction for colors, Reels covers, carousel style, CRM interface usage, mockups, and B2B visual tone.
+- Created Instagram profile optimization options for bio, name field, CTAs, highlights, pinned posts, and link in bio.
+- Updated `CURRENT_STATE.md`, `TASK_LOG.md`, and `NEXT_STEPS.md`.
+
+Files created:
+
+- `legalhub-os/content-batches/batch-001/REELS_SCRIPTS.md`
+- `legalhub-os/content-batches/batch-001/CAROUSELS.md`
+- `legalhub-os/content-batches/batch-001/STORIES_14_DAYS.md`
+- `legalhub-os/content-batches/batch-001/PUBLISHING_PLAN.md`
+- `legalhub-os/content-batches/batch-001/VISUAL_DIRECTION.md`
+- `legalhub-os/content-batches/batch-001/PROFILE_OPTIMIZATION.md`
+
+Files changed:
+
+- `legalhub-os/CURRENT_STATE.md`
+- `legalhub-os/TASK_LOG.md`
+- `legalhub-os/NEXT_STEPS.md`
+
+Notes:
+
+- Application code was not modified.
+- The batch avoids generic motivation and focuses on migration/legalization agency operations: leads, cases, documents, deadlines, WhatsApp/Excel chaos, payments, tasks, and responsibility.
+- Unconfirmed claims remain marked as `Needs clarification`, including final CTA, booking link, demo data, integration readiness, migration support scope, security/privacy wording, and legally reviewed template claims.
+
 ## 2026-07-08 - Instagram strategy and content plan for LegalHub CRM
 
 Task:
