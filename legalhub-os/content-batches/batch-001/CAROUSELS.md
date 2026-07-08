@@ -1,10 +1,16 @@
 # Carousels - Batch 001
 
-Status: ready-to-design Instagram carousel copy.
+Status: QA-revised Instagram carousel copy.
 
 Format: 8 slides per carousel.
 
-Primary CTA used in this batch: book a workflow-based demo or request a workflow audit.
+Primary CTA used in this batch: book a workflow-based demo, request an audit call, or ask for early access.
+
+Editorial rule after QA:
+
+- Make each carousel a practical diagnostic or checklist.
+- Use agency questions before product language.
+- Keep LegalHub CRM as the answer to one visible workflow gap.
 
 Needs clarification before publishing:
 
@@ -12,6 +18,19 @@ Needs clarification before publishing:
 - Approved screenshots or UI mockups.
 - Approved demo data.
 - Whether DM keywords are handled manually or automated.
+- Whether early access should be used as a primary or secondary CTA.
+
+## Recommended Carousel Publishing Order
+
+1. Carousel 01 - Excel Can Store Data. It Cannot Manage A Legalization Case.
+2. Carousel 02 - What Every Active Case Should Show.
+3. Carousel 05 - What Owners Should See Every Week.
+4. Carousel 04 - WhatsApp Is Not Your Agency Operating System.
+5. Carousel 03 - Lead To Client To Case.
+
+Reason:
+
+Start with the most recognizable chaos, then move into case structure, owner visibility, chat chaos, and finally product workflow education.
 
 ## Carousel 01 - Excel Can Store Data. It Cannot Manage A Legalization Case.
 
@@ -29,9 +48,9 @@ Excel contains case information, but it does not connect responsibility, reminde
 
 ### Slide 1 Hook
 
-Excel can store data.
+Open your case spreadsheet.
 
-It cannot manage a legalization case.
+Now show me the next action.
 
 ### Slides 2-7 Text
 
@@ -43,10 +62,12 @@ A spreadsheet can show:
 - phone number;
 - service;
 - status;
-- deadline;
+- date;
 - payment amount.
 
-That is useful, but it is not the full workflow.
+Useful? Yes.
+
+Enough to run the case? No.
 
 Slide 3:
 
@@ -57,29 +78,29 @@ A real case also needs:
 - important dates;
 - documents;
 - comments;
-- status history;
-- payment status.
+- payment status;
+- status history.
 
 Slide 4:
 
-The problem starts when the spreadsheet cannot answer:
+The painful question:
 
 "Who needs to do what next?"
 
+If the spreadsheet cannot answer that, the team starts searching.
+
 Slide 5:
 
-Then your team starts using:
+Then one case becomes four tools:
 
 - WhatsApp for updates;
 - folders for documents;
-- calendars for reminders;
-- separate files for payments.
-
-One case becomes four tools.
+- calendar for reminders;
+- separate file for payments.
 
 Slide 6:
 
-LegalHub CRM helps connect the workflow:
+What LegalHub CRM connects:
 
 lead -> client -> case -> documents -> dates -> tasks -> payments -> responsibility.
 
@@ -87,13 +108,13 @@ Slide 7:
 
 Excel can be the starting point.
 
-But growing agencies need one structured workspace for daily case work.
+But growing agencies need a case record the team can actually work from.
 
 ### Final CTA Slide
 
-Want to see how your current spreadsheet can become a CRM workflow?
+Want to see how your current spreadsheet could become a CRM workflow?
 
-Book a workflow-based demo.
+Book a workflow-based demo or request an audit call.
 
 Needs clarification: final booking link.
 
@@ -103,7 +124,7 @@ Excel is often where the agency starts.
 
 But legalization work quickly becomes more complex than rows and columns. A case needs documents, dates, comments, payment visibility, tasks, and a responsible person.
 
-LegalHub CRM helps legalization agencies in Poland move from scattered tracking into one structured workflow for leads, clients, cases, documents, deadlines, payments, and team responsibility.
+LegalHub CRM helps legalization agencies in Poland move from scattered tracking into a connected workflow for leads, clients, cases, documents, deadlines, payments, and team responsibility.
 
 Save this before your next spreadsheet cleanup.
 
@@ -113,7 +134,6 @@ Use a split visual system:
 
 - Left side: spreadsheet fragments, pale gray grid, highlighted empty cells.
 - Right side: clean CRM cards with status, responsible person, date, document, payment, and task labels.
-- Keep typography large and practical.
 - Use one UI screenshot or realistic mockup on slides 6-8.
 - Avoid cartoon chaos. Make it feel like a serious operations upgrade.
 
@@ -137,9 +157,11 @@ Teams track case status, but still lack a complete view of the client, documents
 
 ### Slide 1 Hook
 
-A case status is not enough.
+The client asks for an update.
 
-Every active case should show these 7 things.
+Your tracker says: "In progress."
+
+That is not enough.
 
 ### Slides 2-7 Text
 
@@ -153,15 +175,15 @@ Slide 3:
 
 2. Service and status
 
-The case needs a clear service type and current status, using the same definitions across the team.
+The case needs a clear service type and a status the whole team understands.
 
 Slide 4:
 
 3. Responsible person
 
-If nobody owns the case, follow-up becomes negotiable.
+If nobody visibly owns the case, follow-up becomes negotiable.
 
-Every case should have visible responsibility.
+Every active case should show who is responsible.
 
 Slide 5:
 
@@ -175,7 +197,9 @@ Slide 6:
 
 5. Documents and comments
 
-Files should be connected to the case record. Comments should help the team understand what changed and what happened.
+Files should be connected to the case record.
+
+Comments should explain what changed, what was promised, and what needs attention.
 
 Slide 7:
 
@@ -185,7 +209,7 @@ Case value, payments received, unpaid balance, and next tasks should be visible 
 
 ### Final CTA Slide
 
-LegalHub CRM brings case status, documents, dates, payments, comments, tasks, and responsibility into one case workflow.
+LegalHub CRM brings case status, documents, dates, payments, comments, tasks, and responsibility into one case record.
 
 Book a case workflow demo.
 
@@ -193,7 +217,14 @@ Book a case workflow demo.
 
 If your team only knows that a case is "in progress", they still may not know what to do next.
 
-A useful case record should show context, status, owner, dates, documents, comments, payments, and tasks.
+A useful case record should answer:
+
+- who owns it;
+- what changed;
+- what document is missing;
+- what date matters next;
+- what is unpaid;
+- what task should happen today.
 
 That is the difference between a label and a workflow.
 
@@ -201,11 +232,11 @@ LegalHub CRM is built around case-management work for legalization agencies in P
 
 ### Design Direction
 
-Make this a clean checklist carousel.
+Make this a clean checklist carousel:
 
-- Slide 1: strong title with a cropped case-detail screenshot behind it.
-- Slides 2-7: each slide gets one number, one short explanation, and one UI callout.
-- Final slide: CRM workflow map.
+- Slide 1: strong pain hook with cropped case-detail screenshot.
+- Slides 2-7: one number, one short explanation, one UI callout.
+- Final slide: case record summary.
 - Use consistent icon labels for client, status, person, calendar, document, payment, task.
 
 ### Hashtags
@@ -216,7 +247,7 @@ Make this a clean checklist carousel.
 
 ### Title
 
-Lead To Client To Case: The Workflow Agencies Need
+Lead To Client To Case: The Handoff Agencies Need
 
 ### Target Audience
 
@@ -228,9 +259,9 @@ Incoming requests are treated like random messages, and qualified leads do not s
 
 ### Slide 1 Hook
 
-A lead should not stay as a random message.
+The lead said yes.
 
-It should become a workflow.
+Now where does the case actually start?
 
 ### Slides 2-7 Text
 
@@ -271,9 +302,9 @@ Slide 5:
 
 Step 4: Qualified lead
 
-When the lead is ready, the workflow should not restart in another tool.
+This is the risky handoff.
 
-The lead should become a client and, when needed, a case.
+Do not restart the work in another spreadsheet, chat, or folder.
 
 Slide 6:
 
@@ -301,11 +332,11 @@ Now the team can manage:
 
 LegalHub CRM supports the workflow from incoming request to client and case management.
 
-Book a lead-to-case demo.
+Book a lead-to-case demo or request early access.
 
 ### Caption
 
-The workflow should not break when someone says "yes".
+The workflow should not restart when someone says "yes".
 
 For migration and legalization agencies, lead management is not separate from case management. The request should be tracked, followed up, qualified, and then connected to a client and case record.
 
@@ -317,7 +348,7 @@ Use a horizontal journey visual across all slides:
 
 Incoming request -> lead -> follow-up -> client -> case -> case work.
 
-Show one simple line or progress indicator at the bottom of every slide. Add small CRM screenshots for lead detail, client profile, and case detail on slides 3, 6, and 7.
+Show one simple progress indicator at the bottom of every slide. Add small CRM screenshots for lead detail, client profile, and case detail on slides 3, 6, and 7.
 
 ### Hashtags
 
@@ -339,9 +370,9 @@ WhatsApp is useful for communication, but it buries documents, decisions, follow
 
 ### Slide 1 Hook
 
-WhatsApp is for conversation.
+If the latest document is in someone's chat,
 
-Not for managing a legalization agency.
+your team is guessing.
 
 ### Slides 2-7 Text
 
@@ -392,7 +423,7 @@ Slide 7:
 
 Keep WhatsApp for communication.
 
-Move the operational workflow into LegalHub CRM.
+Move the operational record into LegalHub CRM.
 
 ### Final CTA Slide
 
@@ -406,7 +437,7 @@ Needs clarification: do not claim automatic WhatsApp import.
 
 WhatsApp is fast. That is why teams use it.
 
-But when a chat becomes the operating system, the agency starts losing context:
+But when chat becomes the operating system, the agency starts losing context:
 
 - document versions;
 - status updates;
@@ -419,10 +450,10 @@ LegalHub CRM gives the team a structured place for the work around the conversat
 
 ### Design Direction
 
-Use phone mockups and chat bubbles for the first half, then transition to CRM screens.
+Use phone mockups and chat bubbles for the first half, then transition to CRM screens:
 
 - Slides 2-5: chat-based pain.
-- Slide 6: CRM workflow checklist.
+- Slide 6: CRM checklist.
 - Slide 7-8: clean LegalHub UI or structured mockup.
 - Keep all chat text fictional and generic.
 
@@ -446,7 +477,9 @@ Owners rely on manual reports, employee updates, and spreadsheets instead of see
 
 ### Slide 1 Hook
 
-If you own a legalization agency, these 6 questions should not require a manual report.
+If you own a legalization agency,
+
+these questions should not require a manual report.
 
 ### Slides 2-7 Text
 
@@ -454,7 +487,7 @@ Slide 2:
 
 1. How many active cases do we have?
 
-The owner needs visibility into current workload, not only total clients.
+The owner needs current workload visibility, not only a client list.
 
 Slide 3:
 
@@ -490,9 +523,9 @@ Hot leads cool down when next contact and ownership are unclear.
 
 ### Final CTA Slide
 
-LegalHub CRM helps owners see agency work from one dashboard and connected CRM records.
+LegalHub CRM helps owners see agency work from dashboard indicators and connected CRM records.
 
-Book an owner visibility demo.
+Book an owner visibility demo or request an audit call.
 
 ### Caption
 

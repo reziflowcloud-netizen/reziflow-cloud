@@ -1,5 +1,42 @@
 # Task Log
 
+## 2026-07-08 - Editorial QA and revision of Instagram launch batch 001
+
+Task:
+
+- Conduct a strict editorial QA review of the first Instagram launch batch, then update the batch to make it sharper, more specific, and more publishable for owners of migration/legalization agencies.
+
+Done:
+
+- Read the requested Marketing OS and batch files: `AGENTS.md`, `CURRENT_STATE.md`, `NEXT_STEPS.md`, `TASK_LOG.md`, `PROJECT_BIBLE.md`, `PRODUCT_MAP.md`, `MARKETING_POSITIONING.md`, `CUSTOMER_PERSONAS.md`, `PAIN_POINTS.md`, `MESSAGING.md`, `OBJECTIONS.md`, `INSTAGRAM_STRATEGY.md`, `CONTENT_PILLARS.md`, and all requested files inside `content-batches/batch-001/`.
+- Created `content-batches/batch-001/QA_REVIEW.md` with strict findings on strong Reels, weak/general Reels, hooks to improve, CRM-marketing language to reduce, missing customer pain, LegalHub CRM demo opportunities, carousel order, lead-generating Stories, ideas to rewrite/remove, and fast-production assets.
+- Rewrote `REELS_SCRIPTS.md` around sharper pain-led hooks: spreadsheet next action, no next contact, owner-as-operating-system, incomplete "in progress" status, documents in chat, deadlines in memory, and month-end debt surprise.
+- Rewrote `CAROUSELS.md` with a clearer first-publishing order: Excel pain, active case checklist, owner weekly visibility, WhatsApp chaos, then lead-to-case education.
+- Rewrote `STORIES_14_DAYS.md` to use stronger diagnostic prompts, mini-audits, owner questions, lead follow-up prompts, and demo/audit/early-access CTAs.
+- Rewrote `PUBLISHING_PLAN.md` so the first 14 days open with concrete buyer pain instead of a broad CRM category statement.
+- Updated `CURRENT_STATE.md`, `NEXT_STEPS.md`, and `DECISIONS.md`.
+
+Files created:
+
+- `legalhub-os/content-batches/batch-001/QA_REVIEW.md`
+
+Files changed:
+
+- `legalhub-os/content-batches/batch-001/REELS_SCRIPTS.md`
+- `legalhub-os/content-batches/batch-001/CAROUSELS.md`
+- `legalhub-os/content-batches/batch-001/STORIES_14_DAYS.md`
+- `legalhub-os/content-batches/batch-001/PUBLISHING_PLAN.md`
+- `legalhub-os/CURRENT_STATE.md`
+- `legalhub-os/NEXT_STEPS.md`
+- `legalhub-os/TASK_LOG.md`
+- `legalhub-os/DECISIONS.md`
+
+Notes:
+
+- Application code was not modified.
+- Unsupported claims remain marked as `Needs clarification`.
+- The revised batch avoids broad guarantees, unapproved integration claims, legal/security claims, pricing promises, and automatic migration/payment wording.
+
 ## 2026-07-08 - Instagram launch content batch 001
 
 Task:

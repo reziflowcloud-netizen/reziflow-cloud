@@ -1,10 +1,18 @@
 # Reels Scripts - Batch 001
 
-Status: ready-to-produce launch scripts for Instagram.
+Status: QA-revised launch scripts for Instagram.
 
 Audience: migration agencies, immigration consultants, legalization agencies, relocation/legal operations teams in Poland.
 
-Primary CTA used in this batch: book a free demo or request a workflow audit.
+Primary CTA used in this batch: book a workflow demo, request an audit call, or ask for early access.
+
+Editorial rule after QA:
+
+- Start with the broken agency moment.
+- Name the risk in plain language.
+- Show one LegalHub CRM screen as the answer.
+- End with demo, audit, or early-access intent.
+- Avoid broad claims before the viewer feels the pain.
 
 Needs clarification before publishing:
 
@@ -13,16 +21,25 @@ Needs clarification before publishing:
 - Whether DM keywords and comment replies are handled manually or through automation.
 - Which integration screens can be shown publicly.
 - Approved security/privacy wording.
+- Whether early access is the preferred CTA for cold viewers.
 
-## Reel 01 - Your Agency Is Too Busy For Chaos
+## Editorial Priority
+
+| Priority | Reels | Reason |
+| --- | --- | --- |
+| Publish first | Reel 02, Reel 04, Reel 05 | Strongest buyer pain: Excel chaos, lead follow-up, owner visibility. |
+| Publish next | Reel 06, Reel 07, Reel 08, Reel 10 | Strong operational pains: incomplete case status, documents, deadlines, unpaid balances. |
+| Use as support | Reel 01, Reel 03, Reel 09 | Good category education after the first pain-led posts. |
+
+## Reel 01 - Three Chats To Answer One Case Question
 
 ### Title
 
-Your legalization agency is not too small for CRM. It is too busy for chaos.
+If you need three chats to answer one case question, your agency has outgrown informal tracking.
 
 ### Goal
 
-Create launch awareness and position LegalHub CRM as a workflow system for agencies that have outgrown Excel, WhatsApp, folders, and memory.
+Diagnose broad agency chaos without sounding like a generic CRM launch statement.
 
 ### Target Persona
 
@@ -30,86 +47,84 @@ Small agency owner, migration agency founder, operations manager.
 
 ### Customer Pain
 
-The agency still feels "small", but the number of leads, clients, documents, dates, payments, and employee questions already creates operational chaos.
+The owner or manager needs to open chats, spreadsheets, folders, and calendars just to answer one basic client or case question.
 
 ### Hook
 
-"Your legalization agency is not too small for CRM. It is too busy for chaos."
+"If you need three chats to answer one case question, your agency has outgrown informal tracking."
 
 ### Scene-By-Scene Script
 
-1. 0-3 sec: Talking head, direct to camera. Say the hook.
-2. 3-7 sec: Quick cuts of Excel, WhatsApp notifications, folders, calendar reminders, sticky notes.
-3. 7-13 sec: Show the problem as text overlays: leads, clients, cases, documents, deadlines, payments, responsible people.
-4. 13-22 sec: Screen recording of LegalHub CRM navigation and dashboard. Move through leads, clients, cases, tasks, and dashboard.
-5. 22-29 sec: Talking head: "CRM is not about looking bigger. It is about keeping the workflow visible."
-6. 29-35 sec: End card with CTA.
+1. 0-3 sec: Talking head. "If you need three chats to answer one case question..."
+2. 3-8 sec: Show quick fake overlays: "Who owns this case?", "Where is the document?", "What is due this week?"
+3. 8-14 sec: Show spreadsheet row, chat bubble, folder, personal calendar.
+4. 14-24 sec: Switch to LegalHub CRM. Show navigation through leads, cases, tasks, dashboard.
+5. 24-32 sec: Talking head. "The problem is not that your team is lazy. The work is spread across too many places."
+6. 32-37 sec: CTA end card.
 
 ### On-Screen Text
 
-- Not too small for CRM.
-- Too busy for chaos.
-- Leads in one place.
-- Cases in one place.
-- Documents, deadlines, tasks, payments.
-- Built for legalization agencies in Poland.
+- Three chats for one answer?
+- Who owns the case?
+- Where is the document?
+- What is due this week?
+- Put the work where the team can see it.
 - Book a workflow demo.
 
 ### Voiceover Text
 
-"Your legalization agency is not too small for CRM. It is too busy for chaos. When leads live in messages, cases live in spreadsheets, documents live in folders, and deadlines live in someone's memory, the team is not the problem. The workflow is scattered. LegalHub CRM helps bring leads, clients, cases, documents, deadlines, payments, and responsibility into one structured workspace."
+"If you need three chats to answer one case question, your agency has outgrown informal tracking. Leads in messages, cases in spreadsheets, documents in folders, deadlines in memory, payments in another file - this is how owners lose visibility. LegalHub CRM helps keep leads, clients, cases, documents, dates, tasks, payments, and responsibility in one agency workflow."
 
 ### Visual Direction
 
-Use fast, slightly tense cuts for the first half. Use calm, clean screen movement for the CRM half. Keep the CRM UI legible with zoomed screen crops, cursor highlights, and short labels. Avoid exaggerated chaos visuals. Make it feel like a real agency desk.
+Use a real desk setup, fake chat overlays, and a fast switch into calm CRM screens. Keep the first half slightly tense, but not chaotic or cartoonish.
 
 ### What Part Of CRM To Show
 
-Dashboard overview, left navigation, leads list, cases list, tasks, calendar, and dashboard upcoming events.
+Dashboard overview, leads list, cases list, tasks, calendar, dashboard upcoming events.
 
 ### Caption
 
-Small agencies often wait too long to create structure.
+The daily problem is rarely "we need more software."
 
-The problem is not the number of clients. The problem is the number of moving parts around every client:
+The real problem sounds like this:
 
-- lead follow-up;
-- client profile;
-- active case;
-- documents;
-- important dates;
-- payments and debt;
-- tasks;
-- responsible person.
+- "Who owns this case?"
+- "Where is the latest document?"
+- "Did anyone call this lead back?"
+- "What is unpaid?"
+- "What is due this week?"
 
-LegalHub CRM is built around the workflow of legalization agencies in Poland, so your team can manage the work from one shared system instead of scattered spreadsheets and chats.
+If the answer lives across chats, spreadsheets, folders, and memory, the owner becomes the operating system.
+
+LegalHub CRM helps legalization agencies in Poland move those answers into one CRM workflow.
 
 Needs clarification: final demo booking link.
 
 ### CTA
 
-Book a free demo or request a workflow audit.
+Book a workflow demo or request an audit call.
 
 ### Hashtags
 
-#LegalHubCRM #MigrationAgency #ImmigrationConsultant #LegalizationPoland #CRMForAgencies #CaseManagement #AgencyOperations #PolandBusiness #RelocationServices #WorkflowManagement
+#LegalHubCRM #MigrationAgency #LegalizationPoland #CRMForAgencies #AgencyOperations #WorkflowAudit #CaseManagement #PolandBusiness #ImmigrationConsultant #OperationalControl
 
 ### Production Notes
 
 - Use approved demo organization only.
 - Blur or replace all real client data.
-- Keep the video around 30-35 seconds.
+- Keep the video around 35-40 seconds.
 - Do not mention pricing, security, or integrations in this Reel.
 
-## Reel 02 - Excel Can Store Data
+## Reel 02 - Open Your Spreadsheet
 
 ### Title
 
-Excel can store data. It cannot manage a legalization case.
+Open your case spreadsheet. Now show me the next action.
 
 ### Goal
 
-Explain why spreadsheets become risky when they are used as the operating system for case work.
+Make spreadsheet limits painfully obvious and position LegalHub as the next step after Excel.
 
 ### Target Persona
 
@@ -117,66 +132,64 @@ Small agency owner, operations manager, legalization consultant.
 
 ### Customer Pain
 
-The agency has spreadsheets for clients, leads, cases, payments, and deadlines, but nobody fully trusts which version is current.
+The spreadsheet stores names and statuses, but it does not reliably show owner, next action, documents, comments, payment status, or reminders.
 
 ### Hook
 
-"Excel can store data. It cannot manage a legalization case."
+"Open your case spreadsheet. Now show me the next action."
 
 ### Scene-By-Scene Script
 
-1. 0-3 sec: Show a spreadsheet with columns: Client, Service, Status, Deadline, Payment.
-2. 3-7 sec: Zoom into missing context: no documents, no comments, no task, no responsible person visible.
-3. 7-13 sec: Split screen: spreadsheet row on the left, LegalHub case record on the right.
-4. 13-24 sec: Highlight in LegalHub: status, service, responsible person, dates, comments, documents, payments, tasks.
-5. 24-31 sec: Talking head: "A case is not a row. It is a workflow."
-6. 31-36 sec: CTA end card.
+1. 0-3 sec: Screen recording of a fake spreadsheet. Cursor lands on one row.
+2. 3-8 sec: Talking head or voiceover: "Status says 'in progress'. But what happens next?"
+3. 8-14 sec: Zoom into missing fields: owner, next task, documents, comments, payments.
+4. 14-25 sec: Split screen: spreadsheet row vs LegalHub case record.
+5. 25-33 sec: Highlight LegalHub fields: status, responsible person, dates, documents, comments, payments, tasks.
+6. 33-38 sec: End card with demo/audit CTA.
 
 ### On-Screen Text
 
-- A spreadsheet row is not a case file.
-- Where is the next action?
-- Who owns the case?
+- Status: in progress.
+- But who owns it?
+- What happens next?
 - Where are the documents?
 - What is unpaid?
-- LegalHub CRM connects the workflow.
+- A row is not a case file.
 
 ### Voiceover Text
 
-"Excel is useful. But a legalization case needs more than a row. It needs status, service, responsible person, dates, documents, comments, payments, and tasks connected to the same record. That is the difference between storing information and managing the case workflow."
+"Open your case spreadsheet. Now show me the next action. Excel can store client names, services, statuses, and dates. But a legalization case also needs the responsible person, documents, comments, payments, reminders, and next task connected to the same case. A row is useful. A case record is what the team can work from."
 
 ### Visual Direction
 
-Use a clean split-screen comparison. Do not mock Excel too aggressively. The tone should be practical: "Excel is a starting point, not the whole system."
+Use a clean split-screen comparison. The tone should be practical, not anti-Excel. Excel is the starting point; the problem is using it as the whole operating system.
 
 ### What Part Of CRM To Show
 
-Case detail page, documents section, payments section, comments/status history, tasks or related dates.
+Case detail page, documents section, payments section, comments/status history, dates, tasks.
 
 ### Caption
 
-Excel is not the enemy. It is often the starting point.
+Excel is useful until your team starts asking questions the spreadsheet cannot answer:
 
-But once your agency has multiple active cases, several employees, important dates, uploaded documents, payments, and client follow-ups, a spreadsheet starts missing the operational layer.
+- who owns this case?
+- what is the next action?
+- where is the latest document?
+- what did we promise the client?
+- what is unpaid?
+- what date matters next?
 
-A legalization case should show:
+That is where a spreadsheet row stops being enough.
 
-- client and service;
-- status and responsible person;
-- important dates;
-- documents and comments;
-- payments and unpaid balance;
-- next tasks.
-
-LegalHub CRM helps move that work into structured case records.
+LegalHub CRM helps turn case tracking into connected case records for legalization agencies.
 
 ### CTA
 
-Save this checklist and book a workflow-based demo.
+Save this and book a workflow-based demo.
 
 ### Hashtags
 
-#ExcelToCRM #LegalizationAgency #MigrationAgencyPoland #CRMWorkflow #CaseTracking #AgencySystems #ImmigrationServices #LegalOperations #PolandCRM #LegalHubCRM
+#ExcelToCRM #LegalizationAgency #MigrationAgencyPoland #CaseTracking #AgencySystems #CRMWorkflow #ImmigrationServices #LegalOperations #PolandCRM #LegalHubCRM
 
 ### Production Notes
 
@@ -185,15 +198,15 @@ Save this checklist and book a workflow-based demo.
 - Safe migration claim: LegalHub supports import/export and lead import flows.
 - If migration support is mentioned, mark as `Needs clarification`.
 
-## Reel 03 - WhatsApp Is For Conversation
+## Reel 03 - Latest Document In Chat
 
 ### Title
 
-WhatsApp is for conversation, not case management.
+If the latest document is in someone's chat, your team is guessing.
 
 ### Goal
 
-Show why chats are not enough for documents, status, responsibility, follow-up, and case history.
+Show why WhatsApp can support communication but should not hold operational case context.
 
 ### Target Persona
 
@@ -205,33 +218,33 @@ Client promises, documents, and updates are buried in chats. Managers cannot rev
 
 ### Hook
 
-"WhatsApp is for conversation, not case management."
+"If the latest document is in someone's chat, your team is guessing."
 
 ### Scene-By-Scene Script
 
-1. 0-3 sec: Phone screen scrolls through a long chat. Text: "Where is the latest document?"
-2. 3-8 sec: Show search attempts: chat, folder, employee message, spreadsheet.
-3. 8-15 sec: Cut to LegalHub case record. Highlight comments and documents attached to the case.
-4. 15-23 sec: Show case status and responsible person.
-5. 23-30 sec: Talking head: "The conversation can stay in WhatsApp. The case work needs a system."
-6. 30-35 sec: CTA.
+1. 0-3 sec: Phone mockup scrolls fake chat. Text: "I sent the document last week."
+2. 3-8 sec: Show the team searching chat, folder, employee message, spreadsheet.
+3. 8-15 sec: Cut to LegalHub case record. Highlight documents and comments attached to the case.
+4. 15-23 sec: Highlight case status and responsible person.
+5. 23-31 sec: Talking head: "The conversation can stay in chat. The case work needs a record."
+6. 31-36 sec: CTA.
 
 ### On-Screen Text
 
-- Chats are fast.
-- But case history gets buried.
-- Documents need case context.
-- Status needs ownership.
-- Follow-up needs reminders.
-- Move the work into CRM.
+- "I sent it last week."
+- Which version?
+- Which case?
+- Who checked it?
+- Chat is not a case record.
+- Book a document demo.
 
 ### Voiceover Text
 
-"WhatsApp is useful for conversation. But it is not a reliable operating system for a legalization agency. When documents, decisions, follow-ups, and status updates stay inside chats, the team has to search instead of act. LegalHub CRM gives the case a structured place for documents, comments, status, dates, payments, and responsibility."
+"If the latest document is in someone's chat, your team is guessing. Chat is useful for conversation, but case work needs context: status, responsible person, documents, comments, dates, payments, and tasks. LegalHub CRM gives the team a place to keep case work connected to the case record."
 
 ### Visual Direction
 
-Use a real phone mockup for chat chaos, then switch to desktop CRM screen. Avoid showing real WhatsApp contacts or messages. Use fake message bubbles.
+Use simulated chat content only. Switch from phone mockup to desktop CRM. Make the CRM screen feel calmer and easier to review.
 
 ### What Part Of CRM To Show
 
@@ -239,24 +252,26 @@ Case detail page, case comments, documents, responsible person, case status.
 
 ### Caption
 
-WhatsApp can support client communication.
+WhatsApp can support communication.
 
-But if your agency runs operations from chat, these things become hard to control:
+But it should not be the place where your agency stores:
 
-- latest document;
-- case status;
-- responsible person;
-- next action;
-- payment reminder;
-- what was promised to the client.
+- latest document versions;
+- client promises;
+- case decisions;
+- next actions;
+- payment reminders;
+- status updates.
 
-LegalHub CRM helps keep case work connected to the case record, so the team can find context faster.
+When those stay in chat, the team has to search before it can act.
+
+LegalHub CRM helps keep the operational record connected to the case.
 
 Needs clarification: do not claim automatic WhatsApp import or official WhatsApp integration.
 
 ### CTA
 
-Comment "case" for the case-record checklist or book a document-focused demo.
+DM "case" for the case-record checklist or book a document-focused demo.
 
 ### Hashtags
 
@@ -267,9 +282,9 @@ Comment "case" for the case-record checklist or book a document-focused demo.
 - Use simulated WhatsApp content.
 - Do not show private client messages.
 - Do not mention WhatsApp integration unless approved.
-- Keep claims focused on moving workflow into CRM.
+- Keep claims focused on moving work into CRM.
 
-## Reel 04 - A Lead Without Next Contact
+## Reel 04 - Lead Without Next Contact
 
 ### Title
 
@@ -277,7 +292,7 @@ A lead without a next contact date is already slipping away.
 
 ### Goal
 
-Drive awareness around lead follow-up discipline and show LegalHub's lead module as the structured response.
+Drive lead-generation intent and show the lead module as a practical response to missed follow-ups.
 
 ### Target Persona
 
@@ -303,15 +318,15 @@ Leads arrive from multiple places, but follow-up depends on memory, personal cha
 ### On-Screen Text
 
 - Hot lead.
-- No next action.
-- No responsible person.
-- Follow-up risk.
-- Track source, status, owner, next contact.
+- No owner.
+- No next contact.
+- No follow-up system.
+- Source, status, owner, next contact.
 - Convert qualified leads into clients and cases.
 
 ### Voiceover Text
 
-"The first mistake is treating every request like just another message. A lead needs a source, status, responsible person, and next contact date. When the lead is qualified, the workflow should continue into a client and case record. That is how LegalHub CRM keeps intake connected to case work."
+"A lead without a next contact date is already slipping away. Not because your team does not care, but because the follow-up is invisible. A lead needs source, status, responsible person, and next contact. When it is qualified, the work should continue into a client and case record."
 
 ### Visual Direction
 
@@ -325,22 +340,22 @@ Lead list, lead detail, status/source fields, next-contact reminder, responsible
 
 Most agencies do not lose leads because nobody cares.
 
-They lose leads because the follow-up workflow is not visible.
+They lose leads because nobody can see the next action.
 
 Before a lead becomes a client, your team should know:
 
-- where the lead came from;
-- who is responsible;
+- where it came from;
+- who owns it;
 - what service they need;
-- what status they are in;
-- when the next contact should happen;
-- whether they should become a client and case.
+- what status it is in;
+- when the next contact happens;
+- whether it should become a client and case.
 
 LegalHub CRM supports lead tracking and lead-to-client-to-case conversion.
 
 ### CTA
 
-DM "leads" or book a lead workflow demo.
+DM "leads", request a lead audit call, or book a lead workflow demo.
 
 ### Hashtags
 
@@ -352,7 +367,7 @@ DM "leads" or book a lead workflow demo.
 - Safer phrase: "helps prevent missed follow-ups."
 - If external lead channels are mentioned, say "setup-dependent intake paths" unless approved.
 
-## Reel 05 - The Owner Should Not Be The Operating System
+## Reel 05 - Owner Is Not The System
 
 ### Title
 
@@ -372,11 +387,11 @@ The owner has to ask for updates manually, route tasks, check debt, find documen
 
 ### Hook
 
-"The owner should not be the agency operating system."
+"If every status question comes to you, you are not managing an agency. You are becoming the agency operating system."
 
 ### Scene-By-Scene Script
 
-1. 0-4 sec: Talking head: "If every case question goes through you, your agency has a workflow problem."
+1. 0-4 sec: Talking head: "If every status question comes to you..."
 2. 4-9 sec: Show message overlays: "Who owns this case?", "Is this paid?", "Where is the document?", "What is due this week?"
 3. 9-17 sec: Show LegalHub dashboard: income, debt, clients, cases, upcoming events.
 4. 17-25 sec: Show cases list with status and responsible person.
@@ -391,11 +406,11 @@ The owner has to ask for updates manually, route tasks, check debt, find documen
 - Debt and income.
 - Responsible person.
 - Recent cases.
-- One owner view.
+- Request an owner demo.
 
 ### Voiceover Text
 
-"When the owner becomes the place where every update, payment question, document question, and deadline question lives, the agency cannot scale calmly. LegalHub CRM helps owners and managers see operational signals from CRM data: active cases, upcoming work, unpaid balances, recent cases, and responsibility."
+"If every status question comes to you, the agency workflow is not visible enough. The owner should not be the place where every update, payment question, document question, and deadline question lives. LegalHub CRM helps owners and managers see active cases, upcoming work, unpaid balances, recent cases, and responsibility from CRM data."
 
 ### Visual Direction
 
@@ -409,7 +424,7 @@ Dashboard, cases list, responsible person, debt/income report pages if approved 
 
 The owner should not have to ask every employee for every update.
 
-A healthy agency workflow should make these questions easier to answer:
+A healthier agency workflow should answer:
 
 - Which cases are active?
 - What is due soon?
@@ -422,7 +437,7 @@ LegalHub CRM helps put these signals into one workspace for legalization agency 
 
 ### CTA
 
-Request a workflow audit or book an owner demo.
+Request an audit call or book an owner visibility demo.
 
 ### Hashtags
 
@@ -434,15 +449,15 @@ Request a workflow audit or book an owner demo.
 - Use only approved demo dashboard data.
 - Keep financial wording as "debt/income visibility", not accounting or invoicing automation.
 
-## Reel 06 - A Case Status Is Not Enough
+## Reel 06 - In Progress Is Not An Answer
 
 ### Title
 
-A case status is not enough.
+The client asks for an update. Your tracker says only: "In progress."
 
 ### Goal
 
-Educate the audience on what a complete active case record should include.
+Educate the audience on what a complete active case record should include, using a painful status-update moment.
 
 ### Target Persona
 
@@ -454,36 +469,34 @@ The team sees a status label but still does not know what happened, what is miss
 
 ### Hook
 
-"A case status is not enough."
+"The client asks for an update. Your tracker says only: 'In progress.'"
 
 ### Scene-By-Scene Script
 
-1. 0-3 sec: Show status label only: "In progress."
-2. 3-8 sec: Ask: "But what does that actually tell your team?"
-3. 8-20 sec: Highlight case record sections one by one: client, service, responsible person, dates, documents, comments, payments, tasks.
-4. 20-28 sec: Show status history/comments if approved.
-5. 28-34 sec: Talking head: "Status tells you where it is. Workflow tells you what to do next."
-6. 34-38 sec: CTA.
+1. 0-3 sec: Show fake client message: "Can you update me on my case?"
+2. 3-7 sec: Show tracker field: Status: In progress.
+3. 7-11 sec: Text: "That is not enough to answer."
+4. 11-24 sec: Highlight LegalHub case record sections: client, service, responsible person, dates, documents, comments, payments, tasks.
+5. 24-31 sec: Talking head: "Status tells you where it sits. Workflow tells the team what to do next."
+6. 31-36 sec: CTA.
 
 ### On-Screen Text
 
-- Status only: not enough.
-- Client.
-- Service.
-- Responsible person.
-- Dates.
-- Documents.
-- Comments.
-- Payments.
-- Tasks.
+- Client asks: "Any update?"
+- Status: in progress.
+- What changed?
+- What is missing?
+- Who owns it?
+- What happens next?
+- Book a case demo.
 
 ### Voiceover Text
 
-"A status label can tell you where a case sits, but it cannot tell the whole story. A case should also show the responsible person, important dates, documents, comments, payments, and tasks. LegalHub CRM is built around that full case-management workflow."
+"The client asks for an update. Your tracker says only: in progress. That does not tell the team what changed, what document is missing, who owns the case, what is unpaid, or what happens next. A useful case record needs status, dates, documents, comments, payments, tasks, and responsibility."
 
 ### Visual Direction
 
-Use a checklist animation over the CRM case detail. Each item should appear as the cursor highlights the relevant area.
+Use a fake message and then a clear CRM case-detail walkthrough. Each highlight should be one field or section, not a full-screen product tour.
 
 ### What Part Of CRM To Show
 
@@ -491,16 +504,18 @@ Case detail, case status, service, responsible person, documents, comments, paym
 
 ### Caption
 
-If your team only tracks "case status", they still may not know:
+"In progress" may be true.
 
-- what document is missing;
-- who owns the case;
-- what was promised;
-- what date matters next;
-- what is unpaid;
-- what task should happen today.
+But it does not answer the questions your team needs:
 
-Legalization work needs case records, not just status labels.
+- what document is missing?
+- who owns the case?
+- what was promised?
+- what date matters next?
+- what is unpaid?
+- what task should happen today?
+
+Legalization work needs case records, not only status labels.
 
 ### CTA
 
@@ -516,7 +531,7 @@ Save the active-case checklist and book a case workflow demo.
 - Use simplified demo cases with neutral names.
 - Avoid legal advice. Keep the topic operational.
 
-## Reel 07 - The Document Is Not Missing
+## Reel 07 - Document Not Connected
 
 ### Title
 
@@ -549,17 +564,17 @@ Documents are scattered across chats, folders, local computers, and drives. The 
 
 ### On-Screen Text
 
-- Folder chaos.
-- Chat chaos.
-- Latest-version problem.
+- It exists somewhere.
+- But which case?
+- Which version?
+- Who checked it?
 - Case documents.
 - Comments and context.
-- Generated DOCX templates.
 - Book a document demo.
 
 ### Voiceover Text
 
-"When documents live in chats, folders, and personal computers, the team spends time searching instead of moving the case forward. LegalHub CRM supports case document uploads, document comments, and DOCX generation from templates, so files can stay connected to the case workflow."
+"The document is not missing. It is just not connected to the case. When files live in chats, folders, and personal computers, the team spends time searching instead of moving the case forward. LegalHub CRM supports case document uploads, document comments, and DOCX generation from templates, so files can stay connected to case work."
 
 ### Visual Direction
 
@@ -589,7 +604,7 @@ Needs clarification: final approved template list and legal review status of tem
 
 ### CTA
 
-Book a document workflow demo.
+Book a document workflow demo or request early access.
 
 ### Hashtags
 
@@ -601,7 +616,7 @@ Book a document workflow demo.
 - Do not make broad security/GDPR claims.
 - If storage is mentioned, use careful wording and approved privacy language only.
 
-## Reel 08 - A Deadline In Memory Is Not A Process
+## Reel 08 - Deadline In Memory
 
 ### Title
 
@@ -634,20 +649,20 @@ Important dates live across calendars, chats, spreadsheets, sticky notes, and em
 
 ### On-Screen Text
 
-- Dates in memory.
-- Reminders in random tools.
-- Tasks connected to cases.
-- Calendar view.
-- Dashboard upcoming events.
-- Deadline-focused demo.
+- Date in memory.
+- Reminder in a chat.
+- Calendar in one person's phone.
+- Task connected to case.
+- Upcoming work visible.
+- Book a deadline demo.
 
 ### Voiceover Text
 
-"Legalization work has too many dates to trust memory alone. Tasks, reminders, calendar views, and upcoming events should be visible before work becomes urgent. LegalHub CRM helps teams connect daily tasks and important dates to the agency workflow."
+"A deadline in someone's memory is not a process. Legalization work has too many dates to trust personal reminders alone. Tasks, reminders, calendar views, and upcoming events should be visible before work becomes urgent. LegalHub CRM helps teams connect daily tasks and important dates to the agency workflow."
 
 ### Visual Direction
 
-Use a "from scattered to structured" transition. Start with messy personal reminder tools, end with CRM tasks/calendar/dashboard.
+Use a "from scattered to visible" transition. Start with messy personal reminder tools, end with CRM tasks/calendar/dashboard.
 
 ### What Part Of CRM To Show
 
@@ -666,11 +681,11 @@ They need context:
 - what document or payment is connected;
 - what should happen next.
 
-LegalHub CRM includes tasks, reminders, calendar views, and dashboard upcoming events to help teams see upcoming work from the CRM workflow.
+LegalHub CRM includes tasks, reminders, calendar views, and dashboard upcoming events to help teams see upcoming work from CRM data.
 
 ### CTA
 
-DM "deadlines" or book a deadline-focused demo.
+DM "deadlines", request an audit call, or book a deadline-focused demo.
 
 ### Hashtags
 
@@ -682,15 +697,15 @@ DM "deadlines" or book a deadline-focused demo.
 - Use "helps track" and "helps make visible."
 - Do not provide legal deadline advice.
 
-## Reel 09 - From Lead To Case
+## Reel 09 - The Lead Said Yes
 
 ### Title
 
-What happens after a lead says yes?
+The lead said yes. Now where does the case actually start?
 
 ### Goal
 
-Show the core LegalHub workflow: lead -> client -> case.
+Show the core LegalHub workflow: lead -> client -> case, with stronger handoff pain.
 
 ### Target Persona
 
@@ -702,34 +717,34 @@ Sales work and case work are disconnected. Qualified leads stay in chats or spre
 
 ### Hook
 
-"What happens after a lead says yes?"
+"The lead said yes. Now where does the case actually start?"
 
 ### Scene-By-Scene Script
 
-1. 0-3 sec: Lead says: "Yes, I want to start."
+1. 0-3 sec: Fake lead message: "Yes, I want to start."
 2. 3-8 sec: Talking head: "This is where many agencies lose structure."
-3. 8-16 sec: Show LegalHub lead detail with status/source/responsible person.
-4. 16-24 sec: Show conversion into client and optional case.
-5. 24-32 sec: Show resulting client profile and case record.
-6. 32-38 sec: CTA.
+3. 8-14 sec: Show the messy version: copy lead details into another spreadsheet, another chat, another folder.
+4. 14-23 sec: Show LegalHub lead detail with status/source/responsible person.
+5. 23-31 sec: Show conversion into client and optional case.
+6. 31-38 sec: Show resulting client profile and case record, then CTA.
 
 ### On-Screen Text
 
-- Request.
+- "Yes, I want to start."
+- Do not restart the workflow.
 - Lead.
-- Follow-up.
 - Client.
 - Case.
 - Documents, dates, payments, tasks.
-- See the workflow.
+- Book a lead-to-case demo.
 
 ### Voiceover Text
 
-"A lead is not the same as a client, and a client is not the same as an active case. LegalHub CRM supports the workflow from incoming request to lead follow-up, then conversion into client and case records, where documents, dates, payments, comments, and tasks can be managed."
+"The lead said yes. Now where does the case actually start? In many agencies, this is the handoff where structure breaks: another file, another chat, another folder. LegalHub CRM supports the path from incoming request to lead follow-up, then conversion into client and case records, where documents, dates, payments, comments, and tasks can be managed."
 
 ### Visual Direction
 
-Use a simple three-step animation or screen recording: Lead -> Client -> Case. Keep the explanation very clear for first-time viewers.
+Use a simple three-step animation or screen recording: Lead -> Client -> Case. Keep the explanation clear for first-time viewers.
 
 ### What Part Of CRM To Show
 
@@ -737,7 +752,7 @@ Lead detail, lead conversion action, client profile, case record.
 
 ### Caption
 
-The workflow should not break when someone says "yes".
+The workflow should not restart when someone says "yes".
 
 For legalization agencies, the path is usually:
 
@@ -752,7 +767,7 @@ LegalHub CRM is built around this lead-to-case workflow.
 
 ### CTA
 
-Book a lead-to-case demo.
+Book a lead-to-case demo or request early access.
 
 ### Hashtags
 
@@ -764,11 +779,11 @@ Book a lead-to-case demo.
 - Do not show unapproved integration screens.
 - This Reel can be reused directly as a YouTube Short.
 
-## Reel 10 - Debt Should Not Surprise You
+## Reel 10 - Month-End Debt Surprise
 
 ### Title
 
-Debt should not be discovered at month end.
+If debt appears only in a month-end spreadsheet, the owner is already late.
 
 ### Goal
 
@@ -784,11 +799,11 @@ Unpaid balances and payment follow-ups are tracked manually and become visible t
 
 ### Hook
 
-"Debt should not be discovered at month end."
+"If debt appears only in a month-end spreadsheet, the owner is already late."
 
 ### Scene-By-Scene Script
 
-1. 0-4 sec: Talking head: "If unpaid balances only appear during manual reporting, the owner is already late."
+1. 0-4 sec: Talking head says the hook.
 2. 4-10 sec: Show spreadsheet or manual list of payments.
 3. 10-20 sec: Show case value, payments received, and debt/unpaid indicator in LegalHub.
 4. 20-28 sec: Show dashboard debt/income cards or report page if approved.
@@ -797,16 +812,16 @@ Unpaid balances and payment follow-ups are tracked manually and become visible t
 
 ### On-Screen Text
 
-- Manual payment tracking.
-- Debt visible too late.
+- Month-end surprise.
 - Case value.
 - Payments received.
 - Unpaid balance.
 - Owner visibility.
+- Book an owner demo.
 
 ### Voiceover Text
 
-"For agency owners, case work and payment visibility should not live in separate worlds. LegalHub CRM supports case payment tracking, debt indicators, and dashboard views for income and debt, so the owner can see financial signals from CRM data."
+"If debt appears only in a month-end spreadsheet, the owner is already late. Case work and payment visibility should not live in separate worlds. LegalHub CRM supports case payment tracking, debt indicators, and dashboard views for income and debt, so the owner can see financial signals from CRM data."
 
 ### Visual Direction
 
@@ -836,7 +851,7 @@ Needs clarification: do not claim invoicing, accounting, or automatic payment co
 
 ### CTA
 
-Book an owner visibility demo.
+Book an owner visibility demo or request an audit call.
 
 ### Hashtags
 

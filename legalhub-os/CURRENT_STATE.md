@@ -29,6 +29,18 @@ Marketing foundation files:
 
 ## Latest completed work
 
+A strict editorial QA review and publication-readiness revision of Instagram launch batch 001 was completed on 2026-07-08.
+
+New and updated deliverables:
+
+- `content-batches/batch-001/QA_REVIEW.md`: strict editorial review covering strongest Reels, weak/general Reels, hooks to strengthen, CRM-marketing language to cut, missing customer pain, better LegalHub CRM demo moments, carousel publishing order, lead-generating Stories, ideas to remove/rewrite, and fast-production assets.
+- `content-batches/batch-001/REELS_SCRIPTS.md`: rewritten and reprioritized Reels scripts with sharper hooks such as spreadsheet next action, no next contact, owner-as-operating-system, "in progress" status gaps, documents in chat, deadlines in memory, and month-end debt surprise.
+- `content-batches/batch-001/CAROUSELS.md`: revised carousel copy and publishing order, prioritizing Excel pain, active case checklist, and owner weekly visibility before broader WhatsApp and lead-to-case education.
+- `content-batches/batch-001/STORIES_14_DAYS.md`: revised Stories plan with stronger diagnostic questions, mini-audits, owner questions, lead follow-up prompts, and clearer routes to demo, audit call, or early access.
+- `content-batches/batch-001/PUBLISHING_PLAN.md`: revised first 14-day order so the launch opens with concrete pain-led assets rather than a broad category/CRM statement.
+
+The revised batch is more specific, sharper, and more buyer-facing. It reduces generic CRM language, starts assets with agency chaos moments, and keeps unsupported claims marked as `Needs clarification`.
+
 The first ready-to-produce Instagram launch content batch was created on 2026-07-08.
 
 New deliverables:
@@ -102,7 +114,9 @@ No application code was intentionally changed.
 - Channel strategy and campaign language priorities.
 - Final Instagram profile CTA, booking link, and DM/comment handling process.
 - Approved Instagram demo screenshots, screen recordings, and demo data.
-- Which Instagram content should be produced first: Reels, carousels, Stories, product demos, or founder posts.
+- Approval of the QA-revised first production order: Reel 02, Carousel 01, Reel 04, Carousel 02, Reel 05 as the recommended first five assets.
+- Whether audit call and early-access CTAs are commercially approved and how they are delivered.
+- Approved checklist delivery process for DM keywords such as `leads`, `case`, `Excel`, and `audit`.
 - Public proof points to support the new messaging foundation.
 - Which launch offers are commercially approved and how they are delivered.
 
