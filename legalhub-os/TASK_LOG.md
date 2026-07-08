@@ -1,5 +1,42 @@
 # Task Log
 
+## 2026-07-08 - Instagram strategy and content plan for LegalHub CRM
+
+Task:
+
+- Create a full Instagram strategy and content idea system for LegalHub CRM, working only inside `/legalhub-os/` and without modifying application code.
+
+Done:
+
+- Read the required Marketing OS context files: `AGENTS.md`, `CURRENT_STATE.md`, `NEXT_STEPS.md`, `TASK_LOG.md`, `PROJECT_BIBLE.md`, `PRODUCT_MAP.md`, `MARKETING_POSITIONING.md`, `CUSTOMER_PERSONAS.md`, `PAIN_POINTS.md`, `MESSAGING.md`, `OFFERS.md`, `OBJECTIONS.md`, and `CONTENT_BACKLOG.md`.
+- Created an Instagram channel strategy focused on operational chaos in legalization agencies, not generic CRM advertising.
+- Defined account positioning, viewer takeaway, Reels-to-demo funnel, topics to use and avoid, product-demo framing, Building in Public usage, and persona-specific pain angles.
+- Created seven content pillars with goals, pains, topic examples, hooks, and CTAs.
+- Created a 30-day Instagram plan with format, topic, hook, description, CTA, CRM module to show, and publication goal.
+- Created idea banks for Reels, Stories, and carousels.
+- Updated `CURRENT_STATE.md`, `TASK_LOG.md`, and `NEXT_STEPS.md`.
+
+Files created:
+
+- `legalhub-os/INSTAGRAM_STRATEGY.md`
+- `legalhub-os/CONTENT_PILLARS.md`
+- `legalhub-os/INSTAGRAM_30_DAY_PLAN.md`
+- `legalhub-os/REELS_IDEAS.md`
+- `legalhub-os/STORIES_IDEAS.md`
+- `legalhub-os/CAROUSEL_IDEAS.md`
+
+Files changed:
+
+- `legalhub-os/CURRENT_STATE.md`
+- `legalhub-os/TASK_LOG.md`
+- `legalhub-os/NEXT_STEPS.md`
+
+Notes:
+
+- Application code was not modified.
+- Unconfirmed claims remain marked as `Needs clarification` where relevant.
+- The strategy avoids guarantees, unapproved integration claims, legal advice, pricing promises, and broad compliance/security claims.
+
 ## 2026-07-08 - Marketing foundation for LegalHub CRM
 
 Task:

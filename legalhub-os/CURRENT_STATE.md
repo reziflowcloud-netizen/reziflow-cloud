@@ -29,6 +29,19 @@ Marketing foundation files:
 
 ## Latest completed work
 
+An Instagram strategy and content system v1 was created on 2026-07-08 from the repository-audited product source of truth and marketing foundation files.
+
+New deliverables:
+
+- `INSTAGRAM_STRATEGY.md`: channel role, account positioning, profile takeaway, Reels-to-demo funnel, topics to use and avoid, product-demo approach, Building in Public strategy, and persona-specific pain usage.
+- `CONTENT_PILLARS.md`: seven Instagram content pillars covering operational chaos, Excel/WhatsApp problems, documents, deadlines/case tracking, team control, client communication/lead follow-up, and Building in Public/product education.
+- `INSTAGRAM_30_DAY_PLAN.md`: 30-day calendar with format, topic, hook, description, CTA, CRM module to show, and campaign goal.
+- `REELS_IDEAS.md`: 60 Reels ideas with hook, short scenario, visual idea, customer pain, and CTA.
+- `STORIES_IDEAS.md`: 42 Stories ideas across polls, questions, behind the scenes, product demos, mini-education, and lead generation.
+- `CAROUSEL_IDEAS.md`: 30 carousel ideas with title, slide structure, key meaning, and CTA.
+
+The Instagram strategy keeps the product framed as a solution to concrete operational chaos in migration/legalization agencies, not as generic "we are a great CRM" promotion.
+
 A marketing foundation v1 was created on 2026-07-08 from the repository-audited `PROJECT_BIBLE.md` and `PRODUCT_MAP.md`.
 
 New deliverables:
@@ -74,6 +87,9 @@ No application code was intentionally changed.
 - Approved security/compliance/privacy claims.
 - Approved document-template claims.
 - Channel strategy and campaign language priorities.
+- Final Instagram profile CTA, booking link, and DM/comment handling process.
+- Approved Instagram demo screenshots, screen recordings, and demo data.
+- Which Instagram content should be produced first: Reels, carousels, Stories, product demos, or founder posts.
 - Public proof points to support the new messaging foundation.
 - Which launch offers are commercially approved and how they are delivered.
 
