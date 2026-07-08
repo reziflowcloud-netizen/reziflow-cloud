@@ -1,22 +1,22 @@
 # Next Steps
 
-Last updated: 2026-07-07
+Last updated: 2026-07-08
 
 ## Recommended next tasks
 
-1. Confirm the primary ICP for the next marketing cycle: solo specialist, small agency, growing agency, larger agency, law office, HR/relocation company, or another segment.
-2. Approve the product positioning based on `PROJECT_BIBLE.md`: one-liner, elevator pitch, main promise, proof points, objections, and CTA.
-3. Validate public pricing and packaging: Free, Starter, Pro, Agency, VAT/tax wording, trial length, limits, and included features.
-4. Decide the primary CTA: free registration, demo booking, consultation, contact form, WhatsApp, or video/demo-first.
-5. Audit the current landing/pricing copy and separate safe claims from claims marked Needs clarification.
-6. Create a messaging house for agency owners/admins: pain, trigger, promise, modules, proof, objection handling, and CTA.
-7. Create a persona and objection matrix for owners/admins, case specialists, operations managers, sales/intake users, and referral partners.
-8. Build an approved integration-claims matrix: webhooks, Meta/Facebook/Instagram, Telegram, Google Sheets Apps Script, Cloudinary, Dropbox.
-9. Create a demo/screenshot asset inventory from actual routes and modules.
-10. Create a 30-day content backlog based on confirmed pains: lost leads, missed deadlines, scattered documents, payment debt, spreadsheet migration, team responsibility.
-11. Draft an onboarding email sequence for new Free/trial users, using the implemented quick-start flow.
-12. Build an SEO keyword map around CRM for legalization agencies in Poland, immigration case CRM, karta pobytu process management, lead-to-case workflow, document/deadline control, and payment/debt tracking.
-13. Prepare a sales enablement sheet with approved claims, disallowed claims, competitor alternatives, and discovery questions.
+1. Review and approve or edit `MARKETING_POSITIONING.md`, especially the main positioning, slogan options, and one-sentence product descriptions.
+2. Choose the primary ICP for the next campaign from the drafted personas in `CUSTOMER_PERSONAS.md`: migration agency owner, small agency owner, operations manager, legal consultant, or case manager.
+3. Decide the primary CTA and sales motion: free demo, workflow audit, early access, onboarding call, free registration, contact form, or consultation.
+4. Validate public pricing and packaging: Free, Starter, Pro, Agency, VAT/tax wording, trial length, limits, and included features.
+5. Approve the first launch offers from `OFFERS.md`, including what is free, what is manual, what is plan-specific, and what support is included.
+6. Build an approved integration-claims matrix: webhooks, Meta/Facebook/Instagram, Telegram, Google Sheets Apps Script, Cloudinary, Dropbox.
+7. Approve security, privacy, storage, GDPR, data-deletion, and document-template wording before public campaigns.
+8. Turn the approved positioning and messaging into a landing-page copy brief or `LANDING_PAGE_COPY.md`.
+9. Create a sales discovery script from `CUSTOMER_PERSONAS.md`, `PAIN_POINTS.md`, `OFFERS.md`, and `OBJECTIONS.md`.
+10. Create a 30-day content backlog based on the new message pillars: spreadsheet chaos, WhatsApp chaos, missed follow-ups, deadlines, documents, payment debt, team responsibility, and scaling.
+11. Create a demo/screenshot asset inventory from actual routes and modules.
+12. Define the onboarding and migration service scope for agencies moving from Excel/WhatsApp.
+13. Add proof points when available: testimonials, customer quotes, active agency count, usage metrics, screenshots, demo video, case studies, or founder credibility.
 
 ## Questions to answer before campaign production
 
@@ -41,19 +41,18 @@ Last updated: 2026-07-07
 
 Recommended next deliverable:
 
-- `MESSAGING_HOUSE.md` inside `/legalhub-os/`.
+- `LANDING_PAGE_COPY.md` inside `/legalhub-os/`.
 
 Suggested sections:
 
-- Approved one-liner.
-- ICP and buyer.
-- Main pain.
-- Main promise.
-- Product pillars.
-- Proof points available now.
-- Proof points needed.
-- Safe claims.
-- Claims that need clarification.
-- Objection handling.
-- CTA hierarchy.
-- Ad/landing-page language by channel.
+- Hero headline and subheadline.
+- Primary CTA and secondary CTA.
+- Pain section.
+- Workflow/product section.
+- Feature pillars using only safe claims.
+- Persona-specific sections.
+- Comparison section: Excel, WhatsApp, generic CRM.
+- Offer section.
+- Objection/FAQ section.
+- Proof placeholders.
+- Claims requiring approval.
