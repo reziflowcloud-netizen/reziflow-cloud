@@ -4,36 +4,39 @@ Last updated: 2026-07-08
 
 ## Recommended next tasks
 
-1. Review and approve `launch-pack/PROFILE_SETUP.md`, `launch-pack/WEEK_1_ACTION_PLAN.md`, `launch-pack/DAY_1_LAUNCH_SCRIPT.md`, `launch-pack/PINNED_POSTS.md`, `launch-pack/LEAD_CAPTURE.md`, and `launch-pack/PRODUCTION_CHECKLIST.md`.
-2. Approve or adjust the Launch Pack CTA recommendation:
+1. Use `launch-pack/LAUNCH_EXECUTION_BOARD.md` as the launch-day operating checklist for Instagram execution.
+2. Complete the `Today's Checklist` section in `launch-pack/LAUNCH_EXECUTION_BOARD.md` before publishing the first Reel.
+3. Confirm the missing launch operations from `launch-pack/LAUNCH_EXECUTION_BOARD.md`: demo form, Calendly/booking link, demo account, pricing, early access, workflow audit delivery, DM owner, lead log, and approved public claims.
+4. Review and approve `launch-pack/PROFILE_SETUP.md`, `launch-pack/WEEK_1_ACTION_PLAN.md`, `launch-pack/DAY_1_LAUNCH_SCRIPT.md`, `launch-pack/PINNED_POSTS.md`, `launch-pack/LEAD_CAPTURE.md`, `launch-pack/PRODUCTION_CHECKLIST.md`, and `launch-pack/LAUNCH_EXECUTION_BOARD.md`.
+5. Approve or adjust the Launch Pack CTA recommendation:
    - Primary: `Book a workflow-based demo`.
    - Secondary: `Request a workflow audit`.
-3. Confirm whether "workflow audit" and "early access" are commercially approved CTAs for this launch, and define how each is delivered.
-4. Create the final booking/link-in-bio destinations for demo, audit, workflow overview, Excel migration discussion, and contact.
-5. Assign the person responsible for Instagram replies, DMs, lead qualification, lead logging, and follow-up during launch week.
-6. Prepare a safe demo organization with fake leads, clients, cases, documents, payments, tasks, employees, services, statuses, and dashboard metrics.
-7. Create an approved Instagram demo/screenshot asset inventory from actual CRM routes and modules.
-8. Record or design the first 5 priority assets from the QA-revised publishing plan:
+6. Confirm whether "workflow audit" and "early access" are commercially approved CTAs for this launch, and define how each is delivered.
+7. Create the final booking/link-in-bio destinations for demo, audit, workflow overview, Excel migration discussion, and contact.
+8. Assign the person responsible for Instagram replies, DMs, lead qualification, lead logging, and follow-up during launch week.
+9. Prepare a safe demo organization with fake leads, clients, cases, documents, payments, tasks, employees, services, statuses, and dashboard metrics.
+10. Create an approved Instagram demo/screenshot asset inventory from actual CRM routes and modules.
+11. Record or design the first 5 priority assets from the QA-revised publishing plan:
    - Reel 02: Open Your Spreadsheet.
    - Carousel 01: Excel Can Store Data.
    - Reel 04: A Lead Without Next Contact.
    - Carousel 02: What Every Active Case Should Show.
    - Reel 05: The Owner Should Not Be The Agency Operating System.
-9. Produce the next 5 assets if capacity allows:
+12. Produce the next 5 assets if capacity allows:
    - Reel 06: In Progress Is Not An Answer.
    - Reel 07: The Document Is Not Missing.
    - Carousel 05: What Owners Should See Every Week.
    - Reel 10: Month-End Debt Surprise.
    - Reel 08: Deadline In Memory.
-10. Set up the Instagram profile using `launch-pack/PROFILE_SETUP.md`.
-11. Load saved replies and lead qualification prompts from `launch-pack/LEAD_CAPTURE.md`.
-12. Validate public pricing and packaging before using pricing in any future content.
-13. Build an approved integration-claims matrix: webhooks, Meta/Facebook/Instagram, Telegram, Google Sheets Apps Script, Cloudinary, Dropbox.
-14. Approve security, privacy, storage, GDPR, data-deletion, and document-template wording before public campaigns.
-15. Define the onboarding and migration service scope for agencies moving from Excel/WhatsApp.
-16. Create a sales discovery script from `CUSTOMER_PERSONAS.md`, `PAIN_POINTS.md`, `OFFERS.md`, `OBJECTIONS.md`, and `launch-pack/LEAD_CAPTURE.md`.
-17. Turn approved positioning and messaging into a landing-page copy brief or `LANDING_PAGE_COPY.md`.
-18. Add proof points when available: testimonials, customer quotes, active agency count, usage metrics, screenshots, demo video, case studies, or founder credibility.
+13. Set up the Instagram profile using `launch-pack/PROFILE_SETUP.md` and the exact profile copy in `launch-pack/LAUNCH_EXECUTION_BOARD.md`.
+14. Load saved replies and lead qualification prompts from `launch-pack/LEAD_CAPTURE.md` and `launch-pack/LAUNCH_EXECUTION_BOARD.md`.
+15. Validate public pricing and packaging before using pricing in any future content.
+16. Build an approved integration-claims matrix: webhooks, Meta/Facebook/Instagram, Telegram, Google Sheets Apps Script, Cloudinary, Dropbox.
+17. Approve security, privacy, storage, GDPR, data-deletion, and document-template wording before public campaigns.
+18. Define the onboarding and migration service scope for agencies moving from Excel/WhatsApp.
+19. Create a sales discovery script from `CUSTOMER_PERSONAS.md`, `PAIN_POINTS.md`, `OFFERS.md`, `OBJECTIONS.md`, `launch-pack/LEAD_CAPTURE.md`, and `launch-pack/LAUNCH_EXECUTION_BOARD.md`.
+20. Turn approved positioning and messaging into a landing-page copy brief or `LANDING_PAGE_COPY.md`.
+21. Add proof points when available: testimonials, customer quotes, active agency count, usage metrics, screenshots, demo video, case studies, or founder credibility.
 
 ## Questions to answer before campaign production
 
@@ -42,6 +45,9 @@ Last updated: 2026-07-08
 - Which ICP matters first for revenue and testimonials?
 - Which Instagram CTA should be primary: demo, workflow audit, audit call, registration, consultation, or early access?
 - Is the Launch Pack CTA recommendation approved: primary demo, secondary workflow audit?
+- Is there a live demo form, and does it create a lead directly in LegalHub CRM or require manual handling?
+- Is there a live Calendly/booking link, and who hosts the workflow demos?
+- Is the approved demo account ready with safe fake data and public screenshots?
 - Is early access a real sales motion for this launch, and what does it mean operationally?
 - Who will handle Instagram DMs, comment keywords, story replies, checklist delivery, and lead qualification?
 - Where will launch-week leads be logged, and who owns follow-up dates?
@@ -65,12 +71,14 @@ Last updated: 2026-07-08
 
 Recommended next action:
 
-- Approve `launch-pack/PROFILE_SETUP.md` and create the live link-in-bio destinations.
+- Open `launch-pack/LAUNCH_EXECUTION_BOARD.md`, complete the missing launch information, and execute the `Today's Checklist` before the first Instagram post.
 
 Then execute the production checklist:
 
-- Set Instagram profile bio, name field, avatar, highlights, and link-in-bio.
+- Set Instagram profile bio, name field, avatar, highlights, pinned-post order, and link-in-bio using the exact setup in `launch-pack/LAUNCH_EXECUTION_BOARD.md`.
+- Confirm demo form, booking link, demo account, pricing, early access, and workflow audit delivery.
 - Prepare approved demo data and screenshots.
-- Produce Day 1 assets from `launch-pack/DAY_1_LAUNCH_SCRIPT.md`.
-- Load saved DM replies from `launch-pack/LEAD_CAPTURE.md`.
-- Record the first week metrics from `launch-pack/WEEK_1_ACTION_PLAN.md`.
+- Produce the first 3 launch assets: Reel 02, Carousel 01, and Reel 04.
+- Publish Day 1 using the checklist in `launch-pack/LAUNCH_EXECUTION_BOARD.md`.
+- Load saved DM replies from `launch-pack/LAUNCH_EXECUTION_BOARD.md` and `launch-pack/LEAD_CAPTURE.md`.
+- Record Day 1 and week 1 metrics from `launch-pack/WEEK_1_ACTION_PLAN.md`.

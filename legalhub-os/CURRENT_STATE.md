@@ -29,6 +29,14 @@ Marketing foundation files:
 
 ## Latest completed work
 
+A practical Instagram Launch Execution Board for the real LegalHub CRM launch was created on 2026-07-08.
+
+New deliverable:
+
+- `launch-pack/LAUNCH_EXECUTION_BOARD.md`: launch-day execution board covering today's pre-publication checklist, exact Instagram profile setup, required visual assets, first 3 posts production list, Day 1 publishing checklist, DM lead-handling scripts, and missing information before launch.
+
+The execution board consolidates the existing Launch Pack and batch-001 materials into a practical operating checklist. It keeps the approved launch direction: primary CTA `Book a workflow-based demo`, secondary CTA `Request a workflow audit`, first publishing sequence Reel 02 -> Carousel 01 -> Reel 04, and Day 1 opening around spreadsheet/case-tracking pain. It does not add new strategic claims and keeps unconfirmed items such as demo form, booking link, demo account, pricing, early access, workflow audit delivery, and public claim approval marked as missing information.
+
 An Instagram Launch Pack for the first launch week of LegalHub CRM was created on 2026-07-08.
 
 New deliverables:
