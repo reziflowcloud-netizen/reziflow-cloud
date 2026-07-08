@@ -1,5 +1,47 @@
 # Task Log
 
+## 2026-07-08 - Instagram Launch Pack for week 1
+
+Task:
+
+- Create a practical Instagram Launch Pack for the first week of LegalHub CRM launch, using batch-001 and the QA review, working only inside `/legalhub-os/`.
+
+Done:
+
+- Verified the current git branch is `agent/add-legalhub-marketing-os-foundation`.
+- Verified `/legalhub-os/` exists and the required foundation files are present.
+- Read the requested Marketing OS files, Instagram strategy files, batch-001 content files, and `QA_REVIEW.md`.
+- Created `/legalhub-os/launch-pack/`.
+- Created a practical profile setup recommendation with final bio, name field, CTA, link-in-bio structure, highlights, pinned posts, avatar guidance, and first-screen profile expectations.
+- Created a 7-day action plan using the QA-revised batch-001 order: Reel 02, Carousel 01, Reel 04, Carousel 02, Reel 05, Stories Day 8, and Reel 06.
+- Created an exact Day 1 launch script with Reel copy, Stories sequence, CTA text, DM replies, lead handling, LinkedIn copy, and YouTube Community copy.
+- Created three pinned post briefs: what LegalHub CRM is, Excel/WhatsApp pain, and lead-to-case demo or early-access interest.
+- Created a lead-capture workflow covering DMs, link in bio, demo form, workflow audit, qualification, and saved replies.
+- Created a production checklist for screenshots, demo data, sensitive-data hiding, covers, copy review, and pre/post-publication checks.
+- Updated `CURRENT_STATE.md`, `TASK_LOG.md`, and `NEXT_STEPS.md`.
+
+Files created:
+
+- `legalhub-os/launch-pack/PROFILE_SETUP.md`
+- `legalhub-os/launch-pack/WEEK_1_ACTION_PLAN.md`
+- `legalhub-os/launch-pack/DAY_1_LAUNCH_SCRIPT.md`
+- `legalhub-os/launch-pack/PINNED_POSTS.md`
+- `legalhub-os/launch-pack/LEAD_CAPTURE.md`
+- `legalhub-os/launch-pack/PRODUCTION_CHECKLIST.md`
+
+Files changed:
+
+- `legalhub-os/CURRENT_STATE.md`
+- `legalhub-os/NEXT_STEPS.md`
+- `legalhub-os/TASK_LOG.md`
+
+Notes:
+
+- Application code was not modified.
+- The Launch Pack recommends `Book a workflow-based demo` as the primary CTA and `Request a workflow audit` as the secondary CTA.
+- Final booking URLs, audit delivery, early-access availability, approved screenshots, demo data, and DM ownership remain `Needs clarification`.
+- Unsupported claims about automatic migration, official integrations, security/GDPR, legal template review, automated billing, and guaranteed outcomes were avoided.
+
 ## 2026-07-08 - Editorial QA and revision of Instagram launch batch 001
 
 Task:

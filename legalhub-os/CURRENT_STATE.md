@@ -29,6 +29,19 @@ Marketing foundation files:
 
 ## Latest completed work
 
+An Instagram Launch Pack for the first launch week of LegalHub CRM was created on 2026-07-08.
+
+New deliverables:
+
+- `launch-pack/PROFILE_SETUP.md`: final practical profile setup recommendation, including bio, name field, CTA, link-in-bio structure, highlights, pinned posts, avatar guidance, and first-screen profile expectations.
+- `launch-pack/WEEK_1_ACTION_PLAN.md`: 7-day publishing plan using batch-001 assets, with exact Reel/carousel/Stories usage, daily CTA, goal, preparation, and metrics.
+- `launch-pack/DAY_1_LAUNCH_SCRIPT.md`: exact Day 1 Reel, Stories, CTA, DM replies, incoming lead handling, LinkedIn post, and YouTube Community post.
+- `launch-pack/PINNED_POSTS.md`: three pinned post briefs covering what LegalHub CRM is, Excel/WhatsApp pain, and lead-to-case demo or early-access interest.
+- `launch-pack/LEAD_CAPTURE.md`: practical lead-capture workflow through DMs, link in bio, demo form, workflow audit, qualification questions, scoring, and saved replies.
+- `launch-pack/PRODUCTION_CHECKLIST.md`: pre-publication checklist for demo data, screenshots, hidden data, covers, captions, claims, and post-publishing follow-up.
+
+The Launch Pack uses the QA-revised batch-001 order and opens the first week with concrete buyer pains: spreadsheet limits, missing next contact, owner visibility, active case context, and status gaps. It recommends `Book a workflow-based demo` as the primary practical CTA and `Request a workflow audit` as the secondary CTA, while keeping final URLs, audit delivery, and early-access availability marked as `Needs clarification`.
+
 A strict editorial QA review and publication-readiness revision of Instagram launch batch 001 was completed on 2026-07-08.
 
 New and updated deliverables:
@@ -113,6 +126,9 @@ No application code was intentionally changed.
 - Approved document-template claims.
 - Channel strategy and campaign language priorities.
 - Final Instagram profile CTA, booking link, and DM/comment handling process.
+- Final approval of the Launch Pack recommendation: primary CTA `Book a workflow-based demo`, secondary CTA `Request a workflow audit`.
+- Final link-in-bio URLs for demo, audit, workflow overview, Excel migration discussion, and contact.
+- Who owns Instagram replies, DM qualification, lead logging, and follow-up during launch week.
 - Approved Instagram demo screenshots, screen recordings, and demo data.
 - Approval of the QA-revised first production order: Reel 02, Carousel 01, Reel 04, Carousel 02, Reel 05 as the recommended first five assets.
 - Whether audit call and early-access CTAs are commercially approved and how they are delivered.
