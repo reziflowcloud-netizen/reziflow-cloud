@@ -702,9 +702,9 @@ export default function IntegrationsPage() {
     return `${window.location.origin}/api/webhooks/meta/leads/${settings.slug}`
   }, [settings])
   const facebookMessagesCallbackUrl = useMemo(() => {
-    if (!settings || typeof window === 'undefined') return ''
-    return `${window.location.origin}/api/webhooks/meta/messages/${settings.slug}`
-  }, [settings])
+    if (typeof window === 'undefined') return ''
+    return `${window.location.origin}/api/webhooks/meta/messages`
+  }, [])
   const privacyPolicyUrl = useMemo(() => {
     if (typeof window === 'undefined') return ''
     return `${window.location.origin}/privacy`
