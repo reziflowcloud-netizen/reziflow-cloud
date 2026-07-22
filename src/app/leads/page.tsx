@@ -249,6 +249,9 @@ export default function LeadsPage() {
   const [showColMenu, setShowColMenu] = useState(false)
   const colMenuRef = useRef<HTMLDivElement>(null)
   const leadWorkScrollRef = useRef<HTMLDivElement>(null)
+  const leadBottomScrollRef = useRef<HTMLDivElement>(null)
+  const syncingLeadScrollRef = useRef(false)
+  const [leadScrollState, setLeadScrollState] = useState({ width: 0, viewportWidth: 0, left: 0, visible: false })
 
   const orderedStatuses = leadStatuses.length ? leadStatuses : DEFAULT_LEAD_STATUSES
   const statusNames = orderedStatuses.map(status => status.name)
@@ -534,6 +537,47 @@ export default function LeadsPage() {
     }
     return groups
   }, [filtered, statusNames.join('|')])
+
+  useEffect(() => {
+    const content = leadWorkScrollRef.current
+    if (!content || typeof window === 'undefined') return
+
+    const updateScrollState = () => {
+      const scrollWidth = Math.ceil(content.scrollWidth)
+      const clientWidth = Math.ceil(content.clientWidth)
+      const rect = content.getBoundingClientRect()
+      const nextState = {
+        width: scrollWidth,
+        viewportWidth: Math.max(0, Math.round(rect.width)),
+        left: Math.max(0, Math.round(rect.left)),
+        visible: scrollWidth > clientWidth + 2,
+      }
+      setLeadScrollState(current => (
+        current.width === nextState.width &&
+        current.viewportWidth === nextState.viewportWidth &&
+        current.left === nextState.left &&
+        current.visible === nextState.visible
+          ? current
+          : nextState
+      ))
+      if (leadBottomScrollRef.current) leadBottomScrollRef.current.scrollLeft = content.scrollLeft
+    }
+
+    updateScrollState()
+    window.addEventListener('resize', updateScrollState)
+
+    let observer: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(updateScrollState)
+      observer.observe(content)
+      if (content.firstElementChild) observer.observe(content.firstElementChild)
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateScrollState)
+      observer?.disconnect()
+    }
+  }, [viewMode, visibleLeadColumns.join('|'), filtered.length, statusNames.length])
 
   const calendarDays = useMemo(() => {
     const year = calendarMonth.getFullYear()
@@ -870,6 +914,42 @@ export default function LeadsPage() {
     }
   }
 
+  function syncLeadContentScroll() {
+    if (syncingLeadScrollRef.current) return
+    const content = leadWorkScrollRef.current
+    const scrollbar = leadBottomScrollRef.current
+    if (!content || !scrollbar) return
+    syncingLeadScrollRef.current = true
+    scrollbar.scrollLeft = content.scrollLeft
+    requestAnimationFrame(() => {
+      syncingLeadScrollRef.current = false
+    })
+  }
+
+  function syncLeadBottomScroll() {
+    if (syncingLeadScrollRef.current) return
+    const content = leadWorkScrollRef.current
+    const scrollbar = leadBottomScrollRef.current
+    if (!content || !scrollbar) return
+    syncingLeadScrollRef.current = true
+    content.scrollLeft = scrollbar.scrollLeft
+    requestAnimationFrame(() => {
+      syncingLeadScrollRef.current = false
+    })
+  }
+
+  const leadHorizontalScrollbar = leadScrollState.visible ? (
+    <div
+      ref={leadBottomScrollRef}
+      className="lead-horizontal-scrollbar"
+      style={{ left: leadScrollState.left, width: leadScrollState.viewportWidth }}
+      onScroll={syncLeadBottomScroll}
+      aria-hidden="true"
+    >
+      <div style={{ width: leadScrollState.width, height: 1 }} />
+    </div>
+  ) : null
+
   return (
     <div className="fade-in leads-page">
       <style>{`
@@ -882,6 +962,8 @@ export default function LeadsPage() {
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
           scrollbar-gutter: stable;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
         }
 
         .leads-page .lead-table {
@@ -1011,17 +1093,36 @@ export default function LeadsPage() {
         }
 
         .leads-page .lead-work-scroll::-webkit-scrollbar {
+          width: 0;
+          height: 0;
+          display: none;
+        }
+
+        .leads-page .lead-horizontal-scrollbar {
+          position: fixed;
+          bottom: 0;
+          z-index: 45;
+          height: 18px;
+          overflow-x: auto;
+          overflow-y: hidden;
+          padding-top: 4px;
+          background: linear-gradient(180deg, rgba(248, 250, 252, 0.08), var(--surface) 48%);
+          border-top: 1px solid var(--border);
+          scrollbar-gutter: stable;
+        }
+
+        .leads-page .lead-horizontal-scrollbar::-webkit-scrollbar {
           height: 12px;
         }
 
-        .leads-page .lead-work-scroll::-webkit-scrollbar-thumb {
+        .leads-page .lead-horizontal-scrollbar::-webkit-scrollbar-thumb {
           background: #94a3b8;
           border-radius: 999px;
           border: 3px solid transparent;
           background-clip: content-box;
         }
 
-        .leads-page .lead-work-scroll::-webkit-scrollbar-track {
+        .leads-page .lead-horizontal-scrollbar::-webkit-scrollbar-track {
           background: #e5e7eb;
           border-radius: 999px;
         }
@@ -1443,7 +1544,7 @@ export default function LeadsPage() {
           {viewMode === 'table' ? (
           <div className="lead-results lead-results-shell">
             <div className="table-container">
-              <div ref={leadWorkScrollRef} className="table-scroll lead-work-scroll">
+              <div ref={leadWorkScrollRef} className="table-scroll lead-work-scroll" onScroll={syncLeadContentScroll}>
                 <table className="table lead-table" style={{ minWidth: leadTableMinWidth, width: `max(100%, ${leadTableMinWidth}px)` }}>
                 <colgroup>
                   <col style={{ width: LEAD_SELECT_COLUMN_WIDTH }} />
@@ -1570,7 +1671,7 @@ export default function LeadsPage() {
           </div>
           ) : (
             <div className="lead-results lead-results-shell">
-            <div ref={leadWorkScrollRef} className="lead-board-scroll lead-work-scroll" style={{ overflowX: 'auto', paddingBottom: 10 }}>
+            <div ref={leadWorkScrollRef} className="lead-board-scroll lead-work-scroll" onScroll={syncLeadContentScroll} style={{ overflowX: 'auto', paddingBottom: 10 }}>
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(${statusNames.length}, minmax(230px, 1fr))`, gap: 12, minWidth: Math.max(320, statusNames.length * 240) }}>
                 {orderedStatuses.map(item => {
                   const colors = statusColors(item)
@@ -1700,6 +1801,7 @@ export default function LeadsPage() {
           </div>
         </div>
       </div>
+      {leadHorizontalScrollbar}
       {activeReminder && (
         <div
           style={{
