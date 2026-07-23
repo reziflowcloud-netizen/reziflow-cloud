@@ -108,6 +108,12 @@ export async function subscribePageToMetaMessages(version: string, pageId: strin
   return graphJson(url, { method: 'POST', body })
 }
 
+export async function unsubscribePageFromMeta(version: string, pageId: string, pageAccessToken: string) {
+  const url = new URL(`https://graph.facebook.com/${normalizeMetaApiVersion(version)}/${pageId}/subscribed_apps`)
+  url.searchParams.set('access_token', pageAccessToken)
+  return graphJson(url, { method: 'DELETE' })
+}
+
 export function publicMetaPage(page: MetaGraphPage) {
   return {
     id: page.id,

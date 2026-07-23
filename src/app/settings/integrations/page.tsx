@@ -537,6 +537,12 @@ const metaOAuthText = {
     connect: 'Подключить Meta',
     reconnect: 'Переподключить Meta',
     connecting: 'Открываю Meta...',
+    disconnect: 'Отключить Meta',
+    disconnecting: 'Отключаю...',
+    disconnectConfirm: 'Отключить Meta для этой организации? CRM перестанет принимать лиды и сообщения, а сохранённые токены и данные подключения будут удалены.',
+    disconnected: 'Meta отключена. Токены и данные подключения этой организации удалены.',
+    disconnectFailed: 'Не удалось отключить Meta',
+    unsubscribeWarning: 'Подключение удалено из CRM, но Meta не подтвердила снятие webhook-подписки',
     page: 'Страница',
     instagram: 'Instagram',
     noInstagram: 'Instagram Business аккаунт не найден у выбранной страницы',
@@ -559,6 +565,12 @@ const metaOAuthText = {
     connect: 'Підключити Meta',
     reconnect: 'Перепідключити Meta',
     connecting: 'Відкриваю Meta...',
+    disconnect: 'Відключити Meta',
+    disconnecting: 'Відключаю...',
+    disconnectConfirm: 'Відключити Meta для цієї організації? CRM перестане приймати ліди та повідомлення, а збережені токени й дані підключення буде видалено.',
+    disconnected: 'Meta відключено. Токени й дані підключення цієї організації видалено.',
+    disconnectFailed: 'Не вдалося відключити Meta',
+    unsubscribeWarning: 'Підключення видалено з CRM, але Meta не підтвердила скасування webhook-підписки',
     page: 'Сторінка',
     instagram: 'Instagram',
     noInstagram: 'Instagram Business акаунт не знайдено у вибраної сторінки',
@@ -581,6 +593,12 @@ const metaOAuthText = {
     connect: 'Połącz Meta',
     reconnect: 'Połącz ponownie Meta',
     connecting: 'Otwieram Meta...',
+    disconnect: 'Odłącz Meta',
+    disconnecting: 'Odłączam...',
+    disconnectConfirm: 'Odłączyć Meta dla tej organizacji? CRM przestanie odbierać leady i wiadomości, a zapisane tokeny i dane połączenia zostaną usunięte.',
+    disconnected: 'Meta została odłączona. Tokeny i dane połączenia tej organizacji zostały usunięte.',
+    disconnectFailed: 'Nie udało się odłączyć Meta',
+    unsubscribeWarning: 'Połączenie usunięto z CRM, ale Meta nie potwierdziła usunięcia subskrypcji webhook',
     page: 'Strona',
     instagram: 'Instagram',
     noInstagram: 'Nie znaleziono konta Instagram Business dla wybranej strony',
@@ -684,6 +702,9 @@ export default function IntegrationsPage() {
   const [metaDiagnostics, setMetaDiagnostics] = useState<MetaTokenDiagnostics | null>(null)
   const [metaOAuthLoading, setMetaOAuthLoading] = useState(false)
   const [metaOAuthSelecting, setMetaOAuthSelecting] = useState(false)
+  const [metaOAuthDisconnecting, setMetaOAuthDisconnecting] = useState(false)
+  const [metaOAuthStatus, setMetaOAuthStatus] = useState('')
+  const [metaOAuthStatusWarning, setMetaOAuthStatusWarning] = useState(false)
   const [metaOAuthPageId, setMetaOAuthPageId] = useState('')
   const [storageSettings, setStorageSettings] = useState<StorageSettings | null>(null)
   const [storageDraft, setStorageDraft] = useState<StorageSettings['dropbox']>({ enabled: false, rootFolder: '/LegalHub', hasAccessToken: false, accessToken: '' })
@@ -894,7 +915,10 @@ function onFormSubmit(e) {
     const metaError = params.get('meta_error')
     const oauthStatus = params.get('meta_oauth')
     if (metaError) setError(metaError)
-    if (oauthStatus === 'select') setMetaSubscriptionStatus(metaText.selectTitle)
+    if (oauthStatus === 'select') {
+      setMetaOAuthStatus(metaText.selectTitle)
+      setMetaOAuthStatusWarning(false)
+    }
     if (metaError || oauthStatus) {
       window.history.replaceState(null, '', window.location.pathname)
     }
@@ -1100,7 +1124,8 @@ function onFormSubmit(e) {
     }
     setMetaOAuthSelecting(true)
     setError('')
-    setMetaSubscriptionStatus('')
+    setMetaOAuthStatus('')
+    setMetaOAuthStatusWarning(false)
     try {
       const res = await fetch('/api/meta/oauth/select', {
         method: 'POST',
@@ -1112,10 +1137,42 @@ function onFormSubmit(e) {
         setError(data.error || text.saveFailed)
         return
       }
-      if (data.subscriptionError) setMetaSubscriptionStatus(`${metaText.subscriptionWarning}: ${data.subscriptionError}`)
+      if (data.subscriptionError) {
+        setMetaOAuthStatus(`${metaText.subscriptionWarning}: ${data.subscriptionError}`)
+        setMetaOAuthStatusWarning(true)
+      }
       await loadSettings()
     } finally {
       setMetaOAuthSelecting(false)
+    }
+  }
+
+  async function disconnectMetaOAuth() {
+    if (!window.confirm(metaText.disconnectConfirm)) return
+
+    setMetaOAuthDisconnecting(true)
+    setError('')
+    setMetaOAuthStatus('')
+    setMetaOAuthStatusWarning(false)
+    try {
+      const res = await fetch('/api/meta/oauth/disconnect', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error || metaText.disconnectFailed)
+        return
+      }
+
+      setMetaDiagnostics(null)
+      setMetaOAuthPageId('')
+      setMetaOAuthStatusWarning(Boolean(data.unsubscribeWarning))
+      setMetaOAuthStatus(
+        data.unsubscribeWarning
+          ? `${metaText.unsubscribeWarning}: ${data.unsubscribeWarning}`
+          : metaText.disconnected
+      )
+      await loadSettings()
+    } finally {
+      setMetaOAuthDisconnecting(false)
     }
   }
 
@@ -1522,13 +1579,32 @@ ${samplePayload}`}
               )}
 
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12 }}>
-                <button className="btn btn-primary" type="button" onClick={startMetaOAuth} disabled={metaOAuthLoading || saving}>
+                <button className="btn btn-primary" type="button" onClick={startMetaOAuth} disabled={metaOAuthLoading || metaOAuthDisconnecting || saving}>
                   {metaOAuthLoading ? metaText.connecting : metaOAuth?.connected ? metaText.reconnect : metaText.connect}
                 </button>
+                {metaOAuth?.connected && (
+                  <button className="btn btn-danger" type="button" onClick={disconnectMetaOAuth} disabled={metaOAuthDisconnecting || metaOAuthLoading || saving}>
+                    {metaOAuthDisconnecting ? metaText.disconnecting : metaText.disconnect}
+                  </button>
+                )}
                 {!pendingMetaPages.length && !metaOAuth?.connected && (
                   <span style={{ color: 'var(--muted)', fontSize: 12 }}>{metaText.noPages}</span>
                 )}
               </div>
+              {metaOAuthStatus && (
+                <div style={{
+                  marginTop: 12,
+                  color: metaOAuthStatusWarning ? '#92400e' : '#166534',
+                  background: metaOAuthStatusWarning ? '#fffbeb' : '#f0fdf4',
+                  border: `1px solid ${metaOAuthStatusWarning ? '#fde68a' : '#bbf7d0'}`,
+                  borderRadius: 8,
+                  padding: 10,
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}>
+                  {metaOAuthStatus}
+                </div>
+              )}
             </div>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, fontWeight: 700 }}>
