@@ -1,5 +1,58 @@
 # Task Log
 
+## 2026-07-24 - Instagram visual brand guide
+
+Task:
+
+- Create a single practical visual brand guide for LegalHub CRM Instagram
+  production, based on owner-approved launch inputs, current Instagram briefs,
+  and a read-only audit of the real CRM interface.
+
+Done:
+
+- Read the Marketing OS operating rules and baseline memory files.
+- Read `OWNER_INPUTS.md`, `INSTAGRAM_STRATEGY.md`,
+  `content-batches/batch-001/VISUAL_DIRECTION.md`,
+  `publish-ready/week-001/PROFILE_FINAL.md`,
+  `publish-ready/week-001/DAY_1_READY.md`, and
+  `publish-ready/week-001/DAY_1_VISUAL_BRIEF.md` directly from commit
+  `9f7eda2`, because those files are present in repository history but absent
+  from the current `main` checkout.
+- Audited the CRM interface in read-only mode through `globals.css`, layout,
+  dashboard/sidebar components, official logo SVGs, and existing LegalHub demo
+  visuals.
+- Extracted real UI colors, surfaces, border radii, shadows, typography,
+  buttons, badges, spacing, and dashboard visual language.
+- Replaced the earlier provisional content palette with a system grounded in
+  real UI/logo tokens.
+- Created Story, feed, Reel-cover, screenshot, UI-highlight, typography,
+  brand-element, and format systems.
+- Added at least 15 explicit do/don't rules, image-generation guardrails, a
+  reusable master design prompt, and 15 example requests.
+- Documented conservative format safe zones and required in-app preview QA.
+- Documented the pixel-preservation workflow for CRM screenshots and the
+  locked-layer Canva fallback.
+- Updated `CURRENT_STATE.md`, `TASK_LOG.md`, `NEXT_STEPS.md`, and
+  `DECISIONS.md`.
+
+Files created:
+
+- `legalhub-os/VISUAL_BRAND_GUIDE.md`
+
+Files changed:
+
+- `legalhub-os/CURRENT_STATE.md`
+- `legalhub-os/TASK_LOG.md`
+- `legalhub-os/NEXT_STEPS.md`
+- `legalhub-os/DECISIONS.md`
+
+Notes:
+
+- Application code was analyzed read-only and was not modified.
+- No `.env` file or secret was read.
+- All public screenshot rules require fake demo data and final approval by
+  Valentyn.
+
 ## 2026-07-08 - Marketing foundation for LegalHub CRM
 
 Task:

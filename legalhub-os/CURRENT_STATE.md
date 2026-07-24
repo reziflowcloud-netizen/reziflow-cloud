@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-07-08
+Last updated: 2026-07-24
 
 ## Marketing OS status
 
@@ -26,8 +26,46 @@ Marketing foundation files:
 - `MESSAGING.md`
 - `OFFERS.md`
 - `OBJECTIONS.md`
+- `VISUAL_BRAND_GUIDE.md`
 
 ## Latest completed work
+
+A production-ready visual brand system was created on 2026-07-24:
+
+- `VISUAL_BRAND_GUIDE.md` is now the single visual production guide for
+  ChatGPT Image Generation, Canva, CapCut, and human designers.
+- The guide uses real LegalHub CRM UI and logo colors rather than the earlier
+  provisional Instagram palette.
+- The real UI audit confirmed cyan `#06B6D4`, deep navy UI/logo anchors,
+  `#F4F5F7` workspace backgrounds, white surfaces, neutral borders, restrained
+  shadows, compact semantic badges, and a system/Segoe UI typography stack
+  with Inter as the closest cross-tool production font.
+- The guide defines Story, Reel, feed, square, and carousel formats; conservative
+  safe zones; screenshot treatment; five Story templates; five feed templates;
+  three Reel-cover systems; text hierarchy; UI highlights; brand elements;
+  image-generation rules; a master prompt; and example requests.
+- The critical screenshot rule is documented: an approved CRM screenshot is
+  the source of truth, its UI/content may not be regenerated or altered, and
+  one important UI fragment must be shown large rather than shrinking a full
+  desktop screen.
+- The production workflow prefers generating the surrounding composition and
+  placing the original screenshot as a locked Canva layer when pixel-perfect
+  UI preservation cannot be guaranteed by an image model.
+- Launch content remains Ukrainian-first. Approved CTAs are `Спробувати
+  безкоштовно`, `DEMO`, and `AUDIT` as defined in owner inputs.
+- Only approved fake demo data may appear in public CRM visuals, with final
+  screenshot approval by Valentyn.
+
+Source note:
+
+- The requested launch files (`OWNER_INPUTS.md`, `INSTAGRAM_STRATEGY.md`,
+  `content-batches/batch-001/VISUAL_DIRECTION.md`, and
+  `publish-ready/week-001/*`) are present in repository history at commit
+  `9f7eda2` but are not present in the current `main` checkout. They were read
+  directly from that commit without switching branches or modifying
+  application code.
+
+Previous completed work:
 
 A marketing foundation v1 was created on 2026-07-08 from the repository-audited `PROJECT_BIBLE.md` and `PRODUCT_MAP.md`.
 
@@ -67,7 +105,6 @@ No application code was intentionally changed.
 
 - Approval or adjustment of the drafted ICP, buyer personas, positioning, and brand voice.
 - Approved public pricing, plan packaging, VAT/tax language, and trial terms.
-- Primary CTA and sales motion.
 - Production readiness of each integration.
 - Meta App Review / Advanced Access status.
 - Customer proof, testimonials, metrics, and case studies.
@@ -76,6 +113,9 @@ No application code was intentionally changed.
 - Channel strategy and campaign language priorities.
 - Public proof points to support the new messaging foundation.
 - Which launch offers are commercially approved and how they are delivered.
+- Whether the unmerged Instagram Marketing OS files should be restored or
+  merged into the active branch so future chats can use their paths directly.
+- Final Canva/CapCut master templates and the approved screenshot crop library.
 
 ## Safety notes
 
