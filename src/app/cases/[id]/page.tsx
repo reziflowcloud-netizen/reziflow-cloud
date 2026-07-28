@@ -48,6 +48,7 @@ export default function CaseDetailPage() {
   const [customReminderDate, setCustomReminderDate] = useState('')
   const [customReminderSaving, setCustomReminderSaving] = useState(false)
   const [mosAutoRemindersEnabled, setMosAutoRemindersEnabled] = useState(true)
+  const [mosEmailFieldEnabled, setMosEmailFieldEnabled] = useState(false)
   const [comment, setComment] = useState('')
   const [form, setForm] = useState<any>({})
   const [uploading, setUploading] = useState(false)
@@ -67,8 +68,14 @@ export default function CaseDetailPage() {
   useEffect(() => {
     fetch('/api/organization-settings', { cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
-      .then(data => setMosAutoRemindersEnabled(data?.settings?.mosAutoRemindersEnabled !== false))
-      .catch(() => setMosAutoRemindersEnabled(true))
+      .then(data => {
+        setMosAutoRemindersEnabled(data?.settings?.mosAutoRemindersEnabled !== false)
+        setMosEmailFieldEnabled(data?.settings?.mosEmailFieldEnabled === true)
+      })
+      .catch(() => {
+        setMosAutoRemindersEnabled(true)
+        setMosEmailFieldEnabled(false)
+      })
 
     fetch(`/api/cases/${id}`).then(r => r.json()).then(data => {
       setC(data)
@@ -99,6 +106,7 @@ export default function CaseDetailPage() {
         fingerprintsDate: data.fingerprintsDate?.slice(0, 10) || '',
         cabinetLogin: data.cabinetLogin || '',
         cabinetPassword: data.cabinetPassword || '',
+        mosEmail: data.mosEmail || '',
         filingDate: data.filingDate?.slice(0, 10) || '',
         personalAppearDate: data.personalAppearDate?.slice(0, 10) || '',
         legalStayDeadline: data.legalStayDeadline?.slice(0, 10) || '',
@@ -1253,6 +1261,21 @@ export default function CaseDetailPage() {
                       </div>
                     </div>
                   </div>
+
+                  {mosEmailFieldEnabled && (
+                    <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, marginTop: 14 }}>
+                      <div className="form-group" style={{ maxWidth: 520 }}>
+                        <label className="label">{t('mos_email_address')}</label>
+                        <input
+                          className="input"
+                          type="email"
+                          value={form.mosEmail || ''}
+                          onChange={e => set('mosEmail', e.target.value)}
+                          placeholder="name@example.com"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, marginTop: 14 }}>
                     <div className="section-title" style={{ marginBottom: 10 }}>{t('fingerprints_date')}</div>

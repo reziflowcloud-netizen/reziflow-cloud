@@ -499,6 +499,7 @@ model Case {
   fingerprintsDate      DateTime?
   cabinetLogin          String?
   cabinetPassword       String?
+  mosEmail              String?
   filingDate            DateTime?
   personalAppearDate    DateTime?
   legalStayDeadline     DateTime?

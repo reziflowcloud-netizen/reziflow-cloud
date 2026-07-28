@@ -208,6 +208,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (has('fingerprintsDate')) baseData.fingerprintsDate = nullableDate('fingerprintsDate')
     if (has('cabinetLogin')) baseData.cabinetLogin = body.cabinetLogin || null
     if (has('cabinetPassword')) baseData.cabinetPassword = body.cabinetPassword || null
+    if (has('mosEmail')) baseData.mosEmail = nullableText('mosEmail')
     if (has('filingDate')) baseData.filingDate = nullableDate('filingDate')
     if (has('personalAppearDate')) baseData.personalAppearDate = nullableDate('personalAppearDate')
     if (has('legalStayDeadline')) baseData.legalStayDeadline = nullableDate('legalStayDeadline')

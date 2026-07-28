@@ -4,12 +4,14 @@ import { getOrganizationId, getUser } from '@/lib/auth'
 
 type OrganizationSettings = {
   mosAutoRemindersEnabled: boolean
+  mosEmailFieldEnabled: boolean
   tutorialVideosEnabled: boolean
   quickStartEnabled: boolean
 }
 
 const defaultSettings: OrganizationSettings = {
   mosAutoRemindersEnabled: true,
+  mosEmailFieldEnabled: false,
   tutorialVideosEnabled: false,
   quickStartEnabled: true,
 }
@@ -26,6 +28,7 @@ function normalizeSettings(value: unknown): OrganizationSettings {
   const raw = toObject(value)
   return {
     mosAutoRemindersEnabled: raw.mosAutoRemindersEnabled !== false,
+    mosEmailFieldEnabled: raw.mosEmailFieldEnabled === true,
     tutorialVideosEnabled: raw.tutorialVideosEnabled === true,
     quickStartEnabled: raw.quickStartEnabled !== false,
   }
@@ -65,6 +68,7 @@ export async function PATCH(req: NextRequest) {
   const current = normalizeSettings(organization.settings)
   const rawCurrent = toObject(organization.settings)
   const hasMosAutoReminders = Object.prototype.hasOwnProperty.call(incoming, 'mosAutoRemindersEnabled')
+  const hasMosEmailField = Object.prototype.hasOwnProperty.call(incoming, 'mosEmailFieldEnabled')
   const hasTutorialVideos = Object.prototype.hasOwnProperty.call(incoming, 'tutorialVideosEnabled')
   const hasQuickStart = Object.prototype.hasOwnProperty.call(incoming, 'quickStartEnabled')
   const nextSettings: OrganizationSettings = {
@@ -73,6 +77,9 @@ export async function PATCH(req: NextRequest) {
     mosAutoRemindersEnabled: hasMosAutoReminders
       ? incoming.mosAutoRemindersEnabled !== false
       : current.mosAutoRemindersEnabled,
+    mosEmailFieldEnabled: hasMosEmailField
+      ? incoming.mosEmailFieldEnabled === true
+      : current.mosEmailFieldEnabled,
     tutorialVideosEnabled: hasTutorialVideos
       ? incoming.tutorialVideosEnabled === true
       : current.tutorialVideosEnabled,

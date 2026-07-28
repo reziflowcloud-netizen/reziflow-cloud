@@ -129,18 +129,24 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const updated = await prisma.$transaction(async tx => {
       const organizationData = { ...data }
 
-      if (canManageAll && 'billingLimits' in body) {
+      if (canManageAll && ('billingLimits' in body || 'mosEmailFieldEnabled' in body)) {
         const existingOrganization = await tx.organization.findUnique({
           where: { id: params.id },
           select: { settings: true },
         })
         const settings = plainObject(existingOrganization?.settings)
-        const billingLimits = normalizeBillingLimits(body.billingLimits)
 
-        if (Object.keys(billingLimits).length) {
-          settings.billingLimits = billingLimits
-        } else {
-          delete settings.billingLimits
+        if ('billingLimits' in body) {
+          const billingLimits = normalizeBillingLimits(body.billingLimits)
+          if (Object.keys(billingLimits).length) {
+            settings.billingLimits = billingLimits
+          } else {
+            delete settings.billingLimits
+          }
+        }
+
+        if ('mosEmailFieldEnabled' in body) {
+          settings.mosEmailFieldEnabled = body.mosEmailFieldEnabled === true
         }
 
         organizationData.settings = settings
