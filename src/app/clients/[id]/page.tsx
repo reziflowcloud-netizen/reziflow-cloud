@@ -679,6 +679,7 @@ export default function ClientDetailPage() {
                   <input className="input" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@example.com" />
                 </F>
               </div>
+              <div data-custom-fields-slot="client:client-personal" />
             </div>
 
             {/* ── СТАТУС И СЕМЬЯ ── */}
@@ -836,6 +837,7 @@ export default function ClientDetailPage() {
                   </div>
                 </div>
               </div>
+              <div data-custom-fields-slot="client:client-status-family" />
             </div>
 
             {/* ── ПАСПОРТНЫЕ ДАННЫЕ + ФИЗИЧЕСКИЕ ПРИЗНАКИ ── */}
@@ -869,6 +871,7 @@ export default function ClientDetailPage() {
                      text.passportValid}
                   </div>
                 )}
+                <div data-custom-fields-slot="client:client-passport" />
               </div>
 
               <div className="card" data-collapse-key="client-physical" data-section-scope="client" data-section-key="client-physical">
@@ -893,6 +896,7 @@ export default function ClientDetailPage() {
                     <textarea className="input" value={form.specialSigns} onChange={e => set('specialSigns', e.target.value)} rows={3} placeholder={text.specialSignsPlaceholder} />
                   </F>
                 </div>
+                <div data-custom-fields-slot="client:client-physical" />
               </div>
             </div>
 
@@ -907,6 +911,7 @@ export default function ClientDetailPage() {
               <F label={text.originAddressTitle} col>
                 <textarea className="input" value={form.originCountryAddress} onChange={e => set('originCountryAddress', e.target.value)} rows={3} placeholder={text.addressPlaceholder} />
               </F>
+              <div data-custom-fields-slot="client:client-origin-address" />
             </div>
 
             <div className="card" data-collapse-key="client-previous-residence-address" data-section-scope="client" data-section-key="client-previous-residence-address" style={{ marginBottom: 16 }}>
@@ -920,6 +925,7 @@ export default function ClientDetailPage() {
               <F label={`${text.previousAddressTitle} (365+)`} col>
                 <textarea className="input" value={form.previousResidenceAddress} onChange={e => set('previousResidenceAddress', e.target.value)} rows={3} placeholder={text.addressPlaceholder} />
               </F>
+              <div data-custom-fields-slot="client:client-previous-residence-address" />
             </div>
 
             {/* ── ПРЕБЫВАНИЕ В ПОЛЬШЕ ── */}
@@ -994,6 +1000,7 @@ export default function ClientDetailPage() {
                   )}
                 </div>
               </div>
+              <div data-custom-fields-slot="client:client-poland-stay" />
             </div>
 
             {/* ── ИСТОРИЯ ПУТЕШЕСТВИЙ ── */}
@@ -1056,6 +1063,7 @@ export default function ClientDetailPage() {
                   ))}
                 </div>
               )}
+              <div data-custom-fields-slot="client:client-travel-history" />
             </div>
 
             <div className="card" data-collapse-key="client-previous-poland-stays" data-section-scope="client" data-section-key="client-previous-poland-stays" style={{ marginTop: 16, marginBottom: 16 }}>
@@ -1088,6 +1096,7 @@ export default function ClientDetailPage() {
                   </div>
                 ))}
               </div>
+              <div data-custom-fields-slot="client:client-previous-poland-stays" />
             </div>
 
             <CustomSectionsRenderer ref={customSectionsRef} scope="client" recordId={String(id)} standaloneSave={false} />

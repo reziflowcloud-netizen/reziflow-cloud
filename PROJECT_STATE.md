@@ -201,3 +201,15 @@ Some older Russian/Ukrainian strings in source files appear as mojibake in the r
 Do not print or commit `.env`.
 
 Local `.env` exists in this app root, but production secrets live in Vercel. See `DEPLOY_NOTES.md` for safe environment and recovery notes.
+
+## Organization Custom Fields In Standard Sectors (2026-07-28)
+
+- Organization admins manage custom client and case fields in Settings -> Fields and sectors.
+- A custom field group can remain a standalone card or target one standard sector through `CustomSection.targetSectionKey`.
+- Existing custom sections remain standalone because the new target is nullable.
+- Target keys are validated against `src/lib/ui-sections.ts`.
+- Embedded groups render inside explicit slots in the standard client/case cards and use the existing `CustomFieldValue` save flow.
+- Supported custom field types include text, email, textarea, date, number, checkbox, and select.
+- Active custom fields and values are included automatically in full, client-only, and case-only CSV exports.
+- The `Organization.settings.mosEmailFieldEnabled` switch was moved from the superadmin organization editor to Settings -> Fields and sectors.
+- Migration: `20260728150000_custom_section_target`.

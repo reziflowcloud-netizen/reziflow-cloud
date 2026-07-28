@@ -330,17 +330,18 @@ model UiSectionSetting {
 }
 
 model CustomSection {
-  id             Int           @id @default(autoincrement())
-  organizationId String
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  scope          String
-  title          String
-  description    String?
-  active         Boolean       @default(true)
-  sortOrder      Int           @default(0)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  fields         CustomField[]
+  id               Int           @id @default(autoincrement())
+  organizationId   String
+  organization     Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  scope            String
+  targetSectionKey String?
+  title            String
+  description      String?
+  active           Boolean       @default(true)
+  sortOrder        Int           @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  fields           CustomField[]
 
   @@index([organizationId, scope])
 }

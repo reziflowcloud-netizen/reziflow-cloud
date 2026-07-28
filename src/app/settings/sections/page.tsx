@@ -29,6 +29,7 @@ type CustomField = {
 type CustomSection = {
   id: number
   scope: Scope
+  targetSectionKey?: string | null
   title: string
   description?: string | null
   active: boolean
@@ -38,11 +39,12 @@ type CustomSection = {
 
 type OrganizationSettings = {
   mosAutoRemindersEnabled: boolean
+  mosEmailFieldEnabled: boolean
   tutorialVideosEnabled: boolean
   quickStartEnabled: boolean
 }
 
-const fieldTypeValues = ['text', 'textarea', 'date', 'number', 'checkbox', 'select'] as const
+const fieldTypeValues = ['text', 'email', 'textarea', 'date', 'number', 'checkbox', 'select'] as const
 
 const pageText = {
   ru: {
@@ -82,6 +84,11 @@ const pageText = {
     autoRemindersTitle: 'Автоматические напоминания',
     mosAutoRemindersTitle: 'Автоматические напоминания с момента передачи документов в MOS',
     mosAutoRemindersDesc: 'Если включено, при сохранении дела с датой передачи в MOS автоматически создаются 4 напоминания: донести документы, получить ID, запросить логин и пароль от кабинета, проверить статус.',
+    mosFieldsTitle: 'Дополнительные поля MOS',
+    mosEmailFieldTitle: 'Показывать поле «Адрес E-mail MOS»',
+    mosEmailFieldDesc: 'Поле появится в секторе «MOS и корреспонденция» во всех делах этой организации.',
+    mosFieldsSaved: 'Настройки полей MOS сохранены',
+    mosFieldsSaveFailed: 'Не удалось сохранить настройки полей MOS',
     tutorialVideosTitle: 'Обучение и быстрый старт',
     tutorialVideosToggleTitle: 'Показывать кнопки обучающих видео в разделах CRM',
     tutorialVideosDesc: 'Если включено, в рабочих разделах меню появятся кнопки с видео-инструкциями. Раздел настроек пока без видео.',
@@ -89,19 +96,23 @@ const pageText = {
     quickStartDesc: 'Если включено, администратор фирмы видит первые шаги настройки CRM на главной странице.',
     tutorialVideosSaved: 'Настройки обучения сохранены',
     tutorialVideosSaveFailed: 'Не удалось сохранить настройки обучения',
-    addCustomSection: 'Добавить свою секцию',
+    addCustomSection: 'Добавить свои поля',
     clientCard: 'Карточка клиента',
     caseCard: 'Дело клиента',
     sectionNamePlaceholder: 'Название секции',
     shortDescriptionPlaceholder: 'Короткое описание',
     addSection: '+ Секция',
-    customSections: 'Свои секции',
+    customSections: 'Свои секции и поля',
     standardSections: 'Стандартные секции',
+    placementLabel: 'Расположение',
+    standalonePlacement: 'Отдельная секция',
+    placementHint: 'Можно показать группу полей отдельной секцией или внутри выбранного стандартного сектора.',
     saving: 'Сохранение...',
     loading: 'Загрузка...',
     addField: '+ Поле',
     fieldTypes: {
       text: 'Текст',
+      email: 'E-mail',
       textarea: 'Большое поле',
       date: 'Дата',
       number: 'Число',
@@ -165,6 +176,11 @@ const pageText = {
     autoRemindersTitle: 'Автоматичні нагадування',
     mosAutoRemindersTitle: 'Автоматичні нагадування з моменту передачі документів у MOS',
     mosAutoRemindersDesc: 'Якщо увімкнено, під час збереження справи з датою передачі в MOS автоматично створюються 4 нагадування: донести документи, отримати ID, запросити логін і пароль від кабінету, перевірити статус.',
+    mosFieldsTitle: 'Додаткові поля MOS',
+    mosEmailFieldTitle: 'Показувати поле «Адреса E-mail MOS»',
+    mosEmailFieldDesc: 'Поле зʼявиться в секторі «MOS і кореспонденція» у всіх справах цієї організації.',
+    mosFieldsSaved: 'Налаштування полів MOS збережено',
+    mosFieldsSaveFailed: 'Не вдалося зберегти налаштування полів MOS',
     tutorialVideosTitle: 'Навчання і швидкий старт',
     tutorialVideosToggleTitle: 'Показувати кнопки навчальних відео в розділах CRM',
     tutorialVideosDesc: 'Якщо увімкнено, у робочих розділах меню зʼявляться кнопки з відео-інструкціями. Розділ налаштувань поки без відео.',
@@ -172,19 +188,23 @@ const pageText = {
     quickStartDesc: 'Якщо увімкнено, адміністратор фірми бачить перші кроки налаштування CRM на головній сторінці.',
     tutorialVideosSaved: 'Налаштування навчання збережено',
     tutorialVideosSaveFailed: 'Не вдалося зберегти налаштування навчання',
-    addCustomSection: 'Додати свою секцію',
+    addCustomSection: 'Додати власні поля',
     clientCard: 'Картка клієнта',
     caseCard: 'Справа клієнта',
     sectionNamePlaceholder: 'Назва секції',
     shortDescriptionPlaceholder: 'Короткий опис',
     addSection: '+ Секція',
-    customSections: 'Свої секції',
+    customSections: 'Власні секції та поля',
     standardSections: 'Стандартні секції',
+    placementLabel: 'Розташування',
+    standalonePlacement: 'Окрема секція',
+    placementHint: 'Групу полів можна показати окремою секцією або всередині вибраного стандартного сектора.',
     saving: 'Збереження...',
     loading: 'Завантаження...',
     addField: '+ Поле',
     fieldTypes: {
       text: 'Текст',
+      email: 'E-mail',
       textarea: 'Велике поле',
       date: 'Дата',
       number: 'Число',
@@ -248,6 +268,11 @@ const pageText = {
     autoRemindersTitle: 'Automatyczne przypomnienia',
     mosAutoRemindersTitle: 'Automatyczne przypomnienia od momentu przekazania dokumentów do MOS',
     mosAutoRemindersDesc: 'Jeśli włączone, przy zapisie sprawy z datą przekazania do MOS automatycznie powstaną 4 przypomnienia: donieść dokumenty, otrzymać ID, poprosić o login i hasło do konta, sprawdzić status.',
+    mosFieldsTitle: 'Dodatkowe pola MOS',
+    mosEmailFieldTitle: 'Pokazuj pole „Adres e-mail MOS”',
+    mosEmailFieldDesc: 'Pole pojawi się w sekcji „MOS i korespondencja” we wszystkich sprawach tej organizacji.',
+    mosFieldsSaved: 'Ustawienia pól MOS zapisane',
+    mosFieldsSaveFailed: 'Nie udało się zapisać ustawień pól MOS',
     tutorialVideosTitle: 'Szkolenie i szybki start',
     tutorialVideosToggleTitle: 'Pokazuj przyciski filmów szkoleniowych w sekcjach CRM',
     tutorialVideosDesc: 'Jeśli włączone, w roboczych sekcjach menu pojawią się przyciski z instrukcjami wideo. Sekcja ustawień na razie bez filmu.',
@@ -255,19 +280,23 @@ const pageText = {
     quickStartDesc: 'Jeśli włączone, administrator firmy widzi pierwsze kroki konfiguracji CRM na stronie głównej.',
     tutorialVideosSaved: 'Ustawienia szkolenia zapisane',
     tutorialVideosSaveFailed: 'Nie udało się zapisać ustawień szkolenia',
-    addCustomSection: 'Dodaj własną sekcję',
+    addCustomSection: 'Dodaj własne pola',
     clientCard: 'Karta klienta',
     caseCard: 'Sprawa klienta',
     sectionNamePlaceholder: 'Nazwa sekcji',
     shortDescriptionPlaceholder: 'Krótki opis',
     addSection: '+ Sekcja',
-    customSections: 'Własne sekcje',
+    customSections: 'Własne sekcje i pola',
     standardSections: 'Standardowe sekcje',
+    placementLabel: 'Umiejscowienie',
+    standalonePlacement: 'Osobna sekcja',
+    placementHint: 'Grupę pól można wyświetlić jako osobną sekcję lub wewnątrz wybranej standardowej sekcji.',
     saving: 'Zapisywanie...',
     loading: 'Ładowanie...',
     addField: '+ Pole',
     fieldTypes: {
       text: 'Tekst',
+      email: 'E-mail',
       textarea: 'Duże pole',
       date: 'Data',
       number: 'Liczba',
@@ -310,10 +339,16 @@ export default function SectionSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [savingOrganizationSettings, setSavingOrganizationSettings] = useState(false)
   const [message, setMessage] = useState('')
-  const [newSection, setNewSection] = useState({ scope: 'client' as Scope, title: '', description: '' })
+  const [newSection, setNewSection] = useState({
+    scope: 'client' as Scope,
+    targetSectionKey: '',
+    title: '',
+    description: '',
+  })
   const [newFields, setNewFields] = useState<Record<number, any>>({})
   const [organizationSettings, setOrganizationSettings] = useState<OrganizationSettings>({
     mosAutoRemindersEnabled: true,
+    mosEmailFieldEnabled: false,
     tutorialVideosEnabled: false,
     quickStartEnabled: true,
   })
@@ -336,6 +371,7 @@ export default function SectionSettingsPage() {
     setSections(custom.sections || [])
     setOrganizationSettings({
       mosAutoRemindersEnabled: organization?.settings?.mosAutoRemindersEnabled !== false,
+      mosEmailFieldEnabled: organization?.settings?.mosEmailFieldEnabled === true,
       tutorialVideosEnabled: organization?.settings?.tutorialVideosEnabled === true,
       quickStartEnabled: organization?.settings?.quickStartEnabled !== false,
     })
@@ -391,6 +427,7 @@ export default function SectionSettingsPage() {
       const data = await res.json()
       setOrganizationSettings({
         mosAutoRemindersEnabled: data?.settings?.mosAutoRemindersEnabled !== false,
+        mosEmailFieldEnabled: data?.settings?.mosEmailFieldEnabled === true,
         tutorialVideosEnabled: data?.settings?.tutorialVideosEnabled === true,
         quickStartEnabled: data?.settings?.quickStartEnabled !== false,
       })
@@ -408,7 +445,7 @@ export default function SectionSettingsPage() {
       body: JSON.stringify(newSection),
     })
     if (res.ok) {
-      setNewSection({ scope: 'client', title: '', description: '' })
+      setNewSection({ scope: 'client', targetSectionKey: '', title: '', description: '' })
       setMessage(text.sectionAdded)
       await loadAll()
     } else {
@@ -485,6 +522,18 @@ export default function SectionSettingsPage() {
     }
   }
 
+  function placementOptions(scope: Scope) {
+    return (
+      <>
+        <option value="">{text.standalonePlacement}</option>
+        {grouped[scope].map(item => {
+          const label = standardLabel(item)
+          return <option key={item.sectionKey} value={item.sectionKey}>{label.title}</option>
+        })}
+      </>
+    )
+  }
+
   function renderStandardGroup(title: string, items: SectionSetting[]) {
     return (
       <div className="card" style={{ marginBottom: 16 }}>
@@ -549,6 +598,17 @@ export default function SectionSettingsPage() {
             const draft = newFields[section.id] || {}
             return (
               <div key={section.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '160px minmax(240px, 1fr)', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+                  <strong style={{ fontSize: 13 }}>{text.placementLabel}</strong>
+                  <select
+                    className="input"
+                    disabled={!canManage}
+                    value={section.targetSectionKey || ''}
+                    onChange={e => patchSection(section.id, { targetSectionKey: e.target.value || null })}
+                  >
+                    {placementOptions(section.scope)}
+                  </select>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 90px 90px auto auto', gap: 8, alignItems: 'center', marginBottom: 12 }}>
                   <input className="input" value={section.title} disabled={!canManage} onChange={e => patchSection(section.id, { title: e.target.value })} />
                   <input className="input" value={section.description || ''} disabled={!canManage} placeholder={text.sectionDescriptionPlaceholder} onChange={e => patchSection(section.id, { description: e.target.value })} />
@@ -657,6 +717,62 @@ export default function SectionSettingsPage() {
 
             <div className="card" style={{ marginBottom: 16 }}>
               <div className="section-title" style={{ marginBottom: 12 }}>
+                <span>✉</span>{text.mosFieldsTitle}
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr auto',
+                  gap: 14,
+                  alignItems: 'center',
+                  padding: 14,
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  background: 'var(--bg)',
+                }}
+              >
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <input
+                    type="checkbox"
+                    checked={organizationSettings.mosEmailFieldEnabled}
+                    disabled={!canManage}
+                    onChange={e => {
+                      setOrganizationSettings(current => ({
+                        ...current,
+                        mosEmailFieldEnabled: e.target.checked,
+                      }))
+                      setMessage('')
+                    }}
+                    style={{ width: 20, height: 20, marginTop: 2 }}
+                  />
+                  <span>
+                    <strong style={{ display: 'block', marginBottom: 4 }}>
+                      {text.mosEmailFieldTitle}
+                    </strong>
+                    <span style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.45 }}>
+                      {text.mosEmailFieldDesc}
+                    </span>
+                  </span>
+                </label>
+                {canManage && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={savingOrganizationSettings}
+                    onClick={() => saveOrganizationSettings(
+                      organizationSettings,
+                      text.mosFieldsSaved,
+                      text.mosFieldsSaveFailed,
+                    )}
+                  >
+                    {savingOrganizationSettings ? text.saving : text.save}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="section-title" style={{ marginBottom: 12 }}>
                 <span>▶</span>{text.tutorialVideosTitle}
               </div>
               <div
@@ -737,10 +853,23 @@ export default function SectionSettingsPage() {
 
             <div className="card" style={{ marginBottom: 16 }}>
               <div className="section-title" style={{ marginBottom: 12 }}><span>＋</span>{text.addCustomSection}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr 1.3fr auto', gap: 10 }}>
-                <select className="input" disabled={!canManage} value={newSection.scope} onChange={e => setNewSection(current => ({ ...current, scope: e.target.value as Scope }))}>
+              <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 10 }}>{text.placementHint}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '150px minmax(180px, 1fr) minmax(180px, 1fr) minmax(220px, 1.3fr) auto', gap: 10 }}>
+                <select
+                  className="input"
+                  disabled={!canManage}
+                  value={newSection.scope}
+                  onChange={e => setNewSection(current => ({
+                    ...current,
+                    scope: e.target.value as Scope,
+                    targetSectionKey: '',
+                  }))}
+                >
                   <option value="client">{text.clientCard}</option>
                   <option value="case">{text.caseCard}</option>
+                </select>
+                <select className="input" disabled={!canManage} value={newSection.targetSectionKey} onChange={e => setNewSection(current => ({ ...current, targetSectionKey: e.target.value }))}>
+                  {placementOptions(newSection.scope)}
                 </select>
                 <input className="input" disabled={!canManage} placeholder={text.sectionNamePlaceholder} value={newSection.title} onChange={e => setNewSection(current => ({ ...current, title: e.target.value }))} />
                 <input className="input" disabled={!canManage} placeholder={text.shortDescriptionPlaceholder} value={newSection.description} onChange={e => setNewSection(current => ({ ...current, description: e.target.value }))} />

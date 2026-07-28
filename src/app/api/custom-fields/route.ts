@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-const allowedTypes = new Set(['text', 'textarea', 'date', 'number', 'checkbox', 'select'])
+const allowedTypes = new Set(['text', 'email', 'textarea', 'date', 'number', 'checkbox', 'select'])
 
 function canManage(user: any) {
   return user?.role === 'admin' || user?.role === 'owner'

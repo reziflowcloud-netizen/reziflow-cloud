@@ -37,3 +37,9 @@ export function getUiSectionDefinitions(scope?: string | null) {
   if (!scope) return uiSectionDefinitions
   return uiSectionDefinitions.filter(section => section.scope === scope)
 }
+
+export function isUiSectionKeyForScope(scope: string, sectionKey: string) {
+  return uiSectionDefinitions.some(section => (
+    section.scope === scope && section.sectionKey === sectionKey
+  ))
+}

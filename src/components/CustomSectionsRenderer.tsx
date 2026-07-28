@@ -1,6 +1,7 @@
 'use client'
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 type Scope = 'client' | 'case'
 
@@ -16,6 +17,7 @@ type CustomField = {
 
 type CustomSection = {
   id: number
+  targetSectionKey?: string | null
   title: string
   description?: string | null
   fields: CustomField[]
@@ -41,6 +43,7 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const [portalTargets, setPortalTargets] = useState<Record<string, HTMLElement>>({})
 
   useEffect(() => {
     let active = true
@@ -68,6 +71,21 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
   const visibleSections = useMemo(() => (
     sections.filter(section => section.fields.length > 0)
   ), [sections])
+  const standaloneSections = useMemo(() => (
+    visibleSections.filter(section => !section.targetSectionKey)
+  ), [visibleSections])
+
+  useEffect(() => {
+    if (loading) return
+    const nextTargets: Record<string, HTMLElement> = {}
+    visibleSections.forEach(section => {
+      if (!section.targetSectionKey) return
+      const key = `${scope}:${section.targetSectionKey}`
+      const target = document.querySelector<HTMLElement>(`[data-custom-fields-slot="${key}"]`)
+      if (target) nextTargets[key] = target
+    })
+    setPortalTargets(nextTargets)
+  }, [loading, scope, visibleSections])
 
   useImperativeHandle(ref, () => ({
     save: async () => {
@@ -127,6 +145,8 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
       control = <input {...common} type="date" />
     } else if (field.type === 'number') {
       control = <input {...common} type="number" />
+    } else if (field.type === 'email') {
+      control = <input {...common} type="email" />
     } else if (field.type === 'checkbox') {
       control = (
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)' }}>
@@ -164,36 +184,52 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
     )
   }
 
-  return (
-    <div style={{ marginTop: 18 }}>
-      {visibleSections.map(section => (
-        <div
-          key={section.id}
-          className="card"
-          data-collapse-key={`custom-${scope}-${section.id}`}
-          data-section-scope={scope}
-          data-section-key={`custom-${scope}-${section.id}`}
-          style={{ marginBottom: 16 }}
-        >
-          <div className="section-title" data-collapse-header style={{ marginBottom: 14 }}>
-            <span>▣</span>
-            <span>
-              <strong style={{ display: 'block' }}>{section.title}</strong>
-              {section.description && <small style={{ display: 'block', color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>{section.description}</small>}
-            </span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
-            {section.fields.map(renderField)}
-          </div>
+  function renderSectionContent(section: CustomSection, embedded = false) {
+    return (
+      <div
+        key={section.id}
+        className={embedded ? undefined : 'card'}
+        data-collapse-key={embedded ? undefined : `custom-${scope}-${section.id}`}
+        data-section-scope={embedded ? undefined : scope}
+        data-section-key={embedded ? undefined : `custom-${scope}-${section.id}`}
+        style={embedded
+          ? { borderTop: '1px dashed var(--border)', marginTop: 16, paddingTop: 14 }
+          : { marginBottom: 16 }}
+      >
+        <div className="section-title" data-collapse-header={embedded ? undefined : true} style={{ marginBottom: 14 }}>
+          <span>▣</span>
+          <span>
+            <strong style={{ display: 'block' }}>{section.title}</strong>
+            {section.description && <small style={{ display: 'block', color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>{section.description}</small>}
+          </span>
         </div>
-      ))}
-      {standaloneSave && (
-      <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
-        <span style={{ color: message.includes('Не удалось') ? '#dc2626' : 'var(--muted)' }}>{message || 'Дополнительные поля сохраняются отдельно от стандартной карточки.'}</span>
-        <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Сохранение...' : 'Сохранить дополнительные поля'}</button>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+          {section.fields.map(renderField)}
+        </div>
       </div>
-      )}
-    </div>
+    )
+  }
+
+  return (
+    <>
+      {visibleSections.map(section => {
+        if (!section.targetSectionKey) return null
+        const targetKey = `${scope}:${section.targetSectionKey}`
+        const target = portalTargets[targetKey]
+        return target
+          ? createPortal(renderSectionContent(section, true), target, `custom-section-${section.id}`)
+          : null
+      })}
+      <div style={{ marginTop: standaloneSections.length > 0 || standaloneSave ? 18 : 0 }}>
+        {standaloneSections.map(section => renderSectionContent(section))}
+        {standaloneSave && (
+        <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+          <span style={{ color: message.includes('Не удалось') ? '#dc2626' : 'var(--muted)' }}>{message || 'Дополнительные поля сохраняются отдельно от стандартной карточки.'}</span>
+          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Сохранение...' : 'Сохранить дополнительные поля'}</button>
+        </div>
+        )}
+      </div>
+    </>
   )
 })
 

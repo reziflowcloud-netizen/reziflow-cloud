@@ -132,8 +132,6 @@ const orgText = {
     tariffPlaceholder: 'по тарифу',
     unlimited: 'Без лимита',
     customLimitsNote: 'Эти настройки применяются только к выбранной организации и отображаются в разделе “Тариф и оплата”.',
-    mosEmailField: 'Поле «Адрес E-mail MOS»',
-    mosEmailFieldHint: 'Показывать это поле в секторе «MOS и корреспонденция» только для этой организации.',
     limitLabels: { users: 'Пользователи', clients: 'Клиенты', cases: 'Дела', leads: 'Лиды' },
     totalCases: 'Всего дел',
     activeCases: 'Активные дела',
@@ -186,8 +184,6 @@ const orgText = {
     tariffPlaceholder: 'за тарифом',
     unlimited: 'Без ліміту',
     customLimitsNote: 'Ці налаштування застосовуються тільки до вибраної організації та відображаються в розділі “Тариф і оплата”.',
-    mosEmailField: 'Поле «Адреса E-mail MOS»',
-    mosEmailFieldHint: 'Показувати це поле в секторі «MOS і кореспонденція» лише для цієї організації.',
     limitLabels: { users: 'Користувачі', clients: 'Клієнти', cases: 'Справи', leads: 'Ліди' },
     totalCases: 'Усього справ',
     activeCases: 'Активні справи',
@@ -240,8 +236,6 @@ const orgText = {
     tariffPlaceholder: 'według taryfu',
     unlimited: 'Bez limitu',
     customLimitsNote: 'Te ustawienia dotyczą tylko wybranej organizacji i są widoczne w sekcji “Taryf i płatności”.',
-    mosEmailField: 'Pole „Adres e-mail MOS”',
-    mosEmailFieldHint: 'Pokazuj to pole w sekcji „MOS i korespondencja” tylko dla tej organizacji.',
     limitLabels: { users: 'Użytkownicy', clients: 'Klienci', cases: 'Sprawy', leads: 'Leady' },
     totalCases: 'Wszystkie sprawy',
     activeCases: 'Aktywne sprawy',
@@ -306,7 +300,6 @@ export default function OrganizationsPage() {
     adminEmail: '',
     adminPassword: '',
     billingLimits: emptyBillingLimitForm(),
-    mosEmailFieldEnabled: false,
   })
 
   useEffect(() => {
@@ -373,7 +366,6 @@ export default function OrganizationsPage() {
       adminEmail: primaryAdmin?.email || '',
       adminPassword: '',
       billingLimits: billingLimitsFromSettings(org.settings),
-      mosEmailFieldEnabled: settingsObject(org.settings).mosEmailFieldEnabled === true,
     })
   }
 
@@ -700,17 +692,6 @@ export default function OrganizationsPage() {
                           <div className="billing-limit-note">
                             {text.customLimitsNote}
                           </div>
-                          <label className="billing-limit-check" style={{ marginTop: 14, alignItems: 'flex-start' }}>
-                            <input
-                              type="checkbox"
-                              checked={editForm.mosEmailFieldEnabled}
-                              onChange={event => setEditForm(prev => ({ ...prev, mosEmailFieldEnabled: event.target.checked }))}
-                            />
-                            <span>
-                              <strong style={{ display: 'block', color: 'var(--text)' }}>{text.mosEmailField}</strong>
-                              <span style={{ display: 'block', marginTop: 3 }}>{text.mosEmailFieldHint}</span>
-                            </span>
-                          </label>
                         </div>
                       </td>
                     </tr>

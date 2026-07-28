@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { isUiSectionKeyForScope } from '@/lib/ui-sections'
 
 function canManage(user: any) {
   return user?.role === 'admin' || user?.role === 'owner'
@@ -41,7 +42,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const scope = normalizeScope(body.scope)
   const title = String(body.title || '').trim()
+  const targetSectionKey = String(body.targetSectionKey || '').trim() || null
   if (!title) return NextResponse.json({ error: 'Title is required' }, { status: 400 })
+  if (targetSectionKey && !isUiSectionKeyForScope(scope, targetSectionKey)) {
+    return NextResponse.json({ error: 'Invalid target section' }, { status: 400 })
+  }
 
   const last = await prisma.customSection.findFirst({
     where: { organizationId, scope },
@@ -52,6 +57,7 @@ export async function POST(req: NextRequest) {
     data: {
       organizationId,
       scope,
+      targetSectionKey,
       title,
       description: String(body.description || '').trim() || null,
       sortOrder: (last?.sortOrder ?? 0) + 10,

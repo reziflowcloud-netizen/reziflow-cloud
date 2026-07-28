@@ -1033,6 +1033,7 @@ export default function CaseDetailPage() {
                       </select>
                     </div>
                   </div>
+                  <div data-custom-fields-slot="case:case-basic" />
                 </div>
 
                 {/* ── ГЛАВНАЯ ЦЕЛЬ ПРЕБЫВАНИЯ ── */}
@@ -1075,6 +1076,7 @@ export default function CaseDetailPage() {
                       </div>
                     )}
                   </div>
+                  <div data-custom-fields-slot="case:case-main-goal" />
                 </div>
 
                 {/* ── ТРУДОВОЙ ДОГОВОР (только если тип занятости = Работа) ── */}
@@ -1109,6 +1111,7 @@ export default function CaseDetailPage() {
                         <label htmlFor="wc_signed" style={{ cursor: 'pointer', fontWeight: 500 }}>{t('contract_signed')}</label>
                       </div>
                     </div>
+                    <div data-custom-fields-slot="case:case-work-contract" />
                   </div>
                 )}
 
@@ -1139,6 +1142,7 @@ export default function CaseDetailPage() {
                       <label htmlFor="signed" style={{ cursor: 'pointer', fontWeight: 500 }}>{t('contract_signed')}</label>
                     </div>
                   </div>
+                  <div data-custom-fields-slot="case:case-agency-contract" />
                 </div>
 
                 {/* ── MOS ── */}
@@ -1308,6 +1312,7 @@ export default function CaseDetailPage() {
                       </button>
                     </div>
                   </div>
+                  <div data-custom-fields-slot="case:case-mos" />
                 </div>
 
                 {/* ── ВАЖНЫЕ ДАТЫ ── */}
@@ -1351,6 +1356,7 @@ export default function CaseDetailPage() {
                       <button onClick={addCustomDate} className="btn btn-primary" disabled={!newDateLabel.trim() || !newDateValue}>{t('add')}</button>
                     </div>
                   </div>
+                  <div data-custom-fields-slot="case:case-important-dates" />
                 </div>
 
                 {/* ── АКТУАЛИЗАЦИЯ ДОКУМЕНТАЦИИ ── */}
@@ -1377,12 +1383,14 @@ export default function CaseDetailPage() {
                       <button onClick={addDocUpdate} className="btn btn-primary" disabled={!newDocDate || !newDocDesc.trim()}>{t('add')}</button>
                     </div>
                   </div>
+                  <div data-custom-fields-slot="case:case-doc-updates" />
                 </div>
 
                 {/* ── ЗАМЕТКИ ── */}
                 <div className="card" data-collapse-key="case-notes" data-section-scope="case" data-section-key="case-notes">
                   <div className="section-title"><span>📝</span>{t('notes')}</div>
                   <textarea className="input" value={form.notes} onChange={e => set('notes', e.target.value)} rows={4} placeholder={t('notes_placeholder')} />
+                  <div data-custom-fields-slot="case:case-notes" />
                 </div>
 
                 <CustomSectionsRenderer ref={customSectionsRef} scope="case" recordId={String(id)} standaloneSave={false} />

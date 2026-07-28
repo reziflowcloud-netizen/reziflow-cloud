@@ -74,6 +74,47 @@ function withMosFields<T extends { id: string }>(items: T[], mosFields: Map<stri
   return items.map(item => ({ ...item, ...(mosFields.get(item.id) || {}) }))
 }
 
+async function getCustomExportData(organizationId: string, scope: 'client' | 'case', recordIds: string[]) {
+  const sections = await prisma.customSection.findMany({
+    where: { organizationId, scope, active: true },
+    include: {
+      fields: {
+        where: { active: true },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+      },
+    },
+    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+  })
+  const fields = sections.flatMap(section => (
+    section.fields.map(field => ({ section, field }))
+  ))
+  const values = fields.length > 0 && recordIds.length > 0
+    ? await prisma.customFieldValue.findMany({
+        where: {
+          organizationId,
+          recordType: scope,
+          recordId: { in: recordIds },
+          fieldId: { in: fields.map(({ field }) => field.id) },
+        },
+        select: { fieldId: true, recordId: true, value: true },
+      })
+    : []
+  const valueMap = new Map(values.map(value => (
+    [`${value.recordId}:${value.fieldId}`, value.value || '']
+  )))
+
+  return {
+    headers: fields.map(({ section, field }) => customHeader(
+      scope === 'client' ? 'Client custom field' : 'Case custom field',
+      section.title,
+      field.label,
+    )),
+    readValues(recordId: string) {
+      return fields.map(({ field }) => valueMap.get(`${recordId}:${field.id}`) || '')
+    },
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getUser()
@@ -203,7 +244,7 @@ export async function GET(request: NextRequest) {
       ]
 
       headers.splice(3, 0, 'Все телефоны')
-      let csv = '\uFEFF' + headers.join(',') + '\n'
+      let csv = '\uFEFF' + headers.map(esc).join(',') + '\n'
 
       for (const client of clients) {
         const clientCases = allCases.filter(c => c.clientId === client.id)
@@ -274,11 +315,13 @@ export async function GET(request: NextRequest) {
         orderBy: { lastName: 'asc' },
       })
       const clients = withMosFields(rawClients, await getClientMosFieldMap(organizationId))
+      const custom = await getCustomExportData(organizationId, 'client', clients.map(client => client.id))
       const headers = ['Фамилия','Имя','Телефон','Email','Город','PESEL','Płeć','Адрес в Польше','Основание пребывания','Предыдущее пребывание в Польше: дата въезда','Предыдущее пребывание в Польше: дата выезда','Предыдущее пребывание в Польше: основание','Добавлен']
       headers.splice(3, 0, 'Все телефоны')
-      let csv = '\uFEFF' + headers.join(',') + '\n'
+      headers.splice(headers.length - 1, 0, ...custom.headers)
+      let csv = '\uFEFF' + headers.map(esc).join(',') + '\n'
       for (const c of clients) {
-        csv += [c.lastName,c.firstName,c.phone,formatAllPhones(c),c.email,c.city,c.pesel,c.gender,c.addressInPoland,c.stayBasis,toDate(c.previousPolandEntryDate),toDate(c.previousPolandExitDate),c.previousPolandBasis,toDate(c.createdAt)].map(esc).join(',') + '\n'
+        csv += [c.lastName,c.firstName,c.phone,formatAllPhones(c),c.email,c.city,c.pesel,c.gender,c.addressInPoland,c.stayBasis,toDate(c.previousPolandEntryDate),toDate(c.previousPolandExitDate),c.previousPolandBasis,...custom.readValues(c.id),toDate(c.createdAt)].map(esc).join(',') + '\n'
       }
       return new NextResponse(csv, {
         headers: {
@@ -295,9 +338,11 @@ export async function GET(request: NextRequest) {
         include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } },
       })
       const clientMap = Object.fromEntries(clients.map(c => [c.id, c]))
+      const custom = await getCustomExportData(organizationId, 'case', cases.map(item => item.id))
       const headers = ['Номер дела','Клиент','Телефон','Статус','Стоимость','Оплачено','Долг','Номер MOS','Дата подачи в MOS','Логин кабинета','Пароль кабинета','Адрес E-mail MOS','Прийти на отпечатки пальцев','Przewidywana data wydania decyzji','Дата окончания договора','Создано']
       headers.splice(3, 0, 'Все телефоны')
-      let csv = '\uFEFF' + headers.join(',') + '\n'
+      headers.splice(headers.length - 1, 0, ...custom.headers)
+      let csv = '\uFEFF' + headers.map(esc).join(',') + '\n'
       for (const c of cases) {
         const cl = clientMap[c.clientId]
         const debt = Math.max(0, c.totalValue - c.totalPaid)
@@ -318,6 +363,7 @@ export async function GET(request: NextRequest) {
           toDate(c.fingerprintsDate),
           toDate(c.predictedDecisionDate),
           toDate((c as any).workContractEndDate),
+          ...custom.readValues(c.id),
           toDate(c.createdAt)
         ].map(esc).join(',') + '\n'
       }

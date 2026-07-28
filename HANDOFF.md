@@ -20,7 +20,7 @@ First:
 5. Briefly summarize what is already done and what the next step is.
 
 Current state:
-Lead -> Employee assignment and main CRM tutorial video buttons are committed and deployed. Current active task: Dashboard quick start visibility + per-step tutorial buttons. The code is implemented locally, and YouTube URLs for all individual quick start steps have been added to src/lib/tutorialVideos.ts.
+The CRM is in production on legalhubcrm.com. Organization admins can configure custom client/case sections and fields in Settings -> Fields and sectors. Custom field groups can be standalone or embedded into an existing standard sector. Active custom fields are included automatically in full, client-only, and case-only CSV exports. The organization-level "MOS email address" switch also lives in Settings -> Fields and sectors.
 ```
 
 ## Quick Context
@@ -64,14 +64,11 @@ src/lib/tutorialVideos.ts
 ## Next Task Checklist
 
 - Confirm current git status.
-- Review the uncommitted Dashboard quick start implementation.
-- Keep tutorial videos disabled by default for every organization.
-- Keep Dashboard quick start enabled by default, but allow admins to hide it from Settings -> Fields and sectors.
-- Test Settings -> Fields and sectors checkbox, Dashboard quick start visibility, and per-step video buttons.
-- Local `.env` now points to Supabase pooler URLs and passed connection checks on 2026-06-28.
+- Read the latest section in PROJECT_STATE.md before changing custom fields or exports.
+- Preserve standalone custom sections where `CustomSection.targetSectionKey` is null.
+- Validate embedded custom section targets against `src/lib/ui-sections.ts`.
+- Keep active organization custom fields in full, client-only, and case-only CSV exports.
 - Confirm restricted CRM user access still scopes by `assignedToId`.
-- The `20260627120000_lead_employee_assignment` migration has already been applied through `DIRECT_URL`.
-- Commit and deploy when satisfied.
 - Pick the next CRM task.
 
 ## Useful Commands
@@ -96,5 +93,8 @@ cmd /c npx next build
 - Video URLs live in `src/lib/tutorialVideos.ts`; Stages, Tasks, and Calendar intentionally share one video URL.
 - Dashboard quick start is controlled by `Organization.settings.quickStartEnabled`; default is true.
 - Quick start step video URLs live in `src/lib/tutorialVideos.ts`.
+- Custom field values remain in `CustomFieldValue`; do not add a database column for every organization-defined field.
+- `CustomSection.targetSectionKey` controls whether a custom field group is standalone or embedded in a standard client/case sector.
+- `Organization.settings.mosEmailFieldEnabled` is managed by the organization admin in Settings -> Fields and sectors.
 - Do not read, print, or commit `.env`.
 - Do not do broad refactors or encoding cleanup while implementing this feature.
