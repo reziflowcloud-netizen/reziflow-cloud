@@ -213,3 +213,12 @@ Local `.env` exists in this app root, but production secrets live in Vercel. See
 - Active custom fields and values are included automatically in full, client-only, and case-only CSV exports.
 - The `Organization.settings.mosEmailFieldEnabled` switch was moved from the superadmin organization editor to Settings -> Fields and sectors.
 - Migration: `20260728150000_custom_section_target`.
+
+## Batch MOS Document Submission (2026-07-29)
+
+- The MOS document list in a case supports selecting several documents before submission.
+- Users can select documents individually, select a range with Shift, or select all available documents.
+- One submission date is applied to the whole selected batch.
+- `POST /api/cases/[id]/mos-documents/submit` validates authentication, organization/case scope, configured MOS options, batch size, and the non-future submission date.
+- The endpoint creates completed MOS `Task` records with one atomic `createMany` operation and skips documents already submitted for the case.
+- The previous one-document workflow remains available by selecting a single checkbox.

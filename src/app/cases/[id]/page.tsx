@@ -41,7 +41,8 @@ export default function CaseDetailPage() {
   const [taskSaving, setTaskSaving] = useState(false)
   const [mosId, setMosId] = useState('')
   const [initialMosId, setInitialMosId] = useState('')
-  const [pendingMosDocName, setPendingMosDocName] = useState('')
+  const [selectedMosDocNames, setSelectedMosDocNames] = useState<string[]>([])
+  const [submittingMosDocuments, setSubmittingMosDocuments] = useState(false)
   const [newMosDocName, setNewMosDocName] = useState('')
   const [newMosDocDueDate, setNewMosDocDueDate] = useState('')
   const [customReminderTitle, setCustomReminderTitle] = useState('')
@@ -56,6 +57,7 @@ export default function CaseDetailPage() {
   const [previewDoc, setPreviewDoc] = useState<any>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const customSectionsRef = useRef<CustomSectionsHandle>(null)
+  const mosSelectionAnchorRef = useRef<number | null>(null)
 
   // Новые даты
   const [newDateLabel, setNewDateLabel] = useState('')
@@ -392,37 +394,64 @@ export default function CaseDetailPage() {
     await loadMosDocuments()
   }
 
-  async function submitMosDocumentFromOption(name: string) {
-    const title = name.trim()
-    if (!title) return
+  function toggleMosDocumentSelection(name: string, index: number, shiftKey: boolean) {
+    setSelectedMosDocNames(current => {
+      const next = new Set(current)
+      const shouldSelect = !next.has(name)
+
+      if (shiftKey && mosSelectionAnchorRef.current !== null) {
+        const start = Math.min(mosSelectionAnchorRef.current, index)
+        const end = Math.max(mosSelectionAnchorRef.current, index)
+        availableMosDocuments.slice(start, end + 1).forEach((option: any) => {
+          if (shouldSelect) next.add(option.value)
+          else next.delete(option.value)
+        })
+      } else if (shouldSelect) {
+        next.add(name)
+      } else {
+        next.delete(name)
+      }
+
+      mosSelectionAnchorRef.current = index
+      return Array.from(next)
+    })
+
     const today = new Date().toISOString().slice(0, 10)
-    const submittedAt = newMosDocDueDate || today
-    if (submittedAt > today) return alert(t('mos_future_date_error'))
-    const res = await createTaskWithMeta(
-      `MOS: ${title}`,
-      submittedAt,
-      `${t('document_submitted_to_mos')} ${c.caseNumber}`,
-      { mosDocument: { caseId: c.id, caseNumber: c.caseNumber, sentAt: submittedAt } }
-    )
-    const task = await res.json().catch(() => null)
-    if (task?.id) {
-      await fetch(`/api/tasks/${task.id}`, {
-        method: 'PATCH',
+    setNewMosDocDueDate(current => current || (form.mosSentAt && form.mosSentAt <= today ? form.mosSentAt : today))
+  }
+
+  function clearMosDocumentSelection() {
+    setSelectedMosDocNames([])
+    setNewMosDocDueDate('')
+    mosSelectionAnchorRef.current = null
+  }
+
+  async function submitSelectedMosDocuments() {
+    if (selectedMosDocNames.length === 0 || !newMosDocDueDate || submittingMosDocuments) return
+    const today = new Date().toISOString().slice(0, 10)
+    if (newMosDocDueDate > today) return alert(t('mos_future_date_error'))
+
+    setSubmittingMosDocuments(true)
+    try {
+      const response = await fetch(`/api/cases/${c.id}/mos-documents/submit`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: task.title,
-          description: task.description,
-          priority: task.priority,
-          status: 'done',
-          dueDate: submittedAt,
-          clientName: task.clientName,
+          names: selectedMosDocNames,
+          submittedAt: newMosDocDueDate,
+          serviceId: form.serviceId || null,
+          reminderNote: `${t('document_submitted_to_mos')} ${c.caseNumber || ''}`.trim(),
         }),
       })
+      if (!response.ok) throw new Error('MOS documents submit failed')
+
+      await Promise.all([loadMosDocuments(), loadCaseTasks()])
+      clearMosDocumentSelection()
+    } catch {
+      alert(t('mos_documents_submit_failed'))
+    } finally {
+      setSubmittingMosDocuments(false)
     }
-    await loadMosDocuments()
-    await loadCaseTasks()
-    setPendingMosDocName('')
-    setNewMosDocDueDate('')
   }
 
   async function updateMosDocument(doc: any, updates: any) {
@@ -913,6 +942,9 @@ export default function CaseDetailPage() {
   const submittedMosDocNames = new Set(submittedMosDocuments.map((doc: any) => cleanMosDocTitle(doc.title)))
   const mosDocumentOptions = mosDocumentsForService(form.serviceId)
   const availableMosDocuments = mosDocumentOptions.filter((opt: any) => !submittedMosDocNames.has(opt.value))
+  const selectedMosDocNameSet = new Set(selectedMosDocNames)
+  const allAvailableMosDocumentsSelected = availableMosDocuments.length > 0
+    && availableMosDocuments.every((opt: any) => selectedMosDocNameSet.has(opt.value))
 
   return (
     <div className="fade-in">
@@ -1192,7 +1224,28 @@ export default function CaseDetailPage() {
                       <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', padding: 12, minHeight: 220 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
                           <div style={{ fontWeight: 700, fontSize: 13 }}>{t('documents_to_deliver')}</div>
-                          <a href={`/settings/case-options?returnTo=/cases/${id}&mosServiceId=${form.serviceId || ''}`} style={{ fontSize: 12, color: 'var(--brand)' }}>{t('configure')}</a>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            {availableMosDocuments.length > 0 && (
+                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={allAvailableMosDocumentsSelected}
+                                  disabled={submittingMosDocuments}
+                                  onChange={() => {
+                                    if (allAvailableMosDocumentsSelected) clearMosDocumentSelection()
+                                    else {
+                                      setSelectedMosDocNames(availableMosDocuments.map((opt: any) => opt.value))
+                                      setNewMosDocDueDate(current => current || (form.mosSentAt && form.mosSentAt <= todayDate ? form.mosSentAt : todayDate))
+                                      mosSelectionAnchorRef.current = 0
+                                    }
+                                  }}
+                                  style={{ width: 16, height: 16 }}
+                                />
+                                {t('select_all')}
+                              </label>
+                            )}
+                            <a href={`/settings/case-options?returnTo=/cases/${id}&mosServiceId=${form.serviceId || ''}`} style={{ fontSize: 12, color: 'var(--brand)' }}>{t('configure')}</a>
+                          </div>
                         </div>
                         {mosDocumentOptions.length === 0 ? (
                           <div style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: '30px 10px' }}>
@@ -1204,25 +1257,45 @@ export default function CaseDetailPage() {
                           </div>
                         ) : (
                           <div style={{ display: 'grid', gap: 8 }}>
-                            {availableMosDocuments.map((opt: any) => (
+                            {availableMosDocuments.map((opt: any, index: number) => {
+                              const selected = selectedMosDocNameSet.has(opt.value)
+                              return (
                               <button
                                 key={opt.id}
                                 type="button"
-                                onClick={() => {
-                                  setPendingMosDocName(opt.value)
-                                  setNewMosDocDueDate(form.mosSentAt && form.mosSentAt <= todayDate ? form.mosSentAt : todayDate)
+                                onClick={event => toggleMosDocumentSelection(opt.value, index, event.shiftKey)}
+                                aria-pressed={selected}
+                                className="btn btn-secondary mos-document-option"
+                                disabled={submittingMosDocuments}
+                                style={{
+                                  justifyContent: 'flex-start',
+                                  textAlign: 'left',
+                                  whiteSpace: 'normal',
+                                  minHeight: 42,
+                                  gap: 9,
+                                  borderColor: selected ? 'var(--brand)' : 'var(--border)',
+                                  background: selected ? 'rgba(6, 182, 212, 0.12)' : 'var(--bg)',
                                 }}
-                                className="btn btn-secondary"
-                                style={{ justifyContent: 'flex-start', textAlign: 'left', whiteSpace: 'normal', minHeight: 42 }}
                               >
-                                {opt.value}
+                                <input
+                                  type="checkbox"
+                                  checked={selected}
+                                  readOnly
+                                  tabIndex={-1}
+                                  aria-hidden="true"
+                                  style={{ width: 16, height: 16, flex: '0 0 auto', pointerEvents: 'none' }}
+                                />
+                                <span>{opt.value}</span>
                               </button>
-                            ))}
+                              )
+                            })}
                           </div>
                         )}
-                        {pendingMosDocName && (
+                        {selectedMosDocNames.length > 0 && (
                           <div style={{ marginTop: 12, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--card)' }}>
-                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{pendingMosDocName}</div>
+                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
+                              {t('selected_documents')}: {selectedMosDocNames.length}
+                            </div>
                             <div className="form-group" style={{ marginBottom: 10 }}>
                               <label className="label">{t('when_submitted')}</label>
                               <input className="input" type="date" max={todayDate} value={newMosDocDueDate} onChange={e => setNewMosDocDueDate(e.target.value)} />
@@ -1230,20 +1303,21 @@ export default function CaseDetailPage() {
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                               <button
                                 type="button"
-                                onClick={() => { setPendingMosDocName(''); setNewMosDocDueDate('') }}
+                                onClick={clearMosDocumentSelection}
                                 className="btn btn-secondary"
+                                disabled={submittingMosDocuments}
                                 style={{ padding: '7px 12px' }}
                               >
                                 {t('cancel')}
                               </button>
                               <button
                                 type="button"
-                                onClick={() => submitMosDocumentFromOption(pendingMosDocName)}
+                                onClick={submitSelectedMosDocuments}
                                 className="btn btn-primary"
-                                disabled={!newMosDocDueDate || newMosDocDueDate > todayDate}
+                                disabled={!newMosDocDueDate || newMosDocDueDate > todayDate || submittingMosDocuments}
                                 style={{ padding: '7px 12px' }}
                               >
-                                {t('save')}
+                                {submittingMosDocuments ? t('saving') : t('submit_selected_documents')}
                               </button>
                             </div>
                           </div>

@@ -20,7 +20,7 @@ First:
 5. Briefly summarize what is already done and what the next step is.
 
 Current state:
-The CRM is in production on legalhubcrm.com. Organization admins can configure custom client/case sections and fields in Settings -> Fields and sectors. Custom field groups can be standalone or embedded into an existing standard sector. Active custom fields are included automatically in full, client-only, and case-only CSV exports. The organization-level "MOS email address" switch also lives in Settings -> Fields and sectors.
+The CRM is in production on legalhubcrm.com. Organization admins can configure custom client/case sections and fields in Settings -> Fields and sectors. Custom field groups can be standalone or embedded into an existing standard sector. Active custom fields are included automatically in full, client-only, and case-only CSV exports. The organization-level "MOS email address" switch also lives in Settings -> Fields and sectors. Case MOS documents support checkbox selection, Shift-range selection, select-all, and one atomic batch submission date.
 ```
 
 ## Quick Context
@@ -68,6 +68,7 @@ src/lib/tutorialVideos.ts
 - Preserve standalone custom sections where `CustomSection.targetSectionKey` is null.
 - Validate embedded custom section targets against `src/lib/ui-sections.ts`.
 - Keep active organization custom fields in full, client-only, and case-only CSV exports.
+- Preserve batch MOS submission validation and case access scoping in `src/app/api/cases/[id]/mos-documents/submit/route.ts`.
 - Confirm restricted CRM user access still scopes by `assignedToId`.
 - Pick the next CRM task.
 
@@ -96,5 +97,6 @@ cmd /c npx next build
 - Custom field values remain in `CustomFieldValue`; do not add a database column for every organization-defined field.
 - `CustomSection.targetSectionKey` controls whether a custom field group is standalone or embedded in a standard client/case sector.
 - `Organization.settings.mosEmailFieldEnabled` is managed by the organization admin in Settings -> Fields and sectors.
+- Submitted MOS documents are completed `Task` records; batch submission creates them atomically through the case-scoped endpoint.
 - Do not read, print, or commit `.env`.
 - Do not do broad refactors or encoding cleanup while implementing this feature.
