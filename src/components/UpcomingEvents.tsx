@@ -86,17 +86,27 @@ export default function UpcomingEvents() {
   function taskRelatedCaseId(task: any) {
     if (!task) return ''
     const meta = taskMeta(task)
-    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask, meta.fingerprintsAppointment, meta.predictedDecision]
+    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask, meta.fingerprintsAppointment, meta.predictedDecision, meta.caseImportantDate]
     const metaCaseId = refs.find((ref: any) => ref?.caseId)?.caseId
     if (metaCaseId) return metaCaseId
 
-    return cases.find((item: any) => {
+    const caseIdByNumber = cases.find((item: any) => {
       const number = String(item.caseNumber || '')
       return !!number && (
         String(task.title || '').includes(number) ||
         String(task.description || '').includes(number)
       )
-    })?.id || ''
+    })?.id
+    if (caseIdByNumber) return caseIdByNumber
+
+    const taskClientName = String(task.clientName || '').trim().toLowerCase()
+    if (!taskClientName) return ''
+    const matchingClients = clients.filter((client: any) =>
+      `${client.firstName || ''} ${client.lastName || ''}`.trim().toLowerCase() === taskClientName
+    )
+    if (matchingClients.length !== 1) return ''
+    const clientCases = cases.filter((item: any) => item.clientId === matchingClients[0].id)
+    return clientCases.length === 1 ? clientCases[0].id : ''
   }
 
   function buildItems(taskList: any[]) {
@@ -353,7 +363,7 @@ export default function UpcomingEvents() {
                   className="btn btn-secondary"
                   style={{ whiteSpace: 'nowrap' }}
                 >
-                  Переход к этому делу
+                  {t('go_to_case')}
                 </button>
               )}
               <button onClick={() => setEditingTask(null)} className="btn btn-secondary">Отмена</button>

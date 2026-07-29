@@ -16,32 +16,41 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!scopedCase) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const caseRecord: any = scopedCase
   const body = await req.json()
+  const label = String(body.label || '').trim()
+  if (!label) return NextResponse.json({ error: 'Label is required' }, { status: 400 })
+  const date = body.date ? new Date(body.date) : null
+  if (date && Number.isNaN(date.getTime())) {
+    return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
+  }
+
   try {
     const d = await (prisma as any).caseCustomDate.create({
-      data: { caseId: params.id, label: body.label, date: new Date(body.date) }
+      data: { caseId: params.id, label, date }
     })
-    const dateOnly = new Date(d.date).toISOString().slice(0, 10)
-    const clientName = `${caseRecord.client?.firstName || ''} ${caseRecord.client?.lastName || ''}`.trim()
-    await prisma.task.create({
-      data: {
-        organizationId,
-        title: d.label,
-        priority: 'Нормально',
-        dueDate: d.date,
-        clientName: clientName || null,
-        assignedToId: caseRecord.assignedToId || null,
-        description: JSON.stringify({
-          reminderAt: `${dateOnly}T09:00`,
-          reminderNote: `${d.label} по делу ${caseRecord.caseNumber || 'без номера'}`,
-          caseImportantDate: {
-            caseId: params.id,
-            caseNumber: caseRecord.caseNumber || null,
-            kind: 'customDate',
-            customDateId: d.id,
-          },
-        }),
-      },
-    })
+    if (d.date) {
+      const dateOnly = new Date(d.date).toISOString().slice(0, 10)
+      const clientName = `${caseRecord.client?.firstName || ''} ${caseRecord.client?.lastName || ''}`.trim()
+      await prisma.task.create({
+        data: {
+          organizationId,
+          title: d.label,
+          priority: 'Нормально',
+          dueDate: d.date,
+          clientName: clientName || null,
+          assignedToId: caseRecord.assignedToId || null,
+          description: JSON.stringify({
+            reminderAt: `${dateOnly}T09:00`,
+            reminderNote: `${d.label} по делу ${caseRecord.caseNumber || 'без номера'}`,
+            caseImportantDate: {
+              caseId: params.id,
+              caseNumber: caseRecord.caseNumber || null,
+              kind: 'customDate',
+              customDateId: d.id,
+            },
+          }),
+        },
+      })
+    }
     return NextResponse.json(d)
   } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }) }
 }

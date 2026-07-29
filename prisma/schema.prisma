@@ -650,7 +650,7 @@ model CaseCustomDate {
   id     Int      @id @default(autoincrement())
   caseId String
   label  String
-  date   DateTime
+  date   DateTime?
   case   Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
 }
 

@@ -6,6 +6,7 @@ import { deleteCloudinaryResources } from '@/lib/cloudinary'
 import { deleteDropboxFile, getDropboxSettings } from '@/lib/dropbox'
 import { caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 import { resolveUserIdForEmployee } from '@/lib/employeeSync'
+import { shouldRetirePersonalAppearTask } from '@/lib/caseImportantDateTasks'
 
 function taskBelongsToCase(
   task: { title: string | null; description: string | null },
@@ -109,14 +110,20 @@ async function syncFixedImportantDateTasks(organizationId: string, caseRecord: a
     caseRecord,
     kind: 'filingDate',
     title: 'Дата подачи',
-    date: caseRecord.filingDate,
+    date: null,
   })
+  const personalAppearDate = shouldRetirePersonalAppearTask(
+    caseRecord.personalAppearDate,
+    caseRecord.statusHistory || []
+  )
+    ? null
+    : caseRecord.personalAppearDate
   await syncCaseImportantDateTask({
     organizationId,
     caseRecord,
     kind: 'personalAppearDate',
     title: 'Личная явка',
-    date: caseRecord.personalAppearDate,
+    date: personalAppearDate,
   })
   await syncCaseImportantDateTask({
     organizationId,
@@ -254,7 +261,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
     const caseForCalendar = await prisma.case.findFirst({
       where: caseWhereForScope(scope, organizationId, { id: params.id }),
-      include: { client: true },
+      include: {
+        client: true,
+        statusHistory: {
+          where: { fromStatus: { not: null } },
+          select: { fromStatus: true, changedAt: true },
+        },
+      },
     })
     if (caseForCalendar) await syncFixedImportantDateTasks(organizationId, caseForCalendar)
 

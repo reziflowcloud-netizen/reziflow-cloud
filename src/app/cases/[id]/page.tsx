@@ -814,12 +814,16 @@ export default function CaseDetailPage() {
   }
 
   async function addCustomDate() {
-    if (!newDateLabel.trim() || !newDateValue) return
+    if (!newDateLabel.trim()) return
     const res = await fetch(`/api/cases/${id}/custom-dates`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label: newDateLabel.trim(), date: newDateValue }),
+      body: JSON.stringify({ label: newDateLabel.trim(), date: newDateValue || null }),
     })
     const d = await res.json()
+    if (!res.ok) {
+      alert(d.error || 'Не удалось добавить запись')
+      return
+    }
     setCustomDates(p => [...p, d])
     setNewDateLabel(''); setNewDateValue('')
   }
@@ -1414,7 +1418,7 @@ export default function CaseDetailPage() {
                       {customDates.map((d: any) => (
                         <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
                           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', minWidth: 140 }}>{d.label}</span>
-                          <span style={{ fontSize: 13, flex: 1 }}>{new Date(d.date).toLocaleDateString(locale)}</span>
+                          <span style={{ fontSize: 13, flex: 1 }}>{d.date ? new Date(d.date).toLocaleDateString(locale) : t('date_not_set')}</span>
                           <button onClick={() => removeCustomDate(d.id)} style={{ background: '#fef2f2', border: 'none', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 12, color: '#dc2626' }}>🗑</button>
                         </div>
                       ))}
@@ -1427,7 +1431,7 @@ export default function CaseDetailPage() {
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <input className="input" value={newDateLabel} onChange={e => setNewDateLabel(e.target.value)} placeholder={t('date_name_placeholder')} style={{ flex: 2, minWidth: 180 }} />
                       <input className="input" type="date" value={newDateValue} onChange={e => setNewDateValue(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
-                      <button onClick={addCustomDate} className="btn btn-primary" disabled={!newDateLabel.trim() || !newDateValue}>{t('add')}</button>
+                      <button onClick={addCustomDate} className="btn btn-primary" disabled={!newDateLabel.trim()}>{t('add')}</button>
                     </div>
                   </div>
                   <div data-custom-fields-slot="case:case-important-dates" />

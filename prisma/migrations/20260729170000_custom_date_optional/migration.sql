@@ -1,0 +1,2 @@
+ALTER TABLE "CaseCustomDate"
+ALTER COLUMN "date" DROP NOT NULL;
