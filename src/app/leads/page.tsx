@@ -23,13 +23,18 @@ type QuickFilter = 'all' | 'today' | 'overdue' | 'unassigned' | 'no_next_contact
 type SortKey = 'lead' | 'status' | 'source' | 'interest' | 'createdAt' | 'lastContact' | 'nextContact' | 'responsible'
 type SortDirection = 'asc' | 'desc'
 type ViewMode = 'table' | 'board'
+type DatePreset = 'all' | 'today' | 'last7' | 'last30' | 'this_month' | 'last_month' | 'custom'
 type LeadColumnKey = 'lead' | 'status' | 'reason' | 'source' | 'interest' | 'createdAt' | 'lastContact' | 'nextContact' | 'responsible'
 type LeadListState = {
   search: string
   status: string
   statusReasonFilter: string
   source: string
+  interest: string
   temperature: string
+  datePreset: DatePreset
+  createdFrom: string
+  createdTo: string
   quickFilter: QuickFilter
   viewMode: ViewMode
   sortConfig: { key: SortKey; direction: SortDirection }
@@ -39,6 +44,7 @@ const QUICK_FILTER_VALUES: QuickFilter[] = ['all', 'today', 'overdue', 'unassign
 const SORT_KEY_VALUES: SortKey[] = ['lead', 'status', 'source', 'interest', 'createdAt', 'lastContact', 'nextContact', 'responsible']
 const SORT_DIRECTION_VALUES: SortDirection[] = ['asc', 'desc']
 const VIEW_MODE_VALUES: ViewMode[] = ['table', 'board']
+const DATE_PRESET_VALUES: DatePreset[] = ['all', 'today', 'last7', 'last30', 'this_month', 'last_month', 'custom']
 const ALL_LEAD_COLUMNS: Array<{ key: LeadColumnKey; labelKey: string; always?: boolean; requiresStatusReasons?: boolean }> = [
   { key: 'lead', labelKey: 'lead', always: true },
   { key: 'status', labelKey: 'status' },
@@ -69,7 +75,11 @@ const DEFAULT_LEAD_LIST_STATE: LeadListState = {
   status: '',
   statusReasonFilter: '',
   source: '',
+  interest: '',
   temperature: '',
+  datePreset: 'all',
+  createdFrom: '',
+  createdTo: '',
   quickFilter: 'all',
   viewMode: 'table',
   sortConfig: { key: 'status', direction: 'asc' },
@@ -79,13 +89,23 @@ function parseQueryOption<T extends string>(value: string | null, allowed: T[], 
   return value && allowed.includes(value as T) ? value as T : fallback
 }
 
+function parseDateInput(value: string | null) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return ''
+  const date = new Date(`${value}T00:00:00`)
+  return !Number.isNaN(date.getTime()) && dateKey(date) === value ? value : ''
+}
+
 function parseLeadListState(params: URLSearchParams): LeadListState {
   return {
     search: params.get('q') || DEFAULT_LEAD_LIST_STATE.search,
     status: params.get('status') || DEFAULT_LEAD_LIST_STATE.status,
     statusReasonFilter: params.get('reason') || DEFAULT_LEAD_LIST_STATE.statusReasonFilter,
     source: params.get('source') || DEFAULT_LEAD_LIST_STATE.source,
+    interest: params.get('interest') || DEFAULT_LEAD_LIST_STATE.interest,
     temperature: params.get('temperature') || DEFAULT_LEAD_LIST_STATE.temperature,
+    datePreset: parseQueryOption(params.get('period'), DATE_PRESET_VALUES, DEFAULT_LEAD_LIST_STATE.datePreset),
+    createdFrom: parseDateInput(params.get('from')),
+    createdTo: parseDateInput(params.get('to')),
     quickFilter: parseQueryOption(params.get('quick'), QUICK_FILTER_VALUES, DEFAULT_LEAD_LIST_STATE.quickFilter),
     viewMode: parseQueryOption(params.get('view'), VIEW_MODE_VALUES, DEFAULT_LEAD_LIST_STATE.viewMode),
     sortConfig: {
@@ -102,7 +122,11 @@ function buildLeadListQuery(state: LeadListState) {
   if (state.status) params.set('status', state.status)
   if (state.statusReasonFilter) params.set('reason', state.statusReasonFilter)
   if (state.source) params.set('source', state.source)
+  if (state.interest) params.set('interest', state.interest)
   if (state.temperature) params.set('temperature', state.temperature)
+  if (state.datePreset !== DEFAULT_LEAD_LIST_STATE.datePreset) params.set('period', state.datePreset)
+  if (state.datePreset === 'custom' && state.createdFrom) params.set('from', state.createdFrom)
+  if (state.datePreset === 'custom' && state.createdTo) params.set('to', state.createdTo)
   if (state.quickFilter !== DEFAULT_LEAD_LIST_STATE.quickFilter) params.set('quick', state.quickFilter)
   if (state.viewMode !== DEFAULT_LEAD_LIST_STATE.viewMode) params.set('view', state.viewMode)
   if (
@@ -139,6 +163,48 @@ function dateKey(value: Date | string) {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function createdAtRange(
+  preset: DatePreset,
+  customFrom: string,
+  customTo: string,
+  now = new Date()
+) {
+  if (preset === 'all') return null
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  let start: Date | null = null
+  let end: Date | null = null
+
+  if (preset === 'today') {
+    start = today
+    end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+  } else if (preset === 'last7' || preset === 'last30') {
+    const days = preset === 'last7' ? 7 : 30
+    start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - days + 1)
+    end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+  } else if (preset === 'this_month') {
+    start = new Date(today.getFullYear(), today.getMonth(), 1)
+    end = new Date(today.getFullYear(), today.getMonth() + 1, 1)
+  } else if (preset === 'last_month') {
+    start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+    end = new Date(today.getFullYear(), today.getMonth(), 1)
+  } else {
+    const from = customFrom ? new Date(`${customFrom}T00:00:00`) : null
+    const to = customTo ? new Date(`${customTo}T00:00:00`) : null
+    if (from && to && from.getTime() > to.getTime()) {
+      start = to
+      end = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1)
+    } else {
+      start = from
+      end = to ? new Date(to.getFullYear(), to.getMonth(), to.getDate() + 1) : null
+    }
+  }
+
+  return {
+    start: start?.getTime() ?? Number.NEGATIVE_INFINITY,
+    end: end?.getTime() ?? Number.POSITIVE_INFINITY,
+  }
 }
 
 function formatLeadDateTime(value: string, locale: string) {
@@ -215,7 +281,11 @@ export default function LeadsPage() {
   const [status, setStatus] = useState(DEFAULT_LEAD_LIST_STATE.status)
   const [statusReasonFilter, setStatusReasonFilter] = useState(DEFAULT_LEAD_LIST_STATE.statusReasonFilter)
   const [source, setSource] = useState(DEFAULT_LEAD_LIST_STATE.source)
+  const [interest, setInterest] = useState(DEFAULT_LEAD_LIST_STATE.interest)
   const [temperature, setTemperature] = useState(DEFAULT_LEAD_LIST_STATE.temperature)
+  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_LEAD_LIST_STATE.datePreset)
+  const [createdFrom, setCreatedFrom] = useState(DEFAULT_LEAD_LIST_STATE.createdFrom)
+  const [createdTo, setCreatedTo] = useState(DEFAULT_LEAD_LIST_STATE.createdTo)
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(DEFAULT_LEAD_LIST_STATE.quickFilter)
   const [employees, setEmployees] = useState<any[]>([])
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
@@ -270,6 +340,12 @@ export default function LeadsPage() {
     const source = sourceByValue[String(value || '')]
     return source ? leadSourceOptionLabel(lang, source) : leadSourceLabel(lang, String(value || 'manual'))
   }
+  const leadInterests = useMemo(
+    () => Array.from(new Set(
+      leads.map(lead => String(lead.serviceInterest || '').trim()).filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b, locale)),
+    [leads, locale],
+  )
   const normalizedStatus = (value?: string) => {
     const raw = String(value || '').trim()
     if (!raw) return defaultStatusName
@@ -299,7 +375,11 @@ export default function LeadsPage() {
     setStatus(nextState.status)
     setStatusReasonFilter(nextState.statusReasonFilter)
     setSource(nextState.source)
+    setInterest(nextState.interest)
     setTemperature(nextState.temperature)
+    setDatePreset(nextState.datePreset)
+    setCreatedFrom(nextState.createdFrom)
+    setCreatedTo(nextState.createdTo)
     setQuickFilter(nextState.quickFilter)
     setViewMode(nextState.viewMode)
     setSortConfig(nextState.sortConfig)
@@ -361,6 +441,7 @@ export default function LeadsPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
+    const range = createdAtRange(datePreset, createdFrom, createdTo)
     const rank = (lead: any) => {
       const index = statusNames.indexOf(normalizedStatus(lead.status))
       return index === -1 ? 999 : index
@@ -389,7 +470,12 @@ export default function LeadsPage() {
       if (status && leadStatus !== status) return false
       if (showStatusReasons && statusReasonFilter && lead.statusReason !== statusReasonFilter) return false
       if (source && lead.source !== source) return false
+      if (interest && String(lead.serviceInterest || '').trim() !== interest) return false
       if (temperature && lead.urgency !== temperature) return false
+      if (range) {
+        const createdAt = new Date(lead.createdAt).getTime()
+        if (Number.isNaN(createdAt) || createdAt < range.start || createdAt >= range.end) return false
+      }
       if (quickFilter === 'today') return isToday(lead.nextContactAt) && !isConvertedLead(lead)
       if (quickFilter === 'overdue') return isOverdue(lead.nextContactAt) && !isConvertedLead(lead)
       if (quickFilter === 'unassigned') return !leadResponsibleName(lead) && !isConvertedLead(lead)
@@ -410,10 +496,20 @@ export default function LeadsPage() {
       leadResponsibleName(lead),
     ].filter(Boolean).join(' ').toLowerCase().includes(q)) : byFilters
     return [...searched].sort(compareLeads)
-  }, [leads, search, status, statusReasonFilter, source, temperature, quickFilter, showStatusReasons, statusNames.join('|'), sortConfig, lang])
+  }, [leads, search, status, statusReasonFilter, source, interest, temperature, datePreset, createdFrom, createdTo, quickFilter, showStatusReasons, statusNames.join('|'), sortConfig, lang])
 
   const visibleLeadIds = useMemo(() => filtered.map(lead => lead.id), [filtered])
   const allVisibleSelected = visibleLeadIds.length > 0 && visibleLeadIds.every(id => selectedLeadIds.includes(id))
+  const hasActiveListFilters = Boolean(
+    search.trim() ||
+    status ||
+    statusReasonFilter ||
+    source ||
+    interest ||
+    temperature ||
+    quickFilter !== 'all' ||
+    datePreset !== 'all'
+  )
 
   const quickCounts = useMemo(() => ({
     all: leads.length,
@@ -505,11 +601,15 @@ export default function LeadsPage() {
     status,
     statusReasonFilter,
     source,
+    interest,
     temperature,
+    datePreset,
+    createdFrom,
+    createdTo,
     quickFilter,
     viewMode,
     sortConfig,
-  }), [search, status, statusReasonFilter, source, temperature, quickFilter, viewMode, sortConfig])
+  }), [search, status, statusReasonFilter, source, interest, temperature, datePreset, createdFrom, createdTo, quickFilter, viewMode, sortConfig])
 
   const leadListHref = useMemo(() => buildLeadListHref(leadListState), [leadListState])
 
@@ -1198,6 +1298,27 @@ export default function LeadsPage() {
             justify-content: center;
           }
 
+          .leads-page .lead-period-filter {
+            align-items: stretch !important;
+          }
+
+          .leads-page .lead-period-filter > strong,
+          .leads-page .lead-period-filter > select,
+          .leads-page .lead-period-filter > label,
+          .leads-page .lead-period-filter > div {
+            width: 100% !important;
+          }
+
+          .leads-page .lead-period-filter > label input {
+            flex: 1;
+            width: auto !important;
+          }
+
+          .leads-page .lead-period-filter > div {
+            margin-left: 0 !important;
+            text-align: center;
+          }
+
           .leads-page .lead-content-grid {
             display: grid !important;
             grid-template-columns: minmax(0, 1fr) minmax(136px, 38vw) !important;
@@ -1448,7 +1569,7 @@ export default function LeadsPage() {
           </div>
         )}
 
-        <div className="lead-filter-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 190px 190px auto auto', gap: 10, marginBottom: 16 }}>
+        <div className="lead-filter-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) 170px 170px 190px auto auto', gap: 10, marginBottom: 10 }}>
           <input className="input" placeholder={`🔍 ${lt('search_placeholder')}`} value={search} onChange={e => setSearch(e.target.value)} />
           <select className="select" value={status} onChange={e => setStatus(e.target.value)}>
             <option value="">{lt('all_statuses')}</option>
@@ -1457,6 +1578,10 @@ export default function LeadsPage() {
           <select className="select" value={source} onChange={e => setSource(e.target.value)}>
             <option value="">{lt('all_sources')}</option>
             {leadSources.map(item => <option key={item.value} value={item.value}>{leadSourceOptionLabel(lang, item)}</option>)}
+          </select>
+          <select className="select" value={interest} onChange={e => setInterest(e.target.value)}>
+            <option value="">{lt('all_interests')}</option>
+            {leadInterests.map(item => <option key={item} value={item}>{item}</option>)}
           </select>
           <div ref={colMenuRef} style={{ position: 'relative' }}>
             <button
@@ -1514,6 +1639,57 @@ export default function LeadsPage() {
           <div className="lead-view-toggle" style={{ display: 'flex', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}>
             <button type="button" className={viewMode === 'table' ? 'btn btn-primary' : 'btn btn-ghost'} style={{ padding: '7px 10px' }} onClick={() => setViewMode('table')}>{lt('table')}</button>
             <button type="button" className={viewMode === 'board' ? 'btn btn-primary' : 'btn btn-ghost'} style={{ padding: '7px 10px' }} onClick={() => setViewMode('board')}>{lt('board')}</button>
+          </div>
+        </div>
+
+        <div
+          className="lead-period-filter"
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 12px',
+            marginBottom: 16,
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+          }}
+        >
+          <strong style={{ fontSize: 13, whiteSpace: 'nowrap' }}>📅 {lt('created_period')}</strong>
+          <select className="select" value={datePreset} onChange={e => setDatePreset(e.target.value as DatePreset)} style={{ width: 210 }}>
+            <option value="all">{lt('period_all')}</option>
+            <option value="today">{lt('period_today')}</option>
+            <option value="last7">{lt('period_last7')}</option>
+            <option value="last30">{lt('period_last30')}</option>
+            <option value="this_month">{lt('period_this_month')}</option>
+            <option value="last_month">{lt('period_last_month')}</option>
+            <option value="custom">{lt('period_custom')}</option>
+          </select>
+          {datePreset === 'custom' && (
+            <>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--muted)', fontSize: 12 }}>
+                {lt('date_from')}
+                <input className="input" type="date" value={createdFrom} onChange={e => setCreatedFrom(e.target.value)} style={{ width: 155 }} />
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--muted)', fontSize: 12 }}>
+                {lt('date_to')}
+                <input className="input" type="date" value={createdTo} onChange={e => setCreatedTo(e.target.value)} style={{ width: 155 }} />
+              </label>
+            </>
+          )}
+          <div style={{
+            marginLeft: 'auto',
+            padding: '6px 10px',
+            borderRadius: 999,
+            background: 'var(--brand-soft)',
+            color: 'var(--brand)',
+            fontSize: 13,
+            fontWeight: 700,
+            whiteSpace: 'nowrap',
+          }}>
+            {lt('filtered_count')}: {filtered.length}
+            {filtered.length !== leads.length && <span style={{ opacity: 0.68, fontWeight: 500 }}> / {leads.length}</span>}
           </div>
         </div>
 
@@ -1578,8 +1754,8 @@ export default function LeadsPage() {
                   ) : filtered.length === 0 ? (
                     <tr><td colSpan={visibleLeadColumnCount + 1} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
                       <div style={{ fontSize: 32, marginBottom: 8 }}>◎</div>
-                      <div>{search || status || source || temperature ? lt('leads_not_found') : lt('no_leads')}</div>
-                      {!search && !status && !source && !temperature && <Link href="/leads/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>{lt('add_first_lead')}</Link>}
+                      <div>{hasActiveListFilters ? lt('leads_not_found') : lt('no_leads')}</div>
+                      {!hasActiveListFilters && <Link href="/leads/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>{lt('add_first_lead')}</Link>}
                     </td></tr>
                   ) : filtered.map(lead => {
                     const leadStatus = normalizedStatus(lead.status)
