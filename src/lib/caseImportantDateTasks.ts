@@ -14,6 +14,8 @@ const POLAND_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
   month: '2-digit',
   day: '2-digit',
 })
+const DAY_MS = 24 * 60 * 60 * 1000
+const PERSONAL_APPEAR_STATUS_GRACE_DAYS = 2
 
 function dateKey(value: string | Date | null | undefined) {
   if (!value) return ''
@@ -24,6 +26,13 @@ function dateKey(value: string | Date | null | undefined) {
   const month = parts.find(part => part.type === 'month')?.value
   const day = parts.find(part => part.type === 'day')?.value
   return year && month && day ? `${year}-${month}-${day}` : ''
+}
+
+function calendarDay(value: string | Date | null | undefined) {
+  const key = dateKey(value)
+  if (!key) return null
+  const [year, month, day] = key.split('-').map(Number)
+  return Date.UTC(year, month - 1, day) / DAY_MS
 }
 
 export function getCaseImportantDateTaskRef(description?: string | null): CaseImportantDateTaskRef | null {
@@ -42,13 +51,15 @@ export function shouldRetirePersonalAppearTask(
   statusChanges: StatusChange[],
   now = new Date()
 ) {
-  const appearanceDateKey = dateKey(personalAppearDate)
-  const todayKey = dateKey(now)
-  if (!appearanceDateKey || !todayKey || appearanceDateKey >= todayKey) return false
+  const appearanceDay = calendarDay(personalAppearDate)
+  const todayDay = calendarDay(now)
+  if (appearanceDay === null || todayDay === null || appearanceDay > todayDay) return false
 
   return statusChanges.some(change => {
     if (!change.fromStatus) return false
-    const changedDateKey = dateKey(change.changedAt)
-    return !!changedDateKey && changedDateKey > appearanceDateKey
+    const changedDay = calendarDay(change.changedAt)
+    return changedDay !== null
+      && changedDay >= appearanceDay
+      && changedDay <= appearanceDay + PERSONAL_APPEAR_STATUS_GRACE_DAYS
   })
 }
