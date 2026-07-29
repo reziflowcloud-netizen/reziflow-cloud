@@ -1,224 +1,263 @@
 # Project State
 
-Last updated by Codex: 2026-06-28.
+Last audited against the repository by Codex: 2026-07-29.
 
 ## Project
 
-LegalHub CRM is a SaaS CRM for legalization agencies in Poland. It combines the public LegalHub landing/registration flow with the internal CRM for organizations, users, clients, cases, tasks, leads, documents, billing/referrals, and integrations.
+LegalHub CRM is a multi-tenant SaaS CRM for legalization and immigration
+agencies in Poland. The same Next.js application contains the public site,
+registration and legal pages, organization administration, and the internal
+CRM.
 
-Current local app root:
+Application root:
 
 ```text
 C:\Users\verbe\Documents\Codex\2026-06-15\legalhub-crm-crm-c-users-verbe\work\legalhub-integration
 ```
 
-GitHub remote:
+GitHub:
 
 ```text
 https://github.com/reziflowcloud-netizen/reziflow-cloud.git
 ```
 
-Production site:
+Production:
 
 ```text
 https://legalhubcrm.com
 ```
 
-## Stack
+## Architecture
 
-- Next.js 14.2.35
-- React 18
-- TypeScript
-- Prisma 5.13
-- PostgreSQL
-- Tailwind CSS
+- Next.js 14 App Router application with React 18 and TypeScript.
+- Route handlers under `src/app/api` provide the application API.
+- Prisma 5.13 is the ORM; PostgreSQL is the only configured datasource.
+- Authentication uses a signed JWT in the `auth-token` cookie.
+- `organizationId` is the tenant boundary used by application queries.
+- `src/lib/apiScope.ts` adds restricted-user filtering for cases, clients,
+  leads, and tasks.
+- Organization feature and integration settings are stored in the
+  `Organization.settings` JSON field.
+- Tailwind is installed, while much of the CRM UI also uses shared CSS in
+  `src/app/globals.css`.
 
-Important commands:
+Important build behavior:
 
-```bash
-npm install
-npm run dev
+```text
 npm run build
-npm run seed
-npx prisma generate
+  -> node scripts/vercel-migrate.js
+  -> prisma generate
+  -> next build
 ```
 
-`npm run build` runs:
+When `DIRECT_URL` exists, `scripts/vercel-migrate.js` runs
+`prisma migrate deploy` and then `prisma/seed.js`. Do not run `npm run build`
+for a read-only audit. `npx next build` avoids that wrapper but should still be
+used deliberately.
 
-```bash
-node scripts/vercel-migrate.js && prisma generate && next build
-```
+## Current Git Snapshot
 
-## Current Git State
-
-At the time this file was written:
+Audit started from:
 
 ```text
 branch: main
-remote: origin/main
-status: local uncommitted changes
-latest commit: 1a9f18c Add employee assignment for leads
+HEAD: 1c3f879 Add batch MOS document submission
+origin/main: 1c3f879
 ```
 
-Always run this again in a new chat before editing:
+Before this handoff documentation edit there were no uncommitted application
+changes. One unrelated untracked file already existed:
 
-```bash
-git status --short --branch
+```text
+legalhub-os/MESSAGING_INTEGRATIONS_AUDIT.md
 ```
 
-## Important Files
+Do not delete, overwrite, or commit that file without first deciding its
+ownership with the user. The edits to `PROJECT_STATE.md` and `HANDOFF.md`
+created by this audit are intentionally left uncommitted.
 
-- `package.json` - scripts and dependencies.
-- `DEPLOY_NOTES.md` - deployment, recovery, environment variable, and production notes.
-- `prisma/schema.prisma` - database schema.
-- `prisma/migrations/` - committed database migrations.
-- `src/lib/auth.ts` - auth helpers.
-- `src/lib/apiScope.ts` - organization/user data access scoping.
-- `src/lib/leads.ts` - lead constants and request normalization.
-- `src/app/api/leads/route.ts` - lead list and create API.
-- `src/app/api/leads/[id]/route.ts` - lead detail, update, delete API.
-- `src/app/api/leads/[id]/convert/route.ts` - lead-to-client/case conversion.
-- `src/app/leads/page.tsx` - leads table.
-- `src/app/leads/new/page.tsx` - new lead form.
-- `src/app/leads/[id]/page.tsx` - lead card/detail screen.
-- `src/app/settings/employees/page.tsx` - responsible employees settings UI.
-- `src/app/api/employees/route.ts` and `src/app/api/employees/[id]/route.ts` - Employee API.
-- `prisma/migrations/20260627120000_lead_employee_assignment/migration.sql` - adds `Lead.employeeId`.
-- `src/app/api/organization-settings/route.ts` - organization-level CRM feature toggles.
-- `src/app/settings/sections/page.tsx` - Fields and sectors settings page, including automatic reminders and tutorial videos toggles.
-- `src/components/TutorialVideoButton.tsx` - shared header button for opening CRM tutorial videos.
-- `src/lib/tutorialVideos.ts` - central map of CRM sections to YouTube URLs.
+## Implemented Modules
 
-## Current Data Model Notes
+- Public landing, pricing, registration, login, contact, Privacy Policy,
+  Regulamin, and data deletion pages.
+- Multi-organization users, roles, restricted access, superadmin organization
+  management, plan limits, trials, manual overrides, and referrals.
+- Dashboard metrics, recent records, upcoming events, and configurable quick
+  start.
+- Leads: configurable statuses, sources, filters, table/board views, contact
+  history, reminders, messages, phone channels, qualification fields, bulk
+  actions, assignment, and conversion to clients/cases.
+- Clients: extended identity/contact data, multiple phones, family links,
+  responsible-user list column, cases, custom fields, import/export.
+- Cases: services, statuses, responsible employees, payments, comments,
+  documents, MOS/correspondence data, important dates, custom sections/fields,
+  and batch MOS document submission.
+- Tasks, priorities, calendar, stages, notifications, and automatic reminders.
+- Settings for services, statuses, users, employees, fields/sectors,
+  integrations, storage, import/export, and tutorial visibility.
+- Document templates and Cloudinary/Dropbox-backed case documents.
 
-`assignedToId` means a real CRM `User`. It is used for access scoping and restricted users. Do not replace it with `Employee`.
+## Assignment Model: User vs Employee
 
-`Employee` is a separate business list for responsible employees / trustees:
+This distinction is security-sensitive.
+
+`assignedToId` is a relation to a real CRM `User`. It is used by
+`src/lib/apiScope.ts` to restrict data visible to a user:
+
+```text
+Lead.assignedToId   -> User.id
+Case.assignedToId   -> User.id
+Client.assignedToId -> User.id
+Task.assignedToId   -> User.id
+```
+
+`Employee` is a separate organization business directory used as the visible
+responsible employee:
 
 ```text
 Employee(id, organizationId, name, active, createdAt)
+Lead.employeeId -> Employee.id
+Case.employeeId -> Employee.id
 ```
 
-`Case` already has:
+Confirmed behavior:
+
+- Migration `20260627120000_lead_employee_assignment` adds
+  `Lead.employeeId`, its organization/employee index, and the foreign key to
+  `Employee`.
+- `Case.employeeId` is older and originates from
+  `20260105000000_case_v2`; it was not added by the lead migration.
+- Lead create/update APIs validate `employeeId` inside the organization.
+- The visible responsible field in lead UI uses `Employee`; the old visible
+  CRM-user selector was removed.
+- Selecting a lead employee does not generally replace `Lead.assignedToId`.
+  Restricted users still force `assignedToId` to their own `User.id`.
+- Lead conversion copies `Lead.employeeId` to `Case.employeeId` and carries
+  `assignedToId` separately for access ownership.
+- `src/lib/employeeSync.ts` ensures every organization user has an active
+  same-name Employee record and backfills missing `employeeId` on leads/cases
+  that already have `assignedToId`.
+- Case create/update resolves a selected Employee back to a User by normalized
+  name and sets `Case.assignedToId` when a matching user exists.
+
+The Employee/User association is name-based, not an explicit database
+relation. Do not replace or merge these fields without redesigning restricted
+access and migrating existing data.
+
+## Custom Fields And MOS
+
+- `CustomSection.targetSectionKey` lets an organization keep a custom section
+  as a standalone card or embed it into a supported standard client/case
+  sector.
+- Target keys are validated through `src/lib/ui-sections.ts`.
+- Values remain in `CustomFieldValue`; organization-defined fields do not add
+  a database column per field.
+- Active custom fields are included in full, client-only, and case-only CSV
+  exports.
+- `Case.mosEmail` is a real nullable column. Its visibility is controlled by
+  `Organization.settings.mosEmailFieldEnabled` in Settings -> Fields and
+  sectors.
+- Case MOS documents can be selected individually, as a Shift range, or all at
+  once. A case-scoped API validates the configured document names and creates
+  completed Task records with one `createMany` call for the shared submission
+  date.
+
+## Integrations
+
+- Meta OAuth connection, page/Instagram selection, token diagnostics,
+  subscriptions, disconnect, Facebook Lead Ads webhooks, and a shared
+  Facebook Messenger/Instagram Direct messages webhook exist in code.
+- Meta Advanced Access/App Review is external state and cannot be inferred
+  from this repository. The last user-provided state was an active review for
+  `instagram_basic`, `pages_read_engagement`, and
+  `instagram_manage_messages`.
+- Generic lead webhooks and a Google Sheets Apps Script webhook URL are
+  supported.
+- A Telegram lead webhook route exists; this is not evidence of full two-way
+  Telegram chat.
+- There is no confirmed two-way WhatsApp or Viber messaging implementation.
+- Cloudinary is the default document storage path; organizations can enable
+  Dropbox storage in integration settings.
+- New-registration email notification code exists.
+
+## Prisma And Migrations
+
+The repository contains migrations through:
 
 ```text
-employeeId Int?
-employee   Employee?
+20260728150000_custom_section_target
 ```
 
-`Lead` now has both:
+Migrations created during the current development period:
 
 ```text
-assignedToId Int?
-assignedTo   User?
-employeeId   Int?
-employee     Employee?
+20260627120000_lead_employee_assignment
+20260728120000_case_mos_email
+20260728150000_custom_section_target
 ```
 
-`Employee` now has `leads Lead[]` in addition to `cases Case[]`.
+Repository code proves that these migrations exist, but it does not prove
+which database environments have applied them. A previous handoff recorded
+that the lead employee migration had been applied to one Supabase database,
+but this 2026-07-29 audit did not connect to any database and does not re-verify
+that claim. The two July 28 migrations are likewise not marked as applied by
+anything in git.
 
-## Recently Implemented
+Do not run `prisma migrate deploy` merely to inspect status. Verify the intended
+database and deployment environment first.
 
-Leads can now be assigned to a responsible `Employee` from Settings -> Employees, not only to a system `User`.
+## Recent Significant Changes
 
-Implemented behavior:
+- Employee responsibility for leads and synchronization between organization
+  users and Employee records.
+- Tutorial video controls and quick-start step videos.
+- Dashboard/list loading optimizations.
+- Registration consent, legal documents, and new-registration notifications.
+- Organization deletion cleanup for document files.
+- Pricing limits, trials, admin overrides, and organization aggregate counts.
+- Responsible columns in client/case lists.
+- Lead webhook timeout fix, horizontal scrolling, and dark-theme lead styling.
+- Meta shared messages webhook and disconnect action.
+- Organization-specific MOS email field.
+- Custom fields embedded in standard sectors and exported automatically.
+- Batch submission of multiple MOS documents.
 
-- Keep `Lead.assignedToId` for CRM users and restricted access logic.
-- Add a separate `Lead.employeeId` relation to `Employee`.
-- The lead create form, lead detail page, lead list, sorting, search, quick "unassigned" filter, board cards, and bulk assignment now use `Employee` as the visible responsible person.
-- `assignedToId` remains an internal CRM `User` field for access/reminder assignment, but the visible `CRM user` select was removed from lead UI to keep the funnel card layout clean.
-- Lead APIs include `employee: { select: { id: true, name: true } }`.
-- Creating/updating a lead validates newly selected employees against the current organization.
-- Lead-to-client/case conversion copies `Lead.employeeId` to `Case.employeeId` when a case is created.
+## Verification Snapshot
 
-Verification already run:
-
-```bash
-cmd /c npx prisma format
-cmd /c npx prisma generate
-cmd /c npx next build
-```
-
-Note: `npm run build` was intentionally not run because this project's build script executes `prisma migrate deploy` through `DIRECT_URL`. Use the normal deployment flow when you are ready to apply migrations to the target database.
-
-Database/migration status as of 2026-06-28:
-
-- Local `.env` was updated to Supabase pooler URLs.
-- `DATABASE_URL` and `DIRECT_URL` both passed a connection check.
-- Prisma reported only one pending migration: `20260627120000_lead_employee_assignment`.
-- `npx prisma migrate deploy` was run via `DIRECT_URL` and applied that migration successfully.
-- Verification confirmed `Lead.employeeId`, `Lead_organizationId_employeeId_idx`, `Lead_employeeId_fkey`, and the `_prisma_migrations` record exist.
-- The connected database is not empty: at verification time it contained 294 leads and 7 employees.
-
-## Current Tutorial Video Work
-
-Tutorial video infrastructure has been started locally:
-
-- `Organization.settings.tutorialVideosEnabled` controls whether tutorial video buttons are shown.
-- The default is `false`, so old and new organizations do not see tutorial buttons until an admin enables them.
-- Settings -> Fields and sectors now has a separate "Training videos" card under automatic reminders.
-- A shared `TutorialVideoButton` component is placed in the header action area for Dashboard, Cases, Leads, Clients, Stages, Tasks, and Calendar.
-- Settings and import/export are intentionally excluded for now.
-- Video URLs are centralized in `src/lib/tutorialVideos.ts`.
-- Final YouTube URLs have been added for Dashboard, Cases, Leads, Clients, Stages, Tasks, and Calendar.
-- Stages, Tasks, and Calendar intentionally share one tutorial video.
-- `Organization.settings.quickStartEnabled` controls whether the Dashboard "Quick start / First steps in CRM" panel appears.
-- Quick start is enabled by default, matching the previous behavior for new organizations.
-- Settings -> Fields and sectors now includes a quick start visibility checkbox in the training/quick start card.
-- Each quick start step has a tutorial video key and final YouTube URL in `src/lib/tutorialVideos.ts`.
-
-Verification already run for this local work:
-
-```bash
-cmd /c npx next build
-```
-
-Context from the earlier integration chat:
-
-- The `legalhub-integration` folder was created as a safe sandbox from the landing/CRM merge work.
-- The earlier chat explicitly treated local database access as optional/missing and said production database credentials live in Vercel environment variables.
-- A temporary Neon/PostgreSQL database was likely used for testing, but the currently restored local credentials point to Supabase.
-
-## Access Control Warning
-
-Restricted access uses `User.restrictedAccess` and `assignedToId`. Keep this behavior intact:
-
-- a restricted system user should still see only records assigned to their `User.id`;
-- `Employee` assignment is business metadata and should not grant app access.
-
-Relevant file:
+During the final audit:
 
 ```text
-src/lib/apiScope.ts
+git status --short --branch
+git diff --check
+git log --oneline -10
+npx tsc --noEmit
 ```
 
-## Encoding Note
+All commands completed successfully; TypeScript reported no errors. No build,
+Prisma migration, seed, or database-changing command was run during this
+handoff audit.
 
-Some older Russian/Ukrainian strings in source files appear as mojibake in the repository. Avoid broad encoding repair unless the task is explicitly about text encoding and the UI has been checked. For normal feature work, edit only the directly related strings.
+The latest application commit `1c3f879` had already passed `npx tsc --noEmit`,
+`npx next build`, a local browser check of MOS multi-selection, and a successful
+Vercel status before this audit began.
 
-## Secrets
+## Known Risks And Technical Debt
 
-Do not print or commit `.env`.
+- Employee/User synchronization depends on normalized display names. Duplicate
+  names and later renames can create ambiguous or stale mappings.
+- The batch MOS endpoint skips existing submissions in application logic, but
+  there is no database unique constraint preventing duplicate concurrent
+  submissions.
+- `src/lib/auth.ts` contains a development fallback for `JWT_SECRET`.
+  Production must provide a strong environment value.
+- `Case.cabinetPassword` is stored as a normal nullable string; no encryption
+  layer was observed in the audited Prisma/API path.
+- Some legacy Russian/Ukrainian source strings are mojibake. Avoid broad
+  encoding rewrites without UI regression testing.
+- No dedicated automated test script is configured in `package.json`.
+- `npm run build` can mutate the configured database and run seed logic.
 
-Local `.env` exists in this app root, but production secrets live in Vercel. See `DEPLOY_NOTES.md` for safe environment and recovery notes.
+## Security
 
-## Organization Custom Fields In Standard Sectors (2026-07-28)
-
-- Organization admins manage custom client and case fields in Settings -> Fields and sectors.
-- A custom field group can remain a standalone card or target one standard sector through `CustomSection.targetSectionKey`.
-- Existing custom sections remain standalone because the new target is nullable.
-- Target keys are validated against `src/lib/ui-sections.ts`.
-- Embedded groups render inside explicit slots in the standard client/case cards and use the existing `CustomFieldValue` save flow.
-- Supported custom field types include text, email, textarea, date, number, checkbox, and select.
-- Active custom fields and values are included automatically in full, client-only, and case-only CSV exports.
-- The `Organization.settings.mosEmailFieldEnabled` switch was moved from the superadmin organization editor to Settings -> Fields and sectors.
-- Migration: `20260728150000_custom_section_target`.
-
-## Batch MOS Document Submission (2026-07-29)
-
-- The MOS document list in a case supports selecting several documents before submission.
-- Users can select documents individually, select a range with Shift, or select all available documents.
-- One submission date is applied to the whole selected batch.
-- `POST /api/cases/[id]/mos-documents/submit` validates authentication, organization/case scope, configured MOS options, batch size, and the non-future submission date.
-- The endpoint creates completed MOS `Task` records with one atomic `createMany` operation and skips documents already submitted for the case.
-- The previous one-document workflow remains available by selecting a single checkbox.
+Do not read, print, copy, or commit `.env` files, passwords, API keys, access
+tokens, or other secrets. Production values are managed outside the repository.
