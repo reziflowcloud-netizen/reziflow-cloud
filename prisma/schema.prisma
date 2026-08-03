@@ -503,6 +503,10 @@ model Case {
   mosEmail              String?
   filingDate            DateTime?
   personalAppearDate    DateTime?
+  personalAppearLocation String?
+  cardPickupDate        DateTime?
+  cardPickupTime        String?
+  cardPickupLocation    String?
   legalStayDeadline     DateTime?
   totalValue            Float            @default(0)
   totalPaid             Float            @default(0)
@@ -533,13 +537,14 @@ model Case {
 }
 
 model Payment {
-  id        String   @id @default(cuid())
-  caseId    String
-  case      Case     @relation(fields: [caseId], references: [id])
-  amount    Float
-  date      DateTime @default(now())
-  note      String?
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  caseId        String
+  case          Case     @relation(fields: [caseId], references: [id])
+  amount        Float
+  date          DateTime @default(now())
+  note          String?
+  specialMethod Boolean  @default(false)
+  createdAt     DateTime @default(now())
 }
 
 model Document {

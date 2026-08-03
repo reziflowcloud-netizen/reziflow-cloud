@@ -7,9 +7,20 @@ import CollapsibleCardsBehavior from '@/components/CollapsibleCardsBehavior'
 import SectionVisibilityBehavior from '@/components/SectionVisibilityBehavior'
 import CustomSectionsRenderer, { type CustomSectionsHandle } from '@/components/CustomSectionsRenderer'
 import { caseStatusLabel, isArchiveCaseStatus } from '@/lib/caseI18n'
+import { VOIVODESHIP_OFFICE_GROUPS } from '@/lib/voivodeshipOffices'
 
 const WORK_TYPE = 'Выконывание пацы (Работа)'
 const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
+
+function VoivodeshipOfficeOptions() {
+  return <>
+    {VOIVODESHIP_OFFICE_GROUPS.map(group => (
+      <optgroup key={group.voivodeship} label={group.voivodeship}>
+        {group.offices.map(office => <option key={office} value={office}>{office}</option>)}
+      </optgroup>
+    ))}
+  </>
+}
 
 export default function CaseDetailPage() {
   const { id } = useParams()
@@ -32,6 +43,7 @@ export default function CaseDetailPage() {
   const [saving, setSaving] = useState(false)
   const [payAmount, setPayAmount] = useState('')
   const [payNote, setPayNote] = useState('')
+  const [paySpecialMethod, setPaySpecialMethod] = useState(false)
   const [editingPayment, setEditingPayment] = useState<any>(null)
   const [paymentPlan, setPaymentPlan] = useState([{ amount: '', dueDate: '' }])
   const [plannedPayments, setPlannedPayments] = useState<any[]>([])
@@ -111,6 +123,10 @@ export default function CaseDetailPage() {
         mosEmail: data.mosEmail || '',
         filingDate: data.filingDate?.slice(0, 10) || '',
         personalAppearDate: data.personalAppearDate?.slice(0, 10) || '',
+        personalAppearLocation: data.personalAppearLocation || '',
+        cardPickupDate: data.cardPickupDate?.slice(0, 10) || '',
+        cardPickupTime: data.cardPickupTime || '',
+        cardPickupLocation: data.cardPickupLocation || '',
         legalStayDeadline: data.legalStayDeadline?.slice(0, 10) || '',
         notes: data.notes || '',
         // Новые поля
@@ -680,8 +696,8 @@ export default function CaseDetailPage() {
 
   async function addPayment() {
     if (!payAmount) return
-    await fetch(`/api/cases/${id}/payments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: payAmount, note: payNote }) })
-    await refreshCase(); setPayAmount(''); setPayNote('')
+    await fetch(`/api/cases/${id}/payments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: payAmount, note: payNote, specialMethod: paySpecialMethod }) })
+    await refreshCase(); setPayAmount(''); setPayNote(''); setPaySpecialMethod(false)
   }
 
   function startEditPayment(p: any) {
@@ -689,6 +705,7 @@ export default function CaseDetailPage() {
       id: p.id,
       amount: p.amount?.toString() || '',
       note: p.note || '',
+      specialMethod: p.specialMethod === true,
       date: p.date?.slice(0, 10) || new Date(p.date).toISOString().slice(0, 10),
     })
   }
@@ -1397,18 +1414,46 @@ export default function CaseDetailPage() {
                 <div className="card" data-collapse-key="case-important-dates" data-section-scope="case" data-section-key="case-important-dates" style={{ marginBottom: 16 }}>
                   <div className="section-title"><span>📅</span>{t('important_dates')}</div>
                   {/* Фиксированные даты */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 12 }}>
                     <div className="form-group">
                       <label className="label">{t('filing_date')}</label>
                       <input className="input" type="date" value={form.filingDate} onChange={e => set('filingDate', e.target.value)} />
                     </div>
                     <div className="form-group">
+                      <label className="label">{t('legal_stay_deadline')}</label>
+                      <input className="input" type="date" value={form.legalStayDeadline} onChange={e => set('legalStayDeadline', e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 12, marginBottom: 12 }}>
+                    <div className="form-group">
                       <label className="label">{t('personal_visit')}</label>
                       <input className="input" type="date" value={form.personalAppearDate} onChange={e => set('personalAppearDate', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label className="label">{t('legal_stay_deadline')}</label>
-                      <input className="input" type="date" value={form.legalStayDeadline} onChange={e => set('legalStayDeadline', e.target.value)} />
+                      <label className="label">{t('personal_visit_location')}</label>
+                      <select className="select" value={form.personalAppearLocation} onChange={e => set('personalAppearLocation', e.target.value)}>
+                        <option value="">{t('select_office')}</option>
+                        <VoivodeshipOfficeOptions />
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12, marginBottom: 16 }}>
+                    <div className="form-group">
+                      <label className="label">{t('card_pickup_date')}</label>
+                      <input className="input" type="date" value={form.cardPickupDate} onChange={e => set('cardPickupDate', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="label">{t('card_pickup_time')}</label>
+                      <input className="input" type="time" value={form.cardPickupTime} onChange={e => set('cardPickupTime', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="label">{t('card_pickup_location')}</label>
+                      <select className="select" value={form.cardPickupLocation} onChange={e => set('cardPickupLocation', e.target.value)}>
+                        <option value="">{t('select_office')}</option>
+                        <VoivodeshipOfficeOptions />
+                      </select>
                     </div>
                   </div>
 
@@ -1479,9 +1524,13 @@ export default function CaseDetailPage() {
               <div>
                 <div className="card" style={{ borderRadius: '0 0 10px 10px', marginBottom: 16 }}>
                   <div className="section-title"><span>➕</span>{t('add_payment_section')}</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <input className="input" type="number" placeholder={`${t('amount')} (zł)`} value={payAmount} onChange={e => setPayAmount(e.target.value)} step="0.01" style={{ maxWidth: 150 }} />
-                    <input className="input" placeholder={t('note')} value={payNote} onChange={e => setPayNote(e.target.value)} />
+                    <input className="input" placeholder={t('note')} value={payNote} onChange={e => setPayNote(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
+                    <label title={t('special_payment_method')} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, minWidth: 48, height: 38, border: '1px solid var(--border)', borderRadius: 8, background: paySpecialMethod ? '#ecfdf5' : 'var(--surface)', color: paySpecialMethod ? '#15803d' : 'var(--muted)', cursor: 'pointer', fontWeight: 800 }}>
+                      <input type="checkbox" checked={paySpecialMethod} onChange={e => setPaySpecialMethod(e.target.checked)} aria-label={t('special_payment_method')} />
+                      $
+                    </label>
                     <button onClick={addPayment} className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>{t('add')}</button>
                   </div>
                 </div>
@@ -1537,10 +1586,10 @@ export default function CaseDetailPage() {
                 <div className="table-container">
                   <div style={{ padding: '14px 16px 0', fontWeight: 600 }}>{t('received_payments')}</div>
                   <table className="table">
-                    <thead><tr><th>{t('date')}</th><th>{t('amount')}</th><th>{t('note')}</th><th></th></tr></thead>
+                    <thead><tr><th>{t('date')}</th><th>{t('amount')}</th><th>{t('note')}</th><th style={{ width: 48, textAlign: 'center' }}>$</th><th></th></tr></thead>
                     <tbody>
                       {(c.payments||[]).length === 0 ? (
-                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>{t('no_payments')}</td></tr>
+                        <tr><td colSpan={5} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>{t('no_payments')}</td></tr>
                       ) : (c.payments||[]).map((p: any) => (
                         <tr key={p.id}>
                           {editingPayment?.id === p.id ? (
@@ -1548,6 +1597,7 @@ export default function CaseDetailPage() {
                               <td><input className="input" type="date" value={editingPayment.date} onChange={e => setEditingPayment((prev: any) => ({ ...prev, date: e.target.value }))} /></td>
                               <td><input className="input" type="number" value={editingPayment.amount} onChange={e => setEditingPayment((prev: any) => ({ ...prev, amount: e.target.value }))} step="0.01" /></td>
                               <td><input className="input" value={editingPayment.note} onChange={e => setEditingPayment((prev: any) => ({ ...prev, note: e.target.value }))} /></td>
+                              <td style={{ textAlign: 'center' }}><input type="checkbox" checked={editingPayment.specialMethod === true} onChange={e => setEditingPayment((prev: any) => ({ ...prev, specialMethod: e.target.checked }))} aria-label={t('special_payment_method')} /></td>
                               <td style={{ whiteSpace: 'nowrap' }}>
                                 <button onClick={savePaymentEdit} className="btn btn-primary" style={{ padding: '6px 10px', marginRight: 6 }}>{t('save')}</button>
                                 <button onClick={() => setEditingPayment(null)} className="btn btn-secondary" style={{ padding: '6px 10px' }}>{t('cancel')}</button>
@@ -1558,6 +1608,7 @@ export default function CaseDetailPage() {
                               <td>{new Date(p.date).toLocaleDateString(locale)}</td>
                               <td style={{ color: '#16a34a', fontWeight: 600 }}>+{p.amount.toFixed(2)} zł</td>
                               <td>{p.note || '—'}</td>
+                              <td style={{ textAlign: 'center' }}>{p.specialMethod ? <span title={t('special_payment_method')} style={{ display: 'inline-flex', width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: 999, background: '#dcfce7', color: '#15803d', fontWeight: 900 }}>$</span> : '—'}</td>
                               <td style={{ whiteSpace: 'nowrap' }}>
                                 <button onClick={() => startEditPayment(p)} className="btn btn-ghost" style={{ padding: '6px 10px', marginRight: 6 }}>{t('edit')}</button>
                                 <button onClick={() => deletePayment(p.id)} className="btn" style={{ padding: '6px 10px', background: '#fef2f2', color: '#dc2626' }}>{t('delete')}</button>

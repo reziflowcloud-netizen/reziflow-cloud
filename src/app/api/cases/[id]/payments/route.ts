@@ -13,12 +13,16 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   const body = await request.json()
   const amount = parseFloat(body.amount)
+  if (!Number.isFinite(amount)) {
+    return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
+  }
 
   const payment = await prisma.payment.create({
     data: {
       caseId: params.id,
       amount,
       note: body.note || null,
+      specialMethod: body.specialMethod === true,
       date: body.date ? new Date(body.date) : new Date(),
     }
   })

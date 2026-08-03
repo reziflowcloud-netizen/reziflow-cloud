@@ -62,6 +62,8 @@ async function syncCaseImportantDateTask(args: {
   kind: string
   title: string
   date?: string | Date | null
+  time?: string | null
+  location?: string | null
 }) {
   const existing = await prisma.task.findFirst({
     where: {
@@ -84,7 +86,13 @@ async function syncCaseImportantDateTask(args: {
   const dueDate = new Date(args.date)
   if (Number.isNaN(dueDate.getTime())) return
   const dateOnly = dueDate.toISOString().slice(0, 10)
+  const reminderTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(args.time || '')) ? args.time : '09:00'
   const caseLabel = args.caseRecord.caseNumber || 'без номера'
+  const reminderDetails = [
+    `${args.title} по делу ${caseLabel}`,
+    args.time ? `Время: ${args.time}` : '',
+    args.location ? `Место: ${args.location}` : '',
+  ].filter(Boolean).join(' · ')
   const data = {
     organizationId: args.organizationId,
     title: args.title,
@@ -94,9 +102,14 @@ async function syncCaseImportantDateTask(args: {
     assignedToId: args.caseRecord.assignedToId || null,
     status: existing?.status || 'todo',
     description: JSON.stringify({
-      reminderAt: `${dateOnly}T09:00`,
-      reminderNote: `${args.title} по делу ${caseLabel}`,
-      caseImportantDate: { caseId: args.caseRecord.id, caseNumber: args.caseRecord.caseNumber || null, kind: args.kind },
+      reminderAt: `${dateOnly}T${reminderTime}`,
+      reminderNote: reminderDetails,
+      caseImportantDate: {
+        caseId: args.caseRecord.id,
+        caseNumber: args.caseRecord.caseNumber || null,
+        kind: args.kind,
+        location: args.location || null,
+      },
     }),
   }
 
@@ -124,6 +137,16 @@ async function syncFixedImportantDateTasks(organizationId: string, caseRecord: a
     kind: 'personalAppearDate',
     title: 'Личная явка',
     date: personalAppearDate,
+    location: caseRecord.personalAppearLocation,
+  })
+  await syncCaseImportantDateTask({
+    organizationId,
+    caseRecord,
+    kind: 'cardPickupDate',
+    title: caseRecord.cardPickupTime ? `Отбор карты — ${caseRecord.cardPickupTime}` : 'Отбор карты',
+    date: caseRecord.cardPickupDate,
+    time: caseRecord.cardPickupTime,
+    location: caseRecord.cardPickupLocation,
   })
   await syncCaseImportantDateTask({
     organizationId,
@@ -218,6 +241,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (has('mosEmail')) baseData.mosEmail = nullableText('mosEmail')
     if (has('filingDate')) baseData.filingDate = nullableDate('filingDate')
     if (has('personalAppearDate')) baseData.personalAppearDate = nullableDate('personalAppearDate')
+    if (has('personalAppearLocation')) baseData.personalAppearLocation = nullableText('personalAppearLocation')
+    if (has('cardPickupDate')) baseData.cardPickupDate = nullableDate('cardPickupDate')
+    if (has('cardPickupTime')) {
+      const cardPickupTime = nullableText('cardPickupTime')
+      if (cardPickupTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(cardPickupTime)) {
+        return NextResponse.json({ error: 'Invalid card pickup time' }, { status: 400 })
+      }
+      baseData.cardPickupTime = cardPickupTime
+    }
+    if (has('cardPickupLocation')) baseData.cardPickupLocation = nullableText('cardPickupLocation')
     if (has('legalStayDeadline')) baseData.legalStayDeadline = nullableDate('legalStayDeadline')
     if (has('notes')) baseData.notes = body.notes || null
     if (has('serviceId')) baseData.serviceId = body.serviceId ? parseInt(body.serviceId) : null

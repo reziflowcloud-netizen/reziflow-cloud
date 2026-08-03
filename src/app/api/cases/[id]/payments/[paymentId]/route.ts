@@ -35,6 +35,7 @@ export async function PATCH(
     data: {
       amount,
       note: body.note || null,
+      specialMethod: body.specialMethod === true,
       date: body.date ? new Date(body.date) : new Date(),
     },
   })
