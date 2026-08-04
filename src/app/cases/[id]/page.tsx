@@ -792,6 +792,18 @@ export default function CaseDetailPage() {
     await loadCaseTasks()
   }
 
+  async function deletePlannedPayment(planId: string) {
+    if (!confirm(t('delete_planned_payment_confirm'))) return
+    const res = await fetch(`/api/tasks/${planId}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      alert(`${t('delete_planned_payment_failed')}: ${err.error || res.status}`)
+      return
+    }
+    await loadPlannedPayments()
+    await loadCaseTasks()
+  }
+
   async function createClientTask() {
     if (!taskTitle.trim()) return
     setTaskSaving(true)
@@ -1573,9 +1585,12 @@ export default function CaseDetailPage() {
                           <td>{plan.dueDate ? new Date(plan.dueDate).toLocaleDateString(locale) : '—'}</td>
                           <td style={{ fontWeight: 700 }}>{parseFloat(plan.amount || '0').toFixed(2)} zł</td>
                           <td>{plan.note || plan.title}</td>
-                          <td style={{ textAlign: 'right' }}>
+                          <td style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
                             <button onClick={() => convertPlannedPayment(plan)} className="btn btn-primary" style={{ padding: '6px 12px' }}>
                               {t('convert_to_paid')}
+                            </button>
+                            <button onClick={() => deletePlannedPayment(plan.id)} className="btn" style={{ padding: '6px 12px', background: '#fef2f2', color: '#dc2626' }}>
+                              {t('delete')}
                             </button>
                           </td>
                         </tr>
