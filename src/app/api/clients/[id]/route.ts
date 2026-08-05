@@ -14,6 +14,58 @@ function dateOrNull(value: any) {
   return value ? new Date(value) : null
 }
 
+function isRentalLegalTitle(value: unknown) {
+  const title = String(value || '').trim().toLowerCase()
+  return title.includes('najem') || title.includes('wynajem')
+}
+
+async function syncRentalEndTask(tx: any, organizationId: string, client: any) {
+  const existingTasks = await tx.task.findMany({
+    where: {
+      organizationId,
+      AND: [
+        { description: { contains: '"clientRentalEnd"' } },
+        { description: { contains: `"clientId":"${client.id}"` } },
+      ],
+    },
+    orderBy: { createdAt: 'asc' },
+  })
+
+  if (!isRentalLegalTitle(client.legalTitle) || !client.rentalEndDate) {
+    if (existingTasks.length > 0) {
+      await tx.task.deleteMany({ where: { id: { in: existingTasks.map((task: any) => task.id) } } })
+    }
+    return
+  }
+
+  const rentalEndDate = new Date(client.rentalEndDate)
+  if (Number.isNaN(rentalEndDate.getTime())) return
+  const dateOnly = rentalEndDate.toISOString().slice(0, 10)
+  const clientName = `${client.firstName || ''} ${client.lastName || ''}`.trim()
+  const existing = existingTasks[0]
+  const data = {
+    organizationId,
+    title: 'Конец аренды жилья',
+    priority: existing?.priority || 'Нормально',
+    status: existing?.status || 'todo',
+    dueDate: rentalEndDate,
+    clientName: clientName || null,
+    assignedToId: client.assignedToId || null,
+    description: JSON.stringify({
+      reminderAt: `${dateOnly}T09:00`,
+      reminderNote: clientName ? `Конец аренды жилья клиента ${clientName}` : 'Конец аренды жилья',
+      clientRentalEnd: { clientId: client.id },
+    }),
+  }
+
+  if (existing) await tx.task.update({ where: { id: existing.id }, data })
+  else await tx.task.create({ data })
+
+  if (existingTasks.length > 1) {
+    await tx.task.deleteMany({ where: { id: { in: existingTasks.slice(1).map((task: any) => task.id) } } })
+  }
+}
+
 function normalizePreviousPolandStays(value: any) {
   if (!Array.isArray(value)) return []
   return value
@@ -272,6 +324,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
           })
         }
       }
+
+      await syncRentalEndTask(tx, organizationId, updated)
 
       return shouldUpdatePhones
         ? await (tx as any).client.findUnique({
