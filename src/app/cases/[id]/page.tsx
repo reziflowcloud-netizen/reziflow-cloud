@@ -123,6 +123,7 @@ export default function CaseDetailPage() {
         mosEmail: data.mosEmail || '',
         filingDate: data.filingDate?.slice(0, 10) || '',
         personalAppearDate: data.personalAppearDate?.slice(0, 10) || '',
+        personalAppearTime: data.personalAppearTime || '',
         personalAppearLocation: data.personalAppearLocation || '',
         cardPickupDate: data.cardPickupDate?.slice(0, 10) || '',
         cardPickupTime: data.cardPickupTime || '',
@@ -1437,18 +1438,23 @@ export default function CaseDetailPage() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 12, marginBottom: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12, marginBottom: 12 }}>
                     <div className="form-group">
                       <label className="label">{t('personal_visit')}</label>
                       <input className="input" type="date" value={form.personalAppearDate} onChange={e => set('personalAppearDate', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label className="label">{t('personal_visit_location')}</label>
-                      <select className="select" value={form.personalAppearLocation} onChange={e => set('personalAppearLocation', e.target.value)}>
-                        <option value="">{t('select_office')}</option>
-                        <VoivodeshipOfficeOptions />
-                      </select>
+                      <label className="label">{t('personal_visit_time')}</label>
+                      <input className="input" type="time" value={form.personalAppearTime} onChange={e => set('personalAppearTime', e.target.value)} />
                     </div>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 12 }}>
+                    <label className="label">{t('personal_visit_location')}</label>
+                    <select className="select" value={form.personalAppearLocation} onChange={e => set('personalAppearLocation', e.target.value)}>
+                      <option value="">{t('select_office')}</option>
+                      <VoivodeshipOfficeOptions />
+                    </select>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12, marginBottom: 16 }}>

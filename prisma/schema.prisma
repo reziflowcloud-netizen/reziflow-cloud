@@ -503,6 +503,7 @@ model Case {
   mosEmail              String?
   filingDate            DateTime?
   personalAppearDate    DateTime?
+  personalAppearTime    String?
   personalAppearLocation String?
   cardPickupDate        DateTime?
   cardPickupTime        String?

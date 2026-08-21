@@ -135,8 +135,9 @@ async function syncFixedImportantDateTasks(organizationId: string, caseRecord: a
     organizationId,
     caseRecord,
     kind: 'personalAppearDate',
-    title: 'Личная явка',
+    title: caseRecord.personalAppearTime ? `Личная явка — ${caseRecord.personalAppearTime}` : 'Личная явка',
     date: personalAppearDate,
+    time: caseRecord.personalAppearTime,
     location: caseRecord.personalAppearLocation,
   })
   await syncCaseImportantDateTask({
@@ -241,6 +242,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (has('mosEmail')) baseData.mosEmail = nullableText('mosEmail')
     if (has('filingDate')) baseData.filingDate = nullableDate('filingDate')
     if (has('personalAppearDate')) baseData.personalAppearDate = nullableDate('personalAppearDate')
+    if (has('personalAppearTime')) {
+      const personalAppearTime = nullableText('personalAppearTime')
+      if (personalAppearTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(personalAppearTime)) {
+        return NextResponse.json({ error: 'Invalid personal appearance time' }, { status: 400 })
+      }
+      baseData.personalAppearTime = personalAppearTime
+    }
     if (has('personalAppearLocation')) baseData.personalAppearLocation = nullableText('personalAppearLocation')
     if (has('cardPickupDate')) baseData.cardPickupDate = nullableDate('cardPickupDate')
     if (has('cardPickupTime')) {
