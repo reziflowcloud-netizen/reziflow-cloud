@@ -1447,14 +1447,13 @@ export default function CaseDetailPage() {
                       <label className="label">{t('personal_visit_time')}</label>
                       <input className="input" type="time" value={form.personalAppearTime} onChange={e => set('personalAppearTime', e.target.value)} />
                     </div>
-                  </div>
-
-                  <div className="form-group" style={{ marginBottom: 12 }}>
-                    <label className="label">{t('personal_visit_location')}</label>
-                    <select className="select" value={form.personalAppearLocation} onChange={e => set('personalAppearLocation', e.target.value)}>
-                      <option value="">{t('select_office')}</option>
-                      <VoivodeshipOfficeOptions />
-                    </select>
+                    <div className="form-group">
+                      <label className="label">{t('personal_visit_location')}</label>
+                      <select className="select" value={form.personalAppearLocation} onChange={e => set('personalAppearLocation', e.target.value)}>
+                        <option value="">{t('select_office')}</option>
+                        <VoivodeshipOfficeOptions />
+                      </select>
+                    </div>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12, marginBottom: 16 }}>
