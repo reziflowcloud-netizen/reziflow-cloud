@@ -441,9 +441,9 @@ const ruMarketingCopy: MarketingCopy = {
         text: 'Для знакомства с CRM и первых клиентов без ограничения по времени.',
         items: [
           '1 пользователь',
-          'До 10 клиентов',
-          'До 10 активных дел',
-          'До 20 лидов',
+          'До 50 клиентов',
+          'До 50 активных дел',
+          'До 50 лидов',
           'Услуги, статусы, задачи, календарь и документы',
         ],
         buttonLabel: 'Попробовать бесплатно',
@@ -457,9 +457,9 @@ const ruMarketingCopy: MarketingCopy = {
         text: 'Для одного специалиста или маленькой команды, которая уже ведёт регулярную работу.',
         items: [
           'До 3 пользователей',
-          'До 50 клиентов',
-          'До 50 активных дел',
-          'До 80 лидов',
+          'До 100 клиентов',
+          'До 100 активных дел',
+          'До 100 лидов',
           'Импорт базы, документы, оплаты, задачи и календарь',
         ],
         buttonLabel: 'Начать со Starter',
@@ -521,7 +521,7 @@ const ruMarketingCopy: MarketingCopy = {
       },
       {
         question: 'Бесплатный тариф действительно навсегда?',
-        answer: 'Да. Free можно использовать без ограничения по времени, пока вы укладываетесь в лимиты: 1 пользователь, до 10 клиентов, 10 активных дел и 20 лидов.',
+        answer: 'Да. Free можно использовать без ограничения по времени, пока вы укладываетесь в лимиты: 1 пользователь, до 50 клиентов, 50 активных дел и 50 лидов.',
       },
       {
         question: 'Сколько времени занимает запуск?',
@@ -695,9 +695,9 @@ const ukMarketingCopy: MarketingCopy = {
         text: 'Для знайомства з CRM і перших клієнтів без обмеження за часом.',
         items: [
           '1 користувач',
-          'До 10 клієнтів',
-          'До 10 активних справ',
-          'До 20 лідів',
+          'До 50 клієнтів',
+          'До 50 активних справ',
+          'До 50 лідів',
           'Послуги, статуси, задачі, календар і документи',
         ],
         buttonLabel: 'Спробувати безкоштовно',
@@ -711,9 +711,9 @@ const ukMarketingCopy: MarketingCopy = {
         text: 'Для одного спеціаліста або маленької команди, яка вже веде регулярну роботу.',
         items: [
           'До 3 користувачів',
-          'До 50 клієнтів',
-          'До 50 активних справ',
-          'До 80 лідів',
+          'До 100 клієнтів',
+          'До 100 активних справ',
+          'До 100 лідів',
           'Імпорт бази, документи, оплати, задачі та календар',
         ],
         buttonLabel: 'Почати зі Starter',
@@ -775,7 +775,7 @@ const ukMarketingCopy: MarketingCopy = {
       },
       {
         question: 'Безкоштовний тариф справді назавжди?',
-        answer: 'Так. Free можна використовувати без обмеження за часом, поки ви вкладаєтесь у ліміти: 1 користувач, до 10 клієнтів, 10 активних справ і 20 лідів.',
+        answer: 'Так. Free можна використовувати без обмеження за часом, поки ви вкладаєтесь у ліміти: 1 користувач, до 50 клієнтів, 50 активних справ і 50 лідів.',
       },
       {
         question: 'Скільки часу займає запуск?',
@@ -945,9 +945,9 @@ const enMarketingCopy: MarketingCopy = {
         text: 'For getting to know the CRM and managing your first clients without a time limit.',
         items: [
           '1 user',
-          'Up to 10 clients',
-          'Up to 10 active cases',
-          'Up to 20 leads',
+          'Up to 50 clients',
+          'Up to 50 active cases',
+          'Up to 50 leads',
           'Services, statuses, tasks, calendar and documents',
         ],
         buttonLabel: 'Try for free',
@@ -961,9 +961,9 @@ const enMarketingCopy: MarketingCopy = {
         text: 'For one specialist or a small team already working regularly.',
         items: [
           'Up to 3 users',
-          'Up to 50 clients',
-          'Up to 50 active cases',
-          'Up to 80 leads',
+          'Up to 100 clients',
+          'Up to 100 active cases',
+          'Up to 100 leads',
           'Database import, documents, payments, tasks and calendar',
         ],
         buttonLabel: 'Start with Starter',
@@ -1025,7 +1025,7 @@ const enMarketingCopy: MarketingCopy = {
       },
       {
         question: 'Is the Free plan really free forever?',
-        answer: 'Yes. You can use Free without a time limit while you stay within the limits: 1 user, up to 10 clients, 10 active cases and 20 leads.',
+        answer: 'Yes. You can use Free without a time limit while you stay within the limits: 1 user, up to 50 clients, 50 active cases and 50 leads.',
       },
       {
         question: 'How long does launch take?',
@@ -1195,9 +1195,9 @@ const plMarketingCopy: MarketingCopy = {
         text: 'Do poznania CRM i obsługi pierwszych klientów bez limitu czasu.',
         items: [
           '1 użytkownik',
-          'Do 10 klientów',
-          'Do 10 aktywnych spraw',
-          'Do 20 leadów',
+          'Do 50 klientów',
+          'Do 50 aktywnych spraw',
+          'Do 50 leadów',
           'Usługi, statusy, zadania, kalendarz i dokumenty',
         ],
         buttonLabel: 'Spróbuj bezpłatnie',
@@ -1211,9 +1211,9 @@ const plMarketingCopy: MarketingCopy = {
         text: 'Dla jednego specjalisty albo małego zespołu, który pracuje już regularnie.',
         items: [
           'Do 3 użytkowników',
-          'Do 50 klientów',
-          'Do 50 aktywnych spraw',
-          'Do 80 leadów',
+          'Do 100 klientów',
+          'Do 100 aktywnych spraw',
+          'Do 100 leadów',
           'Import bazy, dokumenty, płatności, zadania i kalendarz',
         ],
         buttonLabel: 'Zacznij od Starter',
@@ -1275,7 +1275,7 @@ const plMarketingCopy: MarketingCopy = {
       },
       {
         question: 'Czy taryfa Free naprawdę jest bez limitu czasu?',
-        answer: 'Tak. Free można używać bez limitu czasu, dopóki mieścisz się w limitach: 1 użytkownik, do 10 klientów, 10 aktywnych spraw i 20 leadów.',
+        answer: 'Tak. Free można używać bez limitu czasu, dopóki mieścisz się w limitach: 1 użytkownik, do 50 klientów, 50 aktywnych spraw i 50 leadów.',
       },
       {
         question: 'Ile trwa uruchomienie?',

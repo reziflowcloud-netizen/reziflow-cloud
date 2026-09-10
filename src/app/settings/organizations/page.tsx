@@ -525,8 +525,8 @@ export default function OrganizationsPage() {
         )}
 
         <div className="table-container">
-          <div className="table-scroll">
-            <table className="table">
+          <div className="table-scroll organizations-table-scroll">
+            <table className="table organizations-table">
               <thead>
                 <tr>
                   <th>{t('administrator')}</th>

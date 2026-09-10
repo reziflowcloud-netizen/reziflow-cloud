@@ -850,6 +850,13 @@ body { background: var(--bg); color: var(--text); transition: background 0.2s, c
 .table td { padding: 12px 14px; border-bottom: 1px solid var(--border); color: var(--text); font-size: 13px; }
 .table tr:last-child td { border-bottom: none; }
 .table tbody tr:hover { background: var(--bg); }
+.organizations-table-scroll { max-height: calc(100vh - 190px); overflow: auto; }
+.organizations-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 1px 0 var(--border);
+}
 
 /* ─── Forms ──────────────────────────────── */
 .form-group { margin-bottom: 14px; }
