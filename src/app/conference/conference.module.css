@@ -162,17 +162,28 @@
 
 .dashboardFrame {
   position: relative;
-  width: calc(100% - 10px);
-  margin-top: 20px !important;
-  margin-right: auto !important;
-  margin-left: auto !important;
-  padding: 8px;
+  width: 124%;
+  margin-top: 24px !important;
+  margin-right: -28% !important;
+  margin-left: 4% !important;
+  padding: 9px;
   border: 1px solid rgba(58, 211, 239, 0.7);
-  border-radius: 22px;
+  border-radius: 25px;
   background: linear-gradient(135deg, rgba(26, 205, 235, 0.17), rgba(4, 17, 30, 0.82));
-  box-shadow: 0 0 34px rgba(16, 192, 222, 0.2);
-  transform: rotate(-2deg);
-  transform-origin: 50% 50%;
+  box-shadow:
+    -12px 12px 30px rgba(9, 199, 231, 0.22),
+    0 0 42px rgba(16, 192, 222, 0.2);
+  transform: perspective(760px) rotateX(1.5deg) rotateY(-9deg) rotateZ(-2.1deg);
+  transform-origin: left center;
+}
+
+.dashboardFrame::after {
+  position: absolute;
+  inset: 4px;
+  pointer-events: none;
+  border: 1px solid rgba(130, 231, 247, 0.2);
+  border-radius: 20px;
+  content: '';
 }
 
 .dashboardCrop {
@@ -191,12 +202,13 @@
   position: relative;
   z-index: 2;
   background:
-    radial-gradient(circle at 13% 12%, rgba(10, 184, 216, 0.08), transparent 26%),
+    radial-gradient(ellipse at 50% 0%, rgba(38, 207, 232, 0.2), transparent 72px),
+    linear-gradient(to bottom, #03101d 0, #0b3548 18px, #7caebb 40px, #e5f3f6 58px, #f7fafc 74px),
     #f7fafc;
   color: var(--ink);
 }
 
-.benefitsInner { padding: 32px 18px 25px; }
+.benefitsInner { padding: 62px 18px 25px; }
 .benefitList { display: grid; gap: 11px; }
 
 .benefitList article {
@@ -336,15 +348,17 @@
 
   .dashboardFrame {
     grid-area: dashboard;
-    width: 100%;
+    width: calc(100% + 150px);
     margin-top: 24px !important;
+    margin-right: -150px !important;
+    margin-left: 12px !important;
     padding: 12px;
     border-radius: 30px;
-    transform: rotate(-2deg);
+    transform: perspective(1100px) rotateX(1.5deg) rotateY(-8deg) rotateZ(-1.8deg);
   }
 
   .dashboardCrop { border-radius: 20px; }
-  .benefitsInner { padding: 54px 0 30px; }
+  .benefitsInner { padding: 78px 0 30px; }
   .benefitList { grid-template-columns: repeat(3, 1fr); gap: 14px; }
   .benefitList article { min-height: 150px; align-items: flex-start; padding: 22px; }
   .icon { width: 48px; height: 48px; flex-basis: 48px; }
@@ -361,7 +375,11 @@
   .hero h1 { font-size: 36px; }
   .heroContent > p { font-size: 14px; }
   .primaryButton, .secondaryButton { min-height: 51px; font-size: 14px; }
-  .dashboardFrame { width: calc(100% - 8px); }
+  .dashboardFrame {
+    width: 125%;
+    margin-right: -29% !important;
+    margin-left: 4% !important;
+  }
   .benefitList article { padding: 13px; }
   .icon { width: 48px; height: 48px; flex-basis: 48px; }
   .benefitList h2 { font-size: 15px; }
