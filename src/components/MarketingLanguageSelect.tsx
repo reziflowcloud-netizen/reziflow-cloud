@@ -2,9 +2,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMarketingLanguage } from '@/hooks/useMarketingLanguage'
 import { LANGUAGE_OPTIONS } from '@/lib/marketingI18n'
+import type { MarketingLang } from '@/lib/marketingI18n'
 
-export default function MarketingLanguageSelect() {
-  const { lang, setLang } = useMarketingLanguage()
+export default function MarketingLanguageSelect({ defaultLang }: { defaultLang?: MarketingLang }) {
+  const { lang, setLang } = useMarketingLanguage(defaultLang)
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const active = LANGUAGE_OPTIONS.find(option => option.code === lang) || LANGUAGE_OPTIONS[1]

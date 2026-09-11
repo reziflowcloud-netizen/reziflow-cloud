@@ -15,17 +15,16 @@ function applyDocumentLang(lang: MarketingLang) {
   document.documentElement.dataset.marketingLang = lang
 }
 
-function readSavedLang(): MarketingLang {
-  return normalizeMarketingLang(
-    localStorage.getItem(MARKETING_LANG_STORAGE_KEY) || localStorage.getItem(APP_LANG_STORAGE_KEY),
-  )
+function readSavedLang(fallback: MarketingLang): MarketingLang {
+  const saved = localStorage.getItem(MARKETING_LANG_STORAGE_KEY) || localStorage.getItem(APP_LANG_STORAGE_KEY)
+  return saved ? normalizeMarketingLang(saved) : fallback
 }
 
-export function useMarketingLanguage() {
-  const [lang, setLangState] = useState<MarketingLang>(DEFAULT_MARKETING_LANG)
+export function useMarketingLanguage(defaultLang: MarketingLang = DEFAULT_MARKETING_LANG) {
+  const [lang, setLangState] = useState<MarketingLang>(defaultLang)
 
   useEffect(() => {
-    const saved = readSavedLang()
+    const saved = readSavedLang(defaultLang)
     setLangState(saved)
     applyDocumentLang(saved)
 
@@ -37,7 +36,7 @@ export function useMarketingLanguage() {
 
     function onStorage(event: StorageEvent) {
       if (event.key === MARKETING_LANG_STORAGE_KEY || event.key === APP_LANG_STORAGE_KEY) {
-        const next = readSavedLang()
+        const next = readSavedLang(defaultLang)
         setLangState(next)
         applyDocumentLang(next)
       }
@@ -49,7 +48,7 @@ export function useMarketingLanguage() {
       window.removeEventListener(MARKETING_LANG_CHANGE_EVENT, onMarketingLangChange)
       window.removeEventListener('storage', onStorage)
     }
-  }, [])
+  }, [defaultLang])
 
   const setLang = useCallback((nextValue: MarketingLang) => {
     const next = normalizeMarketingLang(nextValue)

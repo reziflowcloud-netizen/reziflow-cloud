@@ -6,10 +6,10 @@ const secret = new TextEncoder().encode(
   process.env.JWT_SECRET || 'migraflow-secret-key-change-in-production'
 )
 
-export async function signToken(payload: Record<string, unknown>) {
+export async function signToken(payload: Record<string, unknown>, expiresIn: string | number = '7d') {
   return await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
-    .setExpirationTime('7d')
+    .setExpirationTime(expiresIn)
     .sign(secret)
 }
 

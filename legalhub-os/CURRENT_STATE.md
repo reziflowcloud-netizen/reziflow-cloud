@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-07-24
+Last updated: 2026-09-11
 
 ## Marketing OS status
 
@@ -29,6 +29,40 @@ Marketing foundation files:
 - `VISUAL_BRAND_GUIDE.md`
 
 ## Latest completed work
+
+A complete offline-conference campaign was created on 2026-09-11:
+
+- Added a dual-route conference funnel: a primary flyer QR to a concise
+  conference landing page and a secondary fast route to the existing LegalHub
+  CRM demo account.
+- Created complete Ukrainian and Polish copy variants for the DL flyer and
+  conference landing page without choosing the final conference language.
+- Kept the flyer single-language by default; bilingual remains a separate
+  owner decision because the DL format cannot carry both full copy variants.
+- Defined an exact 99 × 210 mm double-sided print layout, separate QR
+  hierarchy, reserved QR areas, screenshot specifications, brand treatment,
+  and print/digital QA.
+- Defined trackable conference URLs, UTM values, four required events,
+  attribution behavior, reporting, and Development handoff.
+- Specified that the demo route must use the existing shared demo account and
+  approved fake data, without creating a conference organization or embedding
+  login credentials/session tokens in the QR or URL.
+- Marked analytics provider, language, event identity, and demo-session safety
+  model as implementation or owner decisions.
+
+Conference deliverables:
+
+- conference/CONFERENCE_CAMPAIGN.md
+- conference/LANDING_PAGE_COPY.md
+- conference/FLYER_COPY.md
+- conference/FLYER_VISUAL_BRIEF.md
+- conference/CONFERENCE_TRACKING.md
+
+Source note:
+
+- OWNER_INPUTS.md remains absent from the active checkout. Its owner-approved
+  content was read from repository history at commit 9f7eda2 without changing
+  branches or application code.
 
 A production-ready visual brand system was created on 2026-07-24:
 
@@ -102,6 +136,17 @@ No application code was intentionally changed.
 - Integrations exist, but Meta/Instagram/Facebook/Telegram/Google Sheets/Dropbox claims need setup and production-readiness qualification.
 
 ## What still needs confirmation
+
+- Conference material language: Polish, Ukrainian, or a bilingual landing
+  experience. Do not produce a full bilingual DL flyer by default.
+- Official conference name, date, city, venue, and booth/meeting location.
+- Final approval of the Ukrainian or Polish conference copy.
+- Development choice for safe public demo sessions: read-only or
+  controlled/resettable, including TTL, concurrency, abuse protection, and
+  cleanup.
+- Analytics provider, attribution expiry, consent behavior, and event
+  implementation.
+- Final QR generation only after the landing and demo routes pass QA.
 
 - Approval or adjustment of the drafted ICP, buyer personas, positioning, and brand voice.
 - Approved public pricing, plan packaging, VAT/tax language, and trial terms.

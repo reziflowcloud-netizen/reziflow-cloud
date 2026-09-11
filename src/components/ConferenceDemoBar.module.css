@@ -1,0 +1,94 @@
+.bar {
+  position: relative;
+  z-index: 35;
+  display: flex;
+  min-height: 66px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(6, 182, 212, 0.3);
+  background: linear-gradient(100deg, #08264a, #0b3858);
+  color: #fff;
+}
+
+.copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.copy strong {
+  color: #fff;
+  font-size: 13px;
+}
+
+.copy span {
+  color: #c6dae7;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.primary {
+  background: #06b6d4;
+  color: #061a27;
+}
+
+.secondary {
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+
+.primary:focus-visible,
+.secondary:focus-visible {
+  outline: 3px solid rgba(103, 232, 249, 0.55);
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .bar {
+    display: grid;
+    gap: 8px;
+    padding: 9px 12px;
+  }
+
+  .copy span {
+    display: none;
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .primary,
+  .secondary {
+    min-height: 40px;
+    padding: 0 8px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.2;
+  }
+}

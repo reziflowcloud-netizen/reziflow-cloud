@@ -1,5 +1,60 @@
 # Task Log
 
+## 2026-09-11 - Offline conference campaign
+
+Task:
+
+- Create a complete LegalHub CRM marketing campaign for an offline conference
+  attended by companies and specialists working with legalization of
+  foreigners in Poland.
+
+Done:
+
+- Read the Marketing OS operating rules and baseline memory.
+- Read PROJECT_BIBLE.md, PRODUCT_MAP.md, MARKETING_POSITIONING.md,
+  CUSTOMER_PERSONAS.md, MESSAGING.md, OFFERS.md, and
+  VISUAL_BRAND_GUIDE.md.
+- Read OWNER_INPUTS.md from commit 9f7eda2 because it is absent from the
+  active checkout.
+- Defined a dual-QR funnel with a primary conference landing route and a
+  secondary immediate demo route.
+- Prepared separate complete Ukrainian and Polish copy variants without
+  selecting the final conference language or creating a full bilingual DL
+  flyer.
+- Created exact front/back flyer copy and a 99 × 210 mm visual-production
+  brief with reserved non-scannable QR areas.
+- Created concise conference landing-page copy with hero, audience, problems,
+  modules, real screenshot sections, comparison, conference section, CTAs,
+  FAQ, contact, Instagram, and main-site link.
+- Specified exact product screenshots and assets for the flyer front, landing
+  hero, modules, and demo section.
+- Defined exact trackable URLs, UTM parameters, four provider-neutral events,
+  attribution behavior, QA, and a Development handoff.
+- Required the existing shared demo account and fake demo data; no new demo
+  organization or conference-only records were proposed.
+
+Files created:
+
+- legalhub-os/conference/CONFERENCE_CAMPAIGN.md
+- legalhub-os/conference/LANDING_PAGE_COPY.md
+- legalhub-os/conference/FLYER_COPY.md
+- legalhub-os/conference/FLYER_VISUAL_BRIEF.md
+- legalhub-os/conference/CONFERENCE_TRACKING.md
+
+Files changed:
+
+- legalhub-os/CURRENT_STATE.md
+- legalhub-os/TASK_LOG.md
+- legalhub-os/NEXT_STEPS.md
+- legalhub-os/DECISIONS.md
+
+Notes:
+
+- No application code or configuration was modified.
+- QR codes were not generated.
+- Language, event identity, analytics provider, and demo-session safety model
+  remain explicit decisions.
+
 ## 2026-07-24 - Instagram visual brand guide
 
 Task:

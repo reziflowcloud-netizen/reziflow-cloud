@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { assertBillingLimit, billingLimitResponsePayload, isBillingLimitError } from '@/lib/billing'
 import { ensureUserEmployees } from '@/lib/employeeSync'
+import { isConferenceDemoSession } from '@/lib/conferenceDemo'
 import bcrypt from 'bcryptjs'
 
 function canManageUsers(user: any) {
@@ -20,8 +21,12 @@ export async function GET() {
       select: { id: true, name: true, email: true, role: true, restrictedAccess: true, avatarUrl: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     })
-    return NextResponse.json(users, {
-      headers: { 'X-Can-Manage-Users': canManageUsers(user) ? 'true' : 'false' },
+    const conferenceDemo = isConferenceDemoSession(user)
+    const responseUsers = conferenceDemo
+      ? users.map(item => ({ ...item, email: '' }))
+      : users
+    return NextResponse.json(responseUsers, {
+      headers: { 'X-Can-Manage-Users': canManageUsers(user) && !conferenceDemo ? 'true' : 'false' },
     })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })

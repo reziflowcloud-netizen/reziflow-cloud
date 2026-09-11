@@ -1,6 +1,28 @@
 # Next Steps
 
-Last updated: 2026-07-24
+Last updated: 2026-09-11
+
+## Immediate conference-campaign tasks
+
+1. Choose the conference material language: Polish, Ukrainian, or bilingual
+   landing page. Produce only one full-language DL flyer version.
+2. Confirm the official conference name, date, city, venue, and booth or
+   meeting location if these should appear.
+3. Approve one exact flyer copy variant and the corresponding landing-page
+   copy.
+4. Capture the required dashboard, leads, case, documents, tasks/calendar, and
+   payments screenshots from the existing demo account using fake data only.
+5. Send every screenshot and screenshot-based composition to Valentyn for
+   final public-use approval.
+6. Ask Development to implement the conference landing page and the safe
+   /conference/demo route for the existing demo account.
+7. Decide the demo session model, TTL, allowed actions, concurrent-use
+   behavior, reset/cleanup, rate limiting, and demo-to-registration transition.
+8. Choose the analytics provider and implement the four conference events and
+   UTM persistence defined in conference/CONFERENCE_TRACKING.md.
+9. Generate final QR artwork only after both routes and UTM redirects pass QA.
+10. Produce and scan-test the final imposed print PDF and a 100% physical
+    proof on multiple iOS and Android devices.
 
 ## Immediate visual-production tasks
 
@@ -47,6 +69,14 @@ Last updated: 2026-07-24
 
 ## Questions still requiring approval
 
+- Which conference language option is approved?
+- What official conference identity and on-site location may be printed?
+- Should the public demo be read-only or controlled/resettable?
+- What analytics provider, consent approach, and attribution expiry should be
+  used?
+- Is the existing free registration route the final conference conversion
+  destination?
+
 - Which ICP matters first for revenue and testimonials?
 - Are the current Free, Starter, Pro, and Agency prices/limits approved for public marketing?
 - Is VAT included in displayed pricing?
@@ -66,15 +96,15 @@ Last updated: 2026-07-24
 
 Recommended next deliverable:
 
-- Canva and CapCut master-template specifications based on
-  `VISUAL_BRAND_GUIDE.md`, followed by the approved screenshot crop library.
+- Development implementation of the conference landing/demo routes and
+  production of the approved single-language DL flyer, followed by physical QR
+  testing.
 
 Suggested sections:
 
-- Template dimensions and safe zones.
-- Locked typography and color styles.
-- Screenshot placeholder sizes.
-- Story, feed, carousel, and Reel-cover masters.
-- CapCut subtitle and screenshot-motion presets.
-- Mobile/grid preview checklist.
-- File naming and versioning.
+- Language and event-data approval.
+- Landing-page implementation from conference/LANDING_PAGE_COPY.md.
+- Safe existing-demo-account access route.
+- UTM and event QA.
+- Locked screenshot assets.
+- Print proof and physical scan test.
