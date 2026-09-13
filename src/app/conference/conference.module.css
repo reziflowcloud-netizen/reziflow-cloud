@@ -321,6 +321,12 @@
 .footer a .instagramDot { fill: currentColor; stroke: none; }
 .footerDivider { width: 1px; height: 23px; background: #d2dee7; }
 
+@media (max-width: 520px) {
+  .footer { gap: 6px; }
+  .footer a { gap: 4px; font-size: 10.5px; white-space: nowrap; }
+  .footer a svg { width: 16px; height: 16px; }
+}
+
 @media (min-width: 760px) {
   .heroInner,
   .benefitsInner { width: min(100% - 48px, 1120px); }
@@ -383,5 +389,7 @@
   .benefitList article { padding: 13px; }
   .icon { width: 48px; height: 48px; flex-basis: 48px; }
   .benefitList h2 { font-size: 15px; }
-  .footer { gap: 14px; }
+  .footer { gap: 5px; }
+  .footer a { gap: 3px; font-size: 10px; }
+  .footer a svg { width: 15px; height: 15px; }
 }

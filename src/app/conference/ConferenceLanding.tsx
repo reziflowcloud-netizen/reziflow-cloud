@@ -12,6 +12,7 @@ const REGISTER_HREF = `/register?plan=free&utm_source=conference&utm_medium=conf
 const DEMO_HREF = `/conference/demo?utm_source=conference&utm_medium=conference_landing&utm_campaign=${CAMPAIGN}&utm_content=demo_cta`
 const MAIN_SITE_HREF = `/?utm_source=conference&utm_medium=conference_landing&utm_campaign=${CAMPAIGN}&utm_content=main_website`
 const WEBSITE_HREF = 'https://legalhubcrm.com/'
+const PHONE_HREF = 'tel:+48730382448'
 const INSTAGRAM_HREF = 'https://www.instagram.com/legalhubcrm/'
 
 function ArrowIcon() {
@@ -59,6 +60,14 @@ function InstagramIcon() {
       <rect x="3" y="3" width="18" height="18" rx="5" />
       <circle cx="12" cy="12" r="4" />
       <circle cx="17.4" cy="6.7" r=".8" className={styles.instagramDot} />
+    </svg>
+  )
+}
+
+function PhoneIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7.4 3.5 10 8.1 7.9 10a15.3 15.3 0 0 0 6.1 6.1l1.9-2.1 4.6 2.6-.8 3.1c-.2.8-.9 1.3-1.7 1.3C9.7 21 3 14.3 3 6c0-.8.5-1.5 1.3-1.7Z" />
     </svg>
   )
 }
@@ -160,6 +169,11 @@ export default function ConferenceLanding({ demoUnavailable }: { demoUnavailable
             <a href={WEBSITE_HREF}>
               <GlobeIcon />
               <span>legalhubcrm.com</span>
+            </a>
+            <i className={styles.footerDivider} aria-hidden="true" />
+            <a href={PHONE_HREF} aria-label="Позвонить: +48 730 382 448">
+              <PhoneIcon />
+              <span>+48 730 382 448</span>
             </a>
             <i className={styles.footerDivider} aria-hidden="true" />
             <a href={INSTAGRAM_HREF} target="_blank" rel="noreferrer">
