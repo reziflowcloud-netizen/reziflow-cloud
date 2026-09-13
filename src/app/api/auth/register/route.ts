@@ -3,6 +3,14 @@ import { cookies } from 'next/headers'
 import { signToken } from '@/lib/auth'
 import { sendRegistrationNotification } from '@/lib/emailNotifications'
 import { ensureDefaultOrganization, provisionOrganization } from '@/lib/organizationProvisioning'
+import {
+  CONFERENCE_ATTRIBUTION_COOKIE,
+  CONFERENCE_DEMO_VISITED_COOKIE,
+  isApprovedConferenceCampaign,
+  verifyConferenceAttribution,
+} from '@/lib/conferenceAttribution'
+import { recordConferenceEvent } from '@/lib/conferenceEvents'
+import { normalizeConferenceLanguage } from '@/lib/conferenceTrackingCore'
 
 const ALLOWED_PLANS = new Set(['free', 'starter', 'pro', 'agency'])
 
@@ -23,6 +31,14 @@ export async function POST(request: NextRequest) {
     const isFreePlan = plan === 'free'
     const referralCode = body.referralCode ? String(body.referralCode) : null
     const landingPath = body.landingPath ? String(body.landingPath) : null
+    const cookieStore = cookies()
+    const conferenceAttribution = await verifyConferenceAttribution(
+      cookieStore.get(CONFERENCE_ATTRIBUTION_COOKIE)?.value,
+    )
+    const conferenceLanguage = normalizeConferenceLanguage(body.language)
+    const registrationOrigin = cookieStore.get(CONFERENCE_DEMO_VISITED_COOKIE)?.value === '1'
+      ? 'demo'
+      : 'conference_landing'
 
     const templateOrganization = await ensureDefaultOrganization()
     const organization = await provisionOrganization({
@@ -42,6 +58,18 @@ export async function POST(request: NextRequest) {
     const admin = organization?.users?.[0]
     if (!organization || !admin) {
       return NextResponse.json({ error: 'Не удалось создать администратора организации' }, { status: 500 })
+    }
+
+    if (conferenceAttribution && isApprovedConferenceCampaign(conferenceAttribution)) {
+      await recordConferenceEvent({
+        eventName: 'conference_register_complete',
+        attribution: conferenceAttribution,
+        language: conferenceLanguage,
+        registrationOrganizationId: organization.id,
+        metadata: { registrationOrigin, selectedPlan: plan },
+      }).catch(error => {
+        console.error('Conference registration tracking failed:', error instanceof Error ? error.name : 'UnknownError')
+      })
     }
 
     const notification = await sendRegistrationNotification({
@@ -77,7 +105,7 @@ export async function POST(request: NextRequest) {
       currentPeriodEndsAt: (organization as any).currentPeriodEndsAt ? (organization as any).currentPeriodEndsAt.toISOString() : null,
     })
 
-    cookies().set('auth-token', token, {
+    cookieStore.set('auth-token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

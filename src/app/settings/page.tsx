@@ -88,6 +88,11 @@ export default function SettingsPage() {
       icon: '%',
       title: t('referrals_title'),
       desc: t('referrals_sub'),
+    }, {
+      href: '/settings/conference',
+      icon: '📈',
+      title: 'Conference report',
+      desc: 'QR, demo and registration conversions',
     }] : []),
     {
       href: '/settings/export',

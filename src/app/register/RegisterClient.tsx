@@ -88,6 +88,7 @@ export default function RegisterClient({ initialPlan, referralCode }: { initialP
           plan,
           referralCode,
           landingPath: typeof window !== 'undefined' ? window.location.href : null,
+          language: lang,
         }),
       })
       const data = await res.json()

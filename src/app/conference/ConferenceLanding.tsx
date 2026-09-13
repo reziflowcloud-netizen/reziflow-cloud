@@ -5,6 +5,8 @@ import { useEffect } from 'react'
 import MarketingLanguageSelect from '@/components/MarketingLanguageSelect'
 import { useMarketingLanguage } from '@/hooks/useMarketingLanguage'
 import { getConferenceCopy } from '@/lib/conferenceI18n'
+import { trackConferenceEvent } from '@/lib/conferenceTrackingClient'
+import type { ConferenceLanguage } from '@/lib/conferenceTrackingCore'
 import styles from './conference.module.css'
 
 const CAMPAIGN = 'conference_legalization_poland'
@@ -72,13 +74,27 @@ function PhoneIcon() {
   )
 }
 
-function CtaButtons({ demo, register }: { demo: string; register: string }) {
+function CtaButtons({
+  demo,
+  register,
+  language,
+  ctaLocation,
+}: {
+  demo: string
+  register: string
+  language: ConferenceLanguage
+  ctaLocation: 'hero' | 'final'
+}) {
   return (
     <div className={styles.actions}>
       <a href={DEMO_HREF} className={styles.secondaryButton}>
         <span>{demo}</span><ArrowIcon />
       </a>
-      <a href={REGISTER_HREF} className={styles.primaryButton}>
+      <a
+        href={REGISTER_HREF}
+        className={styles.primaryButton}
+        onClick={() => trackConferenceEvent('conference_register_click', { language, ctaLocation })}
+      >
         <span>{register}</span>
       </a>
     </div>
@@ -93,6 +109,13 @@ export default function ConferenceLanding({ demoUnavailable }: { demoUnavailable
     document.title = copy.meta.title
     document.querySelector('meta[name="description"]')?.setAttribute('content', copy.meta.description)
   }, [copy])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      trackConferenceEvent('conference_page_view', { language: lang })
+    }, 150)
+    return () => window.clearTimeout(timer)
+  }, [lang])
 
   return (
     <main className={styles.page} lang={lang}>
@@ -136,7 +159,7 @@ export default function ConferenceLanding({ demoUnavailable }: { demoUnavailable
             </figure>
 
             <div className={styles.heroActions}>
-              <CtaButtons demo={copy.hero.demo} register={copy.hero.register} />
+              <CtaButtons demo={copy.hero.demo} register={copy.hero.register} language={lang} ctaLocation="hero" />
             </div>
           </div>
         </div>
@@ -163,7 +186,7 @@ export default function ConferenceLanding({ demoUnavailable }: { demoUnavailable
             <p>{copy.note}</p>
           </div>
 
-          <CtaButtons demo={copy.hero.demo} register={copy.hero.register} />
+          <CtaButtons demo={copy.hero.demo} register={copy.hero.register} language={lang} ctaLocation="final" />
 
           <footer className={styles.footer}>
             <a href={WEBSITE_HREF}>

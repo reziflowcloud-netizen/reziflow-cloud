@@ -6,6 +6,10 @@ import {
   isConferenceDemoPageBlocked,
   isConferenceDemoSession,
 } from './lib/conferenceDemo'
+import {
+  resolveConferenceAttribution,
+  setConferenceAttributionCookie,
+} from './lib/conferenceAttribution'
 
 const PUBLIC_PATHS = [
   '/',
@@ -25,6 +29,7 @@ const PUBLIC_PATHS = [
   '/manifest.json',
   '/api/auth/login',
   '/api/auth/register',
+  '/api/conference/events',
   '/api/contact',
   '/api/partner/referrals',
   '/api/meta/data-deletion',
@@ -38,17 +43,24 @@ export async function middleware(request: NextRequest) {
   const token = request.cookies.get('auth-token')?.value
 
   if (isPublic) {
+    const addConferenceAttribution = async (response: NextResponse) => {
+      if (pathname === '/conference/demo') return response
+      const resolved = await resolveConferenceAttribution(request)
+      if (resolved?.newToken) setConferenceAttributionCookie(response, resolved.newToken)
+      return response
+    }
+
     // If logged in and on public entry pages, continue to the app.
     if (token && (pathname === '/login' || pathname === '/register')) {
       const payload = await verifyToken(token)
       if (payload && isConferenceDemoSession(payload)) {
         const response = NextResponse.next()
         response.cookies.delete('auth-token')
-        return response
+        return addConferenceAttribution(response)
       }
-      if (payload) return NextResponse.redirect(new URL('/dashboard', request.url))
+      if (payload) return addConferenceAttribution(NextResponse.redirect(new URL('/dashboard', request.url)))
     }
-    return NextResponse.next()
+    return addConferenceAttribution(NextResponse.next())
   }
 
   // Protected route

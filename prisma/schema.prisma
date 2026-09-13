@@ -713,3 +713,25 @@ model PreviousPolandStay {
 
   @@index([clientId, order])
 }
+
+model ConferenceEvent {
+  id                 String   @id @default(cuid())
+  eventName          String
+  dedupeKey          String   @unique
+  anonymousSessionId String
+  utmSource          String?
+  utmMedium          String?
+  utmCampaign        String?
+  utmContent         String?
+  utmTerm            String?
+  language           String?
+  ctaLocation        String?
+  demoOrigin         String?
+  metadata           Json?
+  createdAt          DateTime @default(now())
+
+  @@index([eventName, createdAt])
+  @@index([anonymousSessionId, createdAt])
+  @@index([utmContent, createdAt])
+  @@index([language, createdAt])
+}

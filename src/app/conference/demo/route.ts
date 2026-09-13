@@ -5,7 +5,17 @@ import {
   CONFERENCE_DEMO_SESSION_MODE,
   CONFERENCE_DEMO_SESSION_EXPIRES_IN,
   CONFERENCE_DEMO_SESSION_SECONDS,
+  isConferenceDemoSession,
 } from '@/lib/conferenceDemo'
+import {
+  conferenceLanguageFromRequest,
+  resolveConferenceAttribution,
+  setConferenceAttributionCookie,
+  setConferenceDemoVisitedCookie,
+  setConferenceLanguageCookie,
+} from '@/lib/conferenceAttribution'
+import { recordConferenceEvent } from '@/lib/conferenceEvents'
+import { inferConferenceDemoOrigin } from '@/lib/conferenceTrackingCore'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,6 +27,33 @@ function unavailable(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const resolvedAttribution = await resolveConferenceAttribution(request)
+  const language = conferenceLanguageFromRequest(request)
+
+  async function trackSuccessfulDemo(response: NextResponse) {
+    if (!resolvedAttribution) return response
+    const demoOrigin = inferConferenceDemoOrigin(
+      new URL(request.url),
+      resolvedAttribution.attribution,
+      request.headers.get('referer'),
+    )
+    try {
+      await recordConferenceEvent({
+        eventName: 'conference_demo_open',
+        attribution: resolvedAttribution.attribution,
+        language,
+        demoOrigin,
+        metadata: { demoSessionMode: 'interactive_shared' },
+      })
+    } catch (error) {
+      console.error('Conference demo tracking failed:', error instanceof Error ? error.name : 'UnknownError')
+    }
+    if (resolvedAttribution.newToken) setConferenceAttributionCookie(response, resolvedAttribution.newToken)
+    setConferenceLanguageCookie(response, language)
+    setConferenceDemoVisitedCookie(response)
+    return response
+  }
+
   const existingToken = request.cookies.get('auth-token')?.value
   if (existingToken) {
     const existingUser = await verifyToken(existingToken)
@@ -24,7 +61,7 @@ export async function GET(request: NextRequest) {
       const response = NextResponse.redirect(new URL('/dashboard', request.url), 303)
       response.headers.set('Cache-Control', 'no-store')
       response.headers.set('X-Robots-Tag', 'noindex, nofollow')
-      return response
+      return isConferenceDemoSession(existingUser) ? trackSuccessfulDemo(response) : response
     }
   }
 
@@ -89,7 +126,7 @@ export async function GET(request: NextRequest) {
     })
     response.headers.set('Cache-Control', 'no-store')
     response.headers.set('X-Robots-Tag', 'noindex, nofollow')
-    return response
+    return trackSuccessfulDemo(response)
   } catch (error) {
     console.error('Conference demo session failed:', error instanceof Error ? error.name : 'UnknownError')
     return unavailable(request)

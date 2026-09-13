@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useMarketingLanguage } from '@/hooks/useMarketingLanguage'
 import { getConferenceCopy } from '@/lib/conferenceI18n'
+import { trackConferenceEvent } from '@/lib/conferenceTrackingClient'
 import styles from './ConferenceDemoBar.module.css'
 
 export default function ConferenceDemoBar() {
@@ -16,7 +17,13 @@ export default function ConferenceDemoBar() {
         <span>{copy.text}</span>
       </div>
       <div className={styles.actions}>
-        <Link href="/register?plan=free" className={styles.primary}>{copy.register}</Link>
+        <Link
+          href="/register?plan=free"
+          className={styles.primary}
+          onClick={() => trackConferenceEvent('conference_register_click', { language: lang, ctaLocation: 'demo_bar' })}
+        >
+          {copy.register}
+        </Link>
         <Link href="/login" className={styles.secondary}>{copy.login}</Link>
       </div>
     </aside>
