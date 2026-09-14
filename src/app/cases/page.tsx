@@ -1,10 +1,11 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
 import { caseStatusLabel, isActiveCaseStatus, isArchiveCaseStatus } from '@/lib/caseI18n'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
+import BulkActionsBar, { type BulkActionPayload } from '@/components/BulkActionsBar'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый':               { bg: '#eff6ff', color: '#1d4ed8' },
@@ -16,6 +17,7 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 }
 
 const ALL_FILTER = 'all'
+const CASE_PAGE_SIZE = 50
 const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
 
 type SortKey = 'client' | 'status' | 'service' | 'responsible' | 'value' | 'debt' | 'date'
@@ -34,6 +36,11 @@ export default function CasesPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [statusPopup, setStatusPopup] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<any>(null)
+  const [employees, setEmployees] = useState<any[]>([])
+  const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>([])
+  const [allFilteredSelected, setAllFilteredSelected] = useState(false)
+  const [excludedCaseIds, setExcludedCaseIds] = useState<string[]>([])
+  const [currentPage, setCurrentPage] = useState(1)
 
   // Читаем фильтр из URL параметра
   // filter=active → активные дела
@@ -46,15 +53,22 @@ export default function CasesPage() {
     setActiveFilter(urlFilter)
   }, [urlFilter])
 
-  useEffect(() => {
-    Promise.all([
+  function loadCases() {
+    setLoading(true)
+    return Promise.all([
       fetch('/api/cases?view=list').then(r => r.json()),
       fetch('/api/statuses').then(r => r.json()),
-    ]).then(([c, s]) => {
+      fetch('/api/employees').then(r => r.json()),
+    ]).then(([c, s, e]) => {
       setCases(Array.isArray(c) ? c : [])
       setStatuses(Array.isArray(s) ? s : [])
+      setEmployees(Array.isArray(e) ? e.filter((employee: any) => employee.active) : [])
       setLoading(false)
     })
+  }
+
+  useEffect(() => {
+    loadCases()
     fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(data => setCurrentUser(data))
   }, [])
 
@@ -99,7 +113,7 @@ export default function CasesPage() {
   }
 
   function responsibleName(record: any) {
-    return record?.employee?.name || record?.assignedTo?.name || record?.assignedTo?.email || ''
+    return record?.employee?.name || ''
   }
 
   function caseMatchesStatus(caseStatus: string, filterStatus: string) {
@@ -115,9 +129,12 @@ export default function CasesPage() {
       if (activeFilter === 'no_pay') return c.contractSigned && c.totalPaid === 0 && c.totalValue > 0
       return caseMatchesStatus(c.status, activeFilter)
     })
-    .filter(c => search === '' ||
-      `${c.client?.firstName} ${c.client?.lastName} ${c.client?.phone||''} ${responsibleName(c)}`.toLowerCase().includes(search.toLowerCase())
-    )
+    .filter(c => search === '' || [
+      c.client?.firstName,
+      c.client?.lastName,
+      c.client?.phone,
+      responsibleName(c),
+    ].some(value => String(value || '').toLowerCase().includes(search.toLowerCase())))
     .sort((a, b) => {
       let va: any, vb: any
       if (sortKey === 'client') { va = `${a.client?.firstName} ${a.client?.lastName}`; vb = `${b.client?.firstName} ${b.client?.lastName}` }
@@ -131,6 +148,105 @@ export default function CasesPage() {
       if (va > vb) return sortDir === 'asc' ? 1 : -1
       return 0
     })
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / CASE_PAGE_SIZE))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+  const pagedCases = useMemo(
+    () => filtered.slice((safeCurrentPage - 1) * CASE_PAGE_SIZE, safeCurrentPage * CASE_PAGE_SIZE),
+    [filtered, safeCurrentPage],
+  )
+  const currentPageCaseIds = useMemo(() => pagedCases.map(item => item.id), [pagedCases])
+  const filteredCaseIdSet = useMemo(() => new Set(filtered.map(item => item.id)), [filtered])
+  const isCaseSelected = (id: string) => allFilteredSelected
+    ? filteredCaseIdSet.has(id) && !excludedCaseIds.includes(id)
+    : selectedCaseIds.includes(id)
+  const selectedCaseCount = allFilteredSelected
+    ? Math.max(0, filtered.length - excludedCaseIds.filter(id => filteredCaseIdSet.has(id)).length)
+    : selectedCaseIds.length
+  const allCurrentPageSelected = currentPageCaseIds.length > 0 && currentPageCaseIds.every(isCaseSelected)
+
+  const bulkFilterKey = useMemo(
+    () => JSON.stringify({ activeFilter, search: search.trim() }),
+    [activeFilter, search],
+  )
+
+  useEffect(() => {
+    setCurrentPage(1)
+    setSelectedCaseIds([])
+    setAllFilteredSelected(false)
+    setExcludedCaseIds([])
+  }, [bulkFilterKey])
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages)
+  }, [currentPage, totalPages])
+
+  function toggleCaseSelection(id: string) {
+    if (allFilteredSelected) {
+      setExcludedCaseIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
+      return
+    }
+    setSelectedCaseIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
+  }
+
+  function toggleCurrentCasePage() {
+    if (allFilteredSelected) {
+      setExcludedCaseIds(current => allCurrentPageSelected
+        ? Array.from(new Set([...current, ...currentPageCaseIds]))
+        : current.filter(id => !currentPageCaseIds.includes(id)))
+      return
+    }
+    setSelectedCaseIds(current => allCurrentPageSelected
+      ? current.filter(id => !currentPageCaseIds.includes(id))
+      : Array.from(new Set([...current, ...currentPageCaseIds])))
+  }
+
+  function clearCaseSelection() {
+    setSelectedCaseIds([])
+    setAllFilteredSelected(false)
+    setExcludedCaseIds([])
+  }
+
+  function selectAllFilteredCases() {
+    setSelectedCaseIds([])
+    setExcludedCaseIds([])
+    setAllFilteredSelected(true)
+  }
+
+  function caseSelectionDescription() {
+    const parts: string[] = []
+    if (activeFilter === 'active') parts.push(t('active_cases_title'))
+    else if (activeFilter === 'no_pay') parts.push(t('contracts_without_payment_title'))
+    else if (activeFilter !== ALL_FILTER && activeFilter !== 'Все') parts.push(caseStatusLabel(lang, activeFilter))
+    if (search.trim()) parts.push(`“${search.trim()}”`)
+    const prefix = lang === 'uk' ? 'Фільтр' : lang === 'pl' ? 'Filtr' : 'Фильтр'
+    return parts.length ? `${prefix}: ${parts.join(' · ')}` : ''
+  }
+
+  async function applyCaseBulkAction(payload: BulkActionPayload) {
+    if (!selectedCaseCount) return { updated: 0 }
+    const response = await fetch('/api/cases/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...payload,
+        selection: allFilteredSelected
+          ? { mode: 'filtered', filters: { activeFilter, search: search.trim() }, excludedIds: excludedCaseIds }
+          : { mode: 'ids', ids: selectedCaseIds },
+      }),
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(data.error || 'Bulk update failed')
+    await loadCases()
+    clearCaseSelection()
+    return { updated: Number(data.updated) || selectedCaseCount }
+  }
+
+  function pageCopy(key: 'previous' | 'next' | 'page') {
+    if (lang === 'uk') return key === 'previous' ? 'Попередня' : key === 'next' ? 'Наступна' : `Сторінка ${safeCurrentPage} з ${totalPages}`
+    if (lang === 'pl') return key === 'previous' ? 'Poprzednia' : key === 'next' ? 'Następna' : `Strona ${safeCurrentPage} z ${totalPages}`
+    return key === 'previous' ? 'Предыдущая' : key === 'next' ? 'Следующая' : `Страница ${safeCurrentPage} из ${totalPages}`
+  }
 
   const activeCasesCount = cases.filter(c => isActiveCaseStatus(c.status)).length
   const noPayCount = cases.filter(c => c.contractSigned && c.totalPaid === 0 && c.totalValue > 0).length
@@ -202,6 +318,23 @@ export default function CasesPage() {
             value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 380 }} />
         </div>
 
+        <BulkActionsBar
+          entity="cases"
+          lang={lang}
+          selectedCount={selectedCaseCount}
+          currentPageCount={currentPageCaseIds.length}
+          filteredCount={filtered.length}
+          allCurrentPageSelected={allCurrentPageSelected}
+          allFilteredSelected={allFilteredSelected}
+          selectionDescription={caseSelectionDescription()}
+          employees={employees}
+          statuses={statuses}
+          statusLabel={name => caseStatusLabel(lang, name)}
+          onSelectAllFiltered={selectAllFilteredCases}
+          onClear={clearCaseSelection}
+          onApply={applyCaseBulkAction}
+        />
+
         <div className="table-container">
           <div className="table-scroll">
             <table className="table">
@@ -215,21 +348,31 @@ export default function CasesPage() {
                   <th onClick={() => toggleSort('debt')} style={{ cursor: 'pointer', userSelect: 'none' }}>{t('debt_col')} <SortIcon k="debt" /></th>
                   <th onClick={() => toggleSort('date')} style={{ cursor: 'pointer', userSelect: 'none' }}>{t('created')} <SortIcon k="date" /></th>
                   <th></th>
+                  <th style={{ width: 38, minWidth: 38, paddingInline: 8, textAlign: 'center' }}>
+                    <input
+                      className="case-bulk-checkbox"
+                      type="checkbox"
+                      checked={allCurrentPageSelected}
+                      onChange={toggleCurrentCasePage}
+                      aria-label="Select current page"
+                      style={{ width: 16, height: 16, accentColor: 'var(--brand)' }}
+                    />
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>...</td></tr>
+                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
+                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
                     <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
                     <div>{t('no_cases')}</div>
                   </td></tr>
-                ) : filtered.map(c => {
+                ) : pagedCases.map(c => {
                   const debt = Math.max(0, c.totalValue - c.totalPaid)
                   const sc = getCaseStatusStyle(c.status)
                   return (
-                    <tr key={c.id} onClick={() => router.push(`/cases/${c.id}`)} style={{ cursor: 'pointer' }}>
+                    <tr key={c.id} onClick={() => router.push(`/cases/${c.id}`)} style={{ cursor: 'pointer', background: isCaseSelected(c.id) ? 'color-mix(in srgb, var(--brand) 8%, var(--surface))' : undefined }}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div className="avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
@@ -305,6 +448,19 @@ export default function CasesPage() {
                           >🗑</button>
                         )}
                       </td>
+                      <td
+                        onClick={e => e.stopPropagation()}
+                        style={{ width: 38, minWidth: 38, paddingInline: 8, textAlign: 'center' }}
+                      >
+                        <input
+                          className="case-bulk-checkbox"
+                          type="checkbox"
+                          checked={isCaseSelected(c.id)}
+                          onChange={() => toggleCaseSelection(c.id)}
+                          aria-label={`${c.client?.firstName || ''} ${c.client?.lastName || ''}`.trim() || c.id}
+                          style={{ width: 16, height: 16, accentColor: 'var(--brand)' }}
+                        />
+                      </td>
                     </tr>
                   )
                 })}
@@ -312,6 +468,20 @@ export default function CasesPage() {
             </table>
           </div>
         </div>
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, paddingTop: 12 }}>
+            <button type="button" className="btn btn-secondary" disabled={safeCurrentPage <= 1} onClick={() => setCurrentPage(page => Math.max(1, page - 1))}>← {pageCopy('previous')}</button>
+            <strong style={{ fontSize: 13, color: 'var(--muted)' }}>{pageCopy('page')}</strong>
+            <button type="button" className="btn btn-secondary" disabled={safeCurrentPage >= totalPages} onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}>{pageCopy('next')} →</button>
+          </div>
+        )}
+        <style jsx global>{`
+          .case-bulk-checkbox { opacity: .46; transition: opacity .16s ease, transform .16s ease; }
+          tr:hover .case-bulk-checkbox,
+          .case-bulk-checkbox:focus-visible,
+          .case-bulk-checkbox:checked { opacity: 1; }
+          .case-bulk-checkbox:hover { transform: scale(1.08); }
+        `}</style>
       </div>
     </div>
   )

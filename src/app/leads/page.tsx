@@ -8,6 +8,7 @@ import { useLanguage } from '@/context/LanguageContext'
 import { LEAD_LOCALES, LEAD_WEEKDAYS, leadSourceLabel, leadSourceOptionLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
 import { normalizeLang } from '@/lib/translations'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
+import BulkActionsBar, { type BulkActionPayload } from '@/components/BulkActionsBar'
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -58,17 +59,18 @@ const ALL_LEAD_COLUMNS: Array<{ key: LeadColumnKey; labelKey: string; always?: b
 ]
 const DEFAULT_VISIBLE_LEAD_COLUMNS: LeadColumnKey[] = ['lead', 'status', 'reason', 'source', 'interest', 'createdAt', 'lastContact', 'nextContact', 'responsible']
 const LEAD_COLUMN_KEYS = ALL_LEAD_COLUMNS.map(col => col.key)
-const LEAD_SELECT_COLUMN_WIDTH = 42
+const LEAD_SELECT_COLUMN_WIDTH = 38
+const LEAD_PAGE_SIZE = 50
 const LEAD_TABLE_COLUMN_WIDTHS: Record<LeadColumnKey, number> = {
-  lead: 240,
-  status: 170,
-  reason: 190,
-  source: 130,
-  interest: 170,
-  createdAt: 140,
-  lastContact: 170,
-  nextContact: 230,
-  responsible: 150,
+  lead: 180,
+  status: 138,
+  reason: 150,
+  source: 96,
+  interest: 130,
+  createdAt: 110,
+  lastContact: 116,
+  nextContact: 164,
+  responsible: 112,
 }
 const DEFAULT_LEAD_LIST_STATE: LeadListState = {
   search: '',
@@ -153,7 +155,7 @@ function initials(lead: any) {
 }
 
 function leadResponsibleName(lead: any) {
-  return lead.employee?.name || lead.assignedTo?.name || ''
+  return lead.employee?.name || ''
 }
 
 function dateKey(value: Date | string) {
@@ -289,6 +291,9 @@ export default function LeadsPage() {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(DEFAULT_LEAD_LIST_STATE.quickFilter)
   const [employees, setEmployees] = useState<any[]>([])
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
+  const [allFilteredSelected, setAllFilteredSelected] = useState(false)
+  const [excludedLeadIds, setExcludedLeadIds] = useState<string[]>([])
+  const [currentPage, setCurrentPage] = useState(1)
   const [bulkSaving, setBulkSaving] = useState(false)
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
   const [leadSources, setLeadSources] = useState<LeadSourceOption[]>(LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true })))
@@ -484,6 +489,8 @@ export default function LeadsPage() {
     })
     const searched = q ? byFilters.filter(lead => [
       leadDisplayName(lead),
+      lead.firstName,
+      lead.lastName,
       lead.phone,
       lead.email,
       lead.instagram,
@@ -494,12 +501,25 @@ export default function LeadsPage() {
       lead.voivodeship,
       lead.notes,
       leadResponsibleName(lead),
-    ].filter(Boolean).join(' ').toLowerCase().includes(q)) : byFilters
+    ].some(value => String(value || '').toLowerCase().includes(q))) : byFilters
     return [...searched].sort(compareLeads)
   }, [leads, search, status, statusReasonFilter, source, interest, temperature, datePreset, createdFrom, createdTo, quickFilter, showStatusReasons, statusNames.join('|'), sortConfig, lang])
 
-  const visibleLeadIds = useMemo(() => filtered.map(lead => lead.id), [filtered])
-  const allVisibleSelected = visibleLeadIds.length > 0 && visibleLeadIds.every(id => selectedLeadIds.includes(id))
+  const totalPages = Math.max(1, Math.ceil(filtered.length / LEAD_PAGE_SIZE))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+  const pagedLeads = useMemo(
+    () => filtered.slice((safeCurrentPage - 1) * LEAD_PAGE_SIZE, safeCurrentPage * LEAD_PAGE_SIZE),
+    [filtered, safeCurrentPage],
+  )
+  const currentPageLeadIds = useMemo(() => pagedLeads.map(lead => lead.id), [pagedLeads])
+  const filteredLeadIdSet = useMemo(() => new Set(filtered.map(lead => lead.id)), [filtered])
+  const isLeadSelected = (id: string) => allFilteredSelected
+    ? filteredLeadIdSet.has(id) && !excludedLeadIds.includes(id)
+    : selectedLeadIds.includes(id)
+  const selectedLeadCount = allFilteredSelected
+    ? Math.max(0, filtered.length - excludedLeadIds.filter(id => filteredLeadIdSet.has(id)).length)
+    : selectedLeadIds.length
+  const allVisibleSelected = currentPageLeadIds.length > 0 && currentPageLeadIds.every(isLeadSelected)
   const hasActiveListFilters = Boolean(
     search.trim() ||
     status ||
@@ -530,6 +550,22 @@ export default function LeadsPage() {
   useEffect(() => {
     setSelectedLeadIds(current => current.filter(id => leads.some(lead => lead.id === id)))
   }, [leads])
+
+  const bulkFilterKey = useMemo(() => JSON.stringify({
+    search: search.trim(), status, statusReasonFilter, source, interest, temperature,
+    datePreset, createdFrom, createdTo, quickFilter,
+  }), [search, status, statusReasonFilter, source, interest, temperature, datePreset, createdFrom, createdTo, quickFilter])
+
+  useEffect(() => {
+    setCurrentPage(1)
+    setSelectedLeadIds([])
+    setAllFilteredSelected(false)
+    setExcludedLeadIds([])
+  }, [bulkFilterKey])
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages)
+  }, [currentPage, totalPages])
 
   useEffect(() => {
     if (!statusReasonFilter) return
@@ -778,65 +814,112 @@ export default function LeadsPage() {
   }
 
   function toggleLeadSelection(id: string) {
+    if (allFilteredSelected) {
+      setExcludedLeadIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
+      return
+    }
     setSelectedLeadIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
   }
 
   function toggleVisibleSelection() {
+    if (allFilteredSelected) {
+      setExcludedLeadIds(current => allVisibleSelected
+        ? Array.from(new Set([...current, ...currentPageLeadIds]))
+        : current.filter(id => !currentPageLeadIds.includes(id)))
+      return
+    }
     setSelectedLeadIds(current => {
-      if (allVisibleSelected) return current.filter(id => !visibleLeadIds.includes(id))
-      return Array.from(new Set([...current, ...visibleLeadIds]))
+      if (allVisibleSelected) return current.filter(id => !currentPageLeadIds.includes(id))
+      return Array.from(new Set([...current, ...currentPageLeadIds]))
     })
   }
 
-  async function bulkPatch(patch: any) {
-    if (selectedLeadIds.length === 0) return
-    const previousLeads = leads
+  function clearBulkSelection() {
+    setSelectedLeadIds([])
+    setAllFilteredSelected(false)
+    setExcludedLeadIds([])
+  }
+
+  function selectAllFilteredLeads() {
+    setSelectedLeadIds([])
+    setExcludedLeadIds([])
+    setAllFilteredSelected(true)
+  }
+
+  function leadBulkFilters() {
+    const createdRange = createdAtRange(datePreset, createdFrom, createdTo)
+    const today = new Date()
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+    return {
+      search: search.trim(),
+      status,
+      statusReason: statusReasonFilter,
+      source,
+      interest,
+      temperature,
+      quickFilter,
+      createdStart: createdRange && Number.isFinite(createdRange.start) ? new Date(createdRange.start).toISOString() : null,
+      createdEnd: createdRange && Number.isFinite(createdRange.end) ? new Date(createdRange.end).toISOString() : null,
+      nextContactStart: todayStart.toISOString(),
+      nextContactEnd: todayEnd.toISOString(),
+      nextContactBefore: new Date().toISOString(),
+    }
+  }
+
+  function leadSelectionDescription() {
+    const parts: string[] = []
+    if (quickFilter !== 'all') parts.push(lt(`quick_${quickFilter}`))
+    if (status) parts.push(leadStatusLabel(lang, status))
+    if (source) parts.push(sourceLabel(source))
+    if (interest) parts.push(interest)
+    if (search.trim()) parts.push(`“${search.trim()}”`)
+    const prefix = lang === 'uk' ? 'Фільтр' : lang === 'pl' ? 'Filtr' : 'Фильтр'
+    return parts.length ? `${prefix}: ${parts.join(' · ')}` : ''
+  }
+
+  async function applyLeadBulkAction(payload: BulkActionPayload) {
+    if (selectedLeadCount === 0) return { updated: 0 }
     setBulkSaving(true)
-    setLeads(current => current.map(lead => selectedLeadIds.includes(lead.id) ? { ...lead, ...patch } : lead))
     try {
-      const results = await Promise.all(selectedLeadIds.map(id => fetch(`/api/leads/${id}`, {
-        method: 'PATCH',
+      const response = await fetch('/api/leads/bulk', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      })))
-      if (results.some(res => !res.ok)) {
-        setLeads(previousLeads)
-        return
-      }
+        body: JSON.stringify({
+          ...payload,
+          selection: allFilteredSelected
+            ? { mode: 'filtered', filters: leadBulkFilters(), excludedIds: excludedLeadIds }
+            : { mode: 'ids', ids: selectedLeadIds },
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || 'Bulk update failed')
       await loadLeads()
-      setSelectedLeadIds([])
+      clearBulkSelection()
+      return { updated: Number(data.updated) || selectedLeadCount }
     } finally {
       setBulkSaving(false)
     }
   }
 
-  function bulkChangeStatus(nextStatus: string) {
-    if (!nextStatus || selectedLeadIds.length === 0) return
-    const targetStatus = statusByName[nextStatus]
-    if (targetStatus?.requireReason) {
-      setStatusReasonDraft({ reason: statusReasons(targetStatus)[0] || '', comment: '' })
-      setStatusReasonModal({ leadIds: selectedLeadIds, nextStatus, previousLeads: leads })
-      return
-    }
-    bulkPatch({ status: nextStatus, statusReason: null, statusReasonComment: null })
+  function leadPageLabel() {
+    if (lang === 'uk') return `Сторінка ${safeCurrentPage} з ${totalPages}`
+    if (lang === 'pl') return `Strona ${safeCurrentPage} z ${totalPages}`
+    return `Страница ${safeCurrentPage} из ${totalPages}`
   }
 
-  async function bulkDelete() {
-    if (selectedLeadIds.length === 0 || !confirm(lt('bulk_delete_confirm'))) return
-    const previousLeads = leads
-    setBulkSaving(true)
-    setLeads(current => current.filter(lead => !selectedLeadIds.includes(lead.id)))
-    try {
-      const results = await Promise.all(selectedLeadIds.map(id => fetch(`/api/leads/${id}`, { method: 'DELETE' })))
-      if (results.some(res => !res.ok)) {
-        setLeads(previousLeads)
-        return
-      }
-      setSelectedLeadIds([])
-      await loadLeads()
-    } finally {
-      setBulkSaving(false)
-    }
+  function previousLeadPage() {
+    setCurrentPage(page => Math.max(1, page - 1))
+  }
+
+  function nextLeadPage() {
+    setCurrentPage(page => Math.min(totalPages, page + 1))
+  }
+
+  function leadPageActionLabel(direction: 'previous' | 'next') {
+    if (lang === 'uk') return direction === 'previous' ? 'Попередня' : 'Наступна'
+    if (lang === 'pl') return direction === 'previous' ? 'Poprzednia' : 'Następna'
+    return direction === 'previous' ? 'Предыдущая' : 'Следующая'
   }
 
   function droppedOnStatus(nextStatus: string) {
@@ -1073,6 +1156,8 @@ export default function LeadsPage() {
         .leads-page .lead-table th,
         .leads-page .lead-table td {
           vertical-align: middle;
+          padding-left: 8px;
+          padding-right: 8px;
         }
 
         .leads-page .lead-table th {
@@ -1089,6 +1174,46 @@ export default function LeadsPage() {
         }
 
         .leads-page .lead-table td {
+          white-space: nowrap;
+        }
+
+        .leads-page .lead-table-date-cell {
+          font-size: 12px !important;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: -0.01em;
+        }
+
+        .leads-page .lead-table-checkbox-cell {
+          width: ${LEAD_SELECT_COLUMN_WIDTH}px;
+          min-width: ${LEAD_SELECT_COLUMN_WIDTH}px;
+          padding-left: 6px !important;
+          padding-right: 6px !important;
+          text-align: center;
+        }
+
+        .leads-page .lead-bulk-checkbox {
+          width: 16px;
+          height: 16px;
+          opacity: .46;
+          accent-color: var(--brand);
+          transition: opacity .16s ease, transform .16s ease;
+        }
+
+        .leads-page tr:hover .lead-bulk-checkbox,
+        .leads-page .lead-bulk-checkbox:focus-visible,
+        .leads-page .lead-bulk-checkbox:checked {
+          opacity: 1;
+        }
+
+        .leads-page .lead-bulk-checkbox:hover {
+          transform: scale(1.08);
+        }
+
+        .leads-page .lead-next-contact-main,
+        .leads-page .lead-next-contact-note {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
           white-space: nowrap;
         }
 
@@ -1693,28 +1818,22 @@ export default function LeadsPage() {
           </div>
         </div>
 
-        {selectedLeadIds.length > 0 && (
-          <div className="card" style={{ marginBottom: 16, padding: 12 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(160px, 1fr) minmax(170px, 1fr) minmax(160px, 1fr) auto auto', gap: 8, alignItems: 'center' }}>
-              <strong>{lt('selected_count')}: {selectedLeadIds.length}</strong>
-              <select className="select" defaultValue="" disabled={bulkSaving} onChange={event => event.target.value && bulkChangeStatus(event.target.value)}>
-                <option value="">{lt('bulk_status')}</option>
-                {statusNames.map(item => <option key={item} value={item}>{leadStatusLabel(lang, item)}</option>)}
-              </select>
-              <select className="select" defaultValue="" disabled={bulkSaving} onChange={event => event.target.value && bulkPatch({ employeeId: event.target.value === '__none' ? '' : event.target.value })}>
-                <option value="">{lt('bulk_responsible')}</option>
-                <option value="__none">{lt('not_assigned')}</option>
-                {employees.map(employee => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
-              </select>
-              <select className="select" defaultValue="" disabled={bulkSaving} onChange={event => event.target.value && bulkPatch({ source: event.target.value })}>
-                <option value="">{lt('bulk_source')}</option>
-                {leadSources.map(item => <option key={item.value} value={item.value}>{leadSourceOptionLabel(lang, item)}</option>)}
-              </select>
-              <button type="button" className="btn btn-secondary" disabled={bulkSaving} onClick={() => setSelectedLeadIds([])}>{lt('clear_selection')}</button>
-              <button type="button" className="btn btn-danger" disabled={bulkSaving} onClick={bulkDelete}>{bulkSaving ? lt('processing') : lt('bulk_delete')}</button>
-            </div>
-          </div>
-        )}
+        <BulkActionsBar
+          entity="leads"
+          lang={lang}
+          selectedCount={selectedLeadCount}
+          currentPageCount={currentPageLeadIds.length}
+          filteredCount={filtered.length}
+          allCurrentPageSelected={allVisibleSelected}
+          allFilteredSelected={allFilteredSelected}
+          selectionDescription={leadSelectionDescription()}
+          employees={employees}
+          statuses={orderedStatuses}
+          statusLabel={name => leadStatusLabel(lang, name)}
+          onSelectAllFiltered={selectAllFilteredLeads}
+          onClear={clearBulkSelection}
+          onApply={applyLeadBulkAction}
+        />
 
         <div className="lead-content-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 340px)', gap: 16, alignItems: 'start' }}>
           {viewMode === 'table' ? (
@@ -1723,20 +1842,11 @@ export default function LeadsPage() {
               <div ref={leadWorkScrollRef} className="table-scroll lead-work-scroll" onScroll={syncLeadContentScroll}>
                 <table className="table lead-table" style={{ minWidth: leadTableMinWidth, width: `max(100%, ${leadTableMinWidth}px)` }}>
                 <colgroup>
-                  <col style={{ width: LEAD_SELECT_COLUMN_WIDTH }} />
                   {visibleLeadColumns.map(key => <col key={key} style={{ width: LEAD_TABLE_COLUMN_WIDTHS[key] }} />)}
+                  <col style={{ width: LEAD_SELECT_COLUMN_WIDTH }} />
                 </colgroup>
                 <thead>
                   <tr>
-                    <th style={{ width: 42 }}>
-                      <input
-                        type="checkbox"
-                        checked={allVisibleSelected}
-                        onChange={toggleVisibleSelection}
-                        onClick={event => event.stopPropagation()}
-                        aria-label={lt('selected_count')}
-                      />
-                    </th>
                     {isColumnVisible('lead') && <th>{sortHeader('lead', lt('lead'))}</th>}
                     {isColumnVisible('status') && <th>{sortHeader('status', lt('status'))}</th>}
                     {isColumnVisible('reason') && <th>{lt('reason')}</th>}
@@ -1746,6 +1856,16 @@ export default function LeadsPage() {
                     {isColumnVisible('lastContact') && <th>{sortHeader('lastContact', lt('last_contact'))}</th>}
                     {isColumnVisible('nextContact') && <th>{sortHeader('nextContact', lt('next_contact'))}</th>}
                     {isColumnVisible('responsible') && <th>{sortHeader('responsible', lt('responsible'))}</th>}
+                    <th className="lead-table-checkbox-cell">
+                      <input
+                        className="lead-bulk-checkbox"
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        onChange={toggleVisibleSelection}
+                        onClick={event => event.stopPropagation()}
+                        aria-label={lt('selected_count')}
+                      />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1757,7 +1877,7 @@ export default function LeadsPage() {
                       <div>{hasActiveListFilters ? lt('leads_not_found') : lt('no_leads')}</div>
                       {!hasActiveListFilters && <Link href="/leads/new" className="btn btn-primary" style={{ display: 'inline-flex', marginTop: 12 }}>{lt('add_first_lead')}</Link>}
                     </td></tr>
-                  ) : filtered.map(lead => {
+                  ) : pagedLeads.map(lead => {
                     const leadStatus = normalizedStatus(lead.status)
                     const colors = statusColors(statusByName[leadStatus])
                     const temp = temperatureMeta(lead.urgency)
@@ -1766,19 +1886,16 @@ export default function LeadsPage() {
                     const lastContactAt = latestLeadContactAt(lead)
                     const responsible = leadResponsibleName(lead)
                     return (
-                      <tr key={lead.id} className={overdue ? 'lead-overdue-row' : undefined} onClick={() => openLeadCard(lead.id)} style={{ cursor: 'pointer' }}>
-                        <td onClick={event => event.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selectedLeadIds.includes(lead.id)}
-                            onChange={() => toggleLeadSelection(lead.id)}
-                            aria-label={leadDisplayName(lead)}
-                          />
-                        </td>
+                      <tr
+                        key={lead.id}
+                        className={`${overdue ? 'lead-overdue-row ' : ''}${isLeadSelected(lead.id) ? 'bulk-row-selected' : ''}`.trim() || undefined}
+                        onClick={() => openLeadCard(lead.id)}
+                        style={{ cursor: 'pointer', background: isLeadSelected(lead.id) ? 'color-mix(in srgb, var(--brand) 8%, var(--surface))' : undefined }}
+                      >
                         {isColumnVisible('lead') && (
-                          <td className="lead-table-lead-cell">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <div className="avatar" style={{ width: 32, height: 32, fontSize: 12 }}>{initials(lead)}</div>
+                          <td className="lead-table-lead-cell" title={`${leadDisplayName(lead)} · ${lead.phone || lead.email || lead.instagram || lead.facebook || lt('contact_not_set')}`}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div className="avatar" style={{ width: 28, height: 28, fontSize: 11, flex: '0 0 auto' }}>{initials(lead)}</div>
                               <div className="lead-table-person">
                                 <div className="lead-table-person-name" style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13 }}>
                                   {temp && <span title={leadTemperatureLabel(lang, lead.urgency)} style={{ width: 8, height: 8, borderRadius: 999, background: temp.color, flex: '0 0 auto' }} />}
@@ -1795,7 +1912,8 @@ export default function LeadsPage() {
                               className="select"
                               value={leadStatus}
                               onChange={event => updateLeadStatus(lead, event.target.value)}
-                              style={{ minWidth: 150, height: 32, padding: '4px 8px', background: colors.bg, color: colors.color, fontWeight: 700, borderColor: colors.bg }}
+                              title={leadStatusLabel(lang, leadStatus)}
+                              style={{ width: '100%', minWidth: 0, height: 32, padding: '4px 24px 4px 7px', background: colors.bg, color: colors.color, fontWeight: 700, borderColor: colors.bg, fontSize: 12 }}
                             >
                               {statusNames.map(item => <option key={item} value={item}>{leadStatusLabel(lang, item)}</option>)}
                             </select>
@@ -1811,19 +1929,19 @@ export default function LeadsPage() {
                             ) : lt('no_value')}
                           </td>
                         )}
-                        {isColumnVisible('source') && <td className="lead-table-text-cell" style={{ fontSize: 13 }}>{sourceLabel(lead.source)}</td>}
-                        {isColumnVisible('interest') && <td className="lead-table-text-cell" style={{ fontSize: 13 }}>{lead.serviceInterest || lt('no_value')}</td>}
-                        {isColumnVisible('createdAt') && <td className="lead-table-date-cell" style={{ fontSize: 13, color: 'var(--muted)' }}>{lead.createdAt ? formatLeadCreatedAt(lead.createdAt, locale) : lt('no_value')}</td>}
+                        {isColumnVisible('source') && <td className="lead-table-text-cell" title={sourceLabel(lead.source)} style={{ fontSize: 12 }}>{sourceLabel(lead.source)}</td>}
+                        {isColumnVisible('interest') && <td className="lead-table-text-cell" title={lead.serviceInterest || lt('no_value')} style={{ fontSize: 12 }}>{lead.serviceInterest || lt('no_value')}</td>}
+                        {isColumnVisible('createdAt') && <td className="lead-table-date-cell" title={lead.createdAt ? formatLeadCreatedAt(lead.createdAt, locale) : lt('no_value')} style={{ color: 'var(--muted)' }}>{lead.createdAt ? formatLeadCreatedAt(lead.createdAt, locale) : lt('no_value')}</td>}
                         {isColumnVisible('lastContact') && (
-                          <td className="lead-table-date-cell" style={{ fontSize: 13, color: lastContactAt ? 'var(--text)' : 'var(--muted)' }}>
+                          <td className="lead-table-date-cell" title={lastContactAt ? formatLeadCreatedAt(lastContactAt, locale) : lt('no_value')} style={{ color: lastContactAt ? 'var(--text)' : 'var(--muted)' }}>
                             {lastContactAt ? formatLeadCreatedAt(lastContactAt, locale) : lt('no_value')}
                           </td>
                         )}
                         {isColumnVisible('nextContact') && (
-                          <td style={{ fontSize: 13 }}>
+                          <td className="lead-table-date-cell" title={lead.nextContactAt ? [formatLeadDateTime(lead.nextContactAt, locale), lead.nextContactNote].filter(Boolean).join(' · ') : lt('no_value')}>
                             {lead.nextContactAt ? (
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                                <div className="lead-next-contact-main" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                   <span>{formatLeadDateTime(lead.nextContactAt, locale)}</span>
                                   {(overdue || dueToday) && (
                                     <span className={overdue ? 'badge lead-overdue-badge' : 'badge'} style={overdue ? undefined : { background: '#fef3c7', color: '#92400e' }}>
@@ -1831,12 +1949,21 @@ export default function LeadsPage() {
                                     </span>
                                   )}
                                 </div>
-                                {lead.nextContactNote && <div style={{ color: 'var(--muted)', marginTop: 2 }}>{lead.nextContactNote}</div>}
+                                {lead.nextContactNote && <div className="lead-next-contact-note" style={{ color: 'var(--muted)', marginTop: 2 }}>{lead.nextContactNote}</div>}
                               </div>
                             ) : lt('no_value')}
                           </td>
                         )}
-                        {isColumnVisible('responsible') && <td className="lead-table-text-cell" style={{ fontSize: 13 }}>{responsible || lt('no_value')}</td>}
+                        {isColumnVisible('responsible') && <td className="lead-table-text-cell" title={responsible || lt('no_value')} style={{ fontSize: 12 }}>{responsible || lt('no_value')}</td>}
+                        <td className="lead-table-checkbox-cell" onClick={event => event.stopPropagation()}>
+                          <input
+                            className="lead-bulk-checkbox"
+                            type="checkbox"
+                            checked={isLeadSelected(lead.id)}
+                            onChange={() => toggleLeadSelection(lead.id)}
+                            aria-label={leadDisplayName(lead)}
+                          />
+                        </td>
                       </tr>
                     )
                   })}
@@ -1844,6 +1971,13 @@ export default function LeadsPage() {
               </table>
             </div>
             </div>
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, padding: '12px 8px 4px' }}>
+                <button type="button" className="btn btn-secondary" disabled={safeCurrentPage <= 1} onClick={previousLeadPage}>← {leadPageActionLabel('previous')}</button>
+                <strong style={{ fontSize: 13, color: 'var(--muted)' }}>{leadPageLabel()}</strong>
+                <button type="button" className="btn btn-secondary" disabled={safeCurrentPage >= totalPages} onClick={nextLeadPage}>{leadPageActionLabel('next')} →</button>
+              </div>
+            )}
           </div>
           ) : (
             <div className="lead-results lead-results-shell">
@@ -1879,12 +2013,12 @@ export default function LeadsPage() {
                             onDragEnd={() => setDraggingLeadId(null)}
                             onClick={() => openLeadCard(lead.id)}
                             className={`lead-board-card${overdue ? ' lead-overdue-card' : ''}`}
-                            style={{ background: overdue ? undefined : 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, cursor: 'grab', boxShadow: 'var(--shadow)' }}
+                            style={{ background: isLeadSelected(lead.id) ? 'color-mix(in srgb, var(--brand) 9%, var(--surface))' : overdue ? undefined : 'var(--surface)', border: `1px solid ${isLeadSelected(lead.id) ? 'var(--brand)' : 'var(--border)'}`, borderRadius: 8, padding: 10, cursor: 'grab', boxShadow: 'var(--shadow)' }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                               <input
                                 type="checkbox"
-                                checked={selectedLeadIds.includes(lead.id)}
+                                checked={isLeadSelected(lead.id)}
                                 onChange={() => toggleLeadSelection(lead.id)}
                                 onClick={event => event.stopPropagation()}
                               />
