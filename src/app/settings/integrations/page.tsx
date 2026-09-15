@@ -7,7 +7,8 @@ import { useLanguage } from '@/context/LanguageContext'
 type WebhookSettings = {
   slug: string
   enabled: boolean
-  key: string
+  keyConfigured: boolean
+  maskedKey: string
   fieldMap: FieldMapRow[]
   assignment: AssignmentSettings
   facebook: FacebookLeadSettings
@@ -28,8 +29,14 @@ type FacebookLeadSettings = {
   enabled: boolean
   messagesEnabled: boolean
   verifyToken: string
+  verifyTokenConfigured?: boolean
+  maskedVerifyToken?: string
   pageAccessToken: string
+  pageAccessTokenConfigured?: boolean
+  maskedPageAccessToken?: string
   instagramPageAccessToken: string
+  instagramPageAccessTokenConfigured?: boolean
+  maskedInstagramPageAccessToken?: string
   apiVersion: string
   oauth?: MetaOAuthConnection
 }
@@ -686,7 +693,7 @@ export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [showKey, setShowKey] = useState(false)
+  const [webhookKeyDraft, setWebhookKeyDraft] = useState('')
   const [logs, setLogs] = useState<WebhookLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
   const [logsCollapsed, setLogsCollapsed] = useState(false)
@@ -715,9 +722,9 @@ export default function IntegrationsPage() {
     return `${window.location.origin}/api/webhooks/leads/${settings.slug}`
   }, [settings])
   const webliumWebhookUrl = useMemo(() => {
-    if (!webhookUrl || !settings?.key) return ''
-    return `${webhookUrl}/${encodeURIComponent(settings.key)}`
-  }, [webhookUrl, settings?.key])
+    if (!webhookUrl || !webhookKeyDraft) return ''
+    return `${webhookUrl}/${encodeURIComponent(webhookKeyDraft)}`
+  }, [webhookUrl, webhookKeyDraft])
   const facebookCallbackUrl = useMemo(() => {
     if (!settings || typeof window === 'undefined') return ''
     return `${window.location.origin}/api/webhooks/meta/leads/${settings.slug}`
@@ -735,9 +742,9 @@ export default function IntegrationsPage() {
     return `${window.location.origin}/data-deletion`
   }, [])
   const telegramWebhookUrl = useMemo(() => {
-    if (!settings || typeof window === 'undefined' || !settings.key) return ''
-    return `${window.location.origin}/api/webhooks/telegram/leads/${settings.slug}/${encodeURIComponent(settings.key)}`
-  }, [settings])
+    if (!settings || typeof window === 'undefined' || !webhookKeyDraft) return ''
+    return `${window.location.origin}/api/webhooks/telegram/leads/${settings.slug}/${encodeURIComponent(webhookKeyDraft)}`
+  }, [settings, webhookKeyDraft])
   const googleSheetsScript = useMemo(() => {
     if (!webliumWebhookUrl) return ''
     return `const REZIFLOW_WEBHOOK_URL = '${webliumWebhookUrl}';
@@ -935,6 +942,7 @@ function onFormSubmit(e) {
         return
       }
       setSettings(data)
+      setWebhookKeyDraft('')
       setFieldMapDraft(Array.isArray(data.fieldMap) ? data.fieldMap : [])
       setAssignmentDraft(data.assignment || { mode: 'off', userId: null, userIds: [] })
       const nextFacebook = { ...DEFAULT_FACEBOOK_DRAFT, ...(data.facebook || {}) }
@@ -1215,7 +1223,6 @@ function onFormSubmit(e) {
     }
   }
 
-  const maskedKey = settings?.key ? `${settings.key.slice(0, 8)}••••••••••••${settings.key.slice(-6)}` : ''
   const targetLabel = (field: { value: string; label: string }) => targetFieldLabels[lang as 'uk' | 'pl']?.[field.value] || field.label
   const metaOAuth = facebookDraft.oauth
   const pendingMetaPages = metaOAuth?.pendingPages || []
@@ -1319,8 +1326,8 @@ function onFormSubmit(e) {
               <div className="form-group">
                 <label className="label">{text.webliumUrl}</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
-                  <input className="input" readOnly value={showKey ? webliumWebhookUrl : text.webliumHidden} />
-                  <button className="btn btn-secondary" type="button" onClick={() => copy(webliumWebhookUrl)} disabled={!showKey}>{text.copy}</button>
+                  <input className="input" readOnly value={webliumWebhookUrl || text.webliumHidden} />
+                  <button className="btn btn-secondary" type="button" onClick={() => copy(webliumWebhookUrl)} disabled={!webliumWebhookUrl}>{text.copy}</button>
                 </div>
                 <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 6 }}>
                   {text.webliumHint}
@@ -1329,13 +1336,22 @@ function onFormSubmit(e) {
 
               <div className="form-group">
                 <label className="label">{text.accessKey}</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 8 }}>
-                  <input className="input" readOnly value={showKey ? settings.key : maskedKey} />
-                  <button className="btn btn-secondary" type="button" onClick={() => setShowKey(value => !value)}>{showKey ? text.hide : text.show}</button>
-                  <button className="btn btn-secondary" type="button" onClick={() => copy(settings.key)}>{text.copy}</button>
-                  <button className="btn btn-danger" type="button" disabled={saving} onClick={() => {
-                    if (confirm(text.regenerateConfirm)) updateSettings({ regenerateKey: true })
-                  }}>{text.newKey}</button>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) minmax(220px, 1fr) auto', gap: 8 }}>
+                  <input className="input" readOnly value={settings.maskedKey || (settings.keyConfigured ? '••••••••' : '')} />
+                  <input
+                    className="input"
+                    type="password"
+                    autoComplete="new-password"
+                    value={webhookKeyDraft}
+                    onChange={event => setWebhookKeyDraft(event.target.value)}
+                    placeholder={text.newKey}
+                  />
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    disabled={saving || webhookKeyDraft.trim().length < 32}
+                    onClick={() => updateSettings({ webhookKey: webhookKeyDraft.trim() })}
+                  >{saving ? text.saving : text.save}</button>
                 </div>
               </div>
 
@@ -1348,7 +1364,7 @@ function onFormSubmit(e) {
               <div className="section-title"><span>🧪</span>{text.requestExample}</div>
               <pre style={{ whiteSpace: 'pre-wrap', background: '#0f172a', color: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 12, lineHeight: 1.5, overflowX: 'auto' }}>
 {`POST ${webhookUrl}
-x-reziflow-key: ${showKey ? settings.key : 'YOUR_KEY'}
+x-reziflow-key: ${webhookKeyDraft || 'YOUR_KEY'}
 Content-Type: application/json
 
 ${samplePayload}`}
@@ -1668,9 +1684,9 @@ ${samplePayload}`}
                     className="input"
                     value={facebookDraft.verifyToken}
                     onChange={event => setFacebookDraft(current => ({ ...current, verifyToken: event.target.value }))}
-                    placeholder="rzfb_..."
+                    placeholder={facebookDraft.maskedVerifyToken || (facebookDraft.verifyTokenConfigured ? '••••••••' : 'rzfb_...')}
                   />
-                  <button className="btn btn-secondary" type="button" onClick={() => copy(facebookDraft.verifyToken)}>{text.copy}</button>
+                  <button className="btn btn-secondary" type="button" disabled={!facebookDraft.verifyToken} onClick={() => copy(facebookDraft.verifyToken)}>{text.copy}</button>
                 </div>
               </div>
 
@@ -1696,7 +1712,7 @@ ${samplePayload}`}
                   spellCheck={false}
                   value={facebookDraft.pageAccessToken}
                   onChange={event => setFacebookDraft(current => ({ ...current, pageAccessToken: event.target.value }))}
-                  placeholder={text.facebookTokenPlaceholder}
+                  placeholder={facebookDraft.maskedPageAccessToken || (facebookDraft.pageAccessTokenConfigured ? '••••••••' : text.facebookTokenPlaceholder)}
                 />
                 <button className="btn btn-secondary" type="button" onClick={() => setShowFacebookToken(value => !value)}>
                   {showFacebookToken ? text.hide : text.show}
@@ -1718,7 +1734,7 @@ ${samplePayload}`}
                   spellCheck={false}
                   value={facebookDraft.instagramPageAccessToken || ''}
                   onChange={event => setFacebookDraft(current => ({ ...current, instagramPageAccessToken: event.target.value }))}
-                  placeholder={text.instagramTokenPlaceholder}
+                  placeholder={facebookDraft.maskedInstagramPageAccessToken || (facebookDraft.instagramPageAccessTokenConfigured ? '••••••••' : text.instagramTokenPlaceholder)}
                 />
                 <button className="btn btn-secondary" type="button" onClick={() => setShowInstagramToken(value => !value)}>
                   {showInstagramToken ? text.hide : text.show}
@@ -1781,15 +1797,7 @@ ${samplePayload}`}
               )}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginTop: 14 }}>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={saving}
-                onClick={() => updateSettings({ regenerateFacebookVerifyToken: true, facebook: facebookDraft })}
-              >
-                {text.newVerifyToken}
-              </button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 14 }}>
               <button type="button" className="btn btn-primary" onClick={() => saveFacebookSettings()} disabled={saving}>
                 {saving ? text.saving : text.saveFacebook}
               </button>
@@ -1807,8 +1815,8 @@ ${samplePayload}`}
             <div className="form-group">
               <label className="label">{text.googleSheetsUrl}</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
-                <input className="input" readOnly value={webliumWebhookUrl} />
-                <button className="btn btn-secondary" type="button" onClick={() => copy(webliumWebhookUrl)}>{text.copy}</button>
+                <input className="input" readOnly value={webliumWebhookUrl || text.webliumHidden} />
+                <button className="btn btn-secondary" type="button" disabled={!webliumWebhookUrl} onClick={() => copy(webliumWebhookUrl)}>{text.copy}</button>
               </div>
             </div>
 
@@ -1837,14 +1845,14 @@ ${samplePayload}`}
             <div className="form-group">
               <label className="label">Telegram webhook URL</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
-                <input className="input" readOnly value={telegramWebhookUrl} />
-                <button className="btn btn-secondary" type="button" onClick={() => copy(telegramWebhookUrl)}>{text.copy}</button>
+                <input className="input" readOnly value={telegramWebhookUrl || text.webliumHidden} />
+                <button className="btn btn-secondary" type="button" disabled={!telegramWebhookUrl} onClick={() => copy(telegramWebhookUrl)}>{text.copy}</button>
               </div>
             </div>
 
             <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 8, padding: 12, fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>
               {text.telegramCommand}
-              <pre style={{ whiteSpace: 'pre-wrap', margin: '8px 0 0', color: '#0f172a' }}>{`https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=${telegramWebhookUrl}`}</pre>
+              <pre style={{ whiteSpace: 'pre-wrap', margin: '8px 0 0', color: '#0f172a' }}>{telegramWebhookUrl ? `https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=${telegramWebhookUrl}` : text.webliumHidden}</pre>
             </div>
           </div>
         )}

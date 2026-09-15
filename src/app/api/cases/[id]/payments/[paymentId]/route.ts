@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { findScopedCase } from '@/lib/apiScope'
+import { caseChildWhere } from '@/lib/nestedResourceScope'
 
 async function recalcTotalPaid(caseId: string) {
   const allPayments = await prisma.payment.aggregate({
@@ -23,6 +24,12 @@ export async function PATCH(
   const organizationId = getOrganizationId(user)
   const scopedCase = await findScopedCase(params.id, organizationId, { id: true })
   if (!scopedCase) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const existingPayment = await prisma.payment.findFirst({
+    where: caseChildWhere(params.id, params.paymentId),
+    select: { id: true },
+  })
+  if (!existingPayment) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await request.json()
   const amount = parseFloat(body.amount)
@@ -54,7 +61,13 @@ export async function DELETE(
   const scopedCase = await findScopedCase(params.id, organizationId, { id: true })
   if (!scopedCase) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  await prisma.payment.delete({ where: { id: params.paymentId } })
+  const existingPayment = await prisma.payment.findFirst({
+    where: caseChildWhere(params.id, params.paymentId),
+    select: { id: true },
+  })
+  if (!existingPayment) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  await prisma.payment.delete({ where: { id: existingPayment.id } })
   await recalcTotalPaid(params.id)
   return NextResponse.json({ success: true })
 }

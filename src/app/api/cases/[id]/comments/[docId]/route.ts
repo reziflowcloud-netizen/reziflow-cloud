@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { findScopedCase } from '@/lib/apiScope'
+import { deleteCloudinaryResource } from '@/lib/cloudinary'
+import { caseChildWhere } from '@/lib/nestedResourceScope'
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string; docId: string } }) {
   const user = await getUser()
@@ -10,25 +12,15 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string;
   const scopedCase = await findScopedCase(params.id, organizationId, { id: true })
   if (!scopedCase) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   try {
-    const doc = await (prisma as any).caseDocument.findUnique({ where: { id: parseInt(params.docId) } })
-    if (doc && doc.caseId !== params.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    const doc = await (prisma as any).caseDocument.findFirst({ where: caseChildWhere(params.id, parseInt(params.docId)) })
+    if (!doc) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     if (doc) {
-      // Удалить из Cloudinary
-      const cloudName = process.env.CLOUDINARY_CLOUD_NAME
-      const apiKey = process.env.CLOUDINARY_API_KEY
-      const apiSecret = process.env.CLOUDINARY_API_SECRET
-      if (cloudName && apiKey && apiSecret) {
-        const timestamp = Math.round(Date.now() / 1000)
-        const crypto = require('crypto')
-        const sig = crypto.createHash('sha1').update(`public_id=${doc.publicId}&timestamp=${timestamp}${apiSecret}`).digest('hex')
-        await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/destroy`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ public_id: doc.publicId, signature: sig, api_key: apiKey, timestamp }),
-        })
-      }
-      await (prisma as any).caseDocument.delete({ where: { id: parseInt(params.docId) } })
+      await deleteCloudinaryResource(doc.publicId, {
+        authenticated: doc.storageProvider === 'cloudinary_authenticated',
+        resourceType: doc.storagePath === 'raw' || doc.fileType === 'pdf' ? 'raw' : 'image',
+      })
+      await (prisma as any).caseDocument.delete({ where: { id: doc.id } })
     }
     return NextResponse.json({ ok: true })
-  } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }) }
+  } catch { return NextResponse.json({ error: 'Document delete failed' }, { status: 500 }) }
 }

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import path from 'path'
 import { unlink } from 'fs/promises'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
-import { deleteCloudinaryResources } from '@/lib/cloudinary'
+import { deleteCloudinaryDocumentResources } from '@/lib/cloudinary'
 import { deleteDropboxFile, getDropboxSettings } from '@/lib/dropbox'
 import { attachOrganizationUsageStats, isSystemAdmin, organizationInclude } from '@/lib/organizationProvisioning'
+import { resolveLocalDocumentPath } from '@/lib/documentSecurity'
 
 const BILLING_LIMIT_KEYS = ['users', 'clients', 'cases', 'leads'] as const
 type BillingLimitKey = typeof BILLING_LIMIT_KEYS[number]
@@ -40,12 +40,8 @@ function normalizeBillingLimits(value: unknown) {
 async function deleteLocalDocument(publicId: string | null | undefined) {
   if (!publicId || !String(publicId).startsWith('local:')) return false
 
-  const publicRoot = path.resolve(process.cwd(), 'public')
-  const publicPath = String(publicId).replace(/^local:/, '').replace(/^\/+/, '')
-  const filePath = path.resolve(publicRoot, publicPath)
-  if (!filePath.startsWith(`${publicRoot}${path.sep}`)) return false
-
   try {
+    const filePath = resolveLocalDocumentPath(`${process.cwd()}/public`, publicId)
     await unlink(filePath)
     return true
   } catch {
@@ -58,6 +54,7 @@ async function cleanupOrganizationDocumentFiles(organizationId: string, organiza
     where: { case: { organizationId } },
     select: {
       publicId: true,
+      fileType: true,
       storageProvider: true,
       storageId: true,
       storagePath: true,
@@ -66,12 +63,8 @@ async function cleanupOrganizationDocumentFiles(organizationId: string, organiza
     },
   })
 
-  const cloudinaryPublicIds = documents
-    .filter((doc: any) => doc.publicId && doc.storageProvider !== 'dropbox' && !String(doc.publicId).startsWith('local:'))
-    .map((doc: any) => doc.publicId)
-
   const [deletedCloudinaryFiles, localResults] = await Promise.all([
-    deleteCloudinaryResources(cloudinaryPublicIds),
+    deleteCloudinaryDocumentResources(documents),
     Promise.all(documents.map((doc: any) => deleteLocalDocument(doc.publicId))),
   ])
 
@@ -86,7 +79,7 @@ async function cleanupOrganizationDocumentFiles(organizationId: string, organiza
         await deleteDropboxFile(dropbox.accessToken, dropboxPathOrId)
         deletedDropboxFiles += 1
       } catch (error) {
-        console.error('Dropbox organization document delete error:', error)
+        console.error('Dropbox organization document delete error:', error instanceof Error ? error.name : 'UnknownError')
       }
     }
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { LEAD_WEBHOOK_TARGET_FIELDS, generateFacebookVerifyToken, generateLeadWebhookKey, getLeadWebhookSettings, settingsObject } from '@/lib/leadWebhook'
+import { maskCredential } from '@/lib/security'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,10 +34,15 @@ function facebookResponse(settings: ReturnType<typeof getLeadWebhookSettings>) {
   return {
     enabled: settings.facebookLeadEnabled === true,
     messagesEnabled: settings.facebookMessagesEnabled === true,
-    verifyToken: settings.facebookLeadVerifyToken || '',
-    pageAccessToken: settings.facebookLeadPageAccessToken || '',
-    instagramPageAccessToken: settings.instagramMessagesPageAccessToken || '',
-    instagramAccessToken: settings.instagramMessagesPageAccessToken || '',
+    verifyToken: '',
+    verifyTokenConfigured: Boolean(settings.facebookLeadVerifyToken),
+    maskedVerifyToken: maskCredential(settings.facebookLeadVerifyToken),
+    pageAccessToken: '',
+    pageAccessTokenConfigured: Boolean(settings.facebookLeadPageAccessToken),
+    maskedPageAccessToken: maskCredential(settings.facebookLeadPageAccessToken),
+    instagramPageAccessToken: '',
+    instagramPageAccessTokenConfigured: Boolean(settings.instagramMessagesPageAccessToken),
+    maskedInstagramPageAccessToken: maskCredential(settings.instagramMessagesPageAccessToken),
     apiVersion: settings.facebookLeadApiVersion || 'v23.0',
     oauth: {
       connected: settings.metaOAuthConnected === true,
@@ -118,7 +124,8 @@ export async function GET() {
   return NextResponse.json({
     slug: organization.slug,
     enabled: settings.leadWebhookEnabled !== false,
-    key: settings.leadWebhookKey,
+    keyConfigured: Boolean(settings.leadWebhookKey),
+    maskedKey: maskCredential(settings.leadWebhookKey),
     fieldMap: settings.leadWebhookFieldMap || [],
     assignment: {
       mode: settings.leadWebhookAssignmentMode || 'off',
@@ -140,7 +147,11 @@ export async function PATCH(request: NextRequest) {
   const body = await request.json().catch(() => ({}))
   const current = settingsObject(organization.settings)
   const previous = getLeadWebhookSettings(current)
-  const nextKey = body.regenerateKey ? generateLeadWebhookKey() : previous.leadWebhookKey || generateLeadWebhookKey()
+  const requestedWebhookKey = typeof body.webhookKey === 'string' ? body.webhookKey.trim() : ''
+  if (requestedWebhookKey && requestedWebhookKey.length < 32) {
+    return NextResponse.json({ error: 'Webhook key must be at least 32 characters' }, { status: 400 })
+  }
+  const nextKey = requestedWebhookKey || (body.regenerateKey ? generateLeadWebhookKey() : previous.leadWebhookKey || generateLeadWebhookKey())
   const nextEnabled = typeof body.enabled === 'boolean' ? body.enabled : previous.leadWebhookEnabled !== false
   const nextFieldMap = Array.isArray(body.fieldMap)
     ? body.fieldMap
@@ -168,17 +179,23 @@ export async function PATCH(request: NextRequest) {
     : incomingFacebook && typeof incomingFacebook.verifyToken === 'string'
       ? incomingFacebook.verifyToken.trim() || previous.facebookLeadVerifyToken || generateFacebookVerifyToken()
       : previous.facebookLeadVerifyToken || generateFacebookVerifyToken()
-  const nextFacebookPageAccessToken = incomingFacebook && typeof incomingFacebook.pageAccessToken === 'string'
+  const incomingFacebookPageAccessToken = incomingFacebook && typeof incomingFacebook.pageAccessToken === 'string'
     ? normalizeAccessToken(incomingFacebook.pageAccessToken)
-    : previous.facebookLeadPageAccessToken || ''
+    : ''
+  const nextFacebookPageAccessToken = incomingFacebook?.clearPageAccessToken === true
+    ? ''
+    : incomingFacebookPageAccessToken || previous.facebookLeadPageAccessToken || ''
   const incomingInstagramPageAccessToken = incomingFacebook && typeof incomingFacebook.instagramPageAccessToken === 'string'
     ? incomingFacebook.instagramPageAccessToken
     : incomingFacebook && typeof incomingFacebook.instagramAccessToken === 'string'
       ? incomingFacebook.instagramAccessToken
       : null
-  const nextInstagramPageAccessToken = incomingInstagramPageAccessToken !== null
+  const normalizedInstagramPageAccessToken = incomingInstagramPageAccessToken !== null
     ? normalizeAccessToken(incomingInstagramPageAccessToken)
-    : previous.instagramMessagesPageAccessToken || ''
+    : ''
+  const nextInstagramPageAccessToken = incomingFacebook?.clearInstagramPageAccessToken === true
+    ? ''
+    : normalizedInstagramPageAccessToken || previous.instagramMessagesPageAccessToken || ''
   const nextFacebookApiVersion = incomingFacebook && typeof incomingFacebook.apiVersion === 'string'
     ? incomingFacebook.apiVersion.trim() || 'v23.0'
     : previous.facebookLeadApiVersion || 'v23.0'
@@ -208,7 +225,8 @@ export async function PATCH(request: NextRequest) {
   return NextResponse.json({
     slug: organization.slug,
     enabled: nextEnabled,
-    key: nextKey,
+    keyConfigured: Boolean(nextKey),
+    maskedKey: maskCredential(nextKey),
     fieldMap: nextFieldMap,
     assignment: {
       mode: nextAssignmentMode,

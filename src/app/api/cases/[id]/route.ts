@@ -2,11 +2,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
-import { deleteCloudinaryResources } from '@/lib/cloudinary'
+import { deleteCloudinaryDocumentResources } from '@/lib/cloudinary'
 import { deleteDropboxFile, getDropboxSettings } from '@/lib/dropbox'
 import { caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 import { resolveUserIdForEmployee } from '@/lib/employeeSync'
 import { shouldRetirePersonalAppearTask } from '@/lib/caseImportantDateTasks'
+import { serializeDocumentForBrowser } from '@/lib/documentSecurity'
 
 function taskBelongsToCase(
   task: { title: string | null; description: string | null },
@@ -45,11 +46,6 @@ function isOrganizationAdmin(user: any) {
 function isArchiveStatus(status?: string | null) {
   const value = String(status || '').trim().toLowerCase()
   return value.includes('архив') || value.includes('archive') || value.includes('archiw') || status === 'Архив'
-}
-
-function serializeCaseDocument(doc: any) {
-  if (doc?.storageProvider === 'dropbox' && !doc.url) return { ...doc, url: `/api/documents/${doc.id}/file` }
-  return doc
 }
 
 function clientNameFromCase(caseRecord: any) {
@@ -188,7 +184,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json({
       ...c,
-      caseDocuments: Array.isArray(c.caseDocuments) ? c.caseDocuments.map(serializeCaseDocument) : [],
+      caseDocuments: Array.isArray(c.caseDocuments) ? c.caseDocuments.map(serializeDocumentForBrowser) : [],
     })
   } catch (e: any) {
     const c = await prisma.case.findFirst({
@@ -340,6 +336,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     where: { caseId: params.id },
     select: {
       publicId: true,
+      fileType: true,
       storageProvider: true,
       storageId: true,
       storagePath: true,
@@ -357,17 +354,16 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     .filter(task => taskBelongsToCase(task, existing.id, existing.caseNumber))
     .map(task => task.id)
 
-  const cloudinaryPublicIds = documents
-    .filter((doc: any) => doc.publicId && doc.storageProvider !== 'dropbox' && !String(doc.publicId).startsWith('local:'))
-    .map((doc: any) => doc.publicId)
-  const deletedCloudinaryFiles = await deleteCloudinaryResources(cloudinaryPublicIds)
+  const deletedCloudinaryFiles = await deleteCloudinaryDocumentResources(documents)
 
   for (const doc of documents as any[]) {
     const dropboxPathOrId = doc.dropboxStorageId || doc.dropboxPath || doc.storageId || doc.storagePath || (doc.storageProvider === 'dropbox' ? doc.publicId : null)
     if (!dropboxPathOrId) continue
     const dropbox = getDropboxSettings(doc.case?.organization?.settings)
     if (!dropbox.accessToken) continue
-    try { await deleteDropboxFile(dropbox.accessToken, dropboxPathOrId) } catch (error) { console.error('Dropbox delete error:', error) }
+    try { await deleteDropboxFile(dropbox.accessToken, dropboxPathOrId) } catch (error) {
+      console.error('Dropbox delete error:', error instanceof Error ? error.name : 'UnknownError')
+    }
   }
 
   await prisma.$transaction([

@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getUser } from '@/lib/auth'
+import { isSystemAdmin } from '@/lib/organizationProvisioning'
 
 export async function GET() {
+  return NextResponse.json({ error: 'Method not allowed' }, { status: 405, headers: { Allow: 'POST' } })
+}
+
+export async function POST() {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!isSystemAdmin(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const tables = [
     'Service', 'CaseStatus', 'TaskPriority', 'Employee', 'CaseOption',

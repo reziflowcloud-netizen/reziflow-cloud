@@ -3,49 +3,22 @@ import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { signToken } from '@/lib/auth'
 import { cookies } from 'next/headers'
-import { ensureDefaultOrganization, getSystemAdminEmails } from '@/lib/organizationProvisioning'
+import { isSameOriginRequest } from '@/lib/requestSecurity'
 
 export async function POST(request: NextRequest) {
+  if (!isSameOriginRequest(request)) return NextResponse.json({ error: 'Cross-origin request blocked' }, { status: 403 })
   try {
     const { email, password } = await request.json()
     const normalizedEmail = String(email || '').trim().toLowerCase()
-    const isSystemAdminEmail = getSystemAdminEmails().includes(normalizedEmail)
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123'
 
-    let user = await prisma.user.findUnique({ where: { email: normalizedEmail } })
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } })
     let organization = null
-
-    if (!user && isSystemAdminEmail && password === adminPassword) {
-      organization = await ensureDefaultOrganization()
-      user = await prisma.user.create({
-        data: {
-          email: normalizedEmail,
-          password: await bcrypt.hash(adminPassword, 10),
-          name: process.env.ADMIN_NAME || 'Administrator',
-          role: 'admin',
-          organizationId: organization.id,
-        },
-      })
-    }
 
     if (!user) {
       return NextResponse.json({ error: 'Неверный email или пароль' }, { status: 401 })
     }
 
-    let valid = await bcrypt.compare(password, user.password)
-    if (!valid && isSystemAdminEmail && password === adminPassword) {
-      organization = await ensureDefaultOrganization()
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          password: await bcrypt.hash(adminPassword, 10),
-          name: process.env.ADMIN_NAME || user.name || 'Administrator',
-          role: 'admin',
-          organizationId: organization.id,
-        },
-      })
-      valid = true
-    }
+    const valid = await bcrypt.compare(password, user.password)
 
     if (!valid) {
       return NextResponse.json({ error: 'Неверный email или пароль' }, { status: 401 })
@@ -98,7 +71,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Login error:', error)
+    console.error('Login error:', error instanceof Error ? error.name : 'UnknownError')
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })
   }
 }

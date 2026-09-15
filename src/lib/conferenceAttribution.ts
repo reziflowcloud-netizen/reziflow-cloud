@@ -22,8 +22,7 @@ type ResolvedConferenceAttribution = {
 }
 
 function conferenceSecret() {
-  const value = process.env.JWT_SECRET
-    || (process.env.NODE_ENV !== 'production' ? 'legalhub-conference-local-development-only' : '')
+  const value = process.env.JWT_SECRET?.trim()
   return value ? new TextEncoder().encode(value) : null
 }
 

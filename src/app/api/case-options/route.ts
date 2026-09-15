@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { isOrganizationAdmin } from '@/lib/security'
 
 export async function GET() {
   const user = await getUser()
@@ -21,6 +22,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!isOrganizationAdmin(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const organizationId = getOrganizationId(user)
   const body = await request.json()
   try {

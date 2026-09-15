@@ -5,8 +5,14 @@ const bcrypt = require('bcryptjs')
 const prisma = new PrismaClient()
 
 async function main() {
+  const adminEmail = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase()
+  const adminPassword = String(process.env.ADMIN_PASSWORD || '')
+  if (!adminEmail || !adminPassword) {
+    throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD are required for seeding')
+  }
+
   // Create admin user
-  const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 10)
+  const hashedPassword = await bcrypt.hash(adminPassword, 10)
   const organization = await prisma.organization.upsert({
     where: { slug: process.env.ORGANIZATION_SLUG || 'default' },
     update: {},
@@ -20,7 +26,7 @@ async function main() {
   })
   
   await prisma.user.upsert({
-    where: { email: process.env.ADMIN_EMAIL || 'admin@migraflow.pl' },
+    where: { email: adminEmail },
     update: {
       password: hashedPassword,
       name: process.env.ADMIN_NAME || 'Administrator',
@@ -28,7 +34,7 @@ async function main() {
       organizationId: organization.id,
     },
     create: {
-      email: process.env.ADMIN_EMAIL || 'admin@migraflow.pl',
+      email: adminEmail,
       password: hashedPassword,
       name: process.env.ADMIN_NAME || 'Administrator',
       role: 'admin',
@@ -55,10 +61,8 @@ async function main() {
   }
 
   console.log('✅ Seed completed!')
-  console.log(`📧 Login: ${process.env.ADMIN_EMAIL || 'admin@migraflow.pl'}`)
-  console.log(`🔑 Password: ${process.env.ADMIN_PASSWORD || 'admin123'}`)
 }
 
 main()
-  .catch(console.error)
+  .catch((error) => console.error(error instanceof Error ? error.name : 'UnknownError'))
   .finally(() => prisma.$disconnect())

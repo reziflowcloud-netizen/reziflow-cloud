@@ -6,18 +6,10 @@ export async function GET() {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   return NextResponse.json({
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
-    uploadPreset: process.env.CLOUDINARY_UPLOAD_PRESET || '',
-    folder: 'reziflow-cloud',
+    configured: Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET),
   })
 }
 
 export async function POST() {
-  const user = await getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  return NextResponse.json({
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
-    uploadPreset: process.env.CLOUDINARY_UPLOAD_PRESET || '',
-    folder: 'reziflow-cloud',
-  })
+  return NextResponse.json({ error: 'Direct provider uploads are disabled' }, { status: 405 })
 }

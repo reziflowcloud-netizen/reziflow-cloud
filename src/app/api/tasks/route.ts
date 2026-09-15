@@ -7,13 +7,18 @@ import {
   getCaseImportantDateTaskRef,
   shouldRetirePersonalAppearTask,
 } from '@/lib/caseImportantDateTasks'
+import { SAFE_ASSIGNEE_SELECT } from '@/lib/security'
 
 export async function GET() {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
   const scope = await getDataAccessScope(user, organizationId)
-  const tasks = await prisma.task.findMany({ where: taskWhereForScope(scope, organizationId), include: { assignedTo: true }, orderBy: { createdAt: 'desc' } })
+  const tasks = await prisma.task.findMany({
+    where: taskWhereForScope(scope, organizationId),
+    include: { assignedTo: { select: SAFE_ASSIGNEE_SELECT } },
+    orderBy: { createdAt: 'desc' },
+  })
   const taskRefs = tasks.map(task => getCaseImportantDateTaskRef(task.description))
   const personalAppearCaseIds = Array.from(new Set(
     taskRefs

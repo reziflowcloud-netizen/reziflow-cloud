@@ -2,20 +2,22 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 
-const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'migraflow-secret-key-change-in-production'
-)
+function jwtSecret() {
+  const value = process.env.JWT_SECRET?.trim()
+  if (!value) throw new Error('JWT_SECRET is required')
+  return new TextEncoder().encode(value)
+}
 
 export async function signToken(payload: Record<string, unknown>, expiresIn: string | number = '7d') {
   return await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setExpirationTime(expiresIn)
-    .sign(secret)
+    .sign(jwtSecret())
 }
 
 export async function verifyToken(token: string) {
   try {
-    const { payload } = await jwtVerify(token, secret)
+    const { payload } = await jwtVerify(token, jwtSecret())
     return payload
   } catch {
     return null

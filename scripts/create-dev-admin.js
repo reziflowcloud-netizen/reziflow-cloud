@@ -16,8 +16,11 @@ for (const line of env.split(/\r?\n/)) {
 const prisma = new PrismaClient()
 
 async function main() {
-  const email = process.env.ADMIN_EMAIL || 'admin@migraflow.pl'
-  const password = process.env.ADMIN_PASSWORD || 'admin123'
+  const email = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase()
+  const password = String(process.env.ADMIN_PASSWORD || '')
+  if (!email || !password) {
+    throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD are required')
+  }
   const name = process.env.ADMIN_NAME || 'Administrator'
   const hashedPassword = await bcrypt.hash(password, 10)
 
@@ -27,12 +30,12 @@ async function main() {
     create: { email, password: hashedPassword, name, role: 'admin' },
   })
 
-  console.log(`Dev admin is ready: ${email}`)
+  console.log('Dev admin is ready')
 }
 
 main()
   .catch((error) => {
-    console.error(error)
+    console.error(error instanceof Error ? error.name : 'UnknownError')
     process.exit(1)
   })
   .finally(() => prisma.$disconnect())

@@ -71,7 +71,7 @@ export async function PATCH(req: NextRequest) {
   const hasMosEmailField = Object.prototype.hasOwnProperty.call(incoming, 'mosEmailFieldEnabled')
   const hasTutorialVideos = Object.prototype.hasOwnProperty.call(incoming, 'tutorialVideosEnabled')
   const hasQuickStart = Object.prototype.hasOwnProperty.call(incoming, 'quickStartEnabled')
-  const nextSettings: OrganizationSettings = {
+  const nextSettings = {
     ...defaultSettings,
     ...rawCurrent,
     mosAutoRemindersEnabled: hasMosAutoReminders
@@ -93,5 +93,5 @@ export async function PATCH(req: NextRequest) {
     data: { settings: nextSettings },
   })
 
-  return NextResponse.json({ settings: nextSettings })
+  return NextResponse.json({ settings: normalizeSettings(nextSettings) })
 }

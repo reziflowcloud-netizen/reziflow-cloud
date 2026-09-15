@@ -5,6 +5,7 @@ import { getOrganizationId, getUser } from '@/lib/auth'
 import { caseWhereForScope, findScopedClient, getDataAccessScope } from '@/lib/apiScope'
 import { assertBillingLimit, billingLimitResponsePayload, isBillableActiveCaseStatus, isBillingLimitError } from '@/lib/billing'
 import { resolveUserIdForEmployee } from '@/lib/employeeSync'
+import { SAFE_ASSIGNEE_SELECT } from '@/lib/security'
 
 export async function GET(request: NextRequest) {
   const user = await getUser()
@@ -35,14 +36,14 @@ export async function GET(request: NextRequest) {
 
     const cases = await prisma.case.findMany({
       where: caseWhereForScope(scope, organizationId),
-      include: { client: true, assignedTo: true, employee: true, service: true },
+      include: { client: true, assignedTo: { select: SAFE_ASSIGNEE_SELECT }, employee: true, service: true },
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json(cases)
   } catch (e: any) {
     const cases = await prisma.case.findMany({
       where: caseWhereForScope(scope, organizationId),
-      include: { client: true, assignedTo: true, employee: true },
+      include: { client: true, assignedTo: { select: SAFE_ASSIGNEE_SELECT }, employee: true },
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json(cases)

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
-import { deleteCloudinaryResources } from '@/lib/cloudinary'
+import { deleteCloudinaryDocumentResources } from '@/lib/cloudinary'
 import { normalizePhones, phonesWithLegacy, primaryPhone } from '@/lib/phones'
 import { DataAccessScope, caseWhereForScope, clientWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 
@@ -418,9 +418,9 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     if (caseIds.length > 0) {
       const caseDocuments = await (prisma as any).caseDocument.findMany({
         where: { caseId: { in: caseIds } },
-        select: { publicId: true },
+        select: { publicId: true, fileType: true, storageProvider: true, storagePath: true },
       })
-      deletedCloudinaryFiles = await deleteCloudinaryResources(caseDocuments.map((doc: any) => doc.publicId))
+      deletedCloudinaryFiles = await deleteCloudinaryDocumentResources(caseDocuments)
 
       await prisma.payment.deleteMany({ where: { caseId: { in: caseIds } } })
       await prisma.comment.deleteMany({ where: { caseId: { in: caseIds } } })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
+import { isOrganizationAdmin } from '@/lib/security'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,7 @@ function normalizeReasons(value: unknown) {
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!isOrganizationAdmin(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const organizationId = getOrganizationId(user)
   const id = Number(params.id)
   const existing = await (prisma as any).leadStatus.findFirst({ where: { id, organizationId } })
@@ -56,6 +58,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!isOrganizationAdmin(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const organizationId = getOrganizationId(user)
   const id = Number(params.id)
   const existing = await (prisma as any).leadStatus.findFirst({ where: { id, organizationId } })

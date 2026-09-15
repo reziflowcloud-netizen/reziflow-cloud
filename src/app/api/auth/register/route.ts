@@ -11,10 +11,12 @@ import {
 } from '@/lib/conferenceAttribution'
 import { recordConferenceEvent } from '@/lib/conferenceEvents'
 import { normalizeConferenceLanguage } from '@/lib/conferenceTrackingCore'
+import { isSameOriginRequest } from '@/lib/requestSecurity'
 
 const ALLOWED_PLANS = new Set(['free', 'starter', 'pro', 'agency'])
 
 export async function POST(request: NextRequest) {
+  if (!isSameOriginRequest(request)) return NextResponse.json({ error: 'Cross-origin request blocked' }, { status: 403 })
   try {
     if (!process.env.DATABASE_URL) {
       return NextResponse.json({
@@ -85,7 +87,7 @@ export async function POST(request: NextRequest) {
       landingPath,
       sourcePage: request.headers.get('referer'),
     }).catch(error => {
-      console.error('Registration notification failed:', error)
+      console.error('Registration notification failed:', error instanceof Error ? error.name : 'UnknownError')
       return { sent: false, skipped: false }
     })
 
@@ -127,7 +129,7 @@ export async function POST(request: NextRequest) {
       notificationSent: notification.sent,
     })
   } catch (error: any) {
-    console.error('Register organization error:', error)
+    console.error('Register organization error:', error instanceof Error ? error.name : 'UnknownError')
     const message = String(error?.message || '')
     if (message.includes('DATABASE_URL')) {
       return NextResponse.json({

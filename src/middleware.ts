@@ -10,6 +10,7 @@ import {
   resolveConferenceAttribution,
   setConferenceAttributionCookie,
 } from './lib/conferenceAttribution'
+import { isSameOriginRequest, shouldEnforceSameOrigin } from './lib/requestSecurity'
 
 const PUBLIC_PATHS = [
   '/',
@@ -38,6 +39,9 @@ const PUBLIC_PREFIXES = ['/assets', '/api/webhooks/leads', '/api/webhooks/meta/l
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  if (shouldEnforceSameOrigin(pathname, request.method) && !isSameOriginRequest(request)) {
+    return NextResponse.json({ error: 'Cross-origin request blocked' }, { status: 403 })
+  }
   const isPublic = PUBLIC_PATHS.some(p => pathname === p)
     || PUBLIC_PREFIXES.some(p => pathname.startsWith(p))
   const token = request.cookies.get('auth-token')?.value

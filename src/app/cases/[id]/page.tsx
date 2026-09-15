@@ -1693,7 +1693,7 @@ export default function CaseDetailPage() {
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-                    <input ref={fileInputRef} type="file" accept="image/*,.pdf" multiple style={{ display: 'none' }}
+                    <input ref={fileInputRef} type="file" accept="application/pdf,image/png,image/jpeg,image/gif,image/webp" multiple style={{ display: 'none' }}
                       onChange={async e => { for (const f of Array.from(e.target.files || [])) await uploadFile(f); if (fileInputRef.current) fileInputRef.current.value = '' }} />
                     <button onClick={() => fileInputRef.current?.click()} className="btn btn-primary" disabled={uploading}>
                       {uploading ? `⏳ ${t('uploading_file')}` : `📎 ${t('upload_file')}`}
