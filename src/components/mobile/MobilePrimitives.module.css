@@ -1,0 +1,157 @@
+.mobileOnly { display: none; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  max-width: 100%;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.badge_neutral { border-color: #28536a; background: #13283a; color: #b8d9e8; }
+.badge_brand { border-color: #0891b2; background: rgba(6, 182, 212, 0.16); color: #67e8f9; }
+.badge_info { border-color: #2563eb; background: rgba(37, 99, 235, 0.16); color: #93c5fd; }
+.badge_success { border-color: #16a34a; background: rgba(22, 163, 74, 0.16); color: #86efac; }
+.badge_warning { border-color: #f59e0b; background: rgba(245, 158, 11, 0.16); color: #fbbf24; }
+.badge_danger { border-color: #dc2626; background: rgba(220, 38, 38, 0.16); color: #fca5a5; }
+.badge_violet { border-color: #7c3aed; background: rgba(124, 58, 237, 0.16); color: #c4b5fd; }
+
+@media (max-width: 768px) {
+  .mobileOnly { display: block; }
+
+  .pageShell {
+    width: 100%;
+    min-width: 0;
+    padding: 16px;
+    color: var(--text);
+  }
+
+  .header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    gap: 10px;
+    align-items: center;
+    min-height: 52px;
+    padding: 10px 16px;
+  }
+
+  .headerCopy { min-width: 0; }
+  .headerCopy h1 { margin: 0; font-size: clamp(24px, 7vw, 28px); font-weight: 800; line-height: 1.12; }
+  .headerSubtitle { margin-top: 3px; color: var(--muted); font-size: 14px; line-height: 1.3; }
+  .headerAction, .headerOverflow { min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+
+  .iconButton {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .chipRail {
+    display: flex;
+    gap: 8px;
+    width: calc(100% + 16px);
+    margin-right: -16px;
+    padding: 2px 16px 4px 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    overscroll-behavior-inline: contain;
+  }
+
+  .chipRail::-webkit-scrollbar { display: none; }
+  .chipRail > * { flex: 0 0 auto; min-height: 44px; scroll-snap-align: start; }
+
+  .surface {
+    padding: 15px;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .searchRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .searchControl { min-width: 0; }
+  .searchControl > *, .filterControl > * { min-height: 44px; }
+
+  .accordion {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--surface);
+  }
+
+  .accordionTrigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-height: 52px;
+    padding: 12px 14px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .accordionLabel { min-width: 0; display: grid; gap: 3px; }
+  .accordionLabel strong { font-size: 16px; }
+  .accordionLabel span { color: var(--muted); font-size: 13px; }
+  .chevron { color: var(--muted); font-size: 22px; transition: transform 150ms ease; }
+  .chevronOpen { transform: rotate(180deg); }
+  .accordionBody { padding: 0 14px 14px; }
+
+  .bulkBar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    min-height: 56px;
+    padding: 8px 12px;
+    border: 1px solid #28536a;
+    border-radius: 12px;
+    background: #0f1b2d;
+    color: #e0f2fe;
+  }
+
+  .bulkActions { min-width: 0; display: flex; justify-content: flex-end; gap: 6px; }
+  .bulkCancel { min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+
+  .stateFrame {
+    display: grid;
+    gap: 6px;
+    padding: 18px 16px;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--surface);
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .stateFrame strong { color: var(--text); font-size: 16px; }
+  .state_error { border-color: var(--danger-border); }
+  .stateAction { display: flex; justify-content: center; margin-top: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron { transition: none; }
+}

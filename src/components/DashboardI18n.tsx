@@ -28,6 +28,10 @@ const DASHBOARD_TEXT: Record<Lang, Record<string, string>> = {
     open: 'Открыть',
     city: 'Город',
     cases_short: 'Дел',
+    dynamics: 'Динамика',
+    cases: 'Дела',
+    clients: 'Клиенты',
+    updated: 'Обновлено',
     income_title: 'Полученные деньги',
     income_subtitle: 'Доходы по месяцам и детализация платежей',
     selected_month: 'Выбранный месяц',
@@ -70,6 +74,10 @@ const DASHBOARD_TEXT: Record<Lang, Record<string, string>> = {
     open: 'Відкрити',
     city: 'Місто',
     cases_short: 'Справ',
+    dynamics: 'Динаміка',
+    cases: 'Справи',
+    clients: 'Клієнти',
+    updated: 'Оновлено',
     income_title: 'Отримані гроші',
     income_subtitle: 'Доходи за місяцями та деталізація платежів',
     selected_month: 'Вибраний місяць',
@@ -112,6 +120,10 @@ const DASHBOARD_TEXT: Record<Lang, Record<string, string>> = {
     open: 'Otwórz',
     city: 'Miasto',
     cases_short: 'Spraw',
+    dynamics: 'Dynamika',
+    cases: 'Sprawy',
+    clients: 'Klienci',
+    updated: 'Zaktualizowano',
     income_title: 'Otrzymane pieniądze',
     income_subtitle: 'Dochody według miesięcy i szczegóły płatności',
     selected_month: 'Wybrany miesiąc',
@@ -167,6 +179,29 @@ export function LocalizedMonthLabel({
       {date.toLocaleDateString(LOCALES[lang] || LOCALES.ru, {
         month: variant,
         year: variant === 'long' ? 'numeric' : '2-digit',
+        timeZone: 'UTC',
+      })}
+    </>
+  )
+}
+
+export function CompactLocalizedMonthLabel({ monthKey }: { monthKey?: string | null }) {
+  const { lang } = useLanguage()
+
+  if (!monthKey) return <>-</>
+
+  const [yearText, monthText] = monthKey.split('-')
+  const year = Number(yearText)
+  const month = Number(monthText)
+
+  if (!year || !month || month < 1 || month > 12) return <>-</>
+
+  const date = new Date(Date.UTC(year, month - 1, 1))
+
+  return (
+    <>
+      {date.toLocaleDateString(LOCALES[lang] || LOCALES.ru, {
+        month: 'short',
         timeZone: 'UTC',
       })}
     </>

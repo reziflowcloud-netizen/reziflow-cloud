@@ -1,6 +1,38 @@
 # Next Steps
 
-Last updated: 2026-09-11
+Last updated: 2026-09-15
+
+## Immediate mobile implementation tasks
+
+Use `MOBILE_UX_SPEC.md` as the single Development handoff for the approved
+mobile presentation. Do not create additional screens or revise approved UX
+without a new owner decision.
+
+1. Phase A: implement the shared mobile shell, fixed five-item bottom
+   navigation, More bottom sheet, and common cards/chips/accordions/bulk
+   selection components over existing services.
+2. Run manual phone QA at 390 px, 414 px, and 430 px and verify desktop remains
+   visually unchanged at 769 px and wider.
+3. Phase B: implement Dashboard, Leads, Cases, and Clients mobile
+   presentations.
+4. Repeat mobile permission/safe-area QA and desktop regression checks.
+5. Phase C: implement Lead Detail, Case Detail, and Client Detail using the
+   approved summary/tab/accordion patterns.
+6. Repeat mobile permission/safe-area QA and desktop regression checks.
+7. Phase D: implement Tasks, Stages, and Calendar with dynamic configured
+   priority/stage rails.
+8. Complete cross-screen QA for Admin/Owner and restricted employee access,
+   long UA/PL/RU labels, current mutations, and existing side effects.
+
+Critical constraints:
+
+- Keep current APIs, auth, organization scoping, permissions, filters, CRUD,
+  and side effects.
+- Do not hardcode organization-configurable priorities, stages, statuses,
+  services, or custom sections.
+- Do not modify the desktop visual layout while implementing mobile.
+- More is an overlay bottom sheet; the discarded standalone More page is not
+  an implementation reference.
 
 ## Immediate conference-campaign tasks
 

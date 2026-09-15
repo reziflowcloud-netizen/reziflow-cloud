@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-09-11
+Last updated: 2026-09-15
 
 ## Marketing OS status
 
@@ -29,6 +29,32 @@ Marketing foundation files:
 - `VISUAL_BRAND_GUIDE.md`
 
 ## Latest completed work
+
+A complete Development specification for the approved LegalHub CRM mobile UX
+was created on 2026-09-15:
+
+- Added `MOBILE_UX_SPEC.md` as the single implementation reference for the
+  eleven approved mobile patterns: Dashboard, Leads, Cases, Clients, their
+  three Detail screens, Tasks, Stages, Calendar, and the More bottom sheet.
+- Confirmed that mobile is a responsive presentation layer over current APIs,
+  permissions, CRUD, statuses, Employees, filters, and side effects; desktop
+  remains visually unchanged.
+- Aligned the mobile implementation boundary with the existing project at
+  `<= 768px`, with primary QA at 390 px, 414 px, and 430 px.
+- Fixed the permanent five-item bottom navigation as `Пульт`, `Ліди`,
+  `Справи`, `Клієнти`, `Ще`; Tasks, Stages, Calendar, and Settings map to the
+  active `Ще` state.
+- Replaced the discarded standalone More page with the approved 60–70% overlay
+  bottom sheet containing Tasks, Stages, Calendar, Settings, account context,
+  and logout.
+- Documented dynamic one-line swipe rails for organization-configured
+  priorities, stages, statuses, and filter tabs.
+- Documented full-access and restricted-employee presentation rules without
+  creating a second visual style or duplicating backend scope.
+- Defined phased implementation, desktop regression safeguards, manual phone
+  QA, and the approved mockup map.
+
+No application code or configuration was changed for this documentation task.
 
 A complete offline-conference campaign was created on 2026-09-11:
 

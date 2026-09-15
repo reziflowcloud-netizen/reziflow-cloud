@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type CSSProperties } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
 import type { Lang } from '@/lib/translations'
 
@@ -258,9 +258,132 @@ export default function UpcomingEvents() {
           background: rgba(254, 226, 226, 0.12) !important;
           color: #fecaca !important;
         }
+        .upcoming-mobile-list {
+          display: none;
+        }
+        @media (max-width: 768px) {
+          .upcoming-desktop-list {
+            display: none !important;
+          }
+          .upcoming-mobile-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 0;
+          }
+          .upcoming-mobile-item {
+            position: relative;
+            display: grid;
+            grid-template-columns: 32px minmax(64px, 1fr) max-content 18px;
+            align-items: center;
+            column-gap: 8px;
+            min-width: 0;
+            min-height: 72px;
+            overflow: hidden;
+            padding: 10px 10px 10px 12px;
+            border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--border));
+            border-left: 4px solid var(--event-accent);
+            border-radius: 11px;
+            background: color-mix(in srgb, var(--input-bg) 78%, var(--surface));
+            color: var(--text);
+            cursor: pointer;
+          }
+          .upcoming-mobile-item.upcoming-overdue {
+            background: var(--danger-soft);
+            border-color: var(--danger-border);
+            border-left-color: var(--danger-strong);
+          }
+          .upcoming-mobile-icon {
+            display: grid;
+            place-items: center;
+            width: 32px;
+            height: 32px;
+            font-size: 21px;
+          }
+          .upcoming-mobile-main {
+            min-width: 0;
+          }
+          .upcoming-mobile-title {
+            display: -webkit-box;
+            overflow: hidden;
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 750;
+            line-height: 1.25;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+          }
+          .upcoming-mobile-meta {
+            display: block;
+            overflow: hidden;
+            margin-top: 5px;
+            color: var(--muted);
+            font-size: 11px;
+            line-height: 1.2;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          .upcoming-mobile-date {
+            justify-self: end;
+            width: max-content;
+            max-width: none;
+            padding: 6px 7px;
+            border: 1px solid currentColor;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 750;
+            line-height: 1.15;
+            text-align: center;
+            white-space: nowrap;
+          }
+          .upcoming-mobile-chevron {
+            display: grid;
+            place-items: center;
+            width: 18px;
+            color: var(--muted);
+            font-size: 22px;
+            line-height: 1;
+          }
+          [data-theme="slate"] .upcoming-mobile-item.upcoming-overdue .upcoming-mobile-title,
+          [data-theme="slate"] .upcoming-mobile-item.upcoming-overdue .upcoming-mobile-date {
+            color: #ffffff !important;
+          }
+          [data-theme="slate"] .upcoming-mobile-item.upcoming-overdue .upcoming-mobile-meta,
+          [data-theme="slate"] .upcoming-mobile-item.upcoming-overdue .upcoming-mobile-chevron {
+            color: #fecaca;
+          }
+          .upcoming-edit-modal {
+            width: calc(100vw - 32px) !important;
+            max-width: 540px;
+            padding: 18px !important;
+          }
+          .upcoming-edit-modal > div:last-child {
+            flex-wrap: wrap;
+          }
+        }
+        @media (max-width: 390px) {
+          .upcoming-mobile-item {
+            grid-template-columns: 28px minmax(58px, 1fr) max-content 16px;
+            column-gap: 7px;
+            padding-inline: 9px 8px;
+          }
+          .upcoming-mobile-icon {
+            width: 28px;
+            height: 28px;
+            font-size: 19px;
+          }
+          .upcoming-mobile-date {
+            padding-inline: 6px;
+            font-size: 9px;
+          }
+          .upcoming-mobile-chevron {
+            width: 16px;
+            font-size: 20px;
+          }
+        }
       `}</style>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div className="upcoming-desktop-list" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {items.map((item, i) => {
           const { label, color } = getDateLabel(item.date, lang)
           const isRem = item.type === 'reminder'
@@ -306,12 +429,50 @@ export default function UpcomingEvents() {
         })}
       </div>
 
+      <div className="upcoming-mobile-list">
+        {items.map((item, i) => {
+          const { label, color } = getDateLabel(item.date, lang)
+          const isRem = item.type === 'reminder'
+          const accent = item.isOverdue ? '#dc2626' : isRem ? '#7c3aed' : getPriorityColor(item.task.priority)
+          const timeStr = isRem ? item.date.toLocaleTimeString(LOCALES[lang] || LOCALES.ru, { hour: '2-digit', minute: '2-digit' }) : ''
+
+          return (
+            <div
+              key={`mobile-${i}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => openEdit(item)}
+              onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  openEdit(item)
+                }
+              }}
+              className={`upcoming-mobile-item${item.isOverdue ? ' upcoming-overdue' : ''}`}
+              style={{ '--event-accent': accent } as CSSProperties}
+            >
+              <span className="upcoming-mobile-icon" aria-hidden="true">{isRem ? '⏰' : item.isOverdue ? '⚠️' : '✓'}</span>
+              <span className="upcoming-mobile-main">
+                <span className="upcoming-mobile-title">{item.task.title}</span>
+                {item.task.clientName && (
+                  <span className="upcoming-mobile-meta">👤 {item.task.clientName}</span>
+                )}
+              </span>
+              <span className="upcoming-mobile-date" style={{ color, background: color + '18' }}>
+                {label}{timeStr ? ` · ${timeStr}` : ''}
+              </span>
+              <span className="upcoming-mobile-chevron" aria-hidden="true">›</span>
+            </div>
+          )
+        })}
+      </div>
+
       {editingTask && (
         <div
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={e => { if (e.target === e.currentTarget) setEditingTask(null) }}
         >
-          <div style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 12, padding: 28, width: 540, maxHeight: '90vh', overflowY: 'auto' }}>
+          <div className="upcoming-edit-modal" style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 12, padding: 28, width: 540, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div style={{ fontWeight: 700, fontSize: 18 }}>Редактировать задачу</div>
               <button onClick={() => setEditingTask(null)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>

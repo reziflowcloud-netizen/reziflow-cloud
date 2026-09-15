@@ -7,8 +7,10 @@ import { Suspense } from 'react'
 import UpcomingEvents from '@/components/UpcomingEvents'
 import Tr from '@/components/Tr'
 import DashboardOnboarding, { DashboardOnboardingStep } from '@/components/DashboardOnboarding'
-import { LocalizedMonthLabel } from '@/components/DashboardI18n'
+import { DashboardText, LocalizedDate, LocalizedMonthLabel } from '@/components/DashboardI18n'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
+import MobileDashboardChart from '@/components/MobileDashboardChart'
+import styles from './DashboardMobile.module.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,83 +56,18 @@ export default async function DashboardPage() {
   const quickStartEnabled = settingsObject(organization?.settings).quickStartEnabled !== false
 
   return (
-    <div className="fade-in">
-      <style>{`
-        .dash-stat-link { text-decoration: none; display: block; }
-        .dash-stat-link:hover .stat-card { box-shadow: var(--shadow-md); transform: translateY(-1px); }
-        .stat-card { transition: box-shadow 0.15s, transform 0.15s; }
-        .dash-chart-card { overflow: hidden; }
-        .dash-mini-chart {
-          height: 124px; display: flex; align-items: flex-end; justify-content: space-between;
-          gap: 10px; margin-top: 4px; padding: 8px 4px 0;
-        }
-        .dash-chart-bar-wrap {
-          flex: 1; min-width: 0; height: 112px; display: grid;
-          grid-template-rows: 20px 1fr 16px; align-items: end; justify-items: center;
-        }
-        .dash-chart-bar {
-          width: 100%; max-width: 76px; min-height: 2px; border-radius: 8px 8px 3px 3px;
-          transition: transform 0.15s, filter 0.15s;
-        }
-        .dash-chart-bar-wrap:hover .dash-chart-bar { transform: translateY(-2px); filter: brightness(1.08); }
-        .dash-chart-label { font-size: 10px; color: var(--muted); white-space: nowrap; }
-        .dash-chart-value {
-          font-size: 10px; font-weight: 700; padding: 2px 5px; border-radius: 999px;
-          background: var(--surface); border: 1px solid var(--border); opacity: 0;
-        }
-        .dash-chart-value.is-visible { opacity: 1; }
-        [data-theme="slate"] .dash-chart-card {
-          background: linear-gradient(180deg, rgba(17,24,39,.98), rgba(8,18,30,.98));
-          box-shadow: inset 0 1px 0 rgba(224,242,254,.04), var(--shadow);
-        }
-        [data-theme="slate"] .dash-mini-chart {
-          background: linear-gradient(180deg, rgba(6,182,212,.09), rgba(14,165,233,.02));
-          border: 1px solid rgba(6,182,212,.12);
-          border-radius: 8px;
-          padding: 8px 8px 0;
-        }
-        @media (max-width: 768px) {
-          .dashboard-chart-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 8px !important;
-          }
-          .dashboard-chart-grid .dash-chart-card {
-            min-height: 142px !important;
-            padding: 12px !important;
-          }
-          .dashboard-chart-grid .dash-mini-chart {
-            height: 76px;
-            gap: 4px;
-            padding: 6px 4px 0;
-          }
-          .dashboard-chart-grid .dash-chart-bar-wrap {
-            height: 68px;
-            grid-template-rows: 16px 1fr 14px;
-          }
-          .dashboard-chart-grid .dash-chart-bar-wrap:nth-child(-n+3) {
-            display: none;
-          }
-          .dashboard-chart-grid .dash-chart-label,
-          .dashboard-chart-grid .dash-chart-value {
-            font-size: 9px;
-          }
-          .dashboard-chart-grid .dash-chart-value {
-            padding: 1px 4px;
-          }
-        }
-      `}</style>
-
-      <div className="page-header">
+    <div className={`fade-in ${styles.dashboardPage}`}>
+      <div className={`page-header ${styles.dashboardHeader}`}>
         <div>
           <div className="page-title"><Tr k="dashboard_title" /></div>
           <div className="page-subtitle"><Tr k="dashboard_welcome" />, {user?.name as string}!</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <TutorialVideoButton videoKey="dashboard" />
+          <TutorialVideoButton videoKey="dashboard" className={styles.dashboardVideoButton} />
         </div>
       </div>
 
-      <div className="page-body">
+      <div className={`page-body ${styles.dashboardBody}`}>
 
         {canManageSetup && quickStartEnabled && (
           <Suspense fallback={null}>
@@ -147,12 +84,12 @@ export default async function DashboardPage() {
         </Suspense>
 
         {/* Предстоящие события */}
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div style={{ fontWeight: 600, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className={`card ${styles.eventsCard}`} style={{ marginBottom: 16 }}>
+          <div className={styles.sectionHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div className={styles.sectionTitle} style={{ fontWeight: 600, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
               🔔 <Tr k="upcoming" />
             </div>
-            <Link href="/calendar" className="btn btn-ghost" style={{ fontSize: 13 }}><Tr k="open_calendar" /></Link>
+            <Link href="/calendar" className={`btn btn-ghost ${styles.sectionAction}`} style={{ fontSize: 13 }}><Tr k="open_calendar" /></Link>
           </div>
           <UpcomingEvents />
         </div>
@@ -232,7 +169,7 @@ async function DashboardOnboardingSection({ organizationId }: { organizationId: 
 
 function DashboardStatsFallback() {
   return (
-    <div className="stats-grid">
+    <div className={`stats-grid ${styles.statsGrid}`}>
       {Array.from({ length: 6 }).map((_, index) => (
         <div key={index} className="stat-card" style={{ minHeight: 82, opacity: 0.72 }} />
       ))}
@@ -328,8 +265,8 @@ async function DashboardStats({ organizationId, scope }: { organizationId: strin
   } catch (e) { console.error(e) }
 
   return (
-    <div className="stats-grid">
-      <Link href="/dashboard/income" className="dash-stat-link">
+    <div className={`stats-grid ${styles.statsGrid}`}>
+      <Link href="/dashboard/income" className={`dash-stat-link ${styles.statLink} ${styles.statIncome}`}>
         <div className="stat-card" style={{ cursor: 'pointer' }}>
           <div className="stat-icon" style={{ background: '#dcfce7' }}><span style={{ fontSize: 20 }}>💰</span></div>
           <div>
@@ -338,7 +275,7 @@ async function DashboardStats({ organizationId, scope }: { organizationId: strin
           </div>
         </div>
       </Link>
-      <Link href="/dashboard/debt" className="dash-stat-link">
+      <Link href="/dashboard/debt" className={`dash-stat-link ${styles.statLink} ${styles.statDebt}`}>
         <div className="stat-card" style={{ cursor: 'pointer' }}>
           <div className="stat-icon" style={{ background: '#fef2f2' }}><span style={{ fontSize: 20 }}>📉</span></div>
           <div>
@@ -347,7 +284,7 @@ async function DashboardStats({ organizationId, scope }: { organizationId: strin
           </div>
         </div>
       </Link>
-      <Link href="/cases?filter=no_pay" className="dash-stat-link">
+      <Link href="/cases?filter=no_pay" className={`dash-stat-link ${styles.statLink} ${styles.statContracts}`}>
         <div className="stat-card" style={{ cursor: 'pointer' }}>
           <div className="stat-icon" style={{ background: '#eff6ff' }}><span style={{ fontSize: 20 }}>📄</span></div>
           <div>
@@ -356,7 +293,7 @@ async function DashboardStats({ organizationId, scope }: { organizationId: strin
           </div>
         </div>
       </Link>
-      <Link href="/clients" className="dash-stat-link">
+      <Link href="/clients" className={`dash-stat-link ${styles.statLink} ${styles.statClients}`}>
         <div className="stat-card" style={{ cursor: 'pointer' }}>
           <div className="stat-icon" style={{ background: '#f5f3ff' }}><span style={{ fontSize: 20 }}>👥</span></div>
           <div>
@@ -365,7 +302,7 @@ async function DashboardStats({ organizationId, scope }: { organizationId: strin
           </div>
         </div>
       </Link>
-      <Link href="/cases" className="dash-stat-link">
+      <Link href="/cases" className={`dash-stat-link ${styles.statLink} ${styles.statCases}`}>
         <div className="stat-card" style={{ cursor: 'pointer' }}>
           <div className="stat-icon" style={{ background: '#fff7ed' }}><span style={{ fontSize: 20 }}>📋</span></div>
           <div>
@@ -374,7 +311,7 @@ async function DashboardStats({ organizationId, scope }: { organizationId: strin
           </div>
         </div>
       </Link>
-      <Link href="/cases?filter=active" className="dash-stat-link">
+      <Link href="/cases?filter=active" className={`dash-stat-link ${styles.statLink} ${styles.statActive}`}>
         <div className="stat-card" style={{ cursor: 'pointer' }}>
           <div className="stat-icon" style={{ background: '#ecfdf5' }}><span style={{ fontSize: 20 }}>⚡</span></div>
           <div>
@@ -399,10 +336,13 @@ function dashboardMonthRanges() {
 
 function DashboardChartsFallback() {
   return (
-    <div className="grid-2 dashboard-chart-grid" style={{ marginBottom: 16 }}>
-      <div className="card dash-chart-card" style={{ minHeight: 204, opacity: 0.72 }} />
-      <div className="card dash-chart-card" style={{ minHeight: 204, opacity: 0.72 }} />
-    </div>
+    <>
+      <div className={`grid-2 dashboard-chart-grid ${styles.desktopOnly}`} style={{ marginBottom: 16 }}>
+        <div className="card dash-chart-card" style={{ minHeight: 204, opacity: 0.72 }} />
+        <div className="card dash-chart-card" style={{ minHeight: 204, opacity: 0.72 }} />
+      </div>
+      <div className={`${styles.mobileOnly} ${styles.mobileChart} ${styles.mobileSkeleton}`} />
+    </>
   )
 }
 
@@ -458,46 +398,58 @@ async function DashboardCharts({ organizationId, scope }: { organizationId: stri
   }))
 
   return (
-    <div className="grid-2 dashboard-chart-grid" style={{ marginBottom: 16 }}>
-      {([['new_cases','cases','#06b6d4',maxCases,'/dashboard/new-cases'],['new_clients','clients','#0891b2',maxClients,'/dashboard/new-clients']] as const).map(([labelKey, key, color, max, href]) => {
-        const bars = makeBars(key as 'cases' | 'clients', max as number)
-        return (
-          <Link key={key} href={href} className="dash-stat-link">
-            <div className="card dash-chart-card" style={{ cursor: 'pointer' }}>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}><Tr k={labelKey} /></div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}><Tr k="last_6months" /></div>
-              <div className="dash-mini-chart">
-                {bars.map((bar, i) => (
-                  <div key={i} className="dash-chart-bar-wrap">
-                    <span className={`dash-chart-value ${bar.value > 0 ? 'is-visible' : ''}`} style={{ color }}>
-                      {bar.value}
-                    </span>
-                    <div
-                      className="dash-chart-bar"
-                      style={{
-                        height: `${bar.height}px`,
-                        background: bar.value > 0
-                          ? `linear-gradient(180deg, ${color} 0%, ${color}cc 56%, ${color}2b 100%)`
-                          : 'linear-gradient(180deg, var(--border), transparent)',
-                        boxShadow: bar.value > 0 ? `0 10px 24px ${color}30` : 'none',
-                      }}
-                    />
-                    <span className="dash-chart-label" style={{ color: i === bars.length - 1 ? color : undefined, fontWeight: i === bars.length - 1 ? 700 : 400 }}>
-                      <LocalizedMonthLabel monthKey={bar.monthKey} variant="short" />
-                    </span>
-                  </div>
-                ))}
+    <>
+      <div className={`grid-2 dashboard-chart-grid ${styles.desktopOnly}`} style={{ marginBottom: 16 }}>
+        {([['new_cases','cases','#06b6d4',maxCases,'/dashboard/new-cases'],['new_clients','clients','#0891b2',maxClients,'/dashboard/new-clients']] as const).map(([labelKey, key, color, max, href]) => {
+          const bars = makeBars(key as 'cases' | 'clients', max as number)
+          return (
+            <Link key={key} href={href} className="dash-stat-link">
+              <div className="card dash-chart-card" style={{ cursor: 'pointer' }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}><Tr k={labelKey} /></div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}><Tr k="last_6months" /></div>
+                <div className="dash-mini-chart">
+                  {bars.map((bar, i) => (
+                    <div key={i} className="dash-chart-bar-wrap">
+                      <span className={`dash-chart-value ${bar.value > 0 ? 'is-visible' : ''}`} style={{ color }}>
+                        {bar.value}
+                      </span>
+                      <div
+                        className="dash-chart-bar"
+                        style={{
+                          height: `${bar.height}px`,
+                          background: bar.value > 0
+                            ? `linear-gradient(180deg, ${color} 0%, ${color}cc 56%, ${color}2b 100%)`
+                            : 'linear-gradient(180deg, var(--border), transparent)',
+                          boxShadow: bar.value > 0 ? `0 10px 24px ${color}30` : 'none',
+                        }}
+                      />
+                      <span className="dash-chart-label" style={{ color: i === bars.length - 1 ? color : undefined, fontWeight: i === bars.length - 1 ? 700 : 400 }}>
+                        <LocalizedMonthLabel monthKey={bar.monthKey} variant="short" />
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          </Link>
-        )
-      })}
-    </div>
+            </Link>
+          )
+        })}
+      </div>
+      <MobileDashboardChart months={lastMonths.map(month => ({
+        monthKey: month.monthKey,
+        cases: Number(month.cases || 0),
+        clients: Number(month.clients || 0),
+      }))} />
+    </>
   )
 }
 
 function RecentCasesFallback() {
-  return <div className="table-container" style={{ minHeight: 190, opacity: 0.72 }} />
+  return (
+    <>
+      <div className={`table-container ${styles.desktopOnly}`} style={{ minHeight: 190, opacity: 0.72 }} />
+      <div className={`${styles.mobileOnly} ${styles.mobileSection} ${styles.mobileSkeleton}`} />
+    </>
+  )
 }
 
 async function RecentCasesTable({ organizationId, scope }: { organizationId: string; scope: DataAccessScope }) {
@@ -508,6 +460,7 @@ async function RecentCasesTable({ organizationId, scope }: { organizationId: str
         id: true,
         caseNumber: true,
         status: true,
+        updatedAt: true,
         totalValue: true,
         totalPaid: true,
         client: { select: { firstName: true, lastName: true } },
@@ -529,57 +482,96 @@ async function RecentCasesTable({ organizationId, scope }: { organizationId: str
   }
 
   return (
-    <div className="table-container">
-      <div style={{ padding: '16px 16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontWeight: 600, fontSize: 15 }}><Tr k="recent_cases" /></div>
-        <Link href="/cases" className="btn btn-ghost" style={{ fontSize: 13 }}><Tr k="all_cases" /></Link>
-      </div>
-      <div className="table-scroll">
-        <table className="table">
-          <thead>
-            <tr>
-              <th><Tr k="client" /></th>
-              <th><Tr k="service" /></th>
-              <th><Tr k="status" /></th>
-              <th><Tr k="cost" /></th>
-              <th><Tr k="income_month" /></th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentCases.length === 0 ? (
-              <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}>
-                <Link href="/cases/new" style={{ color: 'var(--brand)' }}><Tr k="new_case" /></Link>
-              </td></tr>
-            ) : recentCases.map(c => {
-              const sc = getCaseStatusStyle(c.status)
-              return (
-                <tr key={c.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div className="avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
-                        {c.client.firstName[0]}{c.client.lastName[0]}
+    <>
+      <div className={`table-container ${styles.desktopOnly}`}>
+        <div style={{ padding: '16px 16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontWeight: 600, fontSize: 15 }}><Tr k="recent_cases" /></div>
+          <Link href="/cases" className="btn btn-ghost" style={{ fontSize: 13 }}><Tr k="all_cases" /></Link>
+        </div>
+        <div className="table-scroll">
+          <table className="table">
+            <thead>
+              <tr>
+                <th><Tr k="client" /></th>
+                <th><Tr k="service" /></th>
+                <th><Tr k="status" /></th>
+                <th><Tr k="cost" /></th>
+                <th><Tr k="income_month" /></th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentCases.length === 0 ? (
+                <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}>
+                  <Link href="/cases/new" style={{ color: 'var(--brand)' }}><Tr k="new_case" /></Link>
+                </td></tr>
+              ) : recentCases.map(c => {
+                const sc = getCaseStatusStyle(c.status)
+                return (
+                  <tr key={c.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div className="avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
+                          {c.client.firstName[0]}{c.client.lastName[0]}
+                        </div>
+                        <span style={{ fontWeight: 500 }}>{c.client.firstName} {c.client.lastName}</span>
                       </div>
-                      <span style={{ fontWeight: 500 }}>{c.client.firstName} {c.client.lastName}</span>
-                    </div>
-                  </td>
-                  <td style={{ fontSize: 12, color: 'var(--muted)' }}>{c.service?.name || '—'}</td>
-                  <td><span className="badge" style={{ background: sc.bg, color: sc.color }}>{c.status}</span></td>
-                  <td>{c.totalValue.toFixed(2)} zł</td>
-                  <td style={{ color: c.totalPaid >= c.totalValue && c.totalValue > 0 ? '#16a34a' : '#dc2626' }}>
-                    {c.totalPaid.toFixed(2)} zł
-                  </td>
-                  <td>
-                    <Link href={`/cases/${c.id}`} className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }}>
-                      <Tr k="open" />
-                    </Link>
-                  </td>
-                </tr>
+                    </td>
+                    <td style={{ fontSize: 12, color: 'var(--muted)' }}>{c.service?.name || '—'}</td>
+                    <td><span className="badge" style={{ background: sc.bg, color: sc.color }}>{c.status}</span></td>
+                    <td>{c.totalValue.toFixed(2)} zł</td>
+                    <td style={{ color: c.totalPaid >= c.totalValue && c.totalValue > 0 ? '#16a34a' : '#dc2626' }}>
+                      {c.totalPaid.toFixed(2)} zł
+                    </td>
+                    <td>
+                      <Link href={`/cases/${c.id}`} className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }}>
+                        <Tr k="open" />
+                      </Link>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <section className={`${styles.mobileOnly} ${styles.mobileSection}`} aria-labelledby="mobile-recent-cases-title">
+        <div className={styles.sectionHeader}>
+          <h2 id="mobile-recent-cases-title" className={styles.sectionTitle}>
+            <span aria-hidden="true">📄</span>
+            <Tr k="recent_cases" />
+          </h2>
+          <Link href="/cases" className={`btn btn-ghost ${styles.sectionAction}`}><Tr k="all_cases" /></Link>
+        </div>
+
+        {recentCases.length === 0 ? (
+          <div className={styles.emptyMobile}>
+            <Link href="/cases/new" style={{ color: 'var(--brand)' }}><Tr k="new_case" /></Link>
+          </div>
+        ) : (
+          <div className={styles.recentList}>
+            {recentCases.slice(0, 2).map(c => {
+              const sc = getCaseStatusStyle(c.status)
+              const clientName = `${c.client.firstName} ${c.client.lastName}`.trim()
+              return (
+                <Link key={c.id} href={`/cases/${c.id}`} className={styles.recentRow}>
+                  <span className={styles.recentIcon} aria-hidden="true">📄</span>
+                  <span className={styles.recentMain}>
+                    <span className={styles.recentTitle}>{c.service?.name || c.caseNumber || '—'} — {clientName}</span>
+                    <span className={styles.recentMeta}>
+                      <span aria-hidden="true">◷</span>
+                      <DashboardText k="updated" /> <LocalizedDate value={c.updatedAt} />
+                    </span>
+                  </span>
+                  <span className={styles.recentStatus} style={{ background: sc.bg, color: sc.color }}>{c.status}</span>
+                  <span className={styles.recentChevron} aria-hidden="true">›</span>
+                </Link>
               )
             })}
-          </tbody>
-        </table>
-      </div>
-    </div>
+          </div>
+        )}
+      </section>
+    </>
   )
 }

@@ -1,5 +1,39 @@
 # Decisions
 
+## 2026-09-15 - Mobile UX is a separate responsive presentation layer
+
+Decision:
+
+- The eleven approved mobile mockups are the presentation source of truth for
+  LegalHub CRM at `<= 768px`.
+- Desktop remains visually unchanged at `>= 769px`.
+- Mobile reuses current business logic, APIs, permissions, configured values,
+  CRUD, and side effects rather than duplicating them.
+- The global mobile navigation is permanently `Пульт`, `Ліди`, `Справи`,
+  `Клієнти`, `Ще`.
+- Tasks, Stages, Calendar, and Settings keep `Ще` active. `Ще` opens an overlay
+  bottom sheet; it is not a standalone page or replacement navigation row.
+- Organization-defined priorities, stages, statuses, and similar sections are
+  dynamic and use one-line horizontal swipe rails when they do not fit.
+- Permission-dependent fields and actions are hidden when unavailable or
+  redundant, without creating a separate restricted-user visual style.
+
+Rationale:
+
+- Scaling desktop tables, Kanban boards, matrices, and dense forms makes core
+  CRM work unreadable on phones.
+- A presentation-only split provides a usable mobile hierarchy while reducing
+  regression risk in domain logic and desktop workflows.
+- A stable five-item navigation and contextual More sheet keep frequent work
+  reachable without adding a second bottom-navigation system.
+
+Implications:
+
+- Development follows `MOBILE_UX_SPEC.md` and the phased implementation order.
+- New mobile product behavior or new screens require a separate owner decision.
+- Every phase requires manual 390/414/430 px QA, permission QA, safe-area QA,
+  and desktop regression verification.
+
 ## 2026-09-11 - Conference campaign uses a dual-route funnel
 
 Decision:

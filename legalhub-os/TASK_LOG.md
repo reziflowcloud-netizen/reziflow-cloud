@@ -1,5 +1,45 @@
 # Task Log
 
+## 2026-09-15 - Mobile UX Development specification
+
+Task:
+
+- Convert all owner-approved LegalHub CRM mobile mockups and conversation
+  decisions into one technical implementation document without adding new UX
+  or changing application code.
+
+Done:
+
+- Read the Marketing OS rules and required baseline memory files.
+- Audited the existing visual tokens, `MobileNav`, responsive CSS, route
+  layouts, and restricted-access scoping in read-only mode.
+- Confirmed the existing `<= 768px` mobile boundary and `>= 769px` desktop
+  boundary.
+- Created the master visual-system, navigation, More-sheet, permissions,
+  per-screen, interaction, architecture, implementation-order, QA, and
+  definition-of-done sections.
+- Documented all eleven approved mobile references and explicitly superseded
+  the discarded standalone More page with the approved bottom sheet.
+- Preserved organization-configured priorities, stages, statuses, services,
+  hidden sections, and custom sections as dynamic data.
+- Updated product-memory and next-step records for Development handoff.
+
+File created:
+
+- `legalhub-os/MOBILE_UX_SPEC.md`
+
+Files changed:
+
+- `legalhub-os/CURRENT_STATE.md`
+- `legalhub-os/NEXT_STEPS.md`
+- `legalhub-os/TASK_LOG.md`
+- `legalhub-os/DECISIONS.md`
+
+Notes:
+
+- No application code or configuration was modified.
+- Existing unrelated untracked OS files were left unchanged.
+
 ## 2026-09-11 - Offline conference campaign
 
 Task:

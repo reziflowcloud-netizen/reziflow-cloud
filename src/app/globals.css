@@ -31,6 +31,7 @@ a { color: inherit; }
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
   --sidebar-width: 210px;
   --bottom-nav-height: 64px;
+  --mobile-bottom-nav-height: 72px;
 }
 
 /* ─── Dark Theme ─────────────────────────── */
@@ -3528,8 +3529,12 @@ textarea.input { resize: vertical; }
   /* Контент на всю ширину */
   .main-content {
     margin-left: 0 !important;
-    /* Отступ снизу чтобы контент не уходил под bottom nav */
-    padding-bottom: var(--bottom-nav-height);
+    width: 100%;
+    min-width: 0;
+    max-width: 100vw;
+    padding-top: env(safe-area-inset-top);
+    /* Complete navigation height, iPhone safe area and breathing room. */
+    padding-bottom: calc(var(--mobile-bottom-nav-height) + env(safe-area-inset-bottom) + 20px);
   }
 
   /* Page header — не sticky, меньше padding */
