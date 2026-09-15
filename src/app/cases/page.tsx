@@ -6,6 +6,8 @@ import { useLanguage } from '@/context/LanguageContext'
 import { caseStatusLabel, isActiveCaseStatus, isArchiveCaseStatus } from '@/lib/caseI18n'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
 import BulkActionsBar, { type BulkActionPayload } from '@/components/BulkActionsBar'
+import CasesMobile from './CasesMobile'
+import { useCaseMobileAccess } from './CaseMobileAccessContext'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый':               { bg: '#eff6ff', color: '#1d4ed8' },
@@ -25,6 +27,7 @@ type SortDir = 'asc' | 'desc'
 
 export default function CasesPage() {
   const router = useRouter()
+  const { restrictedAccess } = useCaseMobileAccess()
   const searchParams = useSearchParams()
   const { t, lang } = useLanguage()
   const locale = LOCALES[lang] || 'ru-RU'
@@ -110,6 +113,11 @@ export default function CasesPage() {
     const custom = statuses.find((status: any) => status.name === name)
     if (custom?.color) return { bg: `${custom.color}18`, color: custom.color }
     return STATUS_COLORS[name] || { bg: '#f3f4f6', color: '#374151' }
+  }
+
+  function getConfiguredCaseStatusStyle(status: any) {
+    const color = status?.color || '#64748b'
+    return { bg: `${color}18`, color }
   }
 
   function responsibleName(record: any) {
@@ -251,6 +259,10 @@ export default function CasesPage() {
   const activeCasesCount = cases.filter(c => isActiveCaseStatus(c.status)).length
   const noPayCount = cases.filter(c => c.contractSigned && c.totalPaid === 0 && c.totalValue > 0).length
   const canDeleteCases = currentUser?.role === 'admin' || currentUser?.role === 'owner'
+  const statusCounts = Object.fromEntries(statuses.map(status => [
+    status.name,
+    cases.filter(item => caseMatchesStatus(item.status, status.name)).length,
+  ]))
 
   // Заголовок активного фильтра
   const filterTitle = activeFilter === 'active' ? `${t('active_cases_title')} (${activeCasesCount})`
@@ -259,8 +271,56 @@ export default function CasesPage() {
     : `${activeFilter} (${cases.filter(c => caseMatchesStatus(c.status, activeFilter)).length})`
 
   return (
-    <div className="fade-in" onClick={() => setStatusPopup(null)}>
-      <div className="page-header">
+    <div className="fade-in cases-page" onClick={() => setStatusPopup(null)}>
+      <style suppressHydrationWarning>{`
+        @media (max-width: 768px) {
+          .cases-page .case-desktop-presentation {
+            display: none !important;
+          }
+        }
+      `}</style>
+      <CasesMobile
+        lang={lang}
+        locale={locale}
+        loading={loading}
+        cases={cases}
+        pagedCases={pagedCases}
+        filteredCount={filtered.length}
+        statuses={statuses}
+        statusCounts={statusCounts}
+        activeCasesCount={activeCasesCount}
+        noPayCount={noPayCount}
+        activeFilter={activeFilter}
+        setActiveFilter={setActiveFilter}
+        search={search}
+        setSearch={setSearch}
+        sortKey={sortKey}
+        setSortKey={setSortKey}
+        sortDir={sortDir}
+        setSortDir={setSortDir}
+        statusColors={getConfiguredCaseStatusStyle}
+        responsibleName={responsibleName}
+        restrictedAccess={restrictedAccess}
+        selectedCount={selectedCaseCount}
+        currentPageCount={currentPageCaseIds.length}
+        allCurrentPageSelected={allCurrentPageSelected}
+        allFilteredSelected={allFilteredSelected}
+        isSelected={isCaseSelected}
+        toggleSelection={toggleCaseSelection}
+        toggleCurrentPage={toggleCurrentCasePage}
+        selectAllFiltered={selectAllFilteredCases}
+        clearSelection={clearCaseSelection}
+        selectionDescription={caseSelectionDescription()}
+        employees={employees}
+        onBulkApply={applyCaseBulkAction}
+        onOpenCase={id => router.push(`/cases/${id}`)}
+        onQuickChangeStatus={quickChangeStatus}
+        currentPage={safeCurrentPage}
+        totalPages={totalPages}
+        onPreviousPage={() => setCurrentPage(page => Math.max(1, page - 1))}
+        onNextPage={() => setCurrentPage(page => Math.min(totalPages, page + 1))}
+      />
+      <div className="page-header case-desktop-presentation">
         <div>
           <div className="page-title">{t('cases_title')}</div>
           <div className="page-subtitle">{filterTitle}</div>
@@ -270,7 +330,7 @@ export default function CasesPage() {
           <Link href="/cases/new" className="btn btn-primary">{t('new_case')}</Link>
         </div>
       </div>
-      <div className="page-body">
+      <div className="page-body case-desktop-presentation">
         {/* Фильтры */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
           {/* Все */}

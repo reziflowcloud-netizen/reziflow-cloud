@@ -22,6 +22,7 @@ type Props = {
   employees: Array<{ id: number; name: string; active?: boolean }>
   statuses: Array<{ id: number; name: string; color?: string; requireReason?: boolean; reasons?: unknown }>
   statusLabel: (name: string) => string
+  allowedActions?: BulkActionPayload['action'][]
   onSelectAllFiltered: () => void
   onClear: () => void
   onApply: (payload: BulkActionPayload) => Promise<{ updated: number }>
@@ -74,6 +75,7 @@ const COPY = {
 
 export default function BulkActionsBar(props: Props) {
   const copy = COPY[props.lang] || COPY.ru
+  const allowedActions = props.allowedActions || ['assign_employee', 'change_status', 'unassign_employee']
   const [menuOpen, setMenuOpen] = useState(false)
   const [modalAction, setModalAction] = useState<BulkActionPayload['action'] | null>(null)
   const [employeeQuery, setEmployeeQuery] = useState('')
@@ -179,10 +181,14 @@ export default function BulkActionsBar(props: Props) {
               </button>
               {menuOpen && (
                 <div className="bulk-actions-menu" role="menu">
-                  <button type="button" role="menuitem" onClick={() => openAction('assign_employee')}>👤 {copy.assign}</button>
-                  <button type="button" role="menuitem" onClick={() => openAction('change_status')}>● {copy.status}</button>
-                  <div className="bulk-actions-separator" />
-                  <button type="button" role="menuitem" onClick={() => openAction('unassign_employee')}>⊘ {copy.unassign}</button>
+                  {allowedActions.includes('assign_employee') && <button type="button" role="menuitem" onClick={() => openAction('assign_employee')}>👤 {copy.assign}</button>}
+                  {allowedActions.includes('change_status') && <button type="button" role="menuitem" onClick={() => openAction('change_status')}>● {copy.status}</button>}
+                  {allowedActions.includes('unassign_employee') && (
+                    <>
+                      {allowedActions.some(action => action !== 'unassign_employee') && <div className="bulk-actions-separator" />}
+                      <button type="button" role="menuitem" onClick={() => openAction('unassign_employee')}>⊘ {copy.unassign}</button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
