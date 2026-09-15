@@ -9,6 +9,8 @@ import { LEAD_LOCALES, LEAD_WEEKDAYS, leadSourceLabel, leadSourceOptionLabel, le
 import { normalizeLang } from '@/lib/translations'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
 import BulkActionsBar, { type BulkActionPayload } from '@/components/BulkActionsBar'
+import LeadsMobile from './LeadsMobile'
+import { useLeadMobileAccess } from './LeadMobileAccessContext'
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -273,6 +275,7 @@ function isOverdue(value?: string) {
 
 export default function LeadsPage() {
   const router = useRouter()
+  const { restrictedAccess } = useLeadMobileAccess()
   const { lang: currentLang, t } = useLanguage()
   const lang = normalizeLang(currentLang)
   const locale = LEAD_LOCALES[lang] || 'ru-RU'
@@ -1135,7 +1138,7 @@ export default function LeadsPage() {
 
   return (
     <div className="fade-in leads-page">
-      <style>{`
+      <style suppressHydrationWarning>{`
         .leads-page .lead-results-shell {
           min-width: 0;
           width: 100%;
@@ -1554,8 +1557,74 @@ export default function LeadsPage() {
             grid-template-columns: minmax(0, 1fr) 138px !important;
           }
         }
+
+        @media (max-width: 768px) {
+          .leads-page .lead-desktop-presentation,
+          .leads-page .lead-horizontal-scrollbar {
+            display: none !important;
+          }
+        }
       `}</style>
-      <div className="page-header">
+      <LeadsMobile
+        lang={lang}
+        locale={locale}
+        loading={loading}
+        leads={leads}
+        pagedLeads={pagedLeads}
+        filteredCount={filtered.length}
+        activeCount={activeLeadCount}
+        quickFilter={quickFilter}
+        setQuickFilter={setQuickFilter}
+        quickCounts={quickCounts}
+        status={status}
+        setStatus={setStatus}
+        statusReasonFilter={statusReasonFilter}
+        setStatusReasonFilter={setStatusReasonFilter}
+        source={source}
+        setSource={setSource}
+        interest={interest}
+        setInterest={setInterest}
+        temperature={temperature}
+        setTemperature={setTemperature}
+        datePreset={datePreset}
+        setDatePreset={setDatePreset}
+        createdFrom={createdFrom}
+        setCreatedFrom={setCreatedFrom}
+        createdTo={createdTo}
+        setCreatedTo={setCreatedTo}
+        search={search}
+        setSearch={setSearch}
+        statuses={orderedStatuses}
+        statusCounts={statusCounts}
+        statusReasons={selectedStatusReasons}
+        showStatusReasons={showStatusReasons}
+        sources={leadSources}
+        interests={leadInterests}
+        temperatureCounts={temperatureCounts}
+        sourceLabel={sourceLabel}
+        normalizedStatus={normalizedStatus}
+        statusColors={statusColors}
+        responsibleName={leadResponsibleName}
+        restrictedAccess={restrictedAccess}
+        selectedCount={selectedLeadCount}
+        currentPageCount={currentPageLeadIds.length}
+        allVisibleSelected={allVisibleSelected}
+        allFilteredSelected={allFilteredSelected}
+        isSelected={isLeadSelected}
+        toggleSelection={toggleLeadSelection}
+        toggleVisibleSelection={toggleVisibleSelection}
+        selectAllFiltered={selectAllFilteredLeads}
+        clearSelection={clearBulkSelection}
+        selectionDescription={leadSelectionDescription()}
+        employees={employees}
+        onBulkApply={applyLeadBulkAction}
+        onOpenLead={openLeadCard}
+        currentPage={safeCurrentPage}
+        totalPages={totalPages}
+        onPreviousPage={previousLeadPage}
+        onNextPage={nextLeadPage}
+      />
+      <div className="page-header lead-desktop-presentation">
         <div>
           <div className="page-title">{lt('leads')}</div>
           <div className="page-subtitle">{lt('total')}: {leads.length}. {lt('active')}: {activeLeadCount}. {lt('leads_subtitle')}</div>
@@ -1567,7 +1636,7 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      <div className="page-body">
+      <div className="page-body lead-desktop-presentation">
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
           <button type="button" className="btn btn-secondary" onClick={() => setEditingStatuses(current => !current)}>
             {editingStatuses ? lt('done') : lt('configure_statuses')}

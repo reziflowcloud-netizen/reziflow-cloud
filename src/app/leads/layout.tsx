@@ -6,6 +6,7 @@ import MobileNav from '@/components/layout/MobileNav'
 import { LanguageProvider } from '@/context/LanguageContext'
 import ConferenceDemoBar from '@/components/ConferenceDemoBar'
 import { isConferenceDemoSession } from '@/lib/conferenceDemo'
+import { LeadMobileAccessProvider } from './LeadMobileAccessContext'
 
 export default async function LeadsLayout({ children }: { children: React.ReactNode }) {
   const user = await getUser()
@@ -22,7 +23,9 @@ export default async function LeadsLayout({ children }: { children: React.ReactN
         />
         <div className="main-content" style={{ flex: 1 }}>
           {isConferenceDemoSession(user) && <ConferenceDemoBar />}
-          {children}
+          <LeadMobileAccessProvider restrictedAccess={user.restrictedAccess === true}>
+            {children}
+          </LeadMobileAccessProvider>
         </div>
       </div>
       <MobileNav />
