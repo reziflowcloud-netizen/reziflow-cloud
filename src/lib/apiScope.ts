@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { getUser } from '@/lib/auth'
+import { leadWhereForAccess } from '@/lib/leadAssignmentPolicy'
 
 export type DataAccessScope = {
   restricted: boolean
@@ -45,11 +46,7 @@ export function clientWhereForScope(scope: DataAccessScope, organizationId: stri
 }
 
 export function leadWhereForScope(scope: DataAccessScope, organizationId: string, extra: Record<string, any> = {}) {
-  return {
-    organizationId,
-    ...extra,
-    ...(scope.restricted && scope.userId ? { assignedToId: scope.userId } : {}),
-  }
+  return leadWhereForAccess(scope, organizationId, extra)
 }
 
 export function taskWhereForScope(scope: DataAccessScope, organizationId: string, extra: Record<string, any> = {}) {

@@ -8,6 +8,8 @@ import {
   type BulkSelection,
 } from '@/lib/bulkActions'
 import { shouldRetirePersonalAppearTask } from '@/lib/caseImportantDateTasks'
+import { resolveUserIdForEmployee } from '@/lib/employeeSync'
+import { leadAssignmentData } from '@/lib/leadAssignmentPolicy'
 
 type BulkInput = {
   action: BulkAction
@@ -60,9 +62,12 @@ export async function executeLeadBulkAction(args: {
     const employee = input.action === 'assign_employee'
       ? await validateEmployee(organizationId, input.employeeId)
       : null
+    const assignedToId = employee
+      ? await resolveUserIdForEmployee(organizationId, employee.id)
+      : null
     const result = await (prisma as any).lead.updateMany({
       where,
-      data: { employeeId: employee?.id || null },
+      data: leadAssignmentData(employee?.id, assignedToId),
     })
     return { matched, updated: result.count, employee }
   }

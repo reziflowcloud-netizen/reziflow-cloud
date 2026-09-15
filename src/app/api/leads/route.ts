@@ -5,6 +5,8 @@ import { normalizeLeadBody } from '@/lib/leads'
 import { normalizePhones, phonesWithLegacy, primaryPhone } from '@/lib/phones'
 import { getDataAccessScope, leadWhereForScope, taskWhereForScope } from '@/lib/apiScope'
 import { assertBillingLimit, billingLimitResponsePayload, isBillingLimitError } from '@/lib/billing'
+import { resolveUserIdForEmployee } from '@/lib/employeeSync'
+import { leadAssignmentData } from '@/lib/leadAssignmentPolicy'
 
 export const dynamic = 'force-dynamic'
 
@@ -189,6 +191,12 @@ export async function POST(request: NextRequest) {
       select: { id: true },
     })
     if (!employee) return NextResponse.json({ error: 'Employee not found' }, { status: 400 })
+    if (!scope.restricted) {
+      Object.assign(data, leadAssignmentData(
+        employee.id,
+        await resolveUserIdForEmployee(organizationId, employee.id),
+      ))
+    }
   }
 
   if (!data.fullName && !data.phone && !data.email && !data.instagram && !data.facebook) {
