@@ -4,6 +4,8 @@ import { getOrganizationId, getUser } from '@/lib/auth'
 import { normalizeLeadBody } from '@/lib/leads'
 import { normalizePhones, phonesWithLegacy, primaryPhone } from '@/lib/phones'
 import { findScopedLead, getDataAccessScope, leadWhereForScope } from '@/lib/apiScope'
+import { resolveUserIdForEmployee } from '@/lib/employeeSync'
+import { leadAssignmentData } from '@/lib/leadAssignmentPolicy'
 
 export const dynamic = 'force-dynamic'
 
@@ -116,6 +118,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       select: { id: true },
     })
     if (!employee) return NextResponse.json({ error: 'Employee not found' }, { status: 400 })
+  }
+  if (body.employeeId !== undefined && !scope.restricted) {
+    Object.assign(data, leadAssignmentData(
+      data.employeeId,
+      data.employeeId ? await resolveUserIdForEmployee(organizationId, data.employeeId) : null,
+    ))
   }
   const lead = await (prisma as any).$transaction(async (tx: any) => {
     const updated = await tx.lead.update({

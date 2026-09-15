@@ -1,12 +1,11 @@
 import { prisma } from '@/lib/prisma'
+import {
+  normalizePersonName,
+  resolveUniqueUserIdForEmployeeName,
+  userDisplayName,
+} from '@/lib/employeeUserResolver'
 
-export function normalizePersonName(value: unknown) {
-  return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase()
-}
-
-function userDisplayName(user: { name?: string | null; email?: string | null }) {
-  return String(user.name || user.email || '').trim()
-}
+export { normalizePersonName } from '@/lib/employeeUserResolver'
 
 export async function ensureUserEmployees(organizationId: string) {
   if (!organizationId) return []
@@ -102,6 +101,5 @@ export async function resolveUserIdForEmployee(organizationId: string, employeeI
     select: { id: true, name: true, email: true },
   })
 
-  const match = users.find(user => normalizePersonName(userDisplayName(user)) === employeeName)
-  return match?.id || null
+  return resolveUniqueUserIdForEmployeeName(employeeName, users)
 }
