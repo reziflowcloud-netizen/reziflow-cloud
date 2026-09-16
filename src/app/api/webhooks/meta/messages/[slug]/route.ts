@@ -547,7 +547,6 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
             pageAccessTokenForChannel(settings, channel),
             settings.facebookLeadApiVersion || 'v23.0'
           )
-        : null
       : await fetchFacebookProfile(
           participantId,
           pageAccessTokenForChannel(settings, channel),
