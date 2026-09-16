@@ -4,30 +4,12 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
-
-type StatusItem = {
-  id: number
-  name: string
-  color: string
-  order: number
-}
-
-type CaseItem = {
-  id: string
-  caseNumber?: string | null
-  status: string
-  service?: { name: string; color?: string | null } | null
-  totalValue: number
-  totalPaid: number
-}
-
-type ClientItem = {
-  id: string
-  firstName: string
-  lastName: string
-  phone?: string | null
-  cases: CaseItem[]
-}
+import StagesMobile, {
+  type StageCaseItem as CaseItem,
+  type StageClientItem as ClientItem,
+  type StageStatusItem as StatusItem,
+} from './StagesMobile'
+import styles from './StagesMobile.module.css'
 
 function clientName(client: ClientItem) {
   return `${client.firstName || ''} ${client.lastName || ''}`.trim()
@@ -56,7 +38,16 @@ export default function StagesClient({ statuses, clients }: { statuses: StatusIt
   }, [clientQuery, clients])
 
   return (
-    <div className="fade-in">
+    <>
+      <StagesMobile
+        columns={columns}
+        clients={clients}
+        filteredClients={filteredClients}
+        clientQuery={clientQuery}
+        onClientQueryChange={setClientQuery}
+      />
+      <div className={styles.desktopOnly}>
+      <div className="fade-in">
       <div className="page-header">
         <div>
           <div className="page-title">{t('stages_title')}</div>
@@ -193,6 +184,8 @@ export default function StagesClient({ statuses, clients }: { statuses: StatusIt
           </div>
         </div>
       </div>
-    </div>
+      </div>
+      </div>
+    </>
   )
 }
