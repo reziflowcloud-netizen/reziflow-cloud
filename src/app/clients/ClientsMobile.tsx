@@ -91,7 +91,7 @@ function clientName(client: any) {
   return `${client.firstName || ''} ${client.lastName || ''}`.trim() || '—'
 }
 
-function clientInitials(client: any) {
+export function clientInitials(client: any) {
   return [client.firstName, client.lastName]
     .filter(Boolean)
     .slice(0, 2)
@@ -100,7 +100,7 @@ function clientInitials(client: any) {
     .toUpperCase() || '•'
 }
 
-function clientAccentColor(client: any) {
+export function clientAccentColor(client: any) {
   const stableKey = String(client.id || clientName(client))
   let hash = 0
   for (let index = 0; index < stableKey.length; index += 1) {
