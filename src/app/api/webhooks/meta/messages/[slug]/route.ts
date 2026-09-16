@@ -358,7 +358,7 @@ export async function GET(request: NextRequest, { params }: { params: { slug: st
 }
 
 export async function POST(request: NextRequest, { params }: { params: { slug: string } }) {
-  const signature = await verifyMetaWebhookRequestSignature(request)
+  const signature = await verifyMetaWebhookRequestSignature(request, 'messages')
   if (!signature.verified) {
     return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 })
   }

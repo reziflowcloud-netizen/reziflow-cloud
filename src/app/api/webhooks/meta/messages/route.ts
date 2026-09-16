@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const signature = await verifyMetaWebhookRequestSignature(request)
+  const signature = await verifyMetaWebhookRequestSignature(request, 'messages')
   if (!signature.verified) {
     return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 })
   }
