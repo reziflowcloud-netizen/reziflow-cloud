@@ -137,14 +137,56 @@ test('same-origin protection rejects cross-site browser mutations and exempts we
   assert.equal(shouldEnforceSameOrigin('/api/webhooks/meta/messages', 'POST'), false)
 })
 
-test('Meta X-Hub-Signature-256 verification fails closed', () => {
-  const body = JSON.stringify({ object: 'page', entry: [] })
-  const secret = 'unit-test-secret'
-  const signature = `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`
-  assert.equal(verifyMetaWebhookSignature(body, signature, secret), true)
-  assert.equal(verifyMetaWebhookSignature(body, signature, undefined), false)
-  assert.equal(verifyMetaWebhookSignature(`${body}x`, signature, secret), false)
-  assert.equal(verifyMetaWebhookSignature(body, null, secret), false)
+const metaSecret = 'unit-test-secret'
+const metaBytes = body => new TextEncoder().encode(body)
+const metaSignature = bytes => `sha256=${createHmac('sha256', metaSecret).update(bytes).digest('hex')}`
+
+test('valid Meta sha256 signature is verified', () => {
+  const body = metaBytes(JSON.stringify({ object: 'page', entry: [] }))
+  assert.deepEqual(verifyMetaWebhookSignature(body, metaSignature(body), metaSecret), {
+    verified: true,
+    reason: 'verified',
+  })
+})
+
+test('incorrect Meta signature reports digest mismatch', () => {
+  const body = metaBytes(JSON.stringify({ object: 'page', entry: [] }))
+  const differentBody = metaBytes(JSON.stringify({ object: 'page', entry: [{ id: 'different' }] }))
+  assert.deepEqual(verifyMetaWebhookSignature(body, metaSignature(differentBody), metaSecret), {
+    verified: false,
+    reason: 'digest_mismatch',
+  })
+})
+
+test('missing Meta signature header is distinguished', () => {
+  const body = metaBytes('{}')
+  assert.deepEqual(verifyMetaWebhookSignature(body, null, metaSecret), {
+    verified: false,
+    reason: 'missing_signature_header',
+  })
+})
+
+test('malformed Meta signature header is distinguished', () => {
+  const body = metaBytes('{}')
+  assert.deepEqual(verifyMetaWebhookSignature(body, 'sha1=not-a-meta-signature', metaSecret), {
+    verified: false,
+    reason: 'malformed_signature_header',
+  })
+})
+
+test('Unicode and emoji Meta payload is verified from exact raw bytes', () => {
+  const body = metaBytes(JSON.stringify({ message: 'Привіт 👋', emoji: '🧑🏽‍💻' }))
+  assert.deepEqual(verifyMetaWebhookSignature(body, metaSignature(body), metaSecret), {
+    verified: true,
+    reason: 'verified',
+  })
+})
+
+test('invalid Meta signature remains fail closed', () => {
+  const body = metaBytes('{}')
+  const result = verifyMetaWebhookSignature(body, `sha256=${'0'.repeat(64)}`, metaSecret)
+  assert.equal(result.verified, false)
+  assert.equal(result.reason, 'digest_mismatch')
 })
 
 test('configuration writes require an organization admin role', () => {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getLeadWebhookSettings, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
 import { assertBillingLimit, isBillingLimitError } from '@/lib/billing'
-import { hasValidMetaWebhookSignature } from '@/lib/metaWebhookSecurity'
+import { verifyMetaWebhookRequestSignature } from '@/lib/metaWebhookSecurity'
 
 export const dynamic = 'force-dynamic'
 
@@ -358,7 +358,8 @@ export async function GET(request: NextRequest, { params }: { params: { slug: st
 }
 
 export async function POST(request: NextRequest, { params }: { params: { slug: string } }) {
-  if (!(await hasValidMetaWebhookSignature(request))) {
+  const signature = await verifyMetaWebhookRequestSignature(request)
+  if (!signature.verified) {
     return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 })
   }
   const body = await request.json().catch(() => ({}))
