@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import Link from 'next/link'
 import BulkActionsBar, { type BulkActionPayload } from '@/components/BulkActionsBar'
+import MobileEntityIcon from '@/components/mobile/MobileEntityIcon'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
 import { caseStatusLabel } from '@/lib/caseI18n'
 import type { Lang } from '@/lib/translations'
@@ -325,7 +326,7 @@ export default function CasesMobile(props: CasesMobileProps) {
                 <div className={`${styles.financeGrid} ${props.restrictedAccess ? styles.financeGridRestricted : ''}`}>
                   {!props.restrictedAccess && (
                     <div className={styles.metric}>
-                      <span className={styles.metricLabel}>♙ {copy.responsible}</span>
+                      <span className={styles.metricLabel}><MobileEntityIcon type="person" /> {copy.responsible}</span>
                       <span className={styles.metricValue} title={responsible || copy.notAssigned}>{responsible || copy.notAssigned}</span>
                     </div>
                   )}

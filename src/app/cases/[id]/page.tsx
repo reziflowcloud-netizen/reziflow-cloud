@@ -8,9 +8,30 @@ import SectionVisibilityBehavior from '@/components/SectionVisibilityBehavior'
 import CustomSectionsRenderer, { type CustomSectionsHandle } from '@/components/CustomSectionsRenderer'
 import { caseStatusLabel, isArchiveCaseStatus } from '@/lib/caseI18n'
 import { VOIVODESHIP_OFFICE_GROUPS } from '@/lib/voivodeshipOffices'
+import { useCaseMobileAccess } from '../CaseMobileAccessContext'
+import CaseDetailMobile from './CaseDetailMobile'
 
 const WORK_TYPE = 'Выконывание пацы (Работа)'
 const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
+const STAY_SUB_PURPOSE_OPTIONS = [
+  'Wykonywanie pracy (Выполнение работы)',
+  'Wykonywanie pracy w zawodzie wymagającym wysokich kwalifikacji (Высококвалифицированная работа)',
+  'Mobilność długoterminowa posiadacza Niebieskiej Karty UE (Синяя карта ЕС)',
+  'Wykonywanie pracy przez cudzoziemca delegowanego (Командированный работник)',
+  'Prowadzenie działalności gospodarczej (Ведение бизнеса)',
+  'Podjęcie lub kontynuacja stacjonarnych studiów / kształcenie się w szkole doktorskiej (Обучение / докторантура)',
+  'Prowadzenie badań naukowych lub prac rozwojowych (Научные исследования)',
+  'Mobilność długoterminowa naukowca (Мобильность исследователя)',
+  'Odbycie stażu (Стажировка)',
+  'Udział w programie wolontariatu europejskiego (Волонтёрство ЕС)',
+  'Pobyt z obywatelem Rzeczypospolitej Polskiej (Пребывание с гражданином РП)',
+  'Pobyt z cudzoziemcem (Пребывание с иностранцем)',
+  'Mobilność długoterminowa członka rodziny naukowca (Мобильность члена семьи исследователя)',
+  'Okoliczności związane z byciem ofiarą handlu ludźmi (Жертва торговли людьми)',
+  'Okoliczności wymagające krótkotrwałego pobytu na terytorium RP (Краткосрочное пребывание)',
+  'Przedłużenie pobytu ze względu na pracę sezonową (Сезонная работа)',
+  'Inne okoliczności (należy określić jakie) (Иные обстоятельства)',
+]
 
 function VoivodeshipOfficeOptions() {
   return <>
@@ -26,6 +47,7 @@ export default function CaseDetailPage() {
   const { id } = useParams()
   const router = useRouter()
   const { t, lang } = useLanguage()
+  const { restrictedAccess } = useCaseMobileAccess()
   const locale = LOCALES[lang] || 'ru-RU'
   const [c, setC] = useState<any>(null)
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -78,6 +100,15 @@ export default function CaseDetailPage() {
   // Актуализация документов
   const [newDocDate, setNewDocDate] = useState('')
   const [newDocDesc, setNewDocDesc] = useState('')
+  const [isMobilePresentation, setIsMobilePresentation] = useState(false)
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 768px)')
+    const update = () => setIsMobilePresentation(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
 
   useEffect(() => {
     fetch('/api/organization-settings', { cache: 'no-store' })
@@ -389,6 +420,11 @@ export default function CaseDetailPage() {
         status: task.status || 'todo',
         priority: task.priority || '',
         dueDate: task.dueDate?.slice(0, 10) || meta.reminderAt?.slice(0, 10) || '',
+        deadlineAt: task.dueDate?.slice(0, 10) || '',
+        reminderAt: meta.reminderAt || '',
+        eventKind: meta.customCaseReminder || meta.autoReminder || meta.fingerprintsAppointment || meta.predictedDecision || meta.caseImportantDate
+          ? 'reminder'
+          : 'task',
         note: meta.reminderNote || '',
       }))
       .sort((a: any, b: any) => {
@@ -981,12 +1017,123 @@ export default function CaseDetailPage() {
     && availableMosDocuments.every((opt: any) => selectedMosDocNameSet.has(opt.value))
 
   return (
-    <div className="fade-in">
+    <>
+      <CaseDetailMobile
+        id={String(id)}
+        caseData={c}
+        form={form}
+        setField={set}
+        t={t}
+        lang={lang}
+        locale={locale}
+        statuses={statuses}
+        services={services}
+        employees={employees}
+        caseOptions={caseOptions}
+        customDates={customDates}
+        docUpdates={docUpdates}
+        documents={documents}
+        documentTemplates={documentTemplates}
+        mosDocuments={mosDocuments}
+        caseTasks={caseTasks}
+        plannedPayments={plannedPayments}
+        tab={tab}
+        setTab={setTab}
+        restrictedAccess={restrictedAccess}
+        saving={saving}
+        onSave={save}
+        onBack={() => router.push('/cases')}
+        canDeleteCase={canDeleteCases}
+        isArchived={isArchiveCaseStatus(form.status || c.status)}
+        onDeleteCase={deleteCase}
+        isWorkType={isWorkType}
+        staySubPurposeOptions={STAY_SUB_PURPOSE_OPTIONS}
+        mobileActive={isMobilePresentation}
+        customSectionsRef={customSectionsRef}
+        taskTitle={taskTitle}
+        setTaskTitle={setTaskTitle}
+        taskDueDate={taskDueDate}
+        setTaskDueDate={setTaskDueDate}
+        taskSaving={taskSaving}
+        onCreateTask={createClientTask}
+        newDateLabel={newDateLabel}
+        setNewDateLabel={setNewDateLabel}
+        newDateValue={newDateValue}
+        setNewDateValue={setNewDateValue}
+        onAddCustomDate={addCustomDate}
+        onRemoveCustomDate={removeCustomDate}
+        mosId={mosId}
+        setMosId={setMosId}
+        mosEmailFieldEnabled={mosEmailFieldEnabled}
+        submittedMosDocuments={submittedMosDocuments}
+        availableMosDocuments={availableMosDocuments}
+        selectedMosDocNames={selectedMosDocNames}
+        newMosDocDueDate={newMosDocDueDate}
+        setNewMosDocDueDate={setNewMosDocDueDate}
+        submittingMosDocuments={submittingMosDocuments}
+        allAvailableMosDocumentsSelected={allAvailableMosDocumentsSelected}
+        onDeleteMosDocument={deleteMosDocument}
+        onToggleMosDocument={toggleMosDocumentSelection}
+        onClearMosSelection={clearMosDocumentSelection}
+        onSubmitMosDocuments={submitSelectedMosDocuments}
+        onToggleAllMosDocuments={() => {
+          if (allAvailableMosDocumentsSelected) clearMosDocumentSelection()
+          else {
+            setSelectedMosDocNames(availableMosDocuments.map((option: any) => option.value))
+            setNewMosDocDueDate(current => current || (form.mosSentAt && form.mosSentAt <= todayDate ? form.mosSentAt : todayDate))
+            mosSelectionAnchorRef.current = 0
+          }
+        }}
+        customReminderTitle={customReminderTitle}
+        setCustomReminderTitle={setCustomReminderTitle}
+        customReminderDate={customReminderDate}
+        setCustomReminderDate={setCustomReminderDate}
+        customReminderSaving={customReminderSaving}
+        onCreateCustomReminder={createCustomReminder}
+        newDocDate={newDocDate}
+        setNewDocDate={setNewDocDate}
+        newDocDesc={newDocDesc}
+        setNewDocDesc={setNewDocDesc}
+        onAddDocUpdate={addDocUpdate}
+        onRemoveDocUpdate={removeDocUpdate}
+        payAmount={payAmount}
+        setPayAmount={setPayAmount}
+        payNote={payNote}
+        setPayNote={setPayNote}
+        paySpecialMethod={paySpecialMethod}
+        setPaySpecialMethod={setPaySpecialMethod}
+        onAddPayment={addPayment}
+        paymentPlan={paymentPlan}
+        setPaymentPlan={setPaymentPlan}
+        creatingPlan={creatingPlan}
+        onUpdatePlanRow={updatePlanRow}
+        onCreatePaymentPlan={createPaymentPlanTasks}
+        onConvertPlannedPayment={convertPlannedPayment}
+        onDeletePlannedPayment={deletePlannedPayment}
+        editingPayment={editingPayment}
+        setEditingPayment={setEditingPayment}
+        onStartEditPayment={startEditPayment}
+        onSavePaymentEdit={savePaymentEdit}
+        onDeletePayment={deletePayment}
+        comment={comment}
+        setComment={setComment}
+        onAddComment={addComment}
+        uploading={uploading}
+        onUploadFile={uploadFile}
+        generatingTemplate={generatingTemplate}
+        onGenerateDocument={generateDocument}
+        onDeleteDocument={deleteDocument}
+        onDownloadFile={downloadFile}
+        previewDoc={previewDoc}
+        setPreviewDoc={setPreviewDoc}
+      />
+
+      <div className="fade-in case-detail-desktop-presentation">
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={() => router.push('/cases')} className="btn btn-ghost" style={{ padding: '6px 10px' }}>←</button>
           <div>
-            <div className="page-title" style={{ fontFamily: 'monospace', fontSize: 17 }}>{c.caseNumber || t('no_case_number')}</div>
+            {String(c.caseNumber || '').trim() && <div className="page-title" style={{ fontFamily: 'monospace', fontSize: 17 }}>{c.caseNumber}</div>}
             <div className="page-subtitle">{c.client?.firstName} {c.client?.lastName}</div>
           </div>
         </div>
@@ -1121,23 +1268,7 @@ export default function CaseDetailPage() {
                         <label className="label">{t('stay_basis')}</label>
                         <select className="select" value={form.staySubPurpose} onChange={e => set('staySubPurpose', e.target.value)}>
                           <option value="">{t('choose_basis')}</option>
-                          <option>Wykonywanie pracy (Выполнение работы)</option>
-                          <option>Wykonywanie pracy w zawodzie wymagającym wysokich kwalifikacji (Высококвалифицированная работа)</option>
-                          <option>Mobilność długoterminowa posiadacza Niebieskiej Karty UE (Синяя карта ЕС)</option>
-                          <option>Wykonywanie pracy przez cudzoziemca delegowanego (Командированный работник)</option>
-                          <option>Prowadzenie działalności gospodarczej (Ведение бизнеса)</option>
-                          <option>Podjęcie lub kontynuacja stacjonarnych studiów / kształcenie się w szkole doktorskiej (Обучение / докторантура)</option>
-                          <option>Prowadzenie badań naukowych lub prac rozwojowych (Научные исследования)</option>
-                          <option>Mobilność długoterminowa naukowca (Мобильность исследователя)</option>
-                          <option>Odbycie stażu (Стажировка)</option>
-                          <option>Udział w programie wolontariatu europejskiego (Волонтёрство ЕС)</option>
-                          <option>Pobyt z obywatelem Rzeczypospolitej Polskiej (Пребывание с гражданином РП)</option>
-                          <option>Pobyt z cudzoziemcem (Пребывание с иностранцем)</option>
-                          <option>Mobilność długoterminowa członka rodziny naukowca (Мобильность члена семьи исследователя)</option>
-                          <option>Okoliczności związane z byciem ofiarą handlu ludźmi (Жертва торговли людьми)</option>
-                          <option>Okoliczności wymagające krótkotrwałego pobytu na terytorium RP (Краткосрочное пребывание)</option>
-                          <option>Przedłużenie pobytu ze względu na pracę sezonową (Сезонная работа)</option>
-                          <option>Inne okoliczności (należy określić jakie) (Иные обстоятельства)</option>
+                          {STAY_SUB_PURPOSE_OPTIONS.map(option => <option key={option}>{option}</option>)}
                         </select>
                       </div>
                     )}
@@ -1533,7 +1664,7 @@ export default function CaseDetailPage() {
                   <div data-custom-fields-slot="case:case-notes" />
                 </div>
 
-                <CustomSectionsRenderer ref={customSectionsRef} scope="case" recordId={String(id)} standaloneSave={false} />
+                {!isMobilePresentation && <CustomSectionsRenderer ref={customSectionsRef} scope="case" recordId={String(id)} standaloneSave={false} />}
               </div>
             )}
 
@@ -1957,5 +2088,6 @@ export default function CaseDetailPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }

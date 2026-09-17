@@ -94,7 +94,7 @@ export function MobileAccordion({
         </span>
         <span className={classes(styles.chevron, open && styles.chevronOpen)} aria-hidden="true">⌄</span>
       </button>
-      {open && <div className={styles.accordionBody}>{children}</div>}
+      <div className={styles.accordionBody} hidden={!open}>{children}</div>
     </section>
   )
 }

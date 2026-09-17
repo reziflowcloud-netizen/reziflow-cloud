@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react'
 import BulkActionsBar, { type BulkActionPayload } from '@/components/BulkActionsBar'
+import MobileEntityIcon from '@/components/mobile/MobileEntityIcon'
 import { LEAD_TEMPERATURES, leadDisplayName, type LeadSourceOption } from '@/lib/leads'
 import { leadStatusLabel, leadTemperatureLabel } from '@/lib/leadI18n'
 import type { Lang } from '@/lib/translations'
@@ -371,7 +372,7 @@ export default function LeadsMobile(props: LeadsMobileProps) {
                   </div>
                   {!props.restrictedAccess && (
                     <div className={styles.responsible}>
-                      <span className={styles.factLabel}>♙ {copy.responsible}</span>
+                      <span className={styles.factLabel}><MobileEntityIcon type="person" /> {copy.responsible}</span>
                       <span className={styles.factValue} title={responsible || copy.notAssigned}>{responsible || copy.notAssigned}</span>
                     </div>
                   )}

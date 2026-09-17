@@ -2,6 +2,14 @@
 import { useState, useEffect } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
+import CalendarMobile, {
+  type CalendarCase,
+  type CalendarCell,
+  type CalendarClient,
+  type CalendarPriority,
+  type CalendarTask,
+} from './CalendarMobile'
+import calendarStyles from './CalendarMobile.module.css'
 
 function clientLabel(client: any) {
   return `${client?.firstName || ''} ${client?.lastName || ''}`.trim()
@@ -218,6 +226,24 @@ export default function CalendarPage() {
     return clientCases.length === 1 ? clientCases[0].id : ''
   }
 
+  function taskDirectCaseId(task: any) {
+    if (!task) return ''
+    const meta = taskMeta(task)
+    const refs = [
+      meta.caseId,
+      meta.paymentPlan?.caseId,
+      meta.mosDocument?.caseId,
+      meta.autoReminder?.caseId,
+      meta.customCaseReminder?.caseId,
+      meta.quickCaseTask?.caseId,
+      meta.fingerprintsAppointment?.caseId,
+      meta.predictedDecision?.caseId,
+      meta.caseImportantDate?.caseId,
+    ]
+    const caseId = refs.find(value => typeof value === 'string' && value.trim()) || ''
+    return caseId && cases.some((item: any) => item.id === caseId) ? caseId : ''
+  }
+
   function openEdit(task: any) {
     let reminderAt = '', reminderNote = ''
     try { const d = JSON.parse(task.description || '{}'); reminderAt = d.reminderAt || ''; reminderNote = d.reminderNote || '' } catch {}
@@ -287,6 +313,33 @@ export default function CalendarPage() {
 
   return (
     <div className="fade-in">
+      <CalendarMobile
+        t={t}
+        locale={locale}
+        year={year}
+        month={month}
+        monthLabel={monthLabel}
+        daysShort={daysShort}
+        cells={cells as CalendarCell[]}
+        tasks={visibleTasks as CalendarTask[]}
+        priorities={priorities as CalendarPriority[]}
+        clients={clients as CalendarClient[]}
+        cases={cases as CalendarCase[]}
+        selectedClientId={selectedClientId}
+        onSelectedClientIdChange={setSelectedClientId}
+        onPreviousMonth={prevMonth}
+        onNextMonth={nextMonth}
+        onToday={() => { setYear(now.getFullYear()); setMonth(now.getMonth()) }}
+        onNewTask={openNewTask}
+        onEditTask={openEdit}
+        getAllForDate={getAllForDate}
+        getTasksForDate={getTasksForDate}
+        getPriorityColor={getPriorityColor}
+        taskMeta={taskMeta}
+        getDirectCaseId={taskDirectCaseId}
+      />
+
+      <div className={calendarStyles.desktopOnly}>
       <style suppressHydrationWarning>{`
         /* ── Шапка календаря ── */
         .cal-header-nav {
@@ -580,6 +633,7 @@ export default function CalendarPage() {
             />
           </div>
         )}
+      </div>
       </div>
 
       {/* Модалка новой задачи */}

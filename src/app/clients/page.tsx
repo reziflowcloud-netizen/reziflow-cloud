@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
 import { caseStatusLabel, isActiveCaseStatus, isClosedCaseStatus } from '@/lib/caseI18n'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
+import ClientsMobile from './ClientsMobile'
+import { useClientMobileAccess } from './ClientMobileAccessContext'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый':               { bg: '#eff6ff', color: '#1d4ed8' },
@@ -34,9 +36,11 @@ type SortDir = 'asc' | 'desc'
 
 export default function ClientsPage() {
   const { lang, t } = useLanguage()
+  const { restrictedAccess } = useClientMobileAccess()
   const router = useRouter()
   const [clients, setClients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -46,10 +50,20 @@ export default function ClientsPage() {
   const colMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    fetch('/api/clients?view=list').then(r => r.json()).then(data => {
-      setClients(Array.isArray(data) ? data : [])
-      setLoading(false)
-    })
+    fetch('/api/clients?view=list')
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to load clients')
+        return r.json()
+      })
+      .then(data => {
+        setClients(Array.isArray(data) ? data : [])
+        setLoadError(false)
+        setLoading(false)
+      })
+      .catch(() => {
+        setLoadError(true)
+        setLoading(false)
+      })
     fetch('/api/user-preferences').then(r => r.ok ? r.json() : {}).then((data: any) => {
       if (Array.isArray(data.clientColumns)) {
         const next = data.clientColumns.filter((key: string) => COLUMN_KEYS.includes(key))
@@ -112,8 +126,24 @@ export default function ClientsPage() {
   const totalColCount = ALL_COLUMNS.length
 
   return (
-    <div className="fade-in">
-      <div className="page-header">
+    <div className="fade-in clients-page">
+      <style suppressHydrationWarning>{`
+        @media (max-width: 768px) {
+          .clients-page .client-desktop-presentation {
+            display: none !important;
+          }
+        }
+      `}</style>
+      <ClientsMobile
+        clients={clients}
+        filteredClients={filtered}
+        loading={loading}
+        loadError={loadError}
+        search={search}
+        setSearch={setSearch}
+        restrictedAccess={restrictedAccess}
+      />
+      <div className="page-header client-desktop-presentation">
         <div>
           <div className="page-title">{t('clients_title')}</div>
           <div className="page-subtitle">{t('total')}: {clients.length}</div>
@@ -123,7 +153,7 @@ export default function ClientsPage() {
           <Link href="/clients/new" className="btn btn-primary">{t('add_client')}</Link>
         </div>
       </div>
-      <div className="page-body">
+      <div className="page-body client-desktop-presentation">
         {/* Поиск и колонки */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
           <input

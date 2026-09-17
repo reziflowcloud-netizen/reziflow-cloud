@@ -8,6 +8,8 @@ import SectionVisibilityBehavior from '@/components/SectionVisibilityBehavior'
 import CustomSectionsRenderer, { type CustomSectionsHandle } from '@/components/CustomSectionsRenderer'
 import PhoneListEditor, { ensurePhoneRows } from '@/components/PhoneListEditor'
 import { caseStatusLabel, isActiveCaseStatus } from '@/lib/caseI18n'
+import ClientDetailMobile from './ClientDetailMobile'
+import styles from './ClientDetailMobile.module.css'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -449,7 +451,17 @@ export default function ClientDetailPage() {
   const [showFamilyPicker, setShowFamilyPicker] = useState(false)
   const [newTravel, setNewTravel] = useState({ country: '', entryDate: '', exitDate: '' })
   const [showAddTravel, setShowAddTravel] = useState(false)
+  const [statuses, setStatuses] = useState<any[]>([])
+  const [isMobilePresentation, setIsMobilePresentation] = useState(false)
   const customSectionsRef = useRef<CustomSectionsHandle>(null)
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 768px)')
+    const update = () => setIsMobilePresentation(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
 
   useEffect(() => {
     fetch(`/api/clients/${id}`).then(r => r.json()).then(data => {
@@ -499,6 +511,7 @@ export default function ClientDetailPage() {
     fetch('/api/clients').then(r => r.json()).then(data => {
       setAvailableClients(Array.isArray(data) ? data.filter((item: any) => item.id !== id) : [])
     })
+    fetch('/api/statuses').then(r => r.json()).then(data => setStatuses(Array.isArray(data) ? data : []))
     fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(data => setCurrentUser(data))
   }, [id])
 
@@ -599,7 +612,57 @@ export default function ClientDetailPage() {
   // Helpers
   return (
     <div className="fade-in">
-      <div className="page-header">
+      {isMobilePresentation && (
+        <ClientDetailMobile
+          id={String(id)}
+          client={client}
+          form={form}
+          setField={set}
+          setForm={setForm}
+          lang={lang}
+          locale={LOCALES[lang]}
+          text={text}
+          statuses={statuses}
+          countries={COUNTRIES}
+          genders={GENDERS}
+          eyeColors={EYE_COLORS}
+          maritalStatuses={MARITAL_STATUS}
+          educationOptions={EDUCATION}
+          professionOptions={PROFESSIONS}
+          legalTitleOptions={LEGAL_TITLE}
+          stayBasisOptions={STAY_BASIS}
+          previousPolandBasisOptions={PREVIOUS_POLAND_BASIS}
+          activeCases={activeCases}
+          closedCases={closedCases}
+          saving={saving}
+          onSave={save}
+          onBack={() => router.push(backTo)}
+          canDeleteClient={canDeleteClient}
+          onDeleteClient={deleteClient}
+          availableClients={availableClients}
+          selectedFamilyClients={selectedFamilyClients}
+          familySelectedIds={familySelectedIds}
+          filteredFamilyClients={filteredFamilyClients}
+          familySearch={familySearch}
+          setFamilySearch={setFamilySearch}
+          showFamilyPicker={showFamilyPicker}
+          setShowFamilyPicker={setShowFamilyPicker}
+          toggleFamilyClient={toggleFamilyClient}
+          travelHistory={travelHistory}
+          showAddTravel={showAddTravel}
+          setShowAddTravel={setShowAddTravel}
+          newTravel={newTravel}
+          setNewTravel={setNewTravel}
+          onAddTravel={addTravel}
+          onRemoveTravel={removeTravel}
+          onAddPreviousPolandStay={addPreviousPolandStay}
+          onUpdatePreviousPolandStay={updatePreviousPolandStay}
+          onRemovePreviousPolandStay={removePreviousPolandStay}
+          customSectionsRef={customSectionsRef}
+        />
+      )}
+
+      <div className={`page-header ${styles.desktopOnly}`}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={() => router.push(backTo)} className="btn btn-ghost" style={{ padding: '6px 10px' }}>←</button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -619,7 +682,7 @@ export default function ClientDetailPage() {
         </div>
       </div>
 
-      <div className="page-body">
+      <div className={`page-body ${styles.desktopOnly}`}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
           <div data-collapsible-scope="client-profile">
             <CollapsibleCardsBehavior scope="client-profile" />
@@ -1099,7 +1162,7 @@ export default function ClientDetailPage() {
               <div data-custom-fields-slot="client:client-previous-poland-stays" />
             </div>
 
-            <CustomSectionsRenderer ref={customSectionsRef} scope="client" recordId={String(id)} standaloneSave={false} />
+            {!isMobilePresentation && <CustomSectionsRenderer ref={customSectionsRef} scope="client" recordId={String(id)} standaloneSave={false} />}
 
           </div>
 

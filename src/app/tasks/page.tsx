@@ -1,9 +1,11 @@
 'use client'
+import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
+import TasksMobile, { type MobileTask } from './TasksMobile'
 
-interface Task { id: string; title: string; priority: string; dueDate?: string; clientName?: string; description?: string; status?: string }
+interface Task { id: string; title: string; priority: string; dueDate?: string; clientName?: string; description?: string; status?: string; assignedTo?: { id?: number; name?: string | null } | null }
 interface Priority { id: number; name: string; color: string; order: number }
 interface Client { id: string; firstName: string; lastName: string; phone?: string }
 interface Service { id: number; name: string; color?: string; active?: boolean }
@@ -120,7 +122,7 @@ function isOverdue(dateStr: string | undefined): boolean {
 }
 
 export default function TasksPage() {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [tasks, setTasks] = useState<Task[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [cases, setCases] = useState<CaseItem[]>([])
@@ -137,6 +139,7 @@ export default function TasksPage() {
   const [newPriorityName, setNewPriorityName] = useState('')
   const [newPriorityColor, setNewPriorityColor] = useState('#6b7280')
   const [editingPriority, setEditingPriority] = useState<any>(null)
+  const [canManagePriorities, setCanManagePriorities] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverPriority, setDragOverPriority] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
@@ -163,6 +166,14 @@ export default function TasksPage() {
       setPriorities(list)
       if (list.length > 0) setForm(f => ({ ...f, priority: list[0].name }))
     })
+    fetch('/api/auth/me')
+      .then(response => response.ok ? response.json() : null)
+      .then(user => setCanManagePriorities(Boolean(
+        user
+        && !user.isConferenceDemo
+        && (user.role === 'admin' || user.role === 'owner'),
+      )))
+      .catch(() => setCanManagePriorities(false))
   }, [])
 
   function setF(k: string, v: string) { setForm(p => ({ ...p, [k]: v })) }
@@ -195,16 +206,18 @@ export default function TasksPage() {
     const meta = taskMeta(task)
     const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask, meta.fingerprintsAppointment, meta.predictedDecision, meta.caseImportantDate]
     const metaCaseId = refs.find((ref: any) => ref?.caseId)?.caseId
-    if (metaCaseId) return metaCaseId
-    const byNumber = cases.find(item => taskMatchesCase(task, item))?.id
-    if (byNumber) return byNumber
-
-    const taskClientName = String(task.clientName || '').trim().toLowerCase()
-    if (!taskClientName) return ''
-    const matchingClients = clients.filter(client => clientName(client).toLowerCase() === taskClientName)
-    if (matchingClients.length !== 1) return ''
-    const clientCases = cases.filter(item => item.clientId === matchingClients[0].id)
-    return clientCases.length === 1 ? clientCases[0].id : ''
+    return typeof metaCaseId === 'string' && cases.some(item => item.id === metaCaseId) ? metaCaseId : ''
+  }
+  function explicitTaskRelatedCase(task: Task | null) {
+    const caseId = taskRelatedCaseId(task)
+    return caseId ? cases.find(item => item.id === caseId) : undefined
+  }
+  function explicitTaskRelatedClient(task: Task | null) {
+    if (!task) return undefined
+    const relatedCase = explicitTaskRelatedCase(task)
+    if (relatedCase) return clients.find(client => client.id === relatedCase.clientId)
+    const metaClientId = taskMeta(task).clientId
+    return typeof metaClientId === 'string' ? clients.find(client => client.id === metaClientId) : undefined
   }
 
   // ─── Mouse Drag & Drop ─────────────────────────────────────
@@ -391,9 +404,12 @@ export default function TasksPage() {
 
   function openTask(task: Task) {
     const rem = parseReminder(task)
+    const normalizedClientName = String(task.clientName || '').trim().toLowerCase()
+    const matchingClient = clients.find(client => clientName(client).toLowerCase() === normalizedClientName)
     setSelectedTask(task)
     setEditForm({
       ...task,
+      clientId: matchingClient?.id || '',
       dueDate: task.dueDate?.slice(0, 10) ?? '',
       reminderAt: rem.at ? rem.at.slice(0, 16) : '',
       reminderNote: rem.note,
@@ -413,11 +429,68 @@ export default function TasksPage() {
       ? visibleTasks.filter(task => taskMatchesClient(task, selectedClient))
       : visibleTasks
   const editTaskCaseId = taskRelatedCaseId(editForm)
+  const editTaskClientId = explicitTaskRelatedClient(editForm)?.id || ''
 
   // ─── Render ───────────────────────────────────────────
   return (
-    <div className="fade-in">
+    <>
+      <TasksMobile
+        lang={lang}
+        t={t}
+        tasks={tasks}
+        priorities={priorities}
+        clients={clients}
+        services={services}
+        canManagePriorities={canManagePriorities}
+        activeTab={activeTab}
+        selectedClientId={selectedClientId}
+        selectedServiceId={selectedServiceId}
+        filteredClientTasks={filteredClientTasks}
+        clientCases={clientCases}
+        serviceCases={serviceCases}
+        selectedService={selectedService}
+        showForm={showForm}
+        showPriorityManager={showPriorityManager}
+        form={form}
+        selectedTask={selectedTask}
+        editForm={editForm}
+        editTaskCaseId={editTaskCaseId}
+        editTaskClientId={editTaskClientId}
+        newPriorityName={newPriorityName}
+        newPriorityColor={newPriorityColor}
+        editingPriority={editingPriority}
+        tutorialAction={<TutorialVideoButton videoKey="tasks" />}
+        renderClientPicker={config => <ClientCombobox clients={clients} {...config} />}
+        getRelatedCase={(task: MobileTask) => explicitTaskRelatedCase(task as Task)}
+        getRelatedClient={(task: MobileTask) => explicitTaskRelatedClient(task as Task)}
+        onTabChange={setActiveTab}
+        onClientChange={clientId => { setSelectedClientId(clientId); setSelectedServiceId('') }}
+        onServiceChange={setSelectedServiceId}
+        onToggleForm={() => setShowForm(value => !value)}
+        onTogglePriorityManager={() => setShowPriorityManager(value => !value)}
+        onFormChange={setF}
+        onCreateTask={createTask}
+        onOpenTask={task => openTask(task as Task)}
+        onCloseTask={() => setSelectedTask(null)}
+        onEditChange={setE}
+        onEditClient={clientId => {
+          const client = clients.find(item => item.id === clientId)
+          setEditForm((previous: any) => ({ ...previous, clientId, clientName: client ? clientName(client) : '' }))
+        }}
+        onSaveTask={saveTask}
+        onDeleteTask={deleteTask}
+        onMovePriority={(task, priority) => moveToPriority(task as Task, priority)}
+        onNewPriorityName={setNewPriorityName}
+        onNewPriorityColor={setNewPriorityColor}
+        onAddPriority={addPriority}
+        onSetEditingPriority={setEditingPriority}
+        onEditingPriorityChange={setEditingPriority}
+        onSavePriority={savePriority}
+        onDeletePriority={deletePriority}
+      />
+      <div className="tasks-desktop fade-in">
       <style>{`
+        .tasks-desktop { display: block; }
         .kanban-scroll {
           display: grid;
           gap: 12px;
@@ -442,6 +515,7 @@ export default function TasksPage() {
           color: var(--danger-muted) !important;
         }
         @media (max-width: 768px) {
+          .tasks-desktop { display: none; }
           .kanban-scroll {
             display: flex;
             overflow-x: auto;
@@ -872,17 +946,23 @@ export default function TasksPage() {
               <input className="input" value={editForm.reminderNote || ''} onChange={e => setE('reminderNote', e.target.value)} placeholder={t('task_placeholder')} />
             </div>
 
+            {(editTaskClientId || editTaskCaseId) && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                {editTaskClientId && (
+                  <Link href={`/clients/${editTaskClientId}`} className="btn btn-secondary" style={{ textDecoration: 'none' }}>
+                    👤 {t('open_client')}
+                  </Link>
+                )}
+                {editTaskCaseId && (
+                  <Link href={`/cases/${editTaskCaseId}`} className="btn btn-secondary" style={{ textDecoration: 'none' }}>
+                    📁 {t('go_to_case')}
+                  </Link>
+                )}
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <button onClick={saveTask} className="btn btn-primary" style={{ flex: 1 }}>{t('save')}</button>
-              {editTaskCaseId && (
-                <button
-                  onClick={() => { window.location.href = `/cases/${editTaskCaseId}` }}
-                  className="btn btn-secondary"
-                  style={{ whiteSpace: 'nowrap' }}
-                >
-                  {t('go_to_case')}
-                </button>
-              )}
               <button onClick={() => setSelectedTask(null)} className="btn btn-secondary">{t('cancel')}</button>
               <button onClick={() => deleteTask(selectedTask.id)}
                 style={{ background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontWeight: 500 }}>
@@ -892,6 +972,7 @@ export default function TasksPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }

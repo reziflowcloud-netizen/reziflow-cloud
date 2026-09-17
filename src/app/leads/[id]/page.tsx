@@ -8,6 +8,8 @@ import { useLanguage } from '@/context/LanguageContext'
 import { LEAD_LOCALES, leadSourceLabel, leadSourceOptionLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
 import { normalizeLang } from '@/lib/translations'
 import PhoneListEditor, { ensurePhoneRows } from '@/components/PhoneListEditor'
+import LeadDetailMobile from './LeadDetailMobile'
+import { useLeadMobileAccess } from '../LeadMobileAccessContext'
 
 function safeLeadBackHref(value: string | null) {
   return value === '/leads' || value?.startsWith('/leads?') ? value : '/leads'
@@ -17,6 +19,7 @@ export default function LeadDetailPage() {
   const { id } = useParams()
   const router = useRouter()
   const { lang: currentLang } = useLanguage()
+  const { restrictedAccess } = useLeadMobileAccess()
   const lang = normalizeLang(currentLang)
   const locale = LEAD_LOCALES[lang] || 'ru-RU'
   const lt = (key: string) => leadText(lang, key)
@@ -423,8 +426,68 @@ export default function LeadDetailPage() {
   if (!lead) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>{lt('loading')}</div>
 
   return (
-    <div className="fade-in">
-      <div className="page-header">
+    <div className="fade-in lead-detail-page">
+      <style suppressHydrationWarning>{`
+        @media (max-width: 768px) {
+          .lead-detail-page .lead-detail-desktop-presentation {
+            display: none !important;
+          }
+          .lead-detail-page .lead-convert-card {
+            max-height: calc(100dvh - 100px) !important;
+            margin-bottom: calc(72px + env(safe-area-inset-bottom));
+          }
+          .lead-detail-page .lead-convert-grid {
+            grid-template-columns: minmax(0, 1fr) !important;
+          }
+          .lead-detail-page .lead-convert-grid > * {
+            grid-column: 1 !important;
+          }
+        }
+      `}</style>
+      <LeadDetailMobile
+        lead={lead}
+        form={form}
+        setForm={setForm}
+        lang={lang}
+        locale={locale}
+        services={services}
+        employees={employees}
+        leadStatuses={leadStatuses}
+        leadSources={leadSources}
+        messages={messages}
+        reminders={reminders}
+        messageSources={messageSources}
+        messageForm={messageForm}
+        setMessageForm={setMessageForm}
+        quickNote={quickNote}
+        setQuickNote={setQuickNote}
+        quickNextContactAt={quickNextContactAt}
+        setQuickNextContactAt={setQuickNextContactAt}
+        quickNextContactNote={quickNextContactNote}
+        setQuickNextContactNote={setQuickNextContactNote}
+        reminderForm={reminderForm}
+        setReminderForm={setReminderForm}
+        saving={saving}
+        savingMessage={savingMessage}
+        savingReminder={savingReminder}
+        quickSaving={quickSaving}
+        converting={converting}
+        error={error}
+        restrictedAccess={restrictedAccess}
+        sourceLabel={sourceLabel}
+        instagramHref={instagramHref}
+        facebookHref={facebookHref}
+        onBack={() => router.push(backToLeads)}
+        onSave={save}
+        onOpenConvert={openConvertModal}
+        onDelete={deleteLead}
+        onQuickAction={recordQuickContact}
+        onScheduleQuickContact={scheduleQuickContact}
+        onAddMessage={addMessage}
+        onAddReminder={addReminder}
+        onCompleteReminder={completeReminder}
+      />
+      <div className="page-header lead-detail-desktop-presentation">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={() => router.push(backToLeads)} className="btn btn-ghost" style={{ padding: '6px 10px' }}>←</button>
           <div>
@@ -445,7 +508,7 @@ export default function LeadDetailPage() {
         </div>
       </div>
 
-      <div className="page-body">
+      <div className="page-body lead-detail-desktop-presentation">
         {error && <div className="error-msg">{error}</div>}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
@@ -796,9 +859,9 @@ export default function LeadDetailPage() {
           style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 50 }}
           onClick={() => setShowConvert(false)}
         >
-          <div className="card" style={{ width: 'min(720px, 100%)', maxHeight: '90vh', overflow: 'auto' }} onClick={event => event.stopPropagation()}>
+          <div className="card lead-convert-card" style={{ width: 'min(720px, 100%)', maxHeight: '90vh', overflow: 'auto' }} onClick={event => event.stopPropagation()}>
             <div className="section-title"><span>→</span>{lt('convert_title')}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="lead-convert-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group"><label className="label">{lt('first_name')}</label><input className="input" value={convertForm.firstName} onChange={setConvert('firstName')} /></div>
               <div className="form-group"><label className="label">{lt('last_name')}</label><input className="input" value={convertForm.lastName} onChange={setConvert('lastName')} /></div>
               <div className="form-group"><label className="label">{lt('phone')}</label><input className="input" value={convertForm.phone} onChange={setConvert('phone')} /></div>

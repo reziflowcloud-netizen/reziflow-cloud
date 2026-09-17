@@ -124,7 +124,11 @@ export default function MoreBottomSheet({ open, pathname, user, onClose, onLogou
 
   if (!open) return null
 
-  const canOpenSettings = Boolean(user && !user.isConferenceDemo)
+  const canOpenSettings = Boolean(
+    user
+    && !user.isConferenceDemo
+    && (user.role === 'admin' || user.role === 'owner'),
+  )
   const roleLabel = user?.role === 'admin' || user?.role === 'owner' ? labels.administrator : labels.employee
   const destinations: Array<{ key: 'tasks' | 'stages' | 'calendar' | 'settings'; href: string }> = [
     { key: 'tasks', href: '/tasks' },

@@ -27,6 +27,7 @@ type Props = {
   scope: Scope
   recordId: string
   standaloneSave?: boolean
+  onStandalonePresenceChange?: (hasSections: boolean) => void
 }
 
 function checkboxValue(value: string | undefined) {
@@ -37,7 +38,7 @@ export type CustomSectionsHandle = {
   save: () => Promise<boolean>
 }
 
-const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function CustomSectionsRenderer({ scope, recordId, standaloneSave = true }, ref) {
+const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function CustomSectionsRenderer({ scope, recordId, standaloneSave = true, onStandalonePresenceChange }, ref) {
   const [sections, setSections] = useState<CustomSection[]>([])
   const [values, setValues] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(true)
@@ -74,6 +75,10 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
   const standaloneSections = useMemo(() => (
     visibleSections.filter(section => !section.targetSectionKey)
   ), [visibleSections])
+
+  useEffect(() => {
+    if (!loading) onStandalonePresenceChange?.(standaloneSections.length > 0)
+  }, [loading, onStandalonePresenceChange, standaloneSections.length])
 
   useEffect(() => {
     if (loading) return
