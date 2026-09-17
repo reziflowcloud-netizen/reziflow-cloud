@@ -1,299 +1,165 @@
-# Handoff
+# LegalHub CRM Handoff
 
-Prepared for the next LegalHub CRM development chat on 2026-07-29.
+Prepared from the verified production state on 2026-09-17.
 
-## Start Prompt
+## Start Here
 
 ```text
-Continue development of LegalHub CRM.
+Continue maintenance and scoped development of LegalHub CRM.
 
 Application root:
 C:\Users\verbe\Documents\Codex\2026-06-15\legalhub-crm-crm-c-users-verbe\work\legalhub-integration
-
-Treat the repository as the source of truth, not old chat memory.
 
 Before editing:
-1. Read PROJECT_STATE.md, HANDOFF.md, DEPLOY_NOTES.md, package.json, and
-   prisma/schema.prisma.
-2. Run git status --short --branch, git diff --check, and
-   git log --oneline -10.
-3. Do not read .env or expose secrets.
-4. Do not revert or commit existing changes without the user's permission.
-5. Preserve the separate meanings of assignedToId (User/access) and
-   employeeId (Employee/business responsibility).
+1. Read PROJECT_STATE.md and this HANDOFF.md.
+2. Read the task-specific canonical documentation.
+3. Run git fetch origin, git status --short --branch, and inspect recent log.
+4. Treat the repository and current production state as the source of truth.
+5. Do not read or expose secrets.
+6. Do not run migrations, seeds, or backfills unless explicitly authorized.
+7. Preserve assignedToId (User/access) and employeeId
+   (Employee/business responsibility) as separate concepts.
 ```
 
-## Repository Snapshot
-
-Application root:
+## Current Production
 
 ```text
-C:\Users\verbe\Documents\Codex\2026-06-15\legalhub-crm-crm-c-users-verbe\work\legalhub-integration
-```
-
-Audited branch and committed HEAD:
-
-```text
+URL: https://legalhubcrm.com
 branch: main
-HEAD: 1c3f879 Add batch MOS document submission
-origin/main: 1c3f879
+commit: a63557a8bfd770f333d7eb36ed4b26869ceecb71
+deployment: dpl_DxRQuhsmYgvH6i1FcAdMNKDXVvRh
+status after rollout: READY
 ```
 
-At the start of this handoff audit, `main` was synchronized with
-`origin/main`. There were no uncommitted application changes.
-
-Working tree after preparing this handoff:
+Previous stable rollback point:
 
 ```text
-M  PROJECT_STATE.md
-M  HANDOFF.md
-?? legalhub-os/MESSAGING_INTEGRATIONS_AUDIT.md
+commit: d40b6f3ce88408a99f3c09bb162b786421ef66b3
+deployment: dpl_ARsSogYVQdgYHbUmTXQwKJ22gBu7
 ```
 
-- The two Markdown modifications are this requested handoff update.
-- They are intentionally not committed because the user did not authorize a
-  commit.
-- `legalhub-os/MESSAGING_INTEGRATIONS_AUDIT.md` existed before this audit. It
-  was not read, edited, staged, or committed.
-- There are no uncommitted changes under `src/`, `prisma/`, `scripts/`, or
-  `package.json`.
+Before this documentation update, local `main` matched `origin/main` at the
+production commit. This handoff task changes only `PROJECT_STATE.md` and
+`HANDOFF.md`; it does not change application code or production.
 
-Re-run `git status --short --branch`; do not assume this snapshot is still
-current.
+## Mobile UX Rollout — Complete
 
-## Work Completed In This Long Chat
+The accepted Mobile UX chain is fully implemented and deployed:
 
-The following substantial work is present in committed code:
+- Dashboard
+- Leads
+- Cases
+- Clients
+- Lead Detail
+- Case Detail
+- Client Detail
+- Tasks
+- Stages
+- Calendar
+- More bottom sheet
 
-- Added `Lead.employeeId` and visible Employee assignment across lead create,
-  detail, list/board, filters, bulk actions, and lead conversion.
-- Preserved `Lead.assignedToId` as User ownership for restricted access.
-- Added user-to-Employee synchronization and case responsibility
-  synchronization.
-- Added tutorial video controls, quick-start visibility, and videos for each
-  quick-start step.
-- Improved dashboard and list loading behavior.
-- Updated legal pages and registration consent; added registration email
-  notification.
-- Added pricing/trial limits, organization overrides, organization counts, and
-  safer organization document deletion.
-- Added responsible columns to case/client lists and a client column toggle.
-- Improved lead webhook reliability, table/board horizontal scrolling, and
-  dark/slate styling.
-- Added Meta OAuth diagnostics, shared messages webhook, subscriptions, and
-  disconnect action. Meta App Review remains external and is not proven
-  approved by code.
-- Added organization-configurable MOS email field.
-- Added custom fields inside existing standard sectors and automatic inclusion
-  in CSV exports.
-- Added multi-select MOS document submission with individual checkboxes,
-  Shift-range selection, select-all, one date, server-side validation, and
-  batch Task creation.
-
-## Critical Assignment State
-
-Do not simplify this model accidentally.
+Responsive contract:
 
 ```text
-assignedToId -> User.id
-employeeId   -> Employee.id
+mobile:  <= 768px
+desktop: >= 769px
+fixed mobile navigation: Пульт | Ліди | Справи | Клієнти | Ще
 ```
 
-Confirmed in current code:
-
-- `Lead` has both `assignedToId`/`assignedTo` and `employeeId`/`employee`.
-- `Case` has both `assignedToId`/`assignedTo` and `employeeId`/`employee`.
-- `Client` and `Task` use `assignedToId` only.
-- Restricted access in `src/lib/apiScope.ts` filters by `assignedToId`.
-- Lead UI shows Employee as the responsible person.
-- Lead create/update validates Employee ownership but does not generally
-  replace `assignedToId` when an Employee is selected.
-- Restricted lead writes force `assignedToId` to the current User.
-- Lead conversion copies `Lead.employeeId` to `Case.employeeId` and transfers
-  User assignment separately.
-- `src/lib/employeeSync.ts` creates/activates same-name Employee records for
-  organization users and backfills missing lead/case `employeeId` from
-  `assignedToId`.
-- Case create/update resolves an Employee to a same-name User and uses that
-  User for `Case.assignedToId` when a match exists.
-
-This mapping is name-based. There is no `Employee.userId` foreign key. Treat
-duplicate names and user renames as technical debt.
-
-## Substantially Changed Application Files
-
-Assignment and access:
+Canonical handoff material:
 
 ```text
-prisma/schema.prisma
-src/lib/apiScope.ts
-src/lib/employeeSync.ts
-src/lib/leads.ts
-src/lib/organizationProvisioning.ts
-src/app/api/leads/route.ts
-src/app/api/leads/[id]/route.ts
-src/app/api/leads/[id]/convert/route.ts
-src/app/api/cases/route.ts
-src/app/api/cases/[id]/route.ts
-src/app/api/employees/route.ts
-src/app/api/users/route.ts
-src/app/api/users/[id]/route.ts
-src/app/leads/page.tsx
-src/app/leads/new/page.tsx
-src/app/leads/[id]/page.tsx
-src/app/cases/page.tsx
-src/app/cases/[id]/page.tsx
-src/app/clients/page.tsx
+legalhub-os/mobile-ux/MOBILE_UX_SPEC.md
+legalhub-os/mobile-ux/MOBILE_UX_QA_REPORT.md
+legalhub-os/mobile-ux/mockups/
 ```
 
-Settings, custom fields, exports, tutorials, and MOS:
+Use those files for maintenance decisions. Do not create a new competing
+mobile specification or continue a broad redesign without a new owner-approved
+scope.
+
+## Accepted QA Baseline
 
 ```text
-src/app/api/organization-settings/route.ts
-src/app/api/custom-sections/route.ts
-src/app/api/custom-sections/[id]/route.ts
-src/app/api/custom-fields/route.ts
-src/app/api/custom-fields/[id]/route.ts
-src/app/api/export/route.ts
-src/app/settings/sections/page.tsx
-src/components/CustomSectionsRenderer.tsx
-src/components/TutorialVideoButton.tsx
-src/lib/tutorialVideos.ts
-src/lib/ui-sections.ts
-src/app/api/cases/[id]/mos-documents/submit/route.ts
+360px sanity                   PASS
+390px                          PASS
+414px                          PASS
+430px                          PASS
+desktop 769 / 1024 / 1440      PASS
+Light / Dark / Slate           PASS
+RU / UA / PL                   PASS
+Full / Restricted permissions PASS
+Security regression            PASS
+Lead visibility regression     PASS
+Production smoke               PASS
 ```
 
-Meta, storage, billing, registration, and performance:
+Final production verification covered all 11 mobile surfaces, desktop
+regression, fixed navigation and active states, More bottom sheet, safe
+list/detail and save/edit flows, Task sticky Save, Case/Client relations,
+Calendar timed values, date-only all-day labels, and overflow checks.
+
+## Security And Data Handling Baseline
+
+Already present in production and not optional:
+
+- Security/GDPR hardening.
+- Private/authenticated document delivery through the authorized LegalHub
+  endpoint.
+- Tenant isolation and restricted permission enforcement.
+- Safe user projections, backend guards, same-origin checks, security headers,
+  upload/path/URL protections, masked credentials, and Meta signature checks.
+- Lead responsible visibility fix.
+
+The controlled Lead responsibility backfill was completed earlier in
+production. **Never repeat it as a setup step or rollout task.** The final
+Mobile UX rollout required no schema migration, seed, or data backfill.
+
+Do not include secrets, provider credentials, storage identifiers, permanent
+provider URLs, password material, tokens, or connection strings in logs,
+documentation, URLs, HTML, API output, commits, or chat responses.
+
+## Critical Assignment Invariant
 
 ```text
-src/app/settings/integrations/page.tsx
-src/app/api/meta/oauth/*
-src/app/api/meta/subscriptions/route.ts
-src/app/api/webhooks/meta/messages/route.ts
-src/lib/metaOAuth.ts
-src/lib/leadWebhookHandler.ts
-src/lib/billing.ts
-src/app/api/organizations/[id]/route.ts
-src/app/register/RegisterClient.tsx
-src/app/dashboard/page.tsx
-src/app/globals.css
+assignedToId -> User.id      access ownership / restricted visibility
+employeeId   -> Employee.id  visible business responsibility
 ```
 
-## Migrations Added
+Do not substitute one for the other. Restricted access and tenant isolation
+must continue to use the established access rules even when the visible
+Employee changes. Existing Employee/User synchronization remains name-based
+and is separate technical debt, not a reason to combine these fields.
 
-```text
-prisma/migrations/20260627120000_lead_employee_assignment/migration.sql
-prisma/migrations/20260728120000_case_mos_email/migration.sql
-prisma/migrations/20260728150000_custom_section_target/migration.sql
-```
+## Safe Build And Database Rules
 
-Details:
+`npm run build` invokes `scripts/vercel-migrate.js` and can run migration/seed
+logic when `DIRECT_URL` is configured. For a code-only verification, prefer a
+deliberate safe build such as `npx next build` and confirm the target before any
+database operation.
 
-- `20260627120000_lead_employee_assignment` adds `Lead.employeeId`, the
-  `(organizationId, employeeId)` index, and an `ON DELETE SET NULL` Employee
-  foreign key.
-- `Case.employeeId` predates this work; it comes from
-  `20260105000000_case_v2`.
-- `20260728120000_case_mos_email` adds nullable `Case.mosEmail`.
-- `20260728150000_custom_section_target` adds nullable
-  `CustomSection.targetSectionKey`, preserving existing standalone sections.
+Never run the following merely to inspect the project:
 
-Whether these migrations are applied to a particular database cannot be
-determined from code or git. A previous project note recorded a successful
-application of the lead migration to one Supabase database, but this audit did
-not access the database and does not verify its present state. The two July 28
-migrations also require environment-specific verification.
+- production migrations;
+- Prisma schema pushes;
+- seed scripts;
+- historical or responsibility backfills;
+- destructive document cleanup.
 
-Do not run `prisma migrate deploy`, `prisma db push`, seed, or `npm run build`
-until the exact target database is confirmed and a database-changing operation
-is explicitly intended.
+## Next Work
 
-## Verification Performed
+The Mobile UX programme is closed as a major redesign. New findings should be
+opened as small, independent maintenance/refinement tasks with a clear screen,
+breakpoint, expected behavior, permissions impact, regression scope, and
+deployment gate. Keep production unchanged until the user explicitly approves
+a deployment.
 
-Final handoff audit:
+For every follow-up:
 
-```text
-git status --short --branch
-git diff --check
-git log --oneline -10
-npx tsc --noEmit
-```
-
-Results:
-
-- Git commands completed successfully.
-- `git diff --check` reported no whitespace errors before the documentation
-  edits.
-- TypeScript completed with no errors.
-- No migration, seed, production database query, or `.env` read occurred.
-
-Latest batch MOS work before this audit:
-
-- `npx tsc --noEmit` passed.
-- `npx next build` passed.
-- Local production UI was checked with a test case.
-- Individual, Shift-range, and select-all selection were verified.
-- The final submit button was not clicked, so the visual test did not alter
-  case data.
-- Commit `1c3f879` was pushed to `main`; GitHub reported Vercel success.
-
-No automated test script exists in `package.json`.
-
-## Manual Checks Still Needed
-
-1. Verify migration application on the intended production/database target
-   without exposing connection strings.
-2. Test the multi-document MOS submission once in production using a safe test
-   case, including refresh and duplicate prevention.
-3. Confirm Meta App Review status in Meta Developers; repository code cannot
-   prove permission approval.
-4. Decide whether `legalhub-os/MESSAGING_INTEGRATIONS_AUDIT.md` should remain
-   local or be reviewed and committed separately.
-5. Test responsibility behavior for duplicate Employee/User names and after a
-   user rename.
-
-## Known Bugs And Technical Debt
-
-- Employee/User matching is based on normalized names, not a stable foreign
-  key.
-- Concurrent identical MOS batch requests can theoretically create duplicate
-  completed tasks because there is no database unique constraint.
-- `src/lib/auth.ts` has a development fallback JWT secret; production must set
-  `JWT_SECRET`.
-- `Case.cabinetPassword` is stored as a normal string; no encryption layer was
-  observed in the audited path.
-- Legacy mojibake remains in some source strings.
-- The build script can deploy migrations and run seed, which makes a routine
-  `npm run build` state-changing when `DIRECT_URL` is configured.
-- Meta permissions and App Review are operational/external dependencies.
-- There is no configured automated unit/integration test command.
-
-## Next Recommended Development Step
-
-First perform a read-only deployment/database audit for the three migrations,
-then manually smoke-test the production MOS batch workflow. After those checks,
-the next structural improvement should be an explicit stable link between
-`Employee` and `User` (designed with a data migration and duplicate-name
-handling) so responsibility metadata and access ownership no longer depend on
-display-name matching.
-
-Do not start that refactor until existing organization data and restricted
-access behavior have been sampled and the migration plan is approved.
-
-## Do Not Break Or Revert
-
-- Do not use `employeeId` as the access-control field.
-- Do not remove `assignedToId` from Lead or Case.
-- Do not make restricted access depend on Employee names.
-- Do not drop the lead employee migration or assume `Case.employeeId` belongs
-  to it.
-- Do not make `CustomSection.targetSectionKey` required; null preserves
-  standalone sections.
-- Do not remove active custom fields from any CSV export mode.
-- Do not expose MOS email when `mosEmailFieldEnabled` is false.
-- Do not bypass case scope or organization validation in MOS batch submission.
-- Do not remove the Meta disconnect flow or shared messages webhook while App
-  Review is pending.
-- Do not delete or stage the existing untracked messaging audit file without
-  user approval.
-- Do not read or commit `.env`, passwords, API keys, access tokens, or secrets.
+1. Start from current `origin/main` unless the task names another base.
+2. Preserve the approved mobile shell and the desktop layout.
+3. Reuse existing business logic, APIs, permissions, and theme/language
+   mechanisms.
+4. Verify only the affected area plus proportionate mobile, desktop, access,
+   and security regressions.
+5. Stop before production unless deployment is explicitly authorized.

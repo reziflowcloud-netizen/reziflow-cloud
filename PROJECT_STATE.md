@@ -1,45 +1,58 @@
 # Project State
 
-Last audited against the repository by Codex: 2026-07-29.
+Last updated against the production repository state by Codex: 2026-09-17.
 
 ## Project
 
 LegalHub CRM is a multi-tenant SaaS CRM for legalization and immigration
-agencies in Poland. The same Next.js application contains the public site,
+agencies in Poland. The Next.js application contains the public site,
 registration and legal pages, organization administration, and the internal
 CRM.
 
+```text
 Application root:
-
-```text
 C:\Users\verbe\Documents\Codex\2026-06-15\legalhub-crm-crm-c-users-verbe\work\legalhub-integration
-```
 
-GitHub:
-
-```text
+Repository:
 https://github.com/reziflowcloud-netizen/reziflow-cloud.git
-```
 
 Production:
-
-```text
 https://legalhubcrm.com
 ```
+
+## Current Production State
+
+The full approved Mobile UX rollout is in production.
+
+```text
+branch: main
+production commit: a63557a8bfd770f333d7eb36ed4b26869ceecb71
+production deployment: dpl_DxRQuhsmYgvH6i1FcAdMNKDXVvRh
+deployment status at rollout verification: READY
+```
+
+Recorded previous stable rollback point:
+
+```text
+commit: d40b6f3ce88408a99f3c09bb162b786421ef66b3
+deployment: dpl_ARsSogYVQdgYHbUmTXQwKJ22gBu7
+```
+
+At the start of this documentation-only update, local `main`, `origin/main`,
+and the production commit were synchronized at `a63557a`. No application code
+or production configuration was changed by this handoff update.
 
 ## Architecture
 
 - Next.js 14 App Router application with React 18 and TypeScript.
 - Route handlers under `src/app/api` provide the application API.
-- Prisma 5.13 is the ORM; PostgreSQL is the only configured datasource.
+- Prisma 5.13 is the ORM; PostgreSQL is the configured datasource.
 - Authentication uses a signed JWT in the `auth-token` cookie.
 - `organizationId` is the tenant boundary used by application queries.
-- `src/lib/apiScope.ts` adds restricted-user filtering for cases, clients,
-  leads, and tasks.
+- `src/lib/apiScope.ts` applies restricted-user filtering.
 - Organization feature and integration settings are stored in the
   `Organization.settings` JSON field.
-- Tailwind is installed, while much of the CRM UI also uses shared CSS in
-  `src/app/globals.css`.
+- Tailwind and shared styles in `src/app/globals.css` provide the visual layer.
 
 Important build behavior:
 
@@ -50,214 +63,153 @@ npm run build
   -> next build
 ```
 
-When `DIRECT_URL` exists, `scripts/vercel-migrate.js` runs
-`prisma migrate deploy` and then `prisma/seed.js`. Do not run `npm run build`
-for a read-only audit. `npx next build` avoids that wrapper but should still be
-used deliberately.
+When `DIRECT_URL` exists, the wrapper may run database migration/seed logic.
+Use `npx next build` for a safe application build when database mutation is not
+explicitly intended. Never run migrations, seed, or backfills as part of a
+routine inspection.
 
-## Current Git Snapshot
+## Mobile UX — Production
 
-Audit started from:
+The approved responsive Mobile UX is fully implemented and deployed.
 
-```text
-branch: main
-HEAD: 1c3f879 Add batch MOS document submission
-origin/main: 1c3f879
-```
-
-Before this handoff documentation edit there were no uncommitted application
-changes. One unrelated untracked file already existed:
+Breakpoints:
 
 ```text
-legalhub-os/MESSAGING_INTEGRATIONS_AUDIT.md
+mobile:  <= 768px
+desktop: >= 769px
 ```
 
-Do not delete, overwrite, or commit that file without first deciding its
-ownership with the user. The edits to `PROJECT_STATE.md` and `HANDOFF.md`
-created by this audit are intentionally left uncommitted.
+Implemented mobile screens and shared surfaces:
 
-## Implemented Modules
+- Dashboard
+- Leads
+- Cases
+- Clients
+- Lead Detail
+- Case Detail
+- Client Detail
+- Tasks
+- Stages
+- Calendar
+- More bottom sheet
 
-- Public landing, pricing, registration, login, contact, Privacy Policy,
-  Regulamin, and data deletion pages.
-- Multi-organization users, roles, restricted access, superadmin organization
-  management, plan limits, trials, manual overrides, and referrals.
-- Dashboard metrics, recent records, upcoming events, and configurable quick
-  start.
-- Leads: configurable statuses, sources, filters, table/board views, contact
-  history, reminders, messages, phone channels, qualification fields, bulk
-  actions, assignment, and conversion to clients/cases.
-- Clients: extended identity/contact data, multiple phones, family links,
-  responsible-user list column, cases, custom fields, import/export.
-- Cases: services, statuses, responsible employees, payments, comments,
-  documents, MOS/correspondence data, important dates, custom sections/fields,
-  and batch MOS document submission.
-- Tasks, priorities, calendar, stages, notifications, and automatic reminders.
-- Settings for services, statuses, users, employees, fields/sectors,
-  integrations, storage, import/export, and tutorial visibility.
-- Document templates and Cloudinary/Dropbox-backed case documents.
+The fixed mobile bottom navigation is exactly:
+
+```text
+Пульт | Ліди | Справи | Клієнти | Ще
+```
+
+The More bottom sheet contains the secondary navigation, language controls,
+theme controls, current-user context, and logout. Existing permission rules
+control which destinations and actions are available. Desktop layout remains
+the existing desktop CRM presentation at 769px and above.
+
+Canonical Mobile UX documentation:
+
+```text
+legalhub-os/mobile-ux/MOBILE_UX_SPEC.md
+legalhub-os/mobile-ux/MOBILE_UX_QA_REPORT.md
+legalhub-os/mobile-ux/mockups/
+```
+
+The canonical mockup directory contains the approved 11-screen handoff set.
+Do not recreate competing copies or treat older chat screenshots as a newer
+source of truth.
+
+## Mobile UX Verification Snapshot
+
+Final accepted verification results:
+
+- 360px sanity: PASS
+- 390px: PASS
+- 414px: PASS
+- 430px: PASS
+- Desktop 769px / 1024px / 1440px: PASS
+- Light / Dark / Slate: PASS
+- RU / UA / PL: PASS
+- Full and restricted permissions: PASS
+- Security regression: PASS
+- Lead responsible visibility regression: PASS
+- Production mobile and desktop smoke: PASS
+- Browser/runtime errors during final production smoke: 0
+
+The production smoke covered navigation, active states, the More sheet,
+list-to-detail navigation, safe no-op detail saves, Task editing with the
+sticky Save action, client/case relations, Calendar timed events, date-only
+all-day display, and mobile overflow checks.
+
+## Security And Access State — Production
+
+The following are already deployed and must be preserved:
+
+- Security/GDPR hardening.
+- Safe user projections and backend permission/configuration guards.
+- Organization isolation and nested IDOR protection.
+- Same-origin mutation protection and security headers.
+- Path traversal, remote-document URL, SSRF, and upload validation controls.
+- Masked integration credentials and Meta webhook signature validation.
+- Private/authenticated Cloudinary document delivery through LegalHub file
+  endpoints; provider identifiers and permanent provider URLs must not be
+  exposed to unauthorized frontend/API consumers.
+- Lead responsible visibility fix for restricted users.
+
+A controlled production backfill for Lead responsibility was completed before
+the Mobile UX rollout. **Do not run that backfill again.** No migration,
+backfill, or seed was part of the final Mobile UX production rollout.
 
 ## Assignment Model: User vs Employee
 
-This distinction is security-sensitive.
-
-`assignedToId` is a relation to a real CRM `User`. It is used by
-`src/lib/apiScope.ts` to restrict data visible to a user:
+This distinction is security-sensitive and remains intentional:
 
 ```text
-Lead.assignedToId   -> User.id
-Case.assignedToId   -> User.id
-Client.assignedToId -> User.id
-Task.assignedToId   -> User.id
+assignedToId -> User.id      (access ownership / restricted visibility)
+employeeId   -> Employee.id  (visible business responsibility)
 ```
 
-`Employee` is a separate organization business directory used as the visible
-responsible employee:
+- Lead and Case can contain both fields.
+- Client and Task use `assignedToId` for their existing ownership behavior.
+- Restricted access must continue to use the established access scope and
+  must not be inferred only from the visible Employee value.
+- Lead conversion carries Employee responsibility and User access ownership
+  separately.
+- Existing Employee/User synchronization is name-based rather than an
+  explicit foreign-key relationship; do not merge the fields casually.
 
-```text
-Employee(id, organizationId, name, active, createdAt)
-Lead.employeeId -> Employee.id
-Case.employeeId -> Employee.id
-```
+## Implemented Product Areas
 
-Confirmed behavior:
+- Public landing, conference landing/demo flow, pricing, registration, login,
+  contact, legal, and data-deletion pages.
+- Multi-organization users, roles, restricted access, super-admin organization
+  management, plan limits, trials, overrides, and referrals.
+- Dashboard metrics, dynamics, recent records, upcoming events, and quick
+  start/tutorial actions.
+- Leads with configurable organization statuses/colors, sources, filters,
+  responsibility, communication data, reminders, conversion, and bulk actions.
+- Clients with contact/profile data, phones, responsible ownership, cases,
+  custom fields, imports, and exports.
+- Cases with services, statuses, responsibility, payments, comments,
+  documents, MOS/correspondence data, important dates, and custom sections.
+- Tasks, priorities, Calendar, Stages, notifications, and reminders.
+- Organization settings, integrations, employees, services, statuses, fields,
+  storage, import/export, and tutorial visibility.
+- Conference tracking/reporting and the secure shared demo flow.
 
-- Migration `20260627120000_lead_employee_assignment` adds
-  `Lead.employeeId`, its organization/employee index, and the foreign key to
-  `Employee`.
-- `Case.employeeId` is older and originates from
-  `20260105000000_case_v2`; it was not added by the lead migration.
-- Lead create/update APIs validate `employeeId` inside the organization.
-- The visible responsible field in lead UI uses `Employee`; the old visible
-  CRM-user selector was removed.
-- Selecting a lead employee does not generally replace `Lead.assignedToId`.
-  Restricted users still force `assignedToId` to their own `User.id`.
-- Lead conversion copies `Lead.employeeId` to `Case.employeeId` and carries
-  `assignedToId` separately for access ownership.
-- `src/lib/employeeSync.ts` ensures every organization user has an active
-  same-name Employee record and backfills missing `employeeId` on leads/cases
-  that already have `assignedToId`.
-- Case create/update resolves a selected Employee back to a User by normalized
-  name and sets `Case.assignedToId` when a matching user exists.
+## Operational Rules
 
-The Employee/User association is name-based, not an explicit database
-relation. Do not replace or merge these fields without redesigning restricted
-access and migrating existing data.
+- Never expose or commit `.env` files, passwords, API keys, tokens, connection
+  strings, JWT secrets, or integration credentials.
+- Preserve tenant scoping and restricted-user filters on every read and write.
+- Do not expose storage provider URLs or identifiers in public/API responses.
+- Do not run Prisma migration, seed, or historical backfill operations without
+  an explicit task naming the target environment.
+- Production changes require a separate explicit deployment instruction.
+- Keep desktop behavior visually stable unless a task explicitly targets it.
 
-## Custom Fields And MOS
+## Next Development Approach
 
-- `CustomSection.targetSectionKey` lets an organization keep a custom section
-  as a standalone card or embed it into a supported standard client/case
-  sector.
-- Target keys are validated through `src/lib/ui-sections.ts`.
-- Values remain in `CustomFieldValue`; organization-defined fields do not add
-  a database column per field.
-- Active custom fields are included in full, client-only, and case-only CSV
-  exports.
-- `Case.mosEmail` is a real nullable column. Its visibility is controlled by
-  `Organization.settings.mosEmailFieldEnabled` in Settings -> Fields and
-  sectors.
-- Case MOS documents can be selected individually, as a Shift range, or all at
-  once. A case-scoped API validates the configured document names and creates
-  completed Task records with one `createMany` call for the shared submission
-  date.
-
-## Integrations
-
-- Meta OAuth connection, page/Instagram selection, token diagnostics,
-  subscriptions, disconnect, Facebook Lead Ads webhooks, and a shared
-  Facebook Messenger/Instagram Direct messages webhook exist in code.
-- Meta Advanced Access/App Review is external state and cannot be inferred
-  from this repository. The last user-provided state was an active review for
-  `instagram_basic`, `pages_read_engagement`, and
-  `instagram_manage_messages`.
-- Generic lead webhooks and a Google Sheets Apps Script webhook URL are
-  supported.
-- A Telegram lead webhook route exists; this is not evidence of full two-way
-  Telegram chat.
-- There is no confirmed two-way WhatsApp or Viber messaging implementation.
-- Cloudinary is the default document storage path; organizations can enable
-  Dropbox storage in integration settings.
-- New-registration email notification code exists.
-
-## Prisma And Migrations
-
-The repository contains migrations through:
-
-```text
-20260728150000_custom_section_target
-```
-
-Migrations created during the current development period:
-
-```text
-20260627120000_lead_employee_assignment
-20260728120000_case_mos_email
-20260728150000_custom_section_target
-```
-
-Repository code proves that these migrations exist, but it does not prove
-which database environments have applied them. A previous handoff recorded
-that the lead employee migration had been applied to one Supabase database,
-but this 2026-07-29 audit did not connect to any database and does not re-verify
-that claim. The two July 28 migrations are likewise not marked as applied by
-anything in git.
-
-Do not run `prisma migrate deploy` merely to inspect status. Verify the intended
-database and deployment environment first.
-
-## Recent Significant Changes
-
-- Employee responsibility for leads and synchronization between organization
-  users and Employee records.
-- Tutorial video controls and quick-start step videos.
-- Dashboard/list loading optimizations.
-- Registration consent, legal documents, and new-registration notifications.
-- Organization deletion cleanup for document files.
-- Pricing limits, trials, admin overrides, and organization aggregate counts.
-- Responsible columns in client/case lists.
-- Lead webhook timeout fix, horizontal scrolling, and dark-theme lead styling.
-- Meta shared messages webhook and disconnect action.
-- Organization-specific MOS email field.
-- Custom fields embedded in standard sectors and exported automatically.
-- Batch submission of multiple MOS documents.
-
-## Verification Snapshot
-
-During the final audit:
-
-```text
-git status --short --branch
-git diff --check
-git log --oneline -10
-npx tsc --noEmit
-```
-
-All commands completed successfully; TypeScript reported no errors. No build,
-Prisma migration, seed, or database-changing command was run during this
-handoff audit.
-
-The latest application commit `1c3f879` had already passed `npx tsc --noEmit`,
-`npx next build`, a local browser check of MOS multi-selection, and a successful
-Vercel status before this audit began.
-
-## Known Risks And Technical Debt
-
-- Employee/User synchronization depends on normalized display names. Duplicate
-  names and later renames can create ambiguous or stale mappings.
-- The batch MOS endpoint skips existing submissions in application logic, but
-  there is no database unique constraint preventing duplicate concurrent
-  submissions.
-- `src/lib/auth.ts` contains a development fallback for `JWT_SECRET`.
-  Production must provide a strong environment value.
-- `Case.cabinetPassword` is stored as a normal nullable string; no encryption
-  layer was observed in the audited Prisma/API path.
-- Some legacy Russian/Ukrainian source strings are mojibake. Avoid broad
-  encoding rewrites without UI regression testing.
-- No dedicated automated test script is configured in `package.json`.
-- `npm run build` can mutate the configured database and run seed logic.
-
-## Security
-
-Do not read, print, copy, or commit `.env` files, passwords, API keys, access
-tokens, or other secrets. Production values are managed outside the repository.
+The large Mobile UX redesign is complete. Do not continue it as an open-ended
+redesign programme. Any issue discovered after production should be described,
+scoped, implemented, and verified as an independent maintenance/refinement
+task. Preserve the accepted navigation, breakpoints, responsive structure,
+business logic, permissions, and desktop presentation unless the new task
+explicitly authorizes changing them.
