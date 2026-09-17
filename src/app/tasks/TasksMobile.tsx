@@ -44,6 +44,7 @@ type TasksMobileProps = {
   priorities: MobileTaskPriority[]
   clients: MobileTaskClient[]
   services: MobileTaskService[]
+  canManagePriorities: boolean
   activeTab: 'all' | 'byClient'
   selectedClientId: string
   selectedServiceId: string
@@ -256,7 +257,7 @@ export default function TasksMobile(props: TasksMobileProps) {
             <button type="button" className={styles.roundButton} aria-label={copy.actions} aria-expanded={headerMenuOpen} onClick={() => setHeaderMenuOpen(value => !value)}><TaskIcon type="more" /></button>
             {headerMenuOpen && (
               <div className={styles.headerMenu}>
-                <button type="button" onClick={() => { props.onTogglePriorityManager(); setHeaderMenuOpen(false) }}>{copy.sections}</button>
+                {props.canManagePriorities && <button type="button" onClick={() => { props.onTogglePriorityManager(); setHeaderMenuOpen(false) }}>{copy.sections}</button>}
                 <div className={styles.videoAction}>{props.tutorialAction}</div>
               </div>
             )}
@@ -282,7 +283,7 @@ export default function TasksMobile(props: TasksMobileProps) {
         </section>
       )}
 
-      {props.showPriorityManager && (
+      {props.canManagePriorities && props.showPriorityManager && (
         <section className={styles.formPanel} aria-label={copy.manageSections}>
           <div className={styles.formHeading}><strong>{copy.manageSections}</strong><button type="button" onClick={props.onTogglePriorityManager} aria-label={copy.cancel}>×</button></div>
           <div className={styles.priorityAddRow}>

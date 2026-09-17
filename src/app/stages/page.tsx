@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { caseWhereForScope, clientWhereForScope, getDataAccessScope } from '@/lib/apiScope'
+import { isConferenceDemoSession } from '@/lib/conferenceDemo'
+import { isOrganizationAdmin } from '@/lib/security'
 import StagesClient from './StagesClient'
 
 export const dynamic = 'force-dynamic'
@@ -34,6 +36,7 @@ export default async function StagesPage() {
 
   return (
     <StagesClient
+      canConfigureStatuses={isOrganizationAdmin(user) && !isConferenceDemoSession(user)}
       statuses={statuses.map(status => ({
         id: status.id,
         name: status.name,

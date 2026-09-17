@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
+import MobileEntityIcon from '@/components/mobile/MobileEntityIcon'
 import styles from './CalendarMobile.module.css'
 
 export type CalendarPriority = {
@@ -116,9 +117,7 @@ function isPassportDateOnlyReminder(
     && note.endsWith(' истекает через 90 дней')
   if (!isGeneratedPassportReminder) return false
 
-  const dueTime = Date.parse(`${dueKey}T00:00:00Z`)
-  const reminderTime = Date.parse(`${reminderKey}T00:00:00Z`)
-  return dueTime - reminderTime === 90 * 24 * 60 * 60 * 1000
+  return reminderKey <= dueKey
 }
 
 function withAlpha(color: string, alpha: string) {
@@ -280,15 +279,15 @@ export default function CalendarMobile(props: CalendarMobileProps) {
           {relationClientName && (
             relations.clientId ? (
               <Link href={`/clients/${relations.clientId}`} className={styles.relation} onClick={click => click.stopPropagation()}>
-                <span aria-hidden="true">♙</span><span title={relationClientName}>{relationClientName}</span><Chevron />
+                <MobileEntityIcon type="person" /><span title={relationClientName}>{relationClientName}</span><Chevron />
               </Link>
             ) : (
-              <div className={styles.contextLine}><span aria-hidden="true">♙</span><span title={relationClientName}>{relationClientName}</span></div>
+              <div className={styles.contextLine}><MobileEntityIcon type="person" /><span title={relationClientName}>{relationClientName}</span></div>
             )
           )}
           {relations.caseId && (
             <Link href={`/cases/${relations.caseId}`} className={styles.relation} onClick={click => click.stopPropagation()}>
-              <span aria-hidden="true">▧</span><span title={caseLabel || props.t('cases_title')}>{caseLabel || props.t('cases_title')}</span><Chevron />
+              <MobileEntityIcon type="case" /><span title={caseLabel || props.t('cases_title')}>{caseLabel || props.t('cases_title')}</span><Chevron />
             </Link>
           )}
           {note && <div className={styles.note} title={note}>{note}</div>}
@@ -336,7 +335,7 @@ export default function CalendarMobile(props: CalendarMobileProps) {
           <button type="button" className={styles.monthLabel} onClick={selectToday}>{props.monthLabel}</button>
           <button type="button" className={styles.monthButton} onClick={props.onNextMonth} aria-label={props.t('calendar_next_month')}>›</button>
           <label className={styles.clientFilter}>
-            <span aria-hidden="true">♙</span>
+            <MobileEntityIcon type="person" />
             <span className={styles.srOnly}>{props.t('filter_by_client')}</span>
             <select value={props.selectedClientId} onChange={event => props.onSelectedClientIdChange(event.target.value)}>
               <option value="">{props.t('all_clients')}</option>

@@ -139,6 +139,7 @@ export default function TasksPage() {
   const [newPriorityName, setNewPriorityName] = useState('')
   const [newPriorityColor, setNewPriorityColor] = useState('#6b7280')
   const [editingPriority, setEditingPriority] = useState<any>(null)
+  const [canManagePriorities, setCanManagePriorities] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverPriority, setDragOverPriority] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
@@ -165,6 +166,14 @@ export default function TasksPage() {
       setPriorities(list)
       if (list.length > 0) setForm(f => ({ ...f, priority: list[0].name }))
     })
+    fetch('/api/auth/me')
+      .then(response => response.ok ? response.json() : null)
+      .then(user => setCanManagePriorities(Boolean(
+        user
+        && !user.isConferenceDemo
+        && (user.role === 'admin' || user.role === 'owner'),
+      )))
+      .catch(() => setCanManagePriorities(false))
   }, [])
 
   function setF(k: string, v: string) { setForm(p => ({ ...p, [k]: v })) }
@@ -432,6 +441,7 @@ export default function TasksPage() {
         priorities={priorities}
         clients={clients}
         services={services}
+        canManagePriorities={canManagePriorities}
         activeTab={activeTab}
         selectedClientId={selectedClientId}
         selectedServiceId={selectedServiceId}

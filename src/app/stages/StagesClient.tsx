@@ -15,7 +15,7 @@ function clientName(client: ClientItem) {
   return `${client.firstName || ''} ${client.lastName || ''}`.trim()
 }
 
-export default function StagesClient({ statuses, clients }: { statuses: StatusItem[]; clients: ClientItem[] }) {
+export default function StagesClient({ statuses, clients, canConfigureStatuses }: { statuses: StatusItem[]; clients: ClientItem[]; canConfigureStatuses: boolean }) {
   const { t } = useLanguage()
   const [clientQuery, setClientQuery] = useState('')
 
@@ -43,6 +43,7 @@ export default function StagesClient({ statuses, clients }: { statuses: StatusIt
         columns={columns}
         clients={clients}
         filteredClients={filteredClients}
+        canConfigureStatuses={canConfigureStatuses}
         clientQuery={clientQuery}
         onClientQueryChange={setClientQuery}
       />

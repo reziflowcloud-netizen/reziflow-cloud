@@ -34,6 +34,7 @@ type StagesMobileProps = {
   columns: StageStatusItem[]
   clients: StageClientItem[]
   filteredClients: StageClientItem[]
+  canConfigureStatuses: boolean
   clientQuery: string
   onClientQueryChange: (value: string) => void
 }
@@ -68,6 +69,7 @@ export default function StagesMobile({
   columns,
   clients,
   filteredClients,
+  canConfigureStatuses,
   clientQuery,
   onClientQueryChange,
 }: StagesMobileProps) {
@@ -138,7 +140,7 @@ export default function StagesMobile({
             {overflowOpen && (
               <div className={styles.overflowMenu}>
                 <TutorialVideoButton videoKey="stages" className={styles.overflowAction} />
-                <Link href="/settings/statuses" className={styles.overflowAction}>{t('configure_statuses')}</Link>
+                {canConfigureStatuses && <Link href="/settings/statuses" className={styles.overflowAction}>{t('configure_statuses')}</Link>}
               </div>
             )}
           </div>
