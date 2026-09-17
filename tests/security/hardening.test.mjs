@@ -11,7 +11,10 @@ import {
   serializeDocumentForBrowser,
   validateDocumentUpload,
 } from '../../src/lib/documentSecurity.ts'
-import { verifyMetaWebhookSignature } from '../../src/lib/metaWebhookSecurity.ts'
+import {
+  verifyMetaWebhookSignature,
+  verifyMetaWebhookSignatureWithSecrets,
+} from '../../src/lib/metaWebhookSecurity.ts'
 import { caseChildWhere } from '../../src/lib/nestedResourceScope.ts'
 import { isSameOriginRequest, shouldEnforceSameOrigin } from '../../src/lib/requestSecurity.ts'
 import { SAFE_ASSIGNEE_SELECT, isOrganizationAdmin } from '../../src/lib/security.ts'
@@ -137,14 +140,135 @@ test('same-origin protection rejects cross-site browser mutations and exempts we
   assert.equal(shouldEnforceSameOrigin('/api/webhooks/meta/messages', 'POST'), false)
 })
 
-test('Meta X-Hub-Signature-256 verification fails closed', () => {
-  const body = JSON.stringify({ object: 'page', entry: [] })
-  const secret = 'unit-test-secret'
-  const signature = `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`
-  assert.equal(verifyMetaWebhookSignature(body, signature, secret), true)
-  assert.equal(verifyMetaWebhookSignature(body, signature, undefined), false)
-  assert.equal(verifyMetaWebhookSignature(`${body}x`, signature, secret), false)
-  assert.equal(verifyMetaWebhookSignature(body, null, secret), false)
+const metaSecret = 'unit-test-secret'
+const instagramSecret = 'instagram-unit-test-secret'
+const metaBytes = body => new TextEncoder().encode(body)
+const metaSignature = (bytes, secret = metaSecret) => `sha256=${createHmac('sha256', secret).update(bytes).digest('hex')}`
+
+test('valid Meta sha256 signature is verified', () => {
+  const body = metaBytes(JSON.stringify({ object: 'page', entry: [] }))
+  assert.deepEqual(verifyMetaWebhookSignature(body, metaSignature(body), metaSecret), {
+    verified: true,
+    reason: 'verified',
+    source: 'meta',
+  })
+})
+
+test('messages policy accepts the main Meta secret', () => {
+  const body = metaBytes('{}')
+  assert.deepEqual(verifyMetaWebhookSignatureWithSecrets(body, metaSignature(body), [
+    { source: 'meta', secret: metaSecret },
+    { source: 'instagram', secret: instagramSecret },
+  ]), {
+    verified: true,
+    reason: 'verified',
+    source: 'meta',
+  })
+})
+
+test('messages policy accepts the Instagram secret', () => {
+  const body = metaBytes('{}')
+  assert.deepEqual(verifyMetaWebhookSignatureWithSecrets(body, metaSignature(body, instagramSecret), [
+    { source: 'meta', secret: metaSecret },
+    { source: 'instagram', secret: instagramSecret },
+  ]), {
+    verified: true,
+    reason: 'verified',
+    source: 'instagram',
+  })
+})
+
+test('signature invalid for both allowed message secrets is rejected', () => {
+  const body = metaBytes('{}')
+  assert.deepEqual(verifyMetaWebhookSignatureWithSecrets(body, metaSignature(body, 'other-secret'), [
+    { source: 'meta', secret: metaSecret },
+    { source: 'instagram', secret: instagramSecret },
+  ]), {
+    verified: false,
+    reason: 'digest_mismatch',
+  })
+})
+
+test('missing allowed webhook secrets fails closed', () => {
+  const body = metaBytes('{}')
+  assert.deepEqual(verifyMetaWebhookSignatureWithSecrets(body, metaSignature(body), [
+    { source: 'meta', secret: undefined },
+    { source: 'instagram', secret: undefined },
+  ]), {
+    verified: false,
+    reason: 'missing_app_secret',
+  })
+})
+
+test('Facebook Lead policy rejects an Instagram-secret signature', () => {
+  const body = metaBytes('{}')
+  assert.deepEqual(verifyMetaWebhookSignatureWithSecrets(body, metaSignature(body, instagramSecret), [
+    { source: 'meta', secret: metaSecret },
+  ]), {
+    verified: false,
+    reason: 'digest_mismatch',
+  })
+})
+
+test('a signature matching more than one configured source fails closed', () => {
+  const body = metaBytes('{}')
+  assert.deepEqual(verifyMetaWebhookSignatureWithSecrets(body, metaSignature(body), [
+    { source: 'meta', secret: metaSecret },
+    { source: 'instagram', secret: metaSecret },
+  ]), {
+    verified: false,
+    reason: 'ambiguous_secret_match',
+  })
+})
+
+test('incorrect Meta signature reports digest mismatch', () => {
+  const body = metaBytes(JSON.stringify({ object: 'page', entry: [] }))
+  const differentBody = metaBytes(JSON.stringify({ object: 'page', entry: [{ id: 'different' }] }))
+  assert.deepEqual(verifyMetaWebhookSignature(body, metaSignature(differentBody), metaSecret), {
+    verified: false,
+    reason: 'digest_mismatch',
+  })
+})
+
+test('missing Meta signature header is distinguished', () => {
+  const body = metaBytes('{}')
+  assert.deepEqual(verifyMetaWebhookSignature(body, null, metaSecret), {
+    verified: false,
+    reason: 'missing_signature_header',
+  })
+})
+
+test('malformed Meta signature header is distinguished', () => {
+  const body = metaBytes('{}')
+  assert.deepEqual(verifyMetaWebhookSignature(body, 'sha1=not-a-meta-signature', metaSecret), {
+    verified: false,
+    reason: 'malformed_signature_header',
+  })
+})
+
+test('Unicode and emoji Meta payload is verified from exact raw bytes', () => {
+  const body = metaBytes(JSON.stringify({ message: 'Привіт 👋', emoji: '🧑🏽‍💻' }))
+  assert.deepEqual(verifyMetaWebhookSignature(body, metaSignature(body), metaSecret), {
+    verified: true,
+    reason: 'verified',
+    source: 'meta',
+  })
+})
+
+test('invalid Meta signature remains fail closed', () => {
+  const body = metaBytes('{}')
+  const result = verifyMetaWebhookSignature(body, `sha256=${'0'.repeat(64)}`, metaSecret)
+  assert.equal(result.verified, false)
+  assert.equal(result.reason, 'digest_mismatch')
+})
+
+test('Meta webhook routes use endpoint-specific secret policies', async () => {
+  const leadRoute = await readFile(resolve(workspace, 'src/app/api/webhooks/meta/leads/[slug]/route.ts'), 'utf8')
+  const messageRoute = await readFile(resolve(workspace, 'src/app/api/webhooks/meta/messages/[slug]/route.ts'), 'utf8')
+  const messageRouter = await readFile(resolve(workspace, 'src/app/api/webhooks/meta/messages/route.ts'), 'utf8')
+  assert.match(leadRoute, /verifyMetaWebhookRequestSignature\(request, 'meta'\)/)
+  assert.match(messageRoute, /verifyMetaWebhookRequestSignature\(request, 'messages'\)/)
+  assert.match(messageRouter, /verifyMetaWebhookRequestSignature\(request, 'messages'\)/)
 })
 
 test('configuration writes require an organization admin role', () => {

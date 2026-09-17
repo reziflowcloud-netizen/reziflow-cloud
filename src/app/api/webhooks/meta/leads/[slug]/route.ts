@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { normalizeLeadBody } from '@/lib/leads'
 import { applyLeadWebhookMapping, getLeadWebhookSettings, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
 import { assertBillingLimit } from '@/lib/billing'
-import { hasValidMetaWebhookSignature } from '@/lib/metaWebhookSecurity'
+import { verifyMetaWebhookRequestSignature } from '@/lib/metaWebhookSecurity'
 
 export const dynamic = 'force-dynamic'
 
@@ -111,7 +111,8 @@ export async function GET(request: NextRequest, { params }: { params: { slug: st
 }
 
 export async function POST(request: NextRequest, { params }: { params: { slug: string } }) {
-  if (!(await hasValidMetaWebhookSignature(request))) {
+  const signature = await verifyMetaWebhookRequestSignature(request, 'meta')
+  if (!signature.verified) {
     return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 })
   }
   const body = await request.json().catch(() => ({}))

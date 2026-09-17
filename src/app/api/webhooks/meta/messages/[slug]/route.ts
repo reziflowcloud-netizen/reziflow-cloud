@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getLeadWebhookSettings, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
 import { assertBillingLimit, isBillingLimitError } from '@/lib/billing'
-import { hasValidMetaWebhookSignature } from '@/lib/metaWebhookSecurity'
+import { verifyMetaWebhookRequestSignature } from '@/lib/metaWebhookSecurity'
+import {
+  INSTAGRAM_LEAD_FALLBACK_NAME,
+  fetchInstagramProfile,
+  instagramProfileValues,
+} from '@/lib/instagramProfile'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,7 +104,7 @@ function pageAccessTokenForChannel(settings: ReturnType<typeof getLeadWebhookSet
   return settings.facebookLeadPageAccessToken || ''
 }
 
-async function fetchProfile(senderId: string, accessToken: string, apiVersion: string) {
+async function fetchFacebookProfile(senderId: string, accessToken: string, apiVersion: string) {
   if (!accessToken) return null
   const version = apiVersion.startsWith('v') ? apiVersion : `v${apiVersion}`
   const url = new URL(`https://graph.facebook.com/${version}/${senderId}`)
@@ -202,8 +207,22 @@ async function syncMetaConversationMessages(args: {
   if (!textMessages.length) return { created: 0, leadId: null as string | null }
 
   const messengerId = `${args.channel}:${args.participantId}`
-  const profile = await fetchProfile(args.participantId, token, version)
-  const displayName = profileName(profile, args.channel)
+  const existingLead = await (prisma as any).lead.findFirst({
+    where: { organizationId: args.organizationId, messengerId },
+    select: { id: true, fullName: true, instagram: true },
+  })
+  const profile = args.channel === 'instagram'
+    ? existingLead
+      ? null
+      : await fetchInstagramProfile(args.participantId, token, version)
+    : await fetchFacebookProfile(args.participantId, token, version)
+  const instagramValues = instagramProfileValues(profile)
+  const existingName = String(existingLead?.fullName || '').trim()
+  const displayName = args.channel === 'instagram'
+    ? existingName && existingName !== INSTAGRAM_LEAD_FALLBACK_NAME
+      ? existingName
+      : instagramValues.fullName
+    : profileName(profile, args.channel)
   const defaultStatus = await (prisma as any).leadStatus.findFirst({
     where: { organizationId: args.organizationId },
     orderBy: [{ order: 'asc' }, { id: 'asc' }],
@@ -211,9 +230,9 @@ async function syncMetaConversationMessages(args: {
   })
 
   const result = await (prisma as any).$transaction(async (tx: any) => {
-    let lead = await tx.lead.findFirst({
+    let lead = existingLead || await tx.lead.findFirst({
       where: { organizationId: args.organizationId, messengerId },
-      select: { id: true },
+      select: { id: true, fullName: true, instagram: true },
     })
 
     if (!lead) {
@@ -225,11 +244,11 @@ async function syncMetaConversationMessages(args: {
             source: args.channel,
             messengerId,
             fullName: displayName,
-            instagram: args.channel === 'instagram' ? String(profile?.username || '').trim() || null : null,
+            instagram: args.channel === 'instagram' ? instagramValues.instagram : null,
             facebook: args.channel === 'facebook' ? displayName : null,
             notes: `Лид создан из сообщения ${sourceLabel(args.channel)}`,
           },
-          select: { id: true },
+          select: { id: true, fullName: true, instagram: true },
         })
     }
 
@@ -358,7 +377,8 @@ export async function GET(request: NextRequest, { params }: { params: { slug: st
 }
 
 export async function POST(request: NextRequest, { params }: { params: { slug: string } }) {
-  if (!(await hasValidMetaWebhookSignature(request))) {
+  const signature = await verifyMetaWebhookRequestSignature(request, 'messages')
+  if (!signature.verified) {
     return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 })
   }
   const body = await request.json().catch(() => ({}))
@@ -496,7 +516,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
 
     const existingLead = await (prisma as any).lead.findFirst({
       where: { organizationId: organization.id, messengerId: { in: messengerIds } },
-      select: { id: true, messengerId: true },
+      select: { id: true, messengerId: true, fullName: true, instagram: true },
     })
     if (!existingLead) {
       try {
@@ -519,12 +539,26 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     const messengerId = existingLead?.messengerId || messengerIds[0]
     const participantId = String(messengerId).replace(`${channel}:`, '')
 
-    const profile = await fetchProfile(
-      participantId,
-      pageAccessTokenForChannel(settings, channel),
-      settings.facebookLeadApiVersion || 'v23.0'
-    )
-    const displayName = profileName(profile, channel)
+    const profile = channel === 'instagram'
+      ? existingLead
+        ? null
+        : await fetchInstagramProfile(
+            participantId,
+            pageAccessTokenForChannel(settings, channel),
+            settings.facebookLeadApiVersion || 'v23.0'
+          )
+      : await fetchFacebookProfile(
+          participantId,
+          pageAccessTokenForChannel(settings, channel),
+          settings.facebookLeadApiVersion || 'v23.0'
+        )
+    const instagramValues = instagramProfileValues(profile)
+    const existingName = String(existingLead?.fullName || '').trim()
+    const displayName = channel === 'instagram'
+      ? existingName && existingName !== INSTAGRAM_LEAD_FALLBACK_NAME
+        ? existingName
+        : instagramValues.fullName
+      : profileName(profile, channel)
     const defaultStatus = await (prisma as any).leadStatus.findFirst({
       where: { organizationId: organization.id },
       orderBy: [{ order: 'asc' }, { id: 'asc' }],
@@ -533,10 +567,10 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
 
     const result = await (prisma as any).$transaction(async (tx: any) => {
       let lead = existingLead
-        ? { id: existingLead.id }
+        ? existingLead
         : await tx.lead.findFirst({
           where: { organizationId: organization.id, messengerId: { in: messengerIds } },
-          select: { id: true },
+          select: { id: true, fullName: true, instagram: true },
         })
 
       if (!lead) {
@@ -547,11 +581,11 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
             source,
             messengerId,
             fullName: displayName,
-            instagram: channel === 'instagram' ? String(profile?.username || '').trim() || null : null,
+            instagram: channel === 'instagram' ? instagramValues.instagram : null,
             facebook: channel === 'facebook' ? displayName : null,
             notes: `Лид создан из сообщения ${sourceLabel(channel)}`,
           },
-          select: { id: true },
+          select: { id: true, fullName: true, instagram: true },
         })
       }
 
