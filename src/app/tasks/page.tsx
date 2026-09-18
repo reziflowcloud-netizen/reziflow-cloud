@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
 import TasksMobile, { type MobileTask } from './TasksMobile'
+import StaffScopeControl from '@/components/StaffScopeControl'
+import type { StaffScopeValue } from '@/lib/staffScope'
 
 interface Task { id: string; title: string; priority: string; dueDate?: string; clientName?: string; description?: string; status?: string; assignedTo?: { id?: number; name?: string | null } | null }
 interface Priority { id: number; name: string; color: string; order: number }
@@ -128,6 +130,10 @@ export default function TasksPage() {
   const [cases, setCases] = useState<CaseItem[]>([])
   const [services, setServices] = useState<Service[]>([])
   const [priorities, setPriorities] = useState<Priority[]>([])
+  const [staffScope, setStaffScope] = useState<StaffScopeValue>('all')
+  const [staffScopeReady, setStaffScopeReady] = useState(false)
+  const [staffRestricted, setStaffRestricted] = useState(false)
+  const [employees, setEmployees] = useState<Array<{ id: number; name: string }>>([])
   const [activeTab, setActiveTab] = useState<'all' | 'byClient'>('all')
   const [selectedClientId, setSelectedClientId] = useState('')
   const [selectedServiceId, setSelectedServiceId] = useState('')
@@ -157,9 +163,7 @@ export default function TasksPage() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/tasks').then(r => r.json()).then(d => setTasks(Array.isArray(d) ? d : []))
     fetch('/api/clients').then(r => r.json()).then(d => setClients(Array.isArray(d) ? d : []))
-    fetch('/api/cases').then(r => r.json()).then(d => setCases(Array.isArray(d) ? d : []))
     fetch('/api/services').then(r => r.json()).then(d => setServices(Array.isArray(d) ? d.filter((s: Service) => s.active !== false) : []))
     fetch('/api/task-priorities').then(r => r.json()).then(d => {
       const list: Priority[] = Array.isArray(d) ? d : []
@@ -175,6 +179,25 @@ export default function TasksPage() {
       )))
       .catch(() => setCanManagePriorities(false))
   }, [])
+
+  useEffect(() => {
+    fetch('/api/staff-scope', { cache: 'no-store' })
+      .then(response => response.ok ? response.json() : null)
+      .then(data => {
+        if (!data) return
+        setStaffRestricted(data.restricted === true)
+        setEmployees(Array.isArray(data.employees) ? data.employees : [])
+        setStaffScope(data.defaultScope === 'mine' ? 'mine' : 'all')
+        setStaffScopeReady(true)
+      })
+  }, [])
+
+  useEffect(() => {
+    if (!staffScopeReady) return
+    const query = `staffScope=${encodeURIComponent(staffScope)}`
+    fetch(`/api/tasks?${query}`, { cache: 'no-store' }).then(r => r.json()).then(d => setTasks(Array.isArray(d) ? d : []))
+    fetch(`/api/cases?${query}`, { cache: 'no-store' }).then(r => r.json()).then(d => setCases(Array.isArray(d) ? d : []))
+  }, [staffScope, staffScopeReady])
 
   function setF(k: string, v: string) { setForm(p => ({ ...p, [k]: v })) }
   function setE(k: string, v: string) { setEditForm((p: any) => ({ ...p, [k]: v })) }
@@ -460,6 +483,8 @@ export default function TasksPage() {
         newPriorityColor={newPriorityColor}
         editingPriority={editingPriority}
         tutorialAction={<TutorialVideoButton videoKey="tasks" />}
+        scopeControl={<StaffScopeControl value={staffScope} onChange={setStaffScope} employees={employees} restricted={staffRestricted} lang={lang} compact />}
+        showAssignee={staffScope === 'all'}
         renderClientPicker={config => <ClientCombobox clients={clients} {...config} />}
         getRelatedCase={(task: MobileTask) => explicitTaskRelatedCase(task as Task)}
         getRelatedClient={(task: MobileTask) => explicitTaskRelatedClient(task as Task)}
@@ -552,6 +577,7 @@ export default function TasksPage() {
           >
             {t('all_tasks_tab')}
           </button>
+          <StaffScopeControl value={staffScope} onChange={setStaffScope} employees={employees} restricted={staffRestricted} lang={lang} />
           <button
             onClick={() => setActiveTab('byClient')}
             className={activeTab === 'byClient' ? 'btn btn-primary' : 'btn btn-secondary'}
@@ -740,6 +766,7 @@ export default function TasksPage() {
                       {task.clientName && (
                         <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>👤 {task.clientName}</div>
                       )}
+                      {staffScope === 'all' && task.assignedTo?.name && <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>👤 {task.assignedTo.name}</div>}
 
                       {reminder.at && (
                         <div style={{ fontSize: 11, color: '#7c3aed', marginBottom: 2 }}>
@@ -826,6 +853,7 @@ export default function TasksPage() {
                         <span className="badge" style={{ background: (prio?.color || '#6b7280') + '22', color: prio?.color || '#6b7280' }}>{task.priority}</span>
                       </div>
                       {task.clientName && <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>👤 {task.clientName}</div>}
+                      {staffScope === 'all' && task.assignedTo?.name && <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>👤 {task.assignedTo.name}</div>}
                       {relatedCase && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
                           {relatedCase.service && (

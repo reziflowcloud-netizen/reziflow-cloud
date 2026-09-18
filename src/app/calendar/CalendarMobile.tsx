@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
 import MobileEntityIcon from '@/components/mobile/MobileEntityIcon'
 import styles from './CalendarMobile.module.css'
@@ -71,6 +71,8 @@ type CalendarMobileProps = {
   getPriorityColor: (priority: string) => string
   taskMeta: (task: CalendarTask) => Record<string, any>
   getDirectCaseId: (task: CalendarTask) => string
+  scopeControl: ReactNode
+  showResponsible: boolean
 }
 
 type CalendarEvent = {
@@ -297,6 +299,7 @@ export default function CalendarMobile(props: CalendarMobileProps) {
               {event.kind === 'reminder' ? props.t('reminder_plain') : (priority?.name || event.task.priority)}
             </span>
           </div>
+          {props.showResponsible && event.task.assignedTo?.name && <div className={styles.note} style={{ textAlign: 'right' }}>👤 {event.task.assignedTo.name}</div>}
         </div>
         <span className={styles.editGlyph} aria-hidden="true">✎</span>
       </article>
@@ -329,6 +332,7 @@ export default function CalendarMobile(props: CalendarMobileProps) {
           <button type="button" role="tab" aria-selected={mode === 'month'} className={mode === 'month' ? styles.modeActive : ''} onClick={() => setMode('month')}>{props.t('calendar_month')}</button>
           <button type="button" role="tab" aria-selected={mode === 'list'} className={mode === 'list' ? styles.modeActive : ''} onClick={() => setMode('list')}>{props.t('calendar_list')}</button>
         </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>{props.scopeControl}</div>
 
         <div className={styles.controls}>
           <button type="button" className={styles.monthButton} onClick={props.onPreviousMonth} aria-label={props.t('calendar_previous_month')}>‹</button>

@@ -63,6 +63,8 @@ type TasksMobileProps = {
   newPriorityColor: string
   editingPriority: any
   tutorialAction: ReactNode
+  scopeControl: ReactNode
+  showAssignee: boolean
   renderClientPicker: (config: ClientPickerConfig) => ReactNode
   getRelatedCase: (task: MobileTask) => MobileTaskCase | undefined
   getRelatedClient: (task: MobileTask) => MobileTaskClient | undefined
@@ -269,6 +271,7 @@ export default function TasksMobile(props: TasksMobileProps) {
         <button type="button" role="tab" aria-selected={props.activeTab === 'all'} className={props.activeTab === 'all' ? styles.modeActive : ''} onClick={() => props.onTabChange('all')}>{copy.all}</button>
         <button type="button" role="tab" aria-selected={props.activeTab === 'byClient'} className={props.activeTab === 'byClient' ? styles.modeActive : ''} onClick={() => props.onTabChange('byClient')}>{copy.byClient}</button>
       </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '0 0 12px' }}>{props.scopeControl}</div>
 
       {props.showForm && (
         <section className={styles.formPanel} aria-label={copy.create}>
@@ -374,7 +377,7 @@ export default function TasksMobile(props: TasksMobileProps) {
                     </Link>
                   )}
                   {deadline && <div className={`${styles.deadline} ${styles[`deadline_${deadline.tone}`]}`}><TaskIcon type="calendar" /><span>{deadline.label}</span></div>}
-                  {task.assignedTo?.name && <div className={styles.assignee}><span>{initials(task.assignedTo.name)}</span><span>{task.assignedTo.name}</span></div>}
+                  {props.showAssignee && task.assignedTo?.name && <div className={styles.assignee}><span>{initials(task.assignedTo.name)}</span><span>{task.assignedTo.name}</span></div>}
                   {note && <p className={styles.note}>{note}</p>}
                 </div>
                 <button type="button" className={styles.openCardButton} onClick={() => props.onOpenTask(task)} aria-label={copy.edit}><TaskIcon type="chevron" /></button>

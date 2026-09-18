@@ -10,6 +10,7 @@ import {
 import { shouldRetirePersonalAppearTask } from '@/lib/caseImportantDateTasks'
 import { resolveUserIdForEmployee } from '@/lib/employeeSync'
 import { leadAssignmentData } from '@/lib/leadAssignmentPolicy'
+import type { ResolvedStaffScope } from '@/lib/staffScope'
 
 type BulkInput = {
   action: BulkAction
@@ -51,9 +52,10 @@ export async function executeLeadBulkAction(args: {
   scope: DataAccessScope
   user: any
   input: BulkInput
+  staffScope?: ResolvedStaffScope
 }) {
-  const { organizationId, scope, user, input } = args
-  const where = buildLeadSelectionWhere(input.selection, scope, organizationId)
+  const { organizationId, scope, user, input, staffScope } = args
+  const where = buildLeadSelectionWhere(input.selection, scope, organizationId, staffScope)
 
   if (input.action === 'assign_employee' || input.action === 'unassign_employee') {
     const matched = await (prisma as any).lead.count({ where })
@@ -175,9 +177,10 @@ export async function executeCaseBulkAction(args: {
   scope: DataAccessScope
   user: any
   input: BulkInput
+  staffScope?: ResolvedStaffScope
 }) {
-  const { organizationId, scope, user, input } = args
-  const where = buildCaseSelectionWhere(input.selection, scope, organizationId)
+  const { organizationId, scope, user, input, staffScope } = args
+  const where = buildCaseSelectionWhere(input.selection, scope, organizationId, staffScope)
 
   if (input.action === 'assign_employee' || input.action === 'unassign_employee') {
     const matched = await prisma.case.count({ where })
@@ -186,9 +189,12 @@ export async function executeCaseBulkAction(args: {
     const employee = input.action === 'assign_employee'
       ? await validateEmployee(organizationId, input.employeeId)
       : null
+    const assignedToId = employee
+      ? await resolveUserIdForEmployee(organizationId, employee.id)
+      : null
     const result = await prisma.case.updateMany({
       where,
-      data: { employeeId: employee?.id || null },
+      data: { employeeId: employee?.id || null, assignedToId },
     })
     return { matched, updated: result.count, employee }
   }

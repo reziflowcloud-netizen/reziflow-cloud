@@ -87,6 +87,32 @@ type UserOption = {
   role: string
 }
 
+type RoutingChannel = { value: string; label: string }
+type RoutingEmployee = { id: number; name: string; userId: number | null }
+type RoutingResponse = {
+  channels: RoutingChannel[]
+  employees: RoutingEmployee[]
+  routes: Array<{ sourceKey: string; employeeId: number }>
+}
+
+const routingCopy = {
+  ru: {
+    title: 'Маршрутизация по каналам', hint: 'Один входящий канал назначается одному ответственному сотруднику. Выбор занятого канала означает явное переназначение.',
+    save: 'Сохранить маршрутизацию', unlinked: 'Нет связи с пользователем', none: 'Нет сотрудников с привязанным пользователем',
+    reassign: 'Канал уже назначен сотруднику {name}. Переназначить?',
+  },
+  uk: {
+    title: 'Маршрутизація за каналами', hint: 'Один вхідний канал призначається одному відповідальному працівнику. Вибір зайнятого каналу означає явне перепризначення.',
+    save: 'Зберегти маршрутизацію', unlinked: 'Немає зв’язку з користувачем', none: 'Немає працівників із прив’язаним користувачем',
+    reassign: 'Канал уже призначено працівнику {name}. Перепризначити?',
+  },
+  pl: {
+    title: 'Routing według kanałów', hint: 'Jeden kanał przychodzący ma jednego domyślnego opiekuna. Wybranie zajętego kanału oznacza jawne przypisanie ponowne.',
+    save: 'Zapisz routing', unlinked: 'Brak powiązanego użytkownika', none: 'Brak pracowników powiązanych z użytkownikiem',
+    reassign: 'Kanał jest już przypisany do {name}. Przypisać ponownie?',
+  },
+} as const
+
 type WebhookLog = {
   id: number
   status: string
@@ -700,6 +726,9 @@ export default function IntegrationsPage() {
   const [fieldMapDraft, setFieldMapDraft] = useState<FieldMapRow[]>([])
   const [users, setUsers] = useState<UserOption[]>([])
   const [assignmentDraft, setAssignmentDraft] = useState<AssignmentSettings>({ mode: 'off', userId: null, userIds: [] })
+  const [routingChannels, setRoutingChannels] = useState<RoutingChannel[]>([])
+  const [routingEmployees, setRoutingEmployees] = useState<RoutingEmployee[]>([])
+  const [routingDraft, setRoutingDraft] = useState<Record<string, number>>({})
   const [facebookDraft, setFacebookDraft] = useState<FacebookLeadSettings>(DEFAULT_FACEBOOK_DRAFT)
   const [showFacebookToken, setShowFacebookToken] = useState(false)
   const [showInstagramToken, setShowInstagramToken] = useState(false)
@@ -914,6 +943,7 @@ function onFormSubmit(e) {
     loadLogs()
     loadUsers()
     loadStorageSettings()
+    loadRouting()
   }, [])
 
   useEffect(() => {
@@ -1001,6 +1031,50 @@ function onFormSubmit(e) {
     const res = await fetch('/api/users', { cache: 'no-store' })
     const data = await res.json().catch(() => [])
     if (res.ok) setUsers(Array.isArray(data) ? data : [])
+  }
+
+  async function loadRouting() {
+    const res = await fetch('/api/lead-channel-routes', { cache: 'no-store' })
+    const data = await res.json().catch(() => null) as RoutingResponse | null
+    if (!res.ok || !data) return
+    setRoutingChannels(Array.isArray(data.channels) ? data.channels : [])
+    setRoutingEmployees(Array.isArray(data.employees) ? data.employees : [])
+    setRoutingDraft(Object.fromEntries((data.routes || []).map(route => [route.sourceKey, route.employeeId])))
+  }
+
+  function toggleRoutingChannel(sourceKey: string, employeeId: number) {
+    const currentOwnerId = routingDraft[sourceKey]
+    if (currentOwnerId === employeeId) {
+      setRoutingDraft(current => {
+        const next = { ...current }
+        delete next[sourceKey]
+        return next
+      })
+      return
+    }
+    if (currentOwnerId) {
+      const currentOwner = routingEmployees.find(employee => employee.id === currentOwnerId)
+      const message = (routingCopy[lang] || routingCopy.ru).reassign.replace('{name}', currentOwner?.name || '—')
+      if (!window.confirm(message)) return
+    }
+    setRoutingDraft(current => ({ ...current, [sourceKey]: employeeId }))
+  }
+
+  async function saveRouting() {
+    setSaving(true)
+    setError('')
+    try {
+      const res = await fetch('/api/lead-channel-routes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ routes: Object.entries(routingDraft).map(([sourceKey, employeeId]) => ({ sourceKey, employeeId })) }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) setError(data.error || text.saveFailed)
+      else await loadRouting()
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function loadStorageSettings() {
@@ -1478,10 +1552,50 @@ ${samplePayload}`}
               )}
             </div>
 
+            <div style={{ borderTop: '1px solid var(--border)', marginTop: 18, paddingTop: 18 }}>
+              <div style={{ fontWeight: 900, marginBottom: 5 }}>{(routingCopy[lang] || routingCopy.ru).title}</div>
+              <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 12 }}>
+                {(routingCopy[lang] || routingCopy.ru).hint}
+              </div>
+              {routingEmployees.filter(employee => employee.userId).length === 0 ? (
+                <div style={{ color: 'var(--muted)', fontSize: 13 }}>{(routingCopy[lang] || routingCopy.ru).none}</div>
+              ) : (
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {routingEmployees.map(employee => (
+                    <div key={employee.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12, opacity: employee.userId ? 1 : 0.6 }}>
+                      <div style={{ fontWeight: 800, marginBottom: 9 }}>
+                        {employee.name}
+                        {!employee.userId && <span style={{ marginLeft: 8, color: 'var(--muted)', fontSize: 12 }}>· {(routingCopy[lang] || routingCopy.ru).unlinked}</span>}
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {routingChannels.map(channel => {
+                          const ownerId = routingDraft[channel.value]
+                          const owner = routingEmployees.find(item => item.id === ownerId)
+                          const checked = ownerId === employee.id
+                          return (
+                            <label key={channel.value} title={!checked && owner ? `${channel.label} · ${owner.name}` : channel.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px solid ${checked ? 'var(--brand)' : 'var(--border)'}`, borderRadius: 999, padding: '6px 10px', cursor: employee.userId ? 'pointer' : 'not-allowed', background: checked ? 'color-mix(in srgb, var(--brand) 12%, var(--surface))' : 'var(--surface)', fontSize: 13 }}>
+                              <input type="checkbox" disabled={!employee.userId} checked={checked} onChange={() => toggleRoutingChannel(channel.value, employee.id)} />
+                              <span>{channel.label}</span>
+                              {!checked && owner && <span style={{ color: 'var(--muted)', fontSize: 11 }}>· {owner.name}</span>}
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
-              <button type="button" className="btn btn-primary" onClick={saveAssignment} disabled={saving}>
-                {saving ? text.saving : text.saveAssignment}
-              </button>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-secondary" onClick={saveRouting} disabled={saving}>
+                  {saving ? text.saving : (routingCopy[lang] || routingCopy.ru).save}
+                </button>
+                <button type="button" className="btn btn-primary" onClick={saveAssignment} disabled={saving}>
+                  {saving ? text.saving : text.saveAssignment}
+                </button>
+              </div>
             </div>
           </div>
         )}

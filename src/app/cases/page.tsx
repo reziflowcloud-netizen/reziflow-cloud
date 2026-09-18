@@ -8,6 +8,8 @@ import TutorialVideoButton from '@/components/TutorialVideoButton'
 import BulkActionsBar, { type BulkActionPayload } from '@/components/BulkActionsBar'
 import CasesMobile from './CasesMobile'
 import { useCaseMobileAccess } from './CaseMobileAccessContext'
+import StaffScopeControl from '@/components/StaffScopeControl'
+import type { StaffScopeValue } from '@/lib/staffScope'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'Новый':               { bg: '#eff6ff', color: '#1d4ed8' },
@@ -40,6 +42,7 @@ export default function CasesPage() {
   const [statusPopup, setStatusPopup] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [employees, setEmployees] = useState<any[]>([])
+  const [staffScope, setStaffScope] = useState<StaffScopeValue>(restrictedAccess ? 'mine' : 'all')
   const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>([])
   const [allFilteredSelected, setAllFilteredSelected] = useState(false)
   const [excludedCaseIds, setExcludedCaseIds] = useState<string[]>([])
@@ -59,7 +62,7 @@ export default function CasesPage() {
   function loadCases() {
     setLoading(true)
     return Promise.all([
-      fetch('/api/cases?view=list').then(r => r.json()),
+      fetch(`/api/cases?view=list&staffScope=${encodeURIComponent(staffScope)}`).then(r => r.json()),
       fetch('/api/statuses').then(r => r.json()),
       fetch('/api/employees').then(r => r.json()),
     ]).then(([c, s, e]) => {
@@ -73,7 +76,7 @@ export default function CasesPage() {
   useEffect(() => {
     loadCases()
     fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(data => setCurrentUser(data))
-  }, [])
+  }, [staffScope])
 
   async function quickChangeStatus(caseId: string, newStatus: string, e: React.MouseEvent) {
     e.stopPropagation()
@@ -238,6 +241,7 @@ export default function CasesPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...payload,
+        staffScope,
         selection: allFilteredSelected
           ? { mode: 'filtered', filters: { activeFilter, search: search.trim() }, excludedIds: excludedCaseIds }
           : { mode: 'ids', ids: selectedCaseIds },
@@ -301,6 +305,8 @@ export default function CasesPage() {
         statusColors={getConfiguredCaseStatusStyle}
         responsibleName={responsibleName}
         restrictedAccess={restrictedAccess}
+        staffScope={staffScope}
+        setStaffScope={setStaffScope}
         selectedCount={selectedCaseCount}
         currentPageCount={currentPageCaseIds.length}
         allCurrentPageSelected={allCurrentPageSelected}
@@ -373,9 +379,10 @@ export default function CasesPage() {
           </div>
         )}
 
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <input className="input" placeholder={`🔍 ${t('search_cases_phone')}`}
             value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 380 }} />
+          <StaffScopeControl value={staffScope} onChange={setStaffScope} employees={employees} restricted={restrictedAccess} lang={lang} />
         </div>
 
         <BulkActionsBar

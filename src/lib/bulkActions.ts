@@ -1,6 +1,7 @@
 import type { DataAccessScope } from '@/lib/apiScope'
 import { caseWhereForScope, leadWhereForScope } from '@/lib/apiScope'
 import { isArchiveCaseStatus } from '@/lib/caseI18n'
+import { applyEmployeeStaffScope, type ResolvedStaffScope } from '@/lib/staffScope'
 
 export const BULK_ACTIONS = ['assign_employee', 'unassign_employee', 'change_status'] as const
 export type BulkAction = typeof BULK_ACTIONS[number]
@@ -79,6 +80,7 @@ export function buildLeadFilteredWhere(
   organizationId: string,
   filters: Record<string, unknown>,
   excludedIds: string[] = [],
+  staffScope?: ResolvedStaffScope,
 ) {
   const where: any = leadWhereForScope(scope, organizationId)
   const and: any[] = []
@@ -144,7 +146,7 @@ export function buildLeadFilteredWhere(
   }
 
   if (and.length) where.AND = and
-  return where
+  return staffScope ? applyEmployeeStaffScope(where, staffScope) : where
 }
 
 const CLOSED_CASE_TOKENS = [
@@ -157,6 +159,7 @@ export function buildCaseFilteredWhere(
   organizationId: string,
   filters: Record<string, unknown>,
   excludedIds: string[] = [],
+  staffScope?: ResolvedStaffScope,
 ) {
   const where: any = caseWhereForScope(scope, organizationId)
   const and: any[] = []
@@ -195,25 +198,31 @@ export function buildCaseFilteredWhere(
   }
 
   if (and.length) where.AND = and
-  return where
+  return staffScope ? applyEmployeeStaffScope(where, staffScope) : where
 }
 
 export function buildLeadSelectionWhere(
   selection: BulkSelection,
   scope: DataAccessScope,
   organizationId: string,
+  staffScope?: ResolvedStaffScope,
 ) {
   return selection.mode === 'ids'
-    ? leadWhereForScope(scope, organizationId, { id: { in: selection.ids } })
-    : buildLeadFilteredWhere(scope, organizationId, selection.filters, selection.excludedIds)
+    ? (staffScope
+        ? applyEmployeeStaffScope(leadWhereForScope(scope, organizationId, { id: { in: selection.ids } }), staffScope)
+        : leadWhereForScope(scope, organizationId, { id: { in: selection.ids } }))
+    : buildLeadFilteredWhere(scope, organizationId, selection.filters, selection.excludedIds, staffScope)
 }
 
 export function buildCaseSelectionWhere(
   selection: BulkSelection,
   scope: DataAccessScope,
   organizationId: string,
+  staffScope?: ResolvedStaffScope,
 ) {
   return selection.mode === 'ids'
-    ? caseWhereForScope(scope, organizationId, { id: { in: selection.ids } })
-    : buildCaseFilteredWhere(scope, organizationId, selection.filters, selection.excludedIds)
+    ? (staffScope
+        ? applyEmployeeStaffScope(caseWhereForScope(scope, organizationId, { id: { in: selection.ids } }), staffScope)
+        : caseWhereForScope(scope, organizationId, { id: { in: selection.ids } }))
+    : buildCaseFilteredWhere(scope, organizationId, selection.filters, selection.excludedIds, staffScope)
 }

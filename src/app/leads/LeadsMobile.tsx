@@ -8,6 +8,8 @@ import { LEAD_TEMPERATURES, leadDisplayName, type LeadSourceOption } from '@/lib
 import { leadStatusLabel, leadTemperatureLabel } from '@/lib/leadI18n'
 import type { Lang } from '@/lib/translations'
 import styles from './LeadsMobile.module.css'
+import StaffScopeControl from '@/components/StaffScopeControl'
+import type { StaffScopeValue } from '@/lib/staffScope'
 
 type QuickFilter = 'all' | 'today' | 'overdue' | 'unassigned' | 'no_next_contact'
 type DatePreset = 'all' | 'today' | 'last7' | 'last30' | 'this_month' | 'last_month' | 'custom'
@@ -131,6 +133,8 @@ export type LeadsMobileProps = {
   statusColors: (status: any) => { bg: string; color: string }
   responsibleName: (lead: any) => string
   restrictedAccess: boolean
+  staffScope: StaffScopeValue
+  setStaffScope: (value: StaffScopeValue) => void
   selectedCount: number
   currentPageCount: number
   allVisibleSelected: boolean
@@ -172,7 +176,7 @@ export default function LeadsMobile(props: LeadsMobileProps) {
     return () => { document.body.style.overflow = previous }
   }, [filtersOpen])
 
-  const activeFilterCount = [props.status, props.statusReasonFilter, props.source, props.interest, props.temperature, props.datePreset !== 'all' ? props.datePreset : ''].filter(Boolean).length
+  const activeFilterCount = [props.status, props.statusReasonFilter, props.source, props.interest, props.temperature, props.datePreset !== 'all' ? props.datePreset : '', props.staffScope !== (props.restrictedAccess ? 'mine' : 'all') ? props.staffScope : ''].filter(Boolean).length
 
   function cancelSelection() {
     props.clearSelection()
@@ -404,6 +408,7 @@ export default function LeadsMobile(props: LeadsMobileProps) {
               <button type="button" className={styles.closeButton} aria-label={copy.cancel} onClick={() => setFiltersOpen(false)}>×</button>
             </div>
             <div className={styles.filterFields}>
+              <StaffScopeControl value={props.staffScope} onChange={props.setStaffScope} employees={props.employees} restricted={props.restrictedAccess} lang={props.lang} compact />
               <label>{copy.status}
                 <select className="select" value={props.status} onChange={event => props.setStatus(event.target.value)}>
                   <option value="">{copy.allStatuses}</option>

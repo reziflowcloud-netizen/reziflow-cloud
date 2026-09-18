@@ -79,9 +79,58 @@ function planLeadResponsibleBackfill({ leads, employees, users }) {
   return { counts, updates }
 }
 
+function planEmployeeUserIdentityBackfill({ employees, users }) {
+  const employeeGroups = new Map()
+  const userGroups = new Map()
+  const linkedUserIds = new Set()
+  const keyFor = item => `${String(item.organizationId || '')}\u0000${normalizePersonName(item.name || item.email)}`
+
+  for (const employee of employees || []) {
+    const key = keyFor(employee)
+    if (!employee.organizationId || !normalizePersonName(employee.name)) continue
+    employeeGroups.set(key, [...(employeeGroups.get(key) || []), employee])
+    if (employee.userId != null) linkedUserIds.add(Number(employee.userId))
+  }
+  for (const user of users || []) {
+    const key = keyFor({ ...user, name: userDisplayName(user) })
+    if (!user.organizationId || !normalizePersonName(userDisplayName(user))) continue
+    userGroups.set(key, [...(userGroups.get(key) || []), user])
+  }
+
+  const updates = []
+  const counts = { eligible: 0, alreadyLinked: 0, ambiguous: 0, missing: 0, reservedUser: 0 }
+  for (const employee of employees || []) {
+    if (employee.userId != null) {
+      counts.alreadyLinked += 1
+      continue
+    }
+    const key = keyFor(employee)
+    const employeeMatches = employeeGroups.get(key) || []
+    const userMatches = userGroups.get(key) || []
+    if (employeeMatches.length !== 1 || userMatches.length > 1) {
+      counts.ambiguous += 1
+      continue
+    }
+    if (userMatches.length !== 1) {
+      counts.missing += 1
+      continue
+    }
+    const userId = Number(userMatches[0].id)
+    if (linkedUserIds.has(userId)) {
+      counts.reservedUser += 1
+      continue
+    }
+    linkedUserIds.add(userId)
+    updates.push({ employeeId: Number(employee.id), userId, organizationId: String(employee.organizationId) })
+  }
+  counts.eligible = updates.length
+  return { counts, updates }
+}
+
 module.exports = {
   normalizePersonName,
   userDisplayName,
   resolveUniqueUserIdForEmployeeName,
   planLeadResponsibleBackfill,
+  planEmployeeUserIdentityBackfill,
 }

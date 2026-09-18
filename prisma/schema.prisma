@@ -27,6 +27,9 @@ model User {
   leads              Lead[]
   leadContactHistory LeadContactHistory[]
   leadMessages       LeadMessage[]
+  employee           Employee?            @relation("EmployeeUser")
+
+  @@unique([id, organizationId])
 }
 
 model Organization {
@@ -71,6 +74,7 @@ model Organization {
   clientPhones          ClientPhone[]
   referralAttribution   ReferralAttribution?
   referralCommissions   ReferralCommission[]
+  leadChannelRoutes     LeadChannelRoute[]
 
   @@index([billingStatus])
   @@index([billingProvider])
@@ -645,11 +649,32 @@ model Employee {
   id             Int           @id @default(autoincrement())
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
+  userId         Int?          @unique
+  user           User?         @relation("EmployeeUser", fields: [userId, organizationId], references: [id, organizationId], onDelete: Restrict)
   name           String
   active         Boolean       @default(true)
   createdAt      DateTime      @default(now())
   cases          Case[]
   leads          Lead[]
+  leadChannelRoutes LeadChannelRoute[]
+
+  @@unique([userId, organizationId])
+  @@unique([id, organizationId])
+  @@index([organizationId, userId])
+}
+
+model LeadChannelRoute {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sourceKey      String
+  employeeId     Int
+  employee       Employee     @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, sourceKey])
+  @@index([organizationId, employeeId])
 }
 
 model CaseCustomDate {

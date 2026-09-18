@@ -94,7 +94,13 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       }
     }
 
-    await prisma.user.delete({ where: { id: parseInt(params.id) } })
+    await prisma.$transaction(async tx => {
+      await (tx as any).employee.updateMany({
+        where: { organizationId, userId: parseInt(params.id) },
+        data: { userId: null },
+      })
+      await tx.user.delete({ where: { id: parseInt(params.id) } })
+    })
     await deleteCloudinaryResource((existing as any).avatarPublicId)
     return NextResponse.json({ ok: true })
   } catch (e: any) {

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { normalizeLeadBody } from '@/lib/leads'
 import { applyLeadWebhookMapping, getLeadWebhookSettings, keyMatches, sanitizeLeadWebhookPayload, settingsObject } from '@/lib/leadWebhook'
 import { assertBillingLimit, billingLimitResponsePayload, isBillingLimitError } from '@/lib/billing'
+import { resolveInboundLeadAssignment } from '@/lib/leadRouting'
 
 export function readWebhookKey(request: NextRequest, body: any, pathKey?: string) {
   const authorization = request.headers.get('authorization') || ''
@@ -63,41 +64,6 @@ function inferNextContactAtFromPreferredHours(payload: any) {
   next.setHours(hour, minute, 0, 0)
   if (next.getTime() <= Date.now()) next.setDate(next.getDate() + 1)
   return next
-}
-
-async function resolveAssignedToId(organizationId: string, organizationSettings: unknown, mappedBody: Record<string, unknown>, settings: ReturnType<typeof getLeadWebhookSettings>) {
-  if (mappedBody.assignedToId) return Number(mappedBody.assignedToId)
-  if (settings.leadWebhookAssignmentMode === 'single' && settings.leadWebhookAssignmentUserId) {
-    const user = await prisma.user.findFirst({
-      where: { id: settings.leadWebhookAssignmentUserId, organizationId },
-      select: { id: true },
-    })
-    return user?.id || null
-  }
-  if (settings.leadWebhookAssignmentMode === 'round_robin') {
-    const userIds = settings.leadWebhookAssignmentUserIds || []
-    if (userIds.length === 0) return null
-    const users = await prisma.user.findMany({
-      where: { id: { in: userIds }, organizationId },
-      select: { id: true },
-      orderBy: { id: 'asc' },
-    })
-    const validIds = userIds.filter(id => users.some(user => user.id === id))
-    if (validIds.length === 0) return null
-    const cursor = settings.leadWebhookAssignmentCursor || 0
-    const picked = validIds[cursor % validIds.length]
-    await prisma.organization.update({
-      where: { id: organizationId },
-      data: {
-        settings: {
-          ...settingsObject(organizationSettings),
-          leadWebhookAssignmentCursor: cursor + 1,
-        },
-      },
-    })
-    return picked
-  }
-  return null
 }
 
 export async function handleLeadWebhookPing(request: NextRequest, slug: string, pathKey?: string) {
@@ -174,11 +140,19 @@ export async function handleLeadWebhookPost(request: NextRequest, slug: string, 
   }
 
   const mappedBody = applyLeadWebhookMapping(body, settings.leadWebhookFieldMap || [])
-  const assignedToId = await resolveAssignedToId(organization.id, organization.settings, mappedBody, settings)
+  const sourceKey = mappedBody.source || body.source || 'website'
+  const routedAssignment = await resolveInboundLeadAssignment({
+    organizationId: organization.id,
+    sourceKey,
+    explicitAssignedToId: mappedBody.assignedToId || body.assignedToId,
+    organizationSettings: organization.settings,
+    settings,
+  })
+  const { origin: _assignmentOrigin, ...assignment } = routedAssignment
   const data = normalizeLeadBody({
     ...mappedBody,
-    assignedToId: assignedToId || mappedBody.assignedToId,
-    source: mappedBody.source || body.source || 'website',
+    ...assignment,
+    source: sourceKey,
     nextContactAt: mappedBody.nextContactAt || body.nextContactAt || inferNextContactAtFromPreferredHours({ ...body, ...mappedBody }),
   })
   if (!mappedBody.status && !body.status) {
