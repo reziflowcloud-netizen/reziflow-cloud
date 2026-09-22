@@ -64,5 +64,8 @@ async function main() {
 }
 
 main()
-  .catch((error) => console.error(error instanceof Error ? error.name : 'UnknownError'))
+  .catch((error) => {
+    console.error(error instanceof Error ? error.name : 'UnknownError')
+    process.exitCode = 1
+  })
   .finally(() => prisma.$disconnect())
