@@ -369,22 +369,22 @@ export default function LeadsMobile(props: LeadsMobileProps) {
                   </div>
                 </div>
 
-                <div className={`${styles.cardBottom} ${props.restrictedAccess ? styles.restrictedBottom : ''}`}>
+                <div className={styles.cardBottom}>
                   <div className={styles.nextContact}>
                     <span className={styles.factLabel}>◷ {copy.next}</span>
-                    <span className={`${styles.nextValue} ${nextContact.tone === 'overdue' ? styles.nextOverdue : nextContact.tone === 'today' ? styles.nextToday : ''}`}>{nextContact.label}</span>
+                    <span className={`${styles.nextValue} ${nextContact.tone === 'overdue' ? styles.nextOverdue : nextContact.tone === 'today' ? styles.nextToday : ''}`} title={nextContact.label}>{nextContact.label}</span>
                   </div>
-                  {!props.restrictedAccess && (
-                    <div className={styles.responsible}>
-                      <span className={styles.factLabel}><MobileEntityIcon type="person" /> {copy.responsible}</span>
-                      <span className={styles.factValue} title={responsible || copy.notAssigned}>{responsible || copy.notAssigned}</span>
-                    </div>
-                  )}
                   <div className={styles.temperature} title={temp ? leadTemperatureLabel(props.lang, temp.value) : copy.noValue}>
                     <span className={styles.tempDot} style={{ background: temp?.color || 'var(--muted)' }} />
                     {temp ? leadTemperatureLabel(props.lang, temp.value) : copy.noValue}
                   </div>
                 </div>
+                {props.staffScope === 'all' && responsible && (
+                  <div className={styles.responsibleFooter} title={`${copy.responsible}: ${responsible}`} aria-label={`${copy.responsible}: ${responsible}`}>
+                    <MobileEntityIcon type="person" />
+                    <span>{responsible}</span>
+                  </div>
+                )}
               </article>
             )
           })}
