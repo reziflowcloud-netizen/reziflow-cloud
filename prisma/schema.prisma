@@ -50,7 +50,7 @@ model Organization {
   graceEndsAt           DateTime?
   settings              Json?
   createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  updatedAt             DateTime             @default(now()) @updatedAt
   users                 User[]
   clients               Client[]
   cases                 Case[]
@@ -93,7 +93,7 @@ model ReferralPartner {
   payoutDetails    String?
   notes            String?
   createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  updatedAt        DateTime              @default(now()) @updatedAt
   attributions     ReferralAttribution[]
   commissions      ReferralCommission[]
   payouts          ReferralPayout[]
@@ -135,7 +135,7 @@ model ReferralCommission {
   canceledAt     DateTime?
   notes          String?
   createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  updatedAt      DateTime        @default(now()) @updatedAt
 
   @@index([partnerId, status])
   @@index([organizationId])
@@ -216,6 +216,7 @@ model Lead {
   phones              LeadPhone[]
 
   @@index([organizationId, status])
+  @@index([organizationId, statusReason])
   @@index([organizationId, source])
   @@index([organizationId, assignedToId])
   @@index([organizationId, employeeId])
@@ -327,7 +328,7 @@ model UiSectionSetting {
   visible        Boolean      @default(true)
   sortOrder      Int          @default(0)
   createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  updatedAt      DateTime     @default(now()) @updatedAt
 
   @@unique([organizationId, scope, sectionKey])
   @@index([organizationId])
@@ -344,7 +345,7 @@ model CustomSection {
   active           Boolean       @default(true)
   sortOrder        Int           @default(0)
   createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  updatedAt        DateTime      @default(now()) @updatedAt
   fields           CustomField[]
 
   @@index([organizationId, scope])
@@ -362,7 +363,7 @@ model CustomField {
   active      Boolean            @default(true)
   sortOrder   Int                @default(0)
   createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  updatedAt   DateTime           @default(now()) @updatedAt
   values      CustomFieldValue[]
 
   @@index([sectionId])
@@ -378,7 +379,7 @@ model CustomFieldValue {
   recordId       String
   value          String?
   createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  updatedAt      DateTime     @default(now()) @updatedAt
 
   @@unique([fieldId, recordType, recordId])
   @@index([organizationId, recordType, recordId])
@@ -396,6 +397,10 @@ model Client {
   email                    String?
   city                     String?
   pesel                    String?
+  gender                   String?
+  previousPolandBasis      String?
+  previousPolandEntryDate  DateTime?
+  previousPolandExitDate   DateTime?
   passportSeries           String?
   passportNumber           String?
   passportIssuedBy         String?
@@ -485,7 +490,7 @@ model Case {
   organization          Organization?    @relation(fields: [organizationId], references: [id])
   caseNumber            String?
   clientId              String
-  client                Client           @relation(fields: [clientId], references: [id])
+  client                Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
   assignedToId          Int?
   assignedTo            User?            @relation(fields: [assignedToId], references: [id])
   status                String           @default("Новый")
@@ -544,7 +549,7 @@ model Case {
 model Payment {
   id            String   @id @default(cuid())
   caseId        String
-  case          Case     @relation(fields: [caseId], references: [id])
+  case          Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
   amount        Float
   date          DateTime @default(now())
   note          String?
@@ -555,7 +560,7 @@ model Payment {
 model Document {
   id        String   @id @default(cuid())
   caseId    String
-  case      Case     @relation(fields: [caseId], references: [id])
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
   name      String
   url       String?
   createdAt DateTime @default(now())
@@ -564,7 +569,7 @@ model Document {
 model Comment {
   id        String   @id @default(cuid())
   caseId    String
-  case      Case     @relation(fields: [caseId], references: [id])
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
   text      String
   author    String
   createdAt DateTime @default(now())
@@ -573,7 +578,7 @@ model Comment {
 model StatusHistory {
   id         String   @id @default(cuid())
   caseId     String
-  case       Case     @relation(fields: [caseId], references: [id])
+  case       Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
   fromStatus String?
   toStatus   String
   changedBy  String
@@ -669,7 +674,7 @@ model LeadChannelRoute {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sourceKey      String
   employeeId     Int
-  employee       Employee     @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  employee       Employee     @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Cascade, map: "LeadChannelRoute_employeeId_fkey")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -733,7 +738,7 @@ model PreviousPolandStay {
   basis     String?
   order     Int       @default(0)
   createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  updatedAt DateTime  @default(now()) @updatedAt
   client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId, order])
