@@ -5,7 +5,7 @@ export type StaffScopeValue = 'all' | 'mine' | `employee:${number}`
 
 export type ResolvedStaffScope =
   | { kind: 'all' }
-  | { kind: 'mine'; employeeId: number | null; userId: number }
+  | { kind: 'mine'; employeeId: number | null; userId: number; assignedToFallback: boolean }
   | { kind: 'employee'; employeeId: number; userId: number | null }
 
 export class StaffScopeError extends Error {
@@ -44,7 +44,10 @@ export async function resolveStaffScope(
       where: { organizationId, userId, active: true },
       select: { id: true },
     })
-    return { kind: 'mine', employeeId: employee?.id || null, userId }
+    if (!employee && !access.restricted) {
+      throw new StaffScopeError('Link your CRM account to an Employee to use Mine', 409)
+    }
+    return { kind: 'mine', employeeId: employee?.id || null, userId, assignedToFallback: !employee && access.restricted }
   }
 
   const match = requested.match(/^employee:(\d+)$/)
@@ -60,6 +63,9 @@ export async function resolveStaffScope(
 
 export function applyEmployeeStaffScope(baseWhere: Record<string, any>, scope: ResolvedStaffScope) {
   if (scope.kind === 'all') return baseWhere
+  if (scope.kind === 'mine' && scope.assignedToFallback) {
+    return { AND: [baseWhere, { assignedToId: scope.userId }] }
+  }
   return {
     AND: [
       baseWhere,

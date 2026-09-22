@@ -98,17 +98,17 @@ type RoutingResponse = {
 const routingCopy = {
   ru: {
     title: 'Маршрутизация по каналам', hint: 'Один входящий канал назначается одному ответственному сотруднику. Выбор занятого канала означает явное переназначение.',
-    save: 'Сохранить маршрутизацию', unlinked: 'Нет связи с пользователем', none: 'Нет сотрудников с привязанным пользователем',
+    save: 'Сохранить маршрутизацию', unlinked: 'Сначала привяжите CRM-аккаунт', none: 'Нет сотрудников с привязанным CRM-аккаунтом',
     reassign: 'Канал уже назначен сотруднику {name}. Переназначить?',
   },
   uk: {
     title: 'Маршрутизація за каналами', hint: 'Один вхідний канал призначається одному відповідальному працівнику. Вибір зайнятого каналу означає явне перепризначення.',
-    save: 'Зберегти маршрутизацію', unlinked: 'Немає зв’язку з користувачем', none: 'Немає працівників із прив’язаним користувачем',
+    save: 'Зберегти маршрутизацію', unlinked: 'Спочатку прив’яжіть CRM-акаунт', none: 'Немає працівників із прив’язаним CRM-акаунтом',
     reassign: 'Канал уже призначено працівнику {name}. Перепризначити?',
   },
   pl: {
     title: 'Routing według kanałów', hint: 'Jeden kanał przychodzący ma jednego domyślnego opiekuna. Wybranie zajętego kanału oznacza jawne przypisanie ponowne.',
-    save: 'Zapisz routing', unlinked: 'Brak powiązanego użytkownika', none: 'Brak pracowników powiązanych z użytkownikiem',
+    save: 'Zapisz routing', unlinked: 'Najpierw powiąż konto CRM', none: 'Brak pracowników powiązanych z kontem CRM',
     reassign: 'Kanał jest już przypisany do {name}. Przypisać ponownie?',
   },
 } as const
