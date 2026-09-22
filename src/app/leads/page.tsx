@@ -11,6 +11,8 @@ import TutorialVideoButton from '@/components/TutorialVideoButton'
 import BulkActionsBar, { type BulkActionPayload } from '@/components/BulkActionsBar'
 import LeadsMobile from './LeadsMobile'
 import { useLeadMobileAccess } from './LeadMobileAccessContext'
+import StaffScopeControl from '@/components/StaffScopeControl'
+import type { StaffScopeValue } from '@/lib/staffScope'
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -293,6 +295,7 @@ export default function LeadsPage() {
   const [createdTo, setCreatedTo] = useState(DEFAULT_LEAD_LIST_STATE.createdTo)
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(DEFAULT_LEAD_LIST_STATE.quickFilter)
   const [employees, setEmployees] = useState<any[]>([])
+  const [staffScope, setStaffScope] = useState<StaffScopeValue>(restrictedAccess ? 'mine' : 'all')
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
   const [allFilteredSelected, setAllFilteredSelected] = useState(false)
   const [excludedLeadIds, setExcludedLeadIds] = useState<string[]>([])
@@ -395,7 +398,8 @@ export default function LeadsPage() {
 
   function loadLeads() {
     setLoading(true)
-    return fetch('/api/leads?view=list', { cache: 'no-store' })
+    const params = new URLSearchParams({ view: 'list', staffScope })
+    return fetch(`/api/leads?${params}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => setLeads(Array.isArray(data) ? data : []))
       .finally(() => setLoading(false))
@@ -403,7 +407,7 @@ export default function LeadsPage() {
 
   useEffect(() => {
     loadLeads()
-  }, [])
+  }, [staffScope])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -603,10 +607,10 @@ export default function LeadsPage() {
       .flatMap(lead => {
         const items: any[] = []
         if (lead.nextContactAt) {
-          items.push({ ...lead, reminderId: `${lead.id}:contact`, reminderKind: 'contact', reminderAt: lead.nextContactAt, reminderNote: lead.nextContactNote })
+          items.push({ ...lead, reminderId: `${lead.id}:contact`, reminderKind: 'contact', reminderAt: lead.nextContactAt, reminderNote: lead.nextContactNote, responsibleName: lead.employee?.name || '' })
         }
         if (lead.deadlineAt && !isConvertedLead(lead)) {
-          items.push({ ...lead, reminderId: `${lead.id}:deadline`, reminderKind: 'deadline', reminderAt: lead.deadlineAt, reminderNote: lt('deadline_hint') })
+          items.push({ ...lead, reminderId: `${lead.id}:deadline`, reminderKind: 'deadline', reminderAt: lead.deadlineAt, reminderNote: lt('deadline_hint'), responsibleName: lead.employee?.name || '' })
         }
         for (const reminder of lead.leadReminders || []) {
           if (!reminder.reminderAt && !reminder.dueDate) continue
@@ -616,6 +620,7 @@ export default function LeadsPage() {
             reminderKind: reminder.reminderKind || 'manual',
             reminderAt: reminder.reminderAt || reminder.dueDate,
             reminderNote: reminder.reminderNote || reminder.title,
+            responsibleName: reminder.assignedTo?.name || '',
           })
         }
         return items
@@ -890,6 +895,7 @@ export default function LeadsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...payload,
+          staffScope,
           selection: allFilteredSelected
             ? { mode: 'filtered', filters: leadBulkFilters(), excludedIds: excludedLeadIds }
             : { mode: 'ids', ids: selectedLeadIds },
@@ -1606,6 +1612,8 @@ export default function LeadsPage() {
         statusColors={statusColors}
         responsibleName={leadResponsibleName}
         restrictedAccess={restrictedAccess}
+        staffScope={staffScope}
+        setStaffScope={setStaffScope}
         selectedCount={selectedLeadCount}
         currentPageCount={currentPageLeadIds.length}
         allVisibleSelected={allVisibleSelected}
@@ -1763,7 +1771,7 @@ export default function LeadsPage() {
           </div>
         )}
 
-        <div className="lead-filter-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) 170px 170px 190px auto auto', gap: 10, marginBottom: 10 }}>
+        <div className="lead-filter-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) 160px 160px 180px minmax(210px, auto) auto auto', gap: 10, marginBottom: 10 }}>
           <input className="input" placeholder={`🔍 ${lt('search_placeholder')}`} value={search} onChange={e => setSearch(e.target.value)} />
           <select className="select" value={status} onChange={e => setStatus(e.target.value)}>
             <option value="">{lt('all_statuses')}</option>
@@ -1777,6 +1785,7 @@ export default function LeadsPage() {
             <option value="">{lt('all_interests')}</option>
             {leadInterests.map(item => <option key={item} value={item}>{item}</option>)}
           </select>
+          <StaffScopeControl value={staffScope} onChange={setStaffScope} employees={employees} restricted={restrictedAccess} lang={lang} />
           <div ref={colMenuRef} style={{ position: 'relative' }}>
             <button
               type="button"
@@ -2172,6 +2181,9 @@ export default function LeadsPage() {
                         <span style={{ color: 'var(--muted)', fontSize: 12 }}>{lead.reminderKind === 'deadline' ? lt('deadline_at') : new Date(lead.reminderAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                       <div style={{ color: 'var(--muted)', fontSize: 12 }}>{lead.reminderNote || lt('no_note')}</div>
+                      {staffScope === 'all' && lead.responsibleName && (
+                        <div style={{ color: 'var(--muted)', fontSize: 11, marginTop: 6, textAlign: 'right' }}>👤 {lead.responsibleName}</div>
+                      )}
                     </button>
                   ))}
                 </div>

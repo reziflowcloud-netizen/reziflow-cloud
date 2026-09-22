@@ -8,6 +8,8 @@ import { LEAD_TEMPERATURES, leadDisplayName, type LeadSourceOption } from '@/lib
 import { leadStatusLabel, leadTemperatureLabel } from '@/lib/leadI18n'
 import type { Lang } from '@/lib/translations'
 import styles from './LeadsMobile.module.css'
+import StaffScopeControl from '@/components/StaffScopeControl'
+import type { StaffScopeValue } from '@/lib/staffScope'
 
 type QuickFilter = 'all' | 'today' | 'overdue' | 'unassigned' | 'no_next_contact'
 type DatePreset = 'all' | 'today' | 'last7' | 'last30' | 'this_month' | 'last_month' | 'custom'
@@ -131,6 +133,8 @@ export type LeadsMobileProps = {
   statusColors: (status: any) => { bg: string; color: string }
   responsibleName: (lead: any) => string
   restrictedAccess: boolean
+  staffScope: StaffScopeValue
+  setStaffScope: (value: StaffScopeValue) => void
   selectedCount: number
   currentPageCount: number
   allVisibleSelected: boolean
@@ -172,7 +176,7 @@ export default function LeadsMobile(props: LeadsMobileProps) {
     return () => { document.body.style.overflow = previous }
   }, [filtersOpen])
 
-  const activeFilterCount = [props.status, props.statusReasonFilter, props.source, props.interest, props.temperature, props.datePreset !== 'all' ? props.datePreset : ''].filter(Boolean).length
+  const activeFilterCount = [props.status, props.statusReasonFilter, props.source, props.interest, props.temperature, props.datePreset !== 'all' ? props.datePreset : '', props.staffScope !== (props.restrictedAccess ? 'mine' : 'all') ? props.staffScope : ''].filter(Boolean).length
 
   function cancelSelection() {
     props.clearSelection()
@@ -365,22 +369,22 @@ export default function LeadsMobile(props: LeadsMobileProps) {
                   </div>
                 </div>
 
-                <div className={`${styles.cardBottom} ${props.restrictedAccess ? styles.restrictedBottom : ''}`}>
+                <div className={styles.cardBottom}>
                   <div className={styles.nextContact}>
                     <span className={styles.factLabel}>◷ {copy.next}</span>
-                    <span className={`${styles.nextValue} ${nextContact.tone === 'overdue' ? styles.nextOverdue : nextContact.tone === 'today' ? styles.nextToday : ''}`}>{nextContact.label}</span>
+                    <span className={`${styles.nextValue} ${nextContact.tone === 'overdue' ? styles.nextOverdue : nextContact.tone === 'today' ? styles.nextToday : ''}`} title={nextContact.label}>{nextContact.label}</span>
                   </div>
-                  {!props.restrictedAccess && (
-                    <div className={styles.responsible}>
-                      <span className={styles.factLabel}><MobileEntityIcon type="person" /> {copy.responsible}</span>
-                      <span className={styles.factValue} title={responsible || copy.notAssigned}>{responsible || copy.notAssigned}</span>
-                    </div>
-                  )}
                   <div className={styles.temperature} title={temp ? leadTemperatureLabel(props.lang, temp.value) : copy.noValue}>
                     <span className={styles.tempDot} style={{ background: temp?.color || 'var(--muted)' }} />
                     {temp ? leadTemperatureLabel(props.lang, temp.value) : copy.noValue}
                   </div>
                 </div>
+                {props.staffScope === 'all' && responsible && (
+                  <div className={styles.responsibleFooter} title={`${copy.responsible}: ${responsible}`} aria-label={`${copy.responsible}: ${responsible}`}>
+                    <MobileEntityIcon type="person" />
+                    <span>{responsible}</span>
+                  </div>
+                )}
               </article>
             )
           })}
@@ -404,6 +408,7 @@ export default function LeadsMobile(props: LeadsMobileProps) {
               <button type="button" className={styles.closeButton} aria-label={copy.cancel} onClick={() => setFiltersOpen(false)}>×</button>
             </div>
             <div className={styles.filterFields}>
+              <StaffScopeControl value={props.staffScope} onChange={props.setStaffScope} employees={props.employees} restricted={props.restrictedAccess} lang={props.lang} compact />
               <label>{copy.status}
                 <select className="select" value={props.status} onChange={event => props.setStatus(event.target.value)}>
                   <option value="">{copy.allStatuses}</option>

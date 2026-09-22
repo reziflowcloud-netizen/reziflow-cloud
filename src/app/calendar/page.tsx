@@ -10,6 +10,8 @@ import CalendarMobile, {
   type CalendarTask,
 } from './CalendarMobile'
 import calendarStyles from './CalendarMobile.module.css'
+import StaffScopeControl from '@/components/StaffScopeControl'
+import type { StaffScopeValue } from '@/lib/staffScope'
 
 function clientLabel(client: any) {
   return `${client?.firstName || ''} ${client?.lastName || ''}`.trim()
@@ -103,17 +105,46 @@ export default function CalendarPage() {
   const [editingTask, setEditingTask] = useState<any>(null)
   const [clients, setClients] = useState<any[]>([])
   const [cases, setCases] = useState<any[]>([])
+  const [staffScope, setStaffScope] = useState<StaffScopeValue>('all')
+  const [staffScopeReady, setStaffScopeReady] = useState(false)
+  const [staffRestricted, setStaffRestricted] = useState(false)
+  const [employees, setEmployees] = useState<Array<{ id: number; name: string }>>([])
   const [selectedClientId, setSelectedClientId] = useState('')
   const [saving, setSaving] = useState(false)
   const [showNewTask, setShowNewTask] = useState(false)
   const [newForm, setNewForm] = useState({ title: '', clientId: '', priority: '', dueDate: '', reminderAt: '', reminderNote: '' })
 
   useEffect(() => {
-    fetch('/api/tasks').then(r => r.json()).then(d => setTasks(Array.isArray(d) ? d : []))
     fetch('/api/task-priorities').then(r => r.json()).then(d => setPriorities(Array.isArray(d) ? d : []))
     fetch('/api/clients').then(r => r.json()).then(d => setClients(Array.isArray(d) ? d : []))
-    fetch('/api/cases').then(r => r.json()).then(d => setCases(Array.isArray(d) ? d : []))
   }, [])
+
+  useEffect(() => {
+    fetch('/api/staff-scope', { cache: 'no-store' })
+      .then(response => response.ok ? response.json() : null)
+      .then(data => {
+        if (!data) return
+        setStaffRestricted(data.restricted === true)
+        setEmployees(Array.isArray(data.employees) ? data.employees : [])
+        setStaffScope(data.defaultScope === 'mine' ? 'mine' : 'all')
+        setStaffScopeReady(true)
+      })
+  }, [])
+
+  function loadScopedCalendarData(scope = staffScope) {
+    const query = `staffScope=${encodeURIComponent(scope)}`
+    return Promise.all([
+      fetch(`/api/tasks?${query}`, { cache: 'no-store' }).then(r => r.json()),
+      fetch(`/api/cases?${query}`, { cache: 'no-store' }).then(r => r.json()),
+    ]).then(([taskData, caseData]) => {
+      setTasks(Array.isArray(taskData) ? taskData : [])
+      setCases(Array.isArray(caseData) ? caseData : [])
+    })
+  }
+
+  useEffect(() => {
+    if (staffScopeReady) loadScopedCalendarData(staffScope)
+  }, [staffScope, staffScopeReady])
 
   function prevMonth() {
     if (month === 0) { setMonth(11); setYear(y => y - 1) }
@@ -267,8 +298,7 @@ export default function CalendarPage() {
         description: JSON.stringify({ ...meta, reminderAt: editingTask.reminderAt || null, reminderNote: editingTask.reminderNote || '' }),
       }),
     })
-    const updated = await fetch('/api/tasks').then(r => r.json())
-    setTasks(Array.isArray(updated) ? updated : [])
+    await loadScopedCalendarData()
     setEditingTask(null)
     setSaving(false)
   }
@@ -337,6 +367,8 @@ export default function CalendarPage() {
         getPriorityColor={getPriorityColor}
         taskMeta={taskMeta}
         getDirectCaseId={taskDirectCaseId}
+        scopeControl={<StaffScopeControl value={staffScope} onChange={setStaffScope} employees={employees} restricted={staffRestricted} lang={lang} compact />}
+        showResponsible={staffScope === 'all'}
       />
 
       <div className={calendarStyles.desktopOnly}>
@@ -465,6 +497,7 @@ export default function CalendarPage() {
           <div className="page-subtitle">{t('calendar_sub')}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <StaffScopeControl value={staffScope} onChange={setStaffScope} employees={employees} restricted={staffRestricted} lang={lang} />
           <TutorialVideoButton videoKey="calendar" />
           <button
             onClick={() => openNewTask(selectedCell ? `${selectedCell.year}-${String(selectedCell.month+1).padStart(2,'0')}-${String(selectedCell.day).padStart(2,'0')}` : '')}
@@ -613,6 +646,7 @@ export default function CalendarPage() {
               onClose={() => setSelectedCell(null)}
               translate={t}
               locale={locale}
+              showResponsible={staffScope === 'all'}
             />}
           </div>
         </div>
@@ -630,6 +664,7 @@ export default function CalendarPage() {
               onClose={() => setSelectedCell(null)}
               translate={t}
               locale={locale}
+              showResponsible={staffScope === 'all'}
             />
           </div>
         )}
@@ -767,7 +802,7 @@ export default function CalendarPage() {
 }
 
 // ── Компонент панели дня (переиспользуется для десктопа и мобиля) ──
-function DayPanel({ selectedCell, selectedItems, year, getTasksForDate, getPriorityColor, openEdit, onClose, translate, locale }: any) {
+function DayPanel({ selectedCell, selectedItems, year, getTasksForDate, getPriorityColor, openEdit, onClose, translate, locale, showResponsible }: any) {
   const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']
   const monthName = new Date(selectedCell.year, selectedCell.month, 1).toLocaleDateString(locale || 'ru-RU', { month: 'long' })
   return (
@@ -797,6 +832,7 @@ function DayPanel({ selectedCell, selectedItems, year, getTasksForDate, getPrior
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 3, color: 'var(--text)' }}>{t.title}</div>
               {t.clientName && <div style={{ fontSize: 11, color: 'var(--muted)' }}>👤 {t.clientName}</div>}
+              {showResponsible && t.assignedTo?.name && <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>👤 {t.assignedTo.name}</div>}
               <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ fontSize: 10, background: color + '18', color, padding: '2px 7px', borderRadius: 10, fontWeight: 600 }}>
                   {!isDue ? `⏰ ${translate('reminder_plain')}` : t.priority}

@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { assertBillingLimit, billingLimitResponsePayload, isBillingLimitError } from '@/lib/billing'
-import { ensureUserEmployees } from '@/lib/employeeSync'
 import { isConferenceDemoSession } from '@/lib/conferenceDemo'
 import bcrypt from 'bcryptjs'
 
@@ -59,7 +58,6 @@ export async function POST(req: NextRequest) {
       },
       select: { id: true, name: true, email: true, role: true, restrictedAccess: true, avatarUrl: true, createdAt: true },
     })
-    await ensureUserEmployees(organizationId)
     return NextResponse.json(newUser)
   } catch (e: any) {
     if (isBillingLimitError(e)) return NextResponse.json(billingLimitResponsePayload(e), { status: 402 })

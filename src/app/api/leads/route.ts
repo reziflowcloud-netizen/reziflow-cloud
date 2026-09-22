@@ -7,6 +7,7 @@ import { getDataAccessScope, leadWhereForScope, taskWhereForScope } from '@/lib/
 import { assertBillingLimit, billingLimitResponsePayload, isBillingLimitError } from '@/lib/billing'
 import { resolveUserIdForEmployee } from '@/lib/employeeSync'
 import { leadAssignmentData } from '@/lib/leadAssignmentPolicy'
+import { applyEmployeeStaffScope, applyUserStaffScope, resolveStaffScope, StaffScopeError } from '@/lib/staffScope'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,11 +63,18 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
   const scope = await getDataAccessScope(user, organizationId)
+  let staffScope
+  try {
+    staffScope = await resolveStaffScope(request.nextUrl.searchParams.get('staffScope'), user, organizationId, scope)
+  } catch (error) {
+    if (error instanceof StaffScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
+    throw error
+  }
   const status = request.nextUrl.searchParams.get('status') || ''
   const source = request.nextUrl.searchParams.get('source') || ''
   const listView = request.nextUrl.searchParams.get('view') === 'list'
 
-  const where: any = leadWhereForScope(scope, organizationId)
+  const where: any = applyEmployeeStaffScope(leadWhereForScope(scope, organizationId), staffScope)
   if (status) where.status = status
   if (source) where.source = source
 
@@ -130,11 +138,11 @@ export async function GET(request: NextRequest) {
     : []
   const lastMessageByLead = new Map(latestMessages.map((item: any) => [item.leadId, item._max?.sentAt || null]))
   const tasks = await prisma.task.findMany({
-    where: taskWhereForScope(scope, organizationId, {
+    where: applyUserStaffScope(taskWhereForScope(scope, organizationId, {
       status: { not: 'done' },
       description: { contains: '"leadId":"' },
-    }),
-    select: { id: true, title: true, description: true, dueDate: true },
+    }), staffScope),
+    select: { id: true, title: true, description: true, dueDate: true, assignedTo: { select: { id: true, name: true } } },
     orderBy: { dueDate: 'asc' },
   })
 

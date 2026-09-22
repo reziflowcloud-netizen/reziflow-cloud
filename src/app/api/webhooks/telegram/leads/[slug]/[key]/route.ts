@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { normalizeLeadBody } from '@/lib/leads'
 import { applyLeadWebhookMapping, getLeadWebhookSettings, keyMatches, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
 import { assertBillingLimit, billingLimitResponsePayload, isBillingLimitError } from '@/lib/billing'
+import { resolveInboundLeadAssignment } from '@/lib/leadRouting'
 
 export const dynamic = 'force-dynamic'
 
@@ -106,6 +107,14 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     source: 'telegram',
     messengerId: messengerId || undefined,
   })
+  const routedAssignment = await resolveInboundLeadAssignment({
+    organizationId: organization.id,
+    sourceKey: 'telegram',
+    explicitAssignedToId: mappedBody.assignedToId,
+    organizationSettings: organization.settings,
+    settings,
+  })
+  const { origin: _assignmentOrigin, ...assignment } = routedAssignment
 
   if (!data.fullName && !data.phone && !data.email && !data.instagram && !data.facebook) {
     await (prisma as any).leadWebhookLog.create({
@@ -143,6 +152,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       data: {
         organizationId: organization.id,
         ...data,
+        ...assignment,
       },
     })
     await tx.leadWebhookLog.create({

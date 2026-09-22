@@ -9,6 +9,7 @@ import employeeUserResolver from '../src/lib/employeeUserResolver.js'
 
 const {
   planLeadResponsibleBackfill,
+  planEmployeeUserIdentityBackfill,
   resolveUniqueUserIdForEmployeeName,
 } = employeeUserResolver
 
@@ -170,4 +171,24 @@ test('backfill plans only same-organization records with an unambiguous mapping'
   assert.equal(plan.counts.ambiguousMapping, 1)
   assert.equal(plan.counts.noMatchingUser, 1)
   assert.equal(plan.counts.eligibleUpdates, 1)
+})
+
+test('identity backfill links only one-to-one matches inside the same organization', () => {
+  const plan = planEmployeeUserIdentityBackfill({
+    employees: [
+      { id: 1, organizationId: 'a', name: 'Oksana', userId: null },
+      { id: 2, organizationId: 'a', name: 'Marek', userId: null },
+      { id: 3, organizationId: 'a', name: ' marek ', userId: null },
+      { id: 4, organizationId: 'b', name: 'Oksana', userId: null },
+    ],
+    users: [
+      { id: 11, organizationId: 'a', name: 'oksana', email: 'a@example.com' },
+      { id: 22, organizationId: 'a', name: 'Marek', email: 'b@example.com' },
+      { id: 44, organizationId: 'b', name: 'Other', email: 'other@example.com' },
+    ],
+  })
+
+  assert.deepEqual(plan.updates, [{ employeeId: 1, userId: 11, organizationId: 'a' }])
+  assert.equal(plan.counts.ambiguous, 2)
+  assert.equal(plan.counts.missing, 1)
 })

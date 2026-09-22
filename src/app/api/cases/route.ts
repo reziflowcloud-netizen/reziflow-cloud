@@ -6,17 +6,26 @@ import { caseWhereForScope, findScopedClient, getDataAccessScope } from '@/lib/a
 import { assertBillingLimit, billingLimitResponsePayload, isBillableActiveCaseStatus, isBillingLimitError } from '@/lib/billing'
 import { resolveUserIdForEmployee } from '@/lib/employeeSync'
 import { SAFE_ASSIGNEE_SELECT } from '@/lib/security'
+import { applyEmployeeStaffScope, resolveStaffScope, StaffScopeError } from '@/lib/staffScope'
 
 export async function GET(request: NextRequest) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
   const scope = await getDataAccessScope(user, organizationId)
+  let staffScope
+  try {
+    staffScope = await resolveStaffScope(request.nextUrl.searchParams.get('staffScope'), user, organizationId, scope)
+  } catch (error) {
+    if (error instanceof StaffScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
+    throw error
+  }
+  const scopedWhere = applyEmployeeStaffScope(caseWhereForScope(scope, organizationId), staffScope)
   const listView = request.nextUrl.searchParams.get('view') === 'list'
   try {
     if (listView) {
       const cases = await prisma.case.findMany({
-        where: caseWhereForScope(scope, organizationId),
+        where: scopedWhere,
         select: {
           id: true,
           status: true,
@@ -35,14 +44,14 @@ export async function GET(request: NextRequest) {
     }
 
     const cases = await prisma.case.findMany({
-      where: caseWhereForScope(scope, organizationId),
+      where: scopedWhere,
       include: { client: true, assignedTo: { select: SAFE_ASSIGNEE_SELECT }, employee: true, service: true },
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json(cases)
   } catch (e: any) {
     const cases = await prisma.case.findMany({
-      where: caseWhereForScope(scope, organizationId),
+      where: scopedWhere,
       include: { client: true, assignedTo: { select: SAFE_ASSIGNEE_SELECT }, employee: true },
       orderBy: { createdAt: 'desc' },
     })

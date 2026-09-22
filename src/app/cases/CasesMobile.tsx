@@ -8,6 +8,8 @@ import TutorialVideoButton from '@/components/TutorialVideoButton'
 import { caseStatusLabel } from '@/lib/caseI18n'
 import type { Lang } from '@/lib/translations'
 import styles from './CasesMobile.module.css'
+import StaffScopeControl from '@/components/StaffScopeControl'
+import type { StaffScopeValue } from '@/lib/staffScope'
 
 export type CaseSortKey = 'client' | 'status' | 'service' | 'responsible' | 'value' | 'debt' | 'date'
 export type CaseSortDir = 'asc' | 'desc'
@@ -74,6 +76,8 @@ type CasesMobileProps = {
   statusColors: (status: any) => StatusColors
   responsibleName: (record: any) => string
   restrictedAccess: boolean
+  staffScope: StaffScopeValue
+  setStaffScope: (value: StaffScopeValue) => void
   selectedCount: number
   currentPageCount: number
   allCurrentPageSelected: boolean
@@ -364,6 +368,7 @@ export default function CasesMobile(props: CasesMobileProps) {
               <button type="button" className={styles.closeButton} aria-label={copy.cancel} onClick={() => setFiltersOpen(false)}>×</button>
             </div>
             <div className={styles.filterFields}>
+              <StaffScopeControl value={props.staffScope} onChange={props.setStaffScope} employees={props.employees} restricted={props.restrictedAccess} lang={props.lang} compact />
               <label>{copy.show}
                 <select className="select" value={props.activeFilter} onChange={event => props.setActiveFilter(event.target.value)}>
                   <option value={ALL_FILTER}>{copy.all}</option>

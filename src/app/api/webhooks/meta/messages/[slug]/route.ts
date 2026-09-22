@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getLeadWebhookSettings, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
 import { assertBillingLimit, isBillingLimitError } from '@/lib/billing'
 import { verifyMetaWebhookRequestSignature } from '@/lib/metaWebhookSecurity'
+import { resolveInboundLeadAssignment } from '@/lib/leadRouting'
 import {
   INSTAGRAM_LEAD_FALLBACK_NAME,
   fetchInstagramProfile,
@@ -228,6 +229,12 @@ async function syncMetaConversationMessages(args: {
     orderBy: [{ order: 'asc' }, { id: 'asc' }],
     select: { name: true },
   })
+  const routedAssignment = await resolveInboundLeadAssignment({
+    organizationId: args.organizationId,
+    sourceKey: args.channel,
+    settings: args.settings,
+  })
+  const { origin: _assignmentOrigin, ...assignment } = routedAssignment
 
   const result = await (prisma as any).$transaction(async (tx: any) => {
     let lead = existingLead || await tx.lead.findFirst({
@@ -241,6 +248,7 @@ async function syncMetaConversationMessages(args: {
           data: {
             organizationId: args.organizationId,
             status: defaultStatus?.name || undefined,
+            ...assignment,
             source: args.channel,
             messengerId,
             fullName: displayName,
@@ -564,6 +572,13 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       orderBy: [{ order: 'asc' }, { id: 'asc' }],
       select: { name: true },
     })
+    const routedAssignment = await resolveInboundLeadAssignment({
+      organizationId: organization.id,
+      sourceKey: channel,
+      organizationSettings: organization.settings,
+      settings,
+    })
+    const { origin: _assignmentOrigin, ...assignment } = routedAssignment
 
     const result = await (prisma as any).$transaction(async (tx: any) => {
       let lead = existingLead
@@ -578,6 +593,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
           data: {
             organizationId: organization.id,
             status: defaultStatus?.name || undefined,
+            ...assignment,
             source,
             messengerId,
             fullName: displayName,

@@ -4,6 +4,7 @@ import { normalizeLeadBody } from '@/lib/leads'
 import { applyLeadWebhookMapping, getLeadWebhookSettings, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
 import { assertBillingLimit } from '@/lib/billing'
 import { verifyMetaWebhookRequestSignature } from '@/lib/metaWebhookSecurity'
+import { resolveInboundLeadAssignment } from '@/lib/leadRouting'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,7 +81,7 @@ function metaLeadToWebhookPayload(metaLead: any, change: MetaLeadChange) {
 
   return {
     ...fields,
-    source: 'facebook',
+    source: 'target',
     messengerId: `meta:${metaLead?.id || change.leadgen_id}`,
     notes: campaignParts.join('\n'),
     metaLeadId: metaLead?.id || change.leadgen_id,
@@ -130,7 +131,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       data: {
         organizationId: organization.id,
         status: 'rejected',
-        source: 'facebook',
+        source: 'target',
         payload: safePayload,
         error: 'Facebook Lead Ads integration is disabled',
       },
@@ -143,7 +144,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       data: {
         organizationId: organization.id,
         status: 'failed',
-        source: 'facebook',
+        source: 'target',
         payload: safePayload,
         error: 'Facebook page access token is missing',
       },
@@ -157,7 +158,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       data: {
         organizationId: organization.id,
         status: 'failed',
-        source: 'facebook',
+        source: 'target',
         payload: safePayload,
         error: 'No leadgen changes in Meta webhook payload',
       },
@@ -187,6 +188,14 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       const webhookPayload = metaLeadToWebhookPayload(metaLead, change)
       const mappedBody = applyLeadWebhookMapping(webhookPayload, settings.leadWebhookFieldMap || [])
       const data = normalizeLeadBody(mappedBody)
+      const routedAssignment = await resolveInboundLeadAssignment({
+        organizationId: organization.id,
+        sourceKey: 'target',
+        explicitAssignedToId: mappedBody.assignedToId,
+        organizationSettings: organization.settings,
+        settings,
+      })
+      const { origin: _assignmentOrigin, ...assignment } = routedAssignment
       await assertBillingLimit(organization.id, 'leads')
 
       const lead = await (prisma as any).$transaction(async (tx: any) => {
@@ -194,7 +203,8 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
           data: {
             organizationId: organization.id,
             ...data,
-            source: 'facebook',
+            ...assignment,
+            source: 'target',
             messengerId: `meta:${leadgenId}`,
           },
         })
@@ -203,7 +213,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
             organizationId: organization.id,
             leadId: created.id,
             status: 'created',
-            source: 'facebook',
+            source: 'target',
             payload: {
               raw: safePayload,
               metaLead: sanitizeLeadWebhookPayload(metaLead),
@@ -221,7 +231,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         data: {
           organizationId: organization.id,
           status: 'failed',
-          source: 'facebook',
+          source: 'target',
           payload: safePayload,
           error: message,
         },
