@@ -46,7 +46,7 @@ test('unlinked full-access Mine is unavailable while restricted Mine retains ass
   assert.match(source, /Staff scope cannot expand access/)
   const ui = await readFile(resolve(workspace, 'src/components/StaffScopeControl.tsx'), 'utf8')
   assert.match(ui, /disabled=\{!restricted && !mineAvailable\}/)
-  assert.match(ui, /\/settings\/employees/)
+  assert.match(ui, /title=\{!restricted && !mineAvailable \? copy\.link/)
 })
 
 test('unlinked routing employees are rejected server-side and disabled in editor', async () => {

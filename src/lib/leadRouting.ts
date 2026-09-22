@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { getLeadWebhookSettings, settingsObject, type LeadWebhookSettings } from '@/lib/leadWebhook'
 import { leadAssignmentData, type LeadAssignmentData } from '@/lib/leadAssignmentPolicy'
 import { chooseLeadAssignment } from '@/lib/leadRoutingPolicy'
+import { takeNextChannelAssignment } from '@/lib/channelRoundRobin'
 
 export type LeadAssignmentOrigin = 'external' | 'channel' | 'fallback' | 'none'
 export type RoutedLeadAssignment = LeadAssignmentData & { origin: LeadAssignmentOrigin }
@@ -44,20 +45,8 @@ export async function resolveInboundLeadAssignment({
 
   const channel = normalizeSourceKey(sourceKey)
   if (channel && channel !== 'manual') {
-    const route = await client.leadChannelRoute.findFirst({
-      where: { organizationId, sourceKey: channel },
-      select: {
-        employee: { select: { id: true, organizationId: true, active: true, userId: true } },
-      },
-    })
-    const employee = route?.employee
-    if (employee?.active && employee.organizationId === organizationId && employee.userId) {
-      const linkedUser = await client.user.findFirst({
-        where: { id: employee.userId, organizationId },
-        select: { id: true },
-      })
-      if (linkedUser) return chooseLeadAssignment({ channel: leadAssignmentData(employee.id, linkedUser.id) })
-    }
+    const channelAssignment = await takeNextChannelAssignment(client, organizationId, channel)
+    if (channelAssignment) return chooseLeadAssignment({ channel: channelAssignment })
   }
 
   const settings = inputSettings || getLeadWebhookSettings(organizationSettings)

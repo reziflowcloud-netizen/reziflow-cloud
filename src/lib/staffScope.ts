@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import type { DataAccessScope } from '@/lib/apiScope'
+import { staffScopeFilterEnabled } from '@/lib/staffScopeSettings'
 
 export type StaffScopeValue = 'all' | 'mine' | `employee:${number}`
 
@@ -32,6 +33,14 @@ export async function resolveStaffScope(
   const requested = raw || (access.restricted ? 'mine' : 'all')
   const userId = Number(user?.id)
   if (!Number.isInteger(userId) || userId <= 0) throw new StaffScopeError('Unauthorized', 401)
+
+  if (!access.restricted) {
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { settings: true },
+    })
+    if (!staffScopeFilterEnabled(organization?.settings)) return { kind: 'all' }
+  }
 
   if (access.restricted && requested !== 'mine') {
     throw new StaffScopeError('Staff scope cannot expand access', 403)
