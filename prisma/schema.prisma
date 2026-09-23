@@ -9,27 +9,54 @@ datasource db {
 }
 
 model User {
-  id                 Int                  @id @default(autoincrement())
-  email              String               @unique
-  password           String
-  name               String
-  role               String               @default("employee")
-  avatarUrl          String?
-  avatarPublicId     String?
-  preferences        Json?
-  restrictedAccess   Boolean              @default(false)
-  organizationId     String?
-  organization       Organization?        @relation(fields: [organizationId], references: [id])
-  createdAt          DateTime             @default(now())
-  cases              Case[]
-  clients            Client[]
-  tasks              Task[]
-  leads              Lead[]
-  leadContactHistory LeadContactHistory[]
-  leadMessages       LeadMessage[]
-  employee           Employee?            @relation("EmployeeUser")
+  id                  Int                  @id @default(autoincrement())
+  email               String               @unique
+  password            String
+  name                String
+  role                String               @default("employee")
+  avatarUrl           String?
+  avatarPublicId      String?
+  preferences         Json?
+  restrictedAccess    Boolean              @default(false)
+  sessionVersion      Int                  @default(0)
+  organizationId      String?
+  organization        Organization?        @relation(fields: [organizationId], references: [id])
+  createdAt           DateTime             @default(now())
+  cases               Case[]
+  clients             Client[]
+  tasks               Task[]
+  leads               Lead[]
+  leadContactHistory  LeadContactHistory[]
+  leadMessages        LeadMessage[]
+  employee            Employee?            @relation("EmployeeUser")
+  passwordResetTokens PasswordResetToken[]
 
   @@unique([id, organizationId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    Int
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetRateLimit {
+  id           String   @id @default(cuid())
+  keyHash      String
+  windowStart  DateTime
+  requestCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([keyHash, windowStart])
+  @@index([windowStart])
 }
 
 model Organization {

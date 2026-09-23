@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
       billingStatus: (organization as any)?.billingStatus || 'manual',
       trialEndsAt: organization?.trialEndsAt ? organization.trialEndsAt.toISOString() : null,
       currentPeriodEndsAt: (organization as any)?.currentPeriodEndsAt ? (organization as any).currentPeriodEndsAt.toISOString() : null,
+      sessionVersion: user.sessionVersion,
     })
 
     const cookieStore = cookies()

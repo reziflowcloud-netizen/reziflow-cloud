@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
         role: true,
         restrictedAccess: true,
         avatarUrl: true,
+        sessionVersion: true,
         organizationId: true,
         organization: {
           select: {
@@ -114,6 +115,7 @@ export async function GET(request: NextRequest) {
       trialEndsAt: user.organization.trialEndsAt?.toISOString() || null,
       currentPeriodEndsAt: user.organization.currentPeriodEndsAt?.toISOString() || null,
       sessionMode: CONFERENCE_DEMO_SESSION_MODE,
+      sessionVersion: user.sessionVersion,
     }, CONFERENCE_DEMO_SESSION_EXPIRES_IN)
 
     const response = NextResponse.redirect(new URL('/dashboard', request.url), 303)

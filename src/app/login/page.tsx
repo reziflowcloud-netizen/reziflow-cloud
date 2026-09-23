@@ -104,7 +104,7 @@ export default function LoginPage() {
                 <input type="checkbox" />
                 <span>{copy.remember}</span>
               </label>
-              <a href={`mailto:office@legalhubcrm.com?subject=${encodeURIComponent(copy.forgotSubject)}`}>{copy.forgot}</a>
+              <Link href="/forgot-password">{copy.forgot}</Link>
             </div>
             <button type="submit" className="btn btn-primary login-submit" disabled={loading}>
               {loading ? copy.loading : copy.submit}

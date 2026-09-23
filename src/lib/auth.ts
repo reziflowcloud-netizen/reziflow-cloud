@@ -1,34 +1,25 @@
 // src/lib/auth.ts
-import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
+import { prisma } from '@/lib/prisma'
+import { isSessionVersionCurrent, signToken, verifyToken } from '@/lib/authToken'
 
-function jwtSecret() {
-  const value = process.env.JWT_SECRET?.trim()
-  if (!value) throw new Error('JWT_SECRET is required')
-  return new TextEncoder().encode(value)
-}
-
-export async function signToken(payload: Record<string, unknown>, expiresIn: string | number = '7d') {
-  return await new SignJWT(payload)
-    .setProtectedHeader({ alg: 'HS256' })
-    .setExpirationTime(expiresIn)
-    .sign(jwtSecret())
-}
-
-export async function verifyToken(token: string) {
-  try {
-    const { payload } = await jwtVerify(token, jwtSecret())
-    return payload
-  } catch {
-    return null
-  }
-}
+export { signToken, verifyToken } from '@/lib/authToken'
 
 export async function getUser() {
   const cookieStore = cookies()
   const token = cookieStore.get('auth-token')?.value
   if (!token) return null
-  return verifyToken(token)
+  const payload = await verifyToken(token)
+  const userId = Number(payload?.id)
+  const organizationId = String(payload?.organizationId || '')
+  if (!payload || !Number.isInteger(userId) || userId <= 0 || !organizationId) return null
+
+  const current = await prisma.user.findFirst({
+    where: { id: userId, organizationId },
+    select: { sessionVersion: true },
+  })
+  if (!current || !isSessionVersionCurrent(payload, current.sessionVersion)) return null
+  return payload
 }
 
 export function getOrganizationId(user: any) {

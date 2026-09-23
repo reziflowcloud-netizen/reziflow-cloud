@@ -19,6 +19,7 @@ async function refreshUserCookie(updatedUser: any, currentUser: any) {
     avatarUrl: updatedUser.avatarUrl || null,
     organizationId: currentUser.organizationId || 'org_default',
     organizationName: currentUser.organizationName || 'LegalHub',
+    sessionVersion: updatedUser.sessionVersion,
   })
   cookies().set('auth-token', token, {
     httpOnly: true,
@@ -91,7 +92,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const updated = await prisma.user.update({
     where: { id: targetId },
     data: { avatarUrl: uploaded.secure_url, avatarPublicId: uploaded.public_id } as any,
-    select: { id: true, name: true, email: true, role: true, restrictedAccess: true, avatarUrl: true, createdAt: true },
+    select: { id: true, name: true, email: true, role: true, restrictedAccess: true, avatarUrl: true, sessionVersion: true, createdAt: true },
   })
   if (isSelf) await refreshUserCookie(updated, user)
   return NextResponse.json(updated)

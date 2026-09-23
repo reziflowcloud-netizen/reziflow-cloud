@@ -1,6 +1,6 @@
 // src/middleware.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken } from './lib/auth'
+import { verifyToken } from './lib/authToken'
 import {
   isConferenceDemoApiBlocked,
   isConferenceDemoPageBlocked,
@@ -17,6 +17,8 @@ const PUBLIC_PATHS = [
   '/pricing',
   '/login',
   '/register',
+  '/forgot-password',
+  '/reset-password',
   '/conference',
   '/conference/demo',
   '/contact',
@@ -30,6 +32,8 @@ const PUBLIC_PATHS = [
   '/manifest.json',
   '/api/auth/login',
   '/api/auth/register',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
   '/api/conference/events',
   '/api/contact',
   '/api/partner/referrals',

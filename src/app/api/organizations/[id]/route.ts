@@ -182,6 +182,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             throw new Error('Пароль должен быть не короче 6 символов')
           }
           userData.password = await bcrypt.hash(adminPassword, 10)
+          userData.sessionVersion = { increment: 1 }
           passwordResetUserId = primaryAdmin.id
         }
 

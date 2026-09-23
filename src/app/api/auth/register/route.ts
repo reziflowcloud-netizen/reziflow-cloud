@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
       billingStatus: (organization as any).billingStatus || 'trialing',
       trialEndsAt: organization.trialEndsAt ? organization.trialEndsAt.toISOString() : null,
       currentPeriodEndsAt: (organization as any).currentPeriodEndsAt ? (organization as any).currentPeriodEndsAt.toISOString() : null,
+      sessionVersion: (admin as any).sessionVersion || 0,
     })
 
     cookieStore.set('auth-token', token, {

@@ -21,6 +21,7 @@ async function refreshUserCookie(updatedUser: any, currentUser: any) {
     avatarUrl: updatedUser.avatarUrl || null,
     organizationId: currentUser.organizationId || 'org_default',
     organizationName: currentUser.organizationName || 'LegalHub',
+    sessionVersion: updatedUser.sessionVersion,
   })
   cookies().set('auth-token', token, {
     httpOnly: true,
@@ -60,12 +61,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       } else if (body.role && body.role !== 'employee') {
         data.restrictedAccess = false
       }
-      if (body.password) data.password = await bcrypt.hash(body.password, 10)
+      if (body.password) {
+        data.password = await bcrypt.hash(body.password, 10)
+        data.sessionVersion = { increment: 1 }
+      }
     }
     const updated = await prisma.user.update({
       where: { id: targetId },
       data,
-      select: { id: true, name: true, email: true, role: true, restrictedAccess: true, avatarUrl: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, restrictedAccess: true, avatarUrl: true, sessionVersion: true, createdAt: true },
     })
     if (isSelf) await refreshUserCookie(updated, user)
     return NextResponse.json(updated)

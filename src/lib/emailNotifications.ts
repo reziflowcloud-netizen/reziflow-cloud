@@ -22,6 +22,14 @@ type RegistrationNotificationInput = {
   sourcePage?: string | null
 }
 
+type PasswordResetLanguage = 'ru' | 'uk' | 'pl' | 'en'
+
+type PasswordResetEmailInput = {
+  to: string
+  resetUrl: string
+  language: PasswordResetLanguage
+}
+
 function recipientsFromEnv() {
   const raw = process.env.CONTACT_EMAIL_TO || process.env.NOTIFICATION_EMAIL || DEFAULT_CONTACT_EMAIL
   return raw
@@ -147,4 +155,86 @@ export async function sendRegistrationNotification(input: RegistrationNotificati
     ],
     message: 'A new organization was created in LegalHub CRM. You can reply directly to this email to contact the new administrator.',
   })
+}
+
+const PASSWORD_RESET_EMAIL_COPY: Record<PasswordResetLanguage, {
+  subject: string
+  title: string
+  intro: string
+  button: string
+  expires: string
+  ignore: string
+}> = {
+  ru: {
+    subject: 'Восстановление пароля LegalHub CRM',
+    title: 'Восстановление пароля',
+    intro: 'Мы получили запрос на восстановление пароля для вашей учётной записи LegalHub CRM.',
+    button: 'Создать новый пароль',
+    expires: 'Ссылка действует 30 минут.',
+    ignore: 'Если вы не запрашивали восстановление пароля, просто проигнорируйте это письмо.',
+  },
+  uk: {
+    subject: 'Відновлення пароля LegalHub CRM',
+    title: 'Відновлення пароля',
+    intro: 'Ми отримали запит на відновлення пароля для вашого облікового запису LegalHub CRM.',
+    button: 'Створити новий пароль',
+    expires: 'Посилання діє 30 хвилин.',
+    ignore: 'Якщо ви не запитували відновлення пароля, просто проігноруйте цей лист.',
+  },
+  pl: {
+    subject: 'Reset hasła LegalHub CRM',
+    title: 'Reset hasła',
+    intro: 'Otrzymaliśmy prośbę o zresetowanie hasła do Twojego konta LegalHub CRM.',
+    button: 'Ustaw nowe hasło',
+    expires: 'Link jest ważny przez 30 minut.',
+    ignore: 'Jeśli nie prosisz o reset hasła, zignoruj tę wiadomość.',
+  },
+  en: {
+    subject: 'Reset your LegalHub CRM password',
+    title: 'Reset your password',
+    intro: 'We received a request to reset the password for your LegalHub CRM account.',
+    button: 'Create a new password',
+    expires: 'This link is valid for 30 minutes.',
+    ignore: 'If you did not request a password reset, you can ignore this email.',
+  },
+}
+
+export async function sendPasswordResetEmail(input: PasswordResetEmailInput) {
+  const apiKey = process.env.RESEND_API_KEY?.trim()
+  if (!apiKey) return { sent: false, skipped: true, reason: 'RESEND_API_KEY is not configured' }
+
+  const copy = PASSWORD_RESET_EMAIL_COPY[input.language] || PASSWORD_RESET_EMAIL_COPY.ru
+  const safeUrl = escapeHtml(input.resetUrl)
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: process.env.CONTACT_EMAIL_FROM || 'LegalHub CRM <notifications@legalhubcrm.com>',
+      to: [input.to],
+      subject: copy.subject,
+      text: `${copy.title}\n\n${copy.intro}\n\n${input.resetUrl}\n\n${copy.expires}\n${copy.ignore}`,
+      html: `
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0f172a;line-height:1.6;max-width:560px;margin:auto;">
+          <h1 style="font-size:24px;">${escapeHtml(copy.title)}</h1>
+          <p>${escapeHtml(copy.intro)}</p>
+          <p style="margin:28px 0;"><a href="${safeUrl}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#0891b2;color:#fff;text-decoration:none;font-weight:700;">${escapeHtml(copy.button)}</a></p>
+          <p>${escapeHtml(copy.expires)}</p>
+          <p style="color:#64748b;">${escapeHtml(copy.ignore)}</p>
+        </div>
+      `,
+    }),
+  }).catch(error => {
+    console.error('Password reset email request failed:', error instanceof Error ? error.name : 'UnknownError')
+    return null
+  })
+
+  if (!response) return { sent: false, skipped: false, reason: 'Email provider request failed' }
+  if (!response.ok) {
+    console.error('Password reset email failed:', response.status)
+    return { sent: false, skipped: false, reason: `Resend error ${response.status}` }
+  }
+  return { sent: true, skipped: false }
 }
