@@ -17,7 +17,7 @@ function employeeIdFrom(params: RouteContext['params']) {
 
 async function impact(client: any, organizationId: string, employeeId: number, currentUserId: number | null) {
   const [routingRules, leads, cases, currentUser] = await Promise.all([
-    client.leadChannelRoute.count({ where: { organizationId, employeeId } }),
+    client.leadChannelRouteMember.count({ where: { organizationId, employeeId } }),
     client.lead.count({ where: { organizationId, employeeId } }),
     client.case.count({ where: { organizationId, employeeId } }),
     currentUserId

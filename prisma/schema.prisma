@@ -651,17 +651,18 @@ model CaseOption {
 }
 
 model Employee {
-  id             Int           @id @default(autoincrement())
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  userId         Int?          @unique
-  user           User?         @relation("EmployeeUser", fields: [userId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  name           String
-  active         Boolean       @default(true)
-  createdAt      DateTime      @default(now())
-  cases          Case[]
-  leads          Lead[]
-  leadChannelRoutes LeadChannelRoute[]
+  id                      Int                      @id @default(autoincrement())
+  organizationId          String?
+  organization            Organization?            @relation(fields: [organizationId], references: [id])
+  userId                  Int?                     @unique
+  user                    User?                    @relation("EmployeeUser", fields: [userId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  name                    String
+  active                  Boolean                  @default(true)
+  createdAt               DateTime                 @default(now())
+  cases                   Case[]
+  leads                   Lead[]
+  leadChannelRoutes       LeadChannelRoute[]
+  leadChannelRouteMembers LeadChannelRouteMember[]
 
   @@unique([userId, organizationId])
   @@unique([id, organizationId])
@@ -669,16 +670,35 @@ model Employee {
 }
 
 model LeadChannelRoute {
-  id             String       @id @default(cuid())
+  id             String                   @id @default(cuid())
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sourceKey      String
+  // Compatibility mirror for the V1 application; V2 assignment reads members.
   employeeId     Int
-  employee       Employee     @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Cascade, map: "LeadChannelRoute_employeeId_fkey")
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  employee       Employee                 @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Cascade, map: "LeadChannelRoute_employeeId_fkey")
+  nextPosition   Int                      @default(0)
+  members        LeadChannelRouteMember[]
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
 
   @@unique([organizationId, sourceKey])
+  @@unique([id, organizationId])
+  @@index([organizationId, employeeId])
+}
+
+model LeadChannelRouteMember {
+  id             String           @id @default(cuid())
+  organizationId String
+  routeId        String
+  route          LeadChannelRoute @relation(fields: [routeId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  employeeId     Int
+  employee       Employee         @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  position       Int
+  createdAt      DateTime         @default(now())
+
+  @@unique([routeId, employeeId])
+  @@unique([routeId, position])
   @@index([organizationId, employeeId])
 }
 

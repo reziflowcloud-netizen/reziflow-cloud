@@ -14,6 +14,11 @@ export function chooseLeadAssignment(candidates: {
   return { employeeId: null, assignedToId: null, origin: 'none' as const }
 }
 
-export function hasDuplicateChannelKeys(routes: Array<{ sourceKey: string }>) {
-  return new Set(routes.map(route => route.sourceKey)).size !== routes.length
+export function hasDuplicateRouteMembers(routes: Array<{ sourceKey: string; employeeIds: number[] }>) {
+  return routes.some(route => new Set(route.employeeIds).size !== route.employeeIds.length)
+}
+
+export function chooseNextRouteMember<T extends { position: number }>(members: T[], nextPosition: number) {
+  if (!members.length) return null
+  return members.find(member => member.position >= nextPosition) || members[0]
 }
