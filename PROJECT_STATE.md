@@ -1,6 +1,6 @@
 # Project State
 
-Last updated against the production repository state by Codex: 2026-09-17.
+Last updated against the production repository state by Codex: 2026-09-23.
 
 ## Project
 
@@ -22,31 +22,25 @@ https://legalhubcrm.com
 
 ## Current Production State
 
-The full approved Mobile UX rollout is in production.
+The approved Mobile UX and Staff Routing V2 rollouts are in production.
 
 ```text
 branch: main
-production commit: a63557a8bfd770f333d7eb36ed4b26869ceecb71
-production deployment: dpl_DxRQuhsmYgvH6i1FcAdMNKDXVvRh
+production application commit: cb7d54ee055f2c7206ec2476b7ad8e6cb6c2c84c
+production deployment: Hpv2rqh3uec16Qa27rvtDZDstyt2
 deployment status at rollout verification: READY
 ```
 
-Recorded previous stable rollback point:
-
-```text
-commit: d40b6f3ce88408a99f3c09bb162b786421ef66b3
-deployment: dpl_ARsSogYVQdgYHbUmTXQwKJ22gBu7
-```
-
-At the start of this documentation-only update, local `main`, `origin/main`,
-and the production commit were synchronized at `a63557a`. No application code
-or production configuration was changed by this handoff update.
+At the start of this documentation-only update, local `main` and `origin/main`
+matched the production application commit. This update changes only
+`PROJECT_STATE.md` and `HANDOFF.md`; it does not redeploy the application or
+change the production database.
 
 ## Architecture
 
 - Next.js 14 App Router application with React 18 and TypeScript.
 - Route handlers under `src/app/api` provide the application API.
-- Prisma 5.13 is the ORM; PostgreSQL is the configured datasource.
+- Prisma 5.22 is the ORM; PostgreSQL is the configured datasource.
 - Authentication uses a signed JWT in the `auth-token` cookie.
 - `organizationId` is the tenant boundary used by application queries.
 - `src/lib/apiScope.ts` applies restricted-user filtering.
@@ -58,15 +52,39 @@ Important build behavior:
 
 ```text
 npm run build
-  -> node scripts/vercel-migrate.js
   -> prisma generate
   -> next build
 ```
 
-When `DIRECT_URL` exists, the wrapper may run database migration/seed logic.
-Use `npx next build` for a safe application build when database mutation is not
-explicitly intended. Never run migrations, seed, or backfills as part of a
-routine inspection.
+Migration deployment uses a separate guarded workflow. A routine build must
+not invoke migration, seed, or backfill commands. Verify database environment
+isolation before any database-aware local QA.
+
+## Staff Routing V2 — Production Complete (Development 10)
+
+The accepted feature is active in production:
+
+- Explicit CRM User ↔ Employee identity links.
+- Staff Scope `ALL` / `MINE` / `EMPLOYEE`, controlled by an organization
+  visibility setting, across Leads, Cases, Tasks, and Calendar.
+- Compact shared `StaffScopeControl`.
+- Multiple Employees per channel; persistent server-side round-robin with a
+  concurrency-safe cursor. Routing cursors are channel-independent and
+  organization-independent.
+- Unlinked Employee routing protection and unified routing/settings Save UX.
+- Responsive Settings grids and Leads filters, with zero page-level horizontal
+  overflow at the accepted mobile and desktop widths.
+
+Production DB state: the V2 expand migration was applied;
+`LeadChannelRouteMember` and `nextPosition` are active. Legacy
+`LeadChannelRoute.employeeId` is intentionally retained. Contract cleanup has
+**not** been done. Do not remove this column yet. Consider a separate contract
+migration only after a stable production period and confirmation that no old
+code path depends on it.
+
+Final accepted QA: 55/55 regressions PASS; security, Lead visibility, tenant
+isolation, and restricted access PASS; mobile 390/414/430 and desktop
+769/1024/1440 PASS; page horizontal overflow 0; browser/runtime errors 0.
 
 ## Mobile UX — Production
 
@@ -172,8 +190,8 @@ employeeId   -> Employee.id  (visible business responsibility)
   must not be inferred only from the visible Employee value.
 - Lead conversion carries Employee responsibility and User access ownership
   separately.
-- Existing Employee/User synchronization is name-based rather than an
-  explicit foreign-key relationship; do not merge the fields casually.
+- Employee ↔ CRM User identity is now explicit. Do not infer links by name or
+  merge the responsibility and access fields casually.
 
 ## Implemented Product Areas
 
@@ -207,9 +225,8 @@ employeeId   -> Employee.id  (visible business responsibility)
 
 ## Next Development Approach
 
-The large Mobile UX redesign is complete. Do not continue it as an open-ended
-redesign programme. Any issue discovered after production should be described,
-scoped, implemented, and verified as an independent maintenance/refinement
-task. Preserve the accepted navigation, breakpoints, responsive structure,
-business logic, permissions, and desktop presentation unless the new task
-explicitly authorizes changing them.
+The large Mobile UX redesign and Development 10 (Staff Routing V2) are
+complete. Do not continue either as an open-ended programme. Scope any future
+finding as an independent maintenance/refinement task. Preserve the accepted
+navigation, responsive structure, routing semantics, business logic, tenant
+isolation, and permissions unless a new task explicitly authorizes a change.

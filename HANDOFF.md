@@ -1,6 +1,6 @@
 # LegalHub CRM Handoff
 
-Prepared from the verified production state on 2026-09-17.
+Prepared from the verified production state on 2026-09-23.
 
 ## Start Here
 
@@ -26,21 +26,42 @@ Before editing:
 ```text
 URL: https://legalhubcrm.com
 branch: main
-commit: a63557a8bfd770f333d7eb36ed4b26869ceecb71
-deployment: dpl_DxRQuhsmYgvH6i1FcAdMNKDXVvRh
+production application commit: cb7d54ee055f2c7206ec2476b7ad8e6cb6c2c84c
+deployment: Hpv2rqh3uec16Qa27rvtDZDstyt2
 status after rollout: READY
 ```
 
-Previous stable rollback point:
-
-```text
-commit: d40b6f3ce88408a99f3c09bb162b786421ef66b3
-deployment: dpl_ARsSogYVQdgYHbUmTXQwKJ22gBu7
-```
-
 Before this documentation update, local `main` matched `origin/main` at the
-production commit. This handoff task changes only `PROJECT_STATE.md` and
-`HANDOFF.md`; it does not change application code or production.
+production application commit. This handoff task changes only
+`PROJECT_STATE.md` and `HANDOFF.md`; it does not redeploy application code or
+change the production database.
+
+## Staff Routing V2 — Complete (Development 10)
+
+Staff Routing V2 is active in Production. The accepted implementation includes:
+
+- Explicit CRM User ↔ Employee identity.
+- Staff Scope `ALL` / `MINE` / `EMPLOYEE` across Leads, Cases, Tasks, and
+  Calendar, with an organization visibility setting and compact
+  `StaffScopeControl`.
+- Multi-Employee channel routing with persistent server-side round-robin and
+  a concurrency-safe cursor; channels and organizations have independent
+  routing state.
+- Protection against routing to unlinked Employees and unified
+  routing/settings Save UX.
+- Responsive Settings and Leads filter fixes.
+
+Production DB: the V2 expand migration is applied;
+`LeadChannelRouteMember` and `nextPosition` are active. The legacy
+`LeadChannelRoute.employeeId` column is intentionally retained; contract
+cleanup has **not** been done. **Do not remove it yet.** Consider a separate
+contract migration only after a stable production period and explicit
+confirmation that no old code path depends on it.
+
+Final Staff Routing V2 QA: 55/55 regression tests PASS; security, Lead
+visibility, tenant isolation, and restricted access PASS; mobile 390/414/430
+and desktop 769/1024/1440 PASS; page horizontal overflow 0;
+browser/runtime errors 0.
 
 ## Mobile UX Rollout — Complete
 
@@ -128,15 +149,14 @@ employeeId   -> Employee.id  visible business responsibility
 
 Do not substitute one for the other. Restricted access and tenant isolation
 must continue to use the established access rules even when the visible
-Employee changes. Existing Employee/User synchronization remains name-based
-and is separate technical debt, not a reason to combine these fields.
+Employee changes. Employee ↔ CRM User identity is explicit; never guess links
+from names or combine these fields.
 
 ## Safe Build And Database Rules
 
-`npm run build` invokes `scripts/vercel-migrate.js` and can run migration/seed
-logic when `DIRECT_URL` is configured. For a code-only verification, prefer a
-deliberate safe build such as `npx next build` and confirm the target before any
-database operation.
+`npm run build` runs `prisma generate && next build`; migration deployment is
+a separate guarded workflow. Confirm the target and environment isolation
+before any database operation.
 
 Never run the following merely to inspect the project:
 
@@ -148,7 +168,7 @@ Never run the following merely to inspect the project:
 
 ## Next Work
 
-The Mobile UX programme is closed as a major redesign. New findings should be
+The Mobile UX programme and Development 10 are closed. New findings should be
 opened as small, independent maintenance/refinement tasks with a clear screen,
 breakpoint, expected behavior, permissions impact, regression scope, and
 deployment gate. Keep production unchanged until the user explicitly approves
