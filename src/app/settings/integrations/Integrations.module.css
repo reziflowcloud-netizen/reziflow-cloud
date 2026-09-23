@@ -1,0 +1,26 @@
+@media (max-width: 900px) {
+  :global(.main-content):has(.page) {
+    min-width: 0;
+  }
+
+  .page,
+  .page :global(.page-body) {
+    min-width: 0;
+  }
+
+  .page [style*="grid-template-columns"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .page :global(.card),
+  .page :global(.form-group),
+  .page :global(.input) {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .page pre {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+}

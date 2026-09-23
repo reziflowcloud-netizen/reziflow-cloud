@@ -1361,6 +1361,12 @@ export default function LeadsPage() {
           border-radius: 999px;
         }
 
+        @media (min-width: 769px) {
+          .leads-page .lead-filter-grid {
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)) !important;
+          }
+        }
+
         @media (max-width: 760px) {
           .leads-page {
             overflow-x: hidden;
