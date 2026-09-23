@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
+import styles from './Integrations.module.css'
 
 type WebhookSettings = {
   slug: string
@@ -1303,7 +1304,7 @@ function onFormSubmit(e) {
   const selectedMetaPage = pendingMetaPages.find(page => page.id === metaOAuthPageId) || pendingMetaPages[0]
 
   return (
-    <div className="fade-in">
+    <div className={`fade-in ${styles.page}`}>
       <div className="page-header">
         <div>
           <div className="page-title">{text.title}</div>
