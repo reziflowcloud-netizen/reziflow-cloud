@@ -150,11 +150,14 @@ export async function PUT(request: NextRequest) {
         data: {
           organizationId: ctx.organizationId,
           sourceKey: route.sourceKey,
+          // Required by V1 until the later contract migration. The DB trigger
+          // inserts this first member for both V1 and V2 route creation.
+          employeeId: route.employeeIds[0],
           nextPosition: 0,
           members: {
-            create: route.employeeIds.map((employeeId, position) => ({
+            create: route.employeeIds.slice(1).map((employeeId, index) => ({
               employeeId,
-              position,
+              position: index + 1,
             })),
           },
         },

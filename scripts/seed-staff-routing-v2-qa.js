@@ -146,14 +146,15 @@ async function main() {
     data: {
       organizationId: organization.id,
       sourceKey: 'instagram',
-      members: { create: employees.slice(0, 2).map((employee, position) => ({ employeeId: employee.id, position })) },
+      employeeId: employees[0].id,
+      members: { create: [{ employeeId: employees[1].id, position: 1 }] },
     },
   })
   await prisma.leadChannelRoute.create({
     data: {
       organizationId: organization.id,
       sourceKey: 'facebook',
-      members: { create: [{ employeeId: employees[1].id, position: 0 }] },
+      employeeId: employees[1].id,
     },
   })
 

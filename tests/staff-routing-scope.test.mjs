@@ -101,7 +101,8 @@ test('V2 migration preserves every V1 route as position zero', async () => {
   const migration = await readFile(resolve(workspace, 'prisma/migrations/20260922140000_staff_routing_v2/migration.sql'), 'utf8')
   assert.match(migration, /INSERT INTO "LeadChannelRouteMember"/)
   assert.match(migration, /FROM "LeadChannelRoute"/)
-  assert.match(migration, /DROP COLUMN "employeeId"/)
+  assert.match(migration, /CREATE TRIGGER "LeadChannelRoute_seed_legacy_member"/)
+  assert.doesNotMatch(migration, /DROP (?:COLUMN|CONSTRAINT) "(?:employeeId|LeadChannelRoute_employeeId_fkey)"/)
 })
 
 test('disabled staff filter resolves full access to ALL without widening restricted access', async () => {

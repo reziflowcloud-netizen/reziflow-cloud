@@ -53,10 +53,21 @@ ALTER TABLE "LeadChannelRouteMember"
   REFERENCES "Employee"("id", "organizationId")
   ON DELETE CASCADE ON UPDATE CASCADE;
 
-ALTER TABLE "LeadChannelRoute"
-  DROP CONSTRAINT "LeadChannelRoute_employeeId_fkey";
+-- V1 remains live between expand and application deploy. Its route inserts must
+-- immediately become usable by V2 even when V1 creates routes after this backfill.
+CREATE FUNCTION "staff_routing_v2_seed_legacy_member"() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO "LeadChannelRouteMember" (
+    "id", "organizationId", "routeId", "employeeId", "position"
+  ) VALUES (
+    'v2_' || md5(NEW."id" || ':' || NEW."employeeId"::text),
+    NEW."organizationId", NEW."id", NEW."employeeId", 0
+  );
+  RETURN NEW;
+END;
+$$;
 
-DROP INDEX "LeadChannelRoute_organizationId_employeeId_idx";
-
-ALTER TABLE "LeadChannelRoute"
-  DROP COLUMN "employeeId";
+CREATE TRIGGER "LeadChannelRoute_seed_legacy_member"
+AFTER INSERT ON "LeadChannelRoute"
+FOR EACH ROW EXECUTE FUNCTION "staff_routing_v2_seed_legacy_member"();

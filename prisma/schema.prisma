@@ -661,6 +661,7 @@ model Employee {
   createdAt               DateTime                 @default(now())
   cases                   Case[]
   leads                   Lead[]
+  leadChannelRoutes       LeadChannelRoute[]
   leadChannelRouteMembers LeadChannelRouteMember[]
 
   @@unique([userId, organizationId])
@@ -673,6 +674,9 @@ model LeadChannelRoute {
   organizationId String
   organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sourceKey      String
+  // Compatibility mirror for the V1 application; V2 assignment reads members.
+  employeeId     Int
+  employee       Employee                 @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Cascade, map: "LeadChannelRoute_employeeId_fkey")
   nextPosition   Int                      @default(0)
   members        LeadChannelRouteMember[]
   createdAt      DateTime                 @default(now())
@@ -680,6 +684,7 @@ model LeadChannelRoute {
 
   @@unique([organizationId, sourceKey])
   @@unique([id, organizationId])
+  @@index([organizationId, employeeId])
 }
 
 model LeadChannelRouteMember {
