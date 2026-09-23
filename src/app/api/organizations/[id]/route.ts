@@ -7,6 +7,8 @@ import { deleteCloudinaryDocumentResources } from '@/lib/cloudinary'
 import { deleteDropboxFile, getDropboxSettings } from '@/lib/dropbox'
 import { attachOrganizationUsageStats, isSystemAdmin, organizationInclude } from '@/lib/organizationProvisioning'
 import { resolveLocalDocumentPath } from '@/lib/documentSecurity'
+import { normalizeEmail } from '@/lib/identity'
+import { assertAdminPasswordResetTarget, recordAdminPasswordResetAuditEvent } from '@/lib/adminPasswordReset'
 
 const BILLING_LIMIT_KEYS = ['users', 'clients', 'cases', 'leads'] as const
 type BillingLimitKey = typeof BILLING_LIMIT_KEYS[number]
@@ -116,18 +118,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     const adminName = typeof body.adminName === 'string' ? body.adminName.trim() : ''
-    const adminEmail = typeof body.adminEmail === 'string' ? body.adminEmail.trim().toLowerCase() : ''
+    const adminEmail = typeof body.adminEmail === 'string' ? normalizeEmail(body.adminEmail) : ''
     const adminPassword = typeof body.adminPassword === 'string' ? body.adminPassword : ''
+    const requestedAdminUserId = Number(body.adminUserId)
+    const requestedOrganizationSlug = typeof body.organizationSlug === 'string' ? body.organizationSlug : ''
 
-    const updated = await prisma.$transaction(async tx => {
+    const result = await prisma.$transaction(async tx => {
       const organizationData = { ...data }
+      let passwordResetUserId: number | null = null
+      const targetOrganization = await tx.organization.findUnique({
+        where: { id: params.id },
+        select: { id: true, name: true, slug: true, settings: true },
+      })
+      if (!targetOrganization) throw new Error('Организация не найдена')
 
       if (canManageAll && 'billingLimits' in body) {
-        const existingOrganization = await tx.organization.findUnique({
-          where: { id: params.id },
-          select: { settings: true },
-        })
-        const settings = plainObject(existingOrganization?.settings)
+        const settings = plainObject(targetOrganization.settings)
 
         if ('billingLimits' in body) {
           const billingLimits = normalizeBillingLimits(body.billingLimits)
@@ -165,10 +171,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           userData.email = adminEmail
         }
         if (adminPassword) {
+          assertAdminPasswordResetTarget({
+            requestedOrganizationId: params.id,
+            requestedOrganizationSlug,
+            requestedUserId: requestedAdminUserId,
+            organization: targetOrganization,
+            user: primaryAdmin,
+          })
           if (adminPassword.length < 6) {
             throw new Error('Пароль должен быть не короче 6 символов')
           }
           userData.password = await bcrypt.hash(adminPassword, 10)
+          passwordResetUserId = primaryAdmin.id
         }
 
         if (Object.keys(userData).length) {
@@ -179,13 +193,34 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         }
       }
 
-      return tx.organization.findUnique({
+      const organization = await tx.organization.findUniqueOrThrow({
         where: { id: params.id },
         include: organizationInclude,
       })
+      return {
+        organization,
+        passwordResetUserId,
+      }
     })
 
-    return NextResponse.json(await attachOrganizationUsageStats(updated))
+    if (result.passwordResetUserId !== null) {
+      recordAdminPasswordResetAuditEvent({
+        organizationId: params.id,
+        userId: result.passwordResetUserId,
+        actorUserId: Number(user.id),
+      })
+    }
+
+    const updated = await attachOrganizationUsageStats(result.organization)
+    return NextResponse.json(result.passwordResetUserId === null ? updated : {
+      ...updated,
+      passwordReset: {
+        organizationId: params.id,
+        organizationName: updated?.name,
+        organizationSlug: updated?.slug,
+        userId: result.passwordResetUserId,
+      },
+    })
   } catch (e: any) {
     return NextResponse.json({ error: e.message || 'Ошибка сохранения фирмы' }, { status: 500 })
   }

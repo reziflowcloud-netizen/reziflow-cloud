@@ -4,12 +4,13 @@ import bcrypt from 'bcryptjs'
 import { signToken } from '@/lib/auth'
 import { cookies } from 'next/headers'
 import { isSameOriginRequest } from '@/lib/requestSecurity'
+import { normalizeEmail } from '@/lib/identity'
 
 export async function POST(request: NextRequest) {
   if (!isSameOriginRequest(request)) return NextResponse.json({ error: 'Cross-origin request blocked' }, { status: 403 })
   try {
     const { email, password } = await request.json()
-    const normalizedEmail = String(email || '').trim().toLowerCase()
+    const normalizedEmail = normalizeEmail(email)
 
     const user = await prisma.user.findUnique({ where: { email: normalizedEmail } })
     let organization = null

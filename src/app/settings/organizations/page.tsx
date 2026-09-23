@@ -122,6 +122,8 @@ const orgText = {
     adminNamePlaceholder: 'Имя администратора',
     adminEmailPlaceholder: 'Email для входа',
     adminPasswordPlaceholder: 'Новый пароль, если нужно',
+    passwordResetTarget: 'Цель сброса пароля',
+    passwordUpdated: 'Пароль обновлён для: {name} (slug: {slug})\nUser ID: {id}',
     adminMissing: 'Администратор не задан',
     save: 'Сохранить',
     edit: 'Редактировать',
@@ -174,6 +176,8 @@ const orgText = {
     adminNamePlaceholder: 'Ім’я адміністратора',
     adminEmailPlaceholder: 'Email для входу',
     adminPasswordPlaceholder: 'Новий пароль, якщо потрібно',
+    passwordResetTarget: 'Ціль скидання пароля',
+    passwordUpdated: 'Пароль оновлено для: {name} (slug: {slug})\nUser ID: {id}',
     adminMissing: 'Адміністратора не задано',
     save: 'Зберегти',
     edit: 'Редагувати',
@@ -226,6 +230,8 @@ const orgText = {
     adminNamePlaceholder: 'Imię administratora',
     adminEmailPlaceholder: 'Email do logowania',
     adminPasswordPlaceholder: 'Nowe hasło, jeśli potrzebne',
+    passwordResetTarget: 'Cel resetowania hasła',
+    passwordUpdated: 'Hasło zaktualizowano dla: {name} (slug: {slug})\nUser ID: {id}',
     adminMissing: 'Administrator nie ustawiony',
     save: 'Zapisz',
     edit: 'Edytuj',
@@ -384,8 +390,15 @@ export default function OrganizationsPage() {
     setError('')
     setSuccess('')
     setSaving(true)
+    const targetOrganization = organizations.find(org => org.id === id)
+    const targetAdmin = targetOrganization?.users?.[0]
     const payload = canManageAll
-      ? { ...editForm, billingLimits: billingLimitPayload(editForm.billingLimits) }
+      ? {
+          ...editForm,
+          billingLimits: billingLimitPayload(editForm.billingLimits),
+          organizationSlug: targetOrganization?.slug,
+          adminUserId: targetAdmin?.id,
+        }
       : editForm
     const res = await fetch(`/api/organizations/${id}`, {
       method: 'PATCH',
@@ -400,7 +413,12 @@ export default function OrganizationsPage() {
     }
     setOrganizations(prev => prev.map(org => org.id === id ? data : org))
     setEditingId(null)
-    setSuccess(text.updated)
+    setSuccess(data.passwordReset
+      ? text.passwordUpdated
+          .replace('{name}', data.passwordReset.organizationName)
+          .replace('{slug}', data.passwordReset.organizationSlug)
+          .replace('{id}', String(data.passwordReset.userId))
+      : text.updated)
   }
 
   async function deleteOrganization(org: OrganizationItem) {
@@ -452,7 +470,7 @@ export default function OrganizationsPage() {
           </div>
         )}
         {success && (
-          <div style={{ background: '#dcfce7', border: '1px solid #86efac', borderRadius: 8, padding: '12px 16px', marginBottom: 16, color: '#14532d', fontSize: 13 }}>
+          <div style={{ background: '#dcfce7', border: '1px solid #86efac', borderRadius: 8, padding: '12px 16px', marginBottom: 16, color: '#14532d', fontSize: 13, whiteSpace: 'pre-line' }}>
             {success}
           </div>
         )}
@@ -563,6 +581,13 @@ export default function OrganizationsPage() {
                           <input className="input" value={editForm.adminName} onChange={e => setEditForm(p => ({ ...p, adminName: e.target.value }))} placeholder={text.adminNamePlaceholder} />
                           <input className="input" type="email" value={editForm.adminEmail} onChange={e => setEditForm(p => ({ ...p, adminEmail: e.target.value }))} placeholder={text.adminEmailPlaceholder} />
                           <input className="input" type="password" value={editForm.adminPassword} onChange={e => setEditForm(p => ({ ...p, adminPassword: e.target.value }))} placeholder={text.adminPasswordPlaceholder} />
+                          <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, background: 'var(--surface-muted, #f8fafc)', fontSize: 12, lineHeight: 1.5 }}>
+                            <div style={{ fontWeight: 700 }}>{text.passwordResetTarget}</div>
+                            <div>{org.name} (slug: {org.slug})</div>
+                            <div>{primaryAdmin?.email || text.adminMissing}</div>
+                            <div>User ID: {primaryAdmin?.id ?? '—'}</div>
+                            <div>Organization ID: {org.id}</div>
+                          </div>
                         </div>
                       ) : (
                         <>

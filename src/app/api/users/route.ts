@@ -5,6 +5,7 @@ import { getOrganizationId, getUser } from '@/lib/auth'
 import { assertBillingLimit, billingLimitResponsePayload, isBillingLimitError } from '@/lib/billing'
 import { isConferenceDemoSession } from '@/lib/conferenceDemo'
 import bcrypt from 'bcryptjs'
+import { normalizeEmail } from '@/lib/identity'
 
 function canManageUsers(user: any) {
   return user?.role === 'admin' || user?.role === 'owner'
@@ -42,7 +43,8 @@ export async function POST(req: NextRequest) {
     if (!body.email || !body.password || !body.name) {
       return NextResponse.json({ error: 'Имя, email и пароль обязательны' }, { status: 400 })
     }
-    const existing = await prisma.user.findUnique({ where: { email: body.email } })
+    const email = normalizeEmail(body.email)
+    const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) return NextResponse.json({ error: 'Пользователь с таким email уже существует' }, { status: 400 })
     await assertBillingLimit(organizationId, 'users')
     const hashed = await bcrypt.hash(body.password, 10)
@@ -50,7 +52,7 @@ export async function POST(req: NextRequest) {
     const newUser = await prisma.user.create({
       data: {
         name: body.name,
-        email: body.email,
+        email,
         password: hashed,
         role,
         restrictedAccess: role === 'employee' && body.restrictedAccess === true,

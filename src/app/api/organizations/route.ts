@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { attachOrganizationsUsageStats, isSystemAdmin, organizationInclude, provisionOrganization } from '@/lib/organizationProvisioning'
+import { normalizeEmail } from '@/lib/identity'
 
 export async function GET() {
   const user = await getUser()
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const name = String(body.name || '').trim()
     const adminName = String(body.adminName || '').trim()
-    const adminEmail = String(body.adminEmail || '').trim().toLowerCase()
+    const adminEmail = normalizeEmail(body.adminEmail)
     const adminPassword = String(body.adminPassword || '')
     const plan = String(body.plan || 'manual')
     const status = String(body.status || 'active')

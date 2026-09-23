@@ -5,6 +5,7 @@ import { getOrganizationId, getUser, signToken } from '@/lib/auth'
 import bcrypt from 'bcryptjs'
 import { deleteCloudinaryResource } from '@/lib/cloudinary'
 import { cookies } from 'next/headers'
+import { normalizeEmail } from '@/lib/identity'
 
 function canManageUsers(user: any) {
   return user?.role === 'admin' || user?.role === 'owner'
@@ -51,7 +52,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const data: any = {}
     if (body.name) data.name = body.name
     if (canManageUsers(user)) {
-      if (body.email) data.email = body.email
+      if (body.email) data.email = normalizeEmail(body.email)
       if (body.role) data.role = body.role
       if (body.restrictedAccess !== undefined) {
         const role = body.role || existing.role

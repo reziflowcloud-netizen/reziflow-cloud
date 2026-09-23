@@ -12,6 +12,7 @@ import {
 import { recordConferenceEvent } from '@/lib/conferenceEvents'
 import { normalizeConferenceLanguage } from '@/lib/conferenceTrackingCore'
 import { isSameOriginRequest } from '@/lib/requestSecurity'
+import { normalizeEmail } from '@/lib/identity'
 
 const ALLOWED_PLANS = new Set(['free', 'starter', 'pro', 'agency'])
 
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const name = String(body.companyName || body.name || '').trim()
     const adminName = String(body.adminName || '').trim()
-    const adminEmail = String(body.adminEmail || body.email || '').trim().toLowerCase()
+    const adminEmail = normalizeEmail(body.adminEmail || body.email)
     const adminPassword = String(body.password || body.adminPassword || '')
     const plan = ALLOWED_PLANS.has(String(body.plan)) ? String(body.plan) : 'free'
     const isFreePlan = plan === 'free'

@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs'
 import { isValidEmail } from '@/lib/apiErrors'
 import { activeCasesWhere } from '@/lib/billing'
 import { prisma } from '@/lib/prisma'
+import { normalizeEmail } from '@/lib/identity'
 
 export const DEFAULT_TRIAL_DAYS = Number(process.env.TRIAL_DAYS || 30)
 
@@ -80,7 +81,7 @@ const DEFAULT_SYSTEM_ADMIN_EMAILS = [
 function normalizeEmailList(value?: string | null) {
   return String(value || '')
     .split(/[\s,;]+/)
-    .map(email => email.trim().toLowerCase())
+    .map(normalizeEmail)
     .filter(Boolean)
 }
 
@@ -93,7 +94,7 @@ export function getSystemAdminEmails() {
 }
 
 export function isSystemAdmin(user: any) {
-  const email = String(user?.email || '').toLowerCase()
+  const email = normalizeEmail(user?.email)
   return user?.role === 'owner' || getSystemAdminEmails().includes(email)
 }
 
@@ -205,7 +206,7 @@ export async function provisionOrganization(input: {
 }) {
   const name = String(input.name || '').trim()
   const adminName = String(input.adminName || '').trim()
-  const adminEmail = String(input.adminEmail || '').trim().toLowerCase()
+  const adminEmail = normalizeEmail(input.adminEmail)
   const adminPassword = String(input.adminPassword || '')
   const plan = String(input.plan || 'starter')
   const status = String(input.status || 'trial')
