@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { DEFAULT_LEAD_STATUSES, LEAD_TEMPERATURES, POLISH_VOIVODESHIPS, leadDisplayName, type LeadSourceOption } from '@/lib/leads'
 import { leadSourceOptionLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
 import type { ContactPhoneInput } from '@/lib/phones'
+import LeadContactSubtitle from '@/components/mobile/LeadContactSubtitle'
 import styles from './LeadDetailMobile.module.css'
 
 type MobileTab = 'overview' | 'contacts' | 'dialog' | 'qualification' | 'reminders'
@@ -206,10 +207,14 @@ export default function LeadDetailMobile(props: LeadDetailMobileProps) {
         </button>
         <div className={styles.identity}>
           <h1 title={leadDisplayName(props.lead)}>{leadDisplayName(props.lead)}</h1>
-          <div title={props.form.phone || props.lead.phone || props.lead.email || props.lead.instagram || lt('contact_not_set')}>
-            <MobileIcon name="phone" className={styles.identityIcon} />
-            <span>{props.form.phone || props.lead.phone || props.lead.email || props.lead.instagram || lt('contact_not_set')}</span>
-          </div>
+          <LeadContactSubtitle
+            className={styles.identitySubtitle}
+            lead={{ ...props.lead, ...props.form }}
+            phone={props.form.phone || props.lead.phone}
+            displayName={leadDisplayName(props.lead)}
+            sourceLabel={props.sourceLabel}
+            fallback={lt('contact_not_set')}
+          />
         </div>
         <div className={styles.overflowWrap} ref={overflowRef}>
           <button type="button" className={styles.circleButton} aria-label={copy.more} aria-expanded={overflowOpen} onClick={() => setOverflowOpen(value => !value)}>

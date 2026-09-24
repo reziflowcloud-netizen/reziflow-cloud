@@ -9,6 +9,7 @@ import { leadStatusLabel, leadTemperatureLabel } from '@/lib/leadI18n'
 import type { Lang } from '@/lib/translations'
 import styles from './LeadsMobile.module.css'
 import StaffScopeControl from '@/components/StaffScopeControl'
+import LeadContactSubtitle from '@/components/mobile/LeadContactSubtitle'
 import type { StaffScopeValue } from '@/lib/staffScope'
 
 type QuickFilter = 'all' | 'today' | 'overdue' | 'unassigned' | 'no_next_contact'
@@ -82,14 +83,6 @@ function nextContactPresentation(value: string | undefined, locale: string, copy
   if (dateKey(date) === dateKey(now)) return { label: `${copy.today} · ${time}`, tone: 'today' as const }
   if (days === 1) return { label: `${copy.tomorrow} · ${time}`, tone: 'today' as const }
   return { label: date.toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), tone: 'neutral' as const }
-}
-
-function contactLine(lead: any, fallback: string) {
-  if (lead.phone) return `☎ ${lead.phone}`
-  if (lead.instagram) return `◎ ${lead.instagram.startsWith('@') ? lead.instagram : `@${lead.instagram}`}`
-  if (lead.email) return `✉ ${lead.email}`
-  if (lead.facebook) return `f ${lead.facebook}`
-  return fallback
 }
 
 export type LeadsMobileProps = {
@@ -350,7 +343,13 @@ export default function LeadsMobile(props: LeadsMobileProps) {
                   <div className={styles.avatar}>{leadDisplayName(lead).slice(0, 2).toUpperCase()}</div>
                   <div className={styles.person}>
                     <div className={styles.name}>{leadDisplayName(lead)}</div>
-                    <div className={styles.contact}>{contactLine(lead, copy.noValue)}</div>
+                    <LeadContactSubtitle
+                      className={styles.contact}
+                      lead={lead}
+                      displayName={leadDisplayName(lead)}
+                      sourceLabel={props.sourceLabel}
+                      fallback={copy.noValue}
+                    />
                   </div>
                   <span className={styles.status} style={{ ...statusStyle, background: colors.bg, color: colors.color }}>{leadStatusLabel(props.lang, statusName)}</span>
                   {selectionMode ? (

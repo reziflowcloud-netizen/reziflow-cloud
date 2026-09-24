@@ -1,0 +1,49 @@
+.root {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  color: var(--muted);
+}
+
+.iconWrap {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  margin-right: 6px;
+}
+
+.icon {
+  display: block;
+  width: 15px;
+  height: 15px;
+}
+
+.phone {
+  color: color-mix(in srgb, var(--text) 58%, var(--muted));
+}
+
+.facebook {
+  border-radius: 50%;
+  background: #1877f2;
+  color: #fff;
+}
+
+.instagram {
+  border-radius: 5px;
+  background: linear-gradient(135deg, #7c3aed 5%, #db2777 52%, #f59e0b 100%);
+  color: #fff;
+}
+
+.email,
+.fallback {
+  color: var(--muted);
+}
+
+.text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

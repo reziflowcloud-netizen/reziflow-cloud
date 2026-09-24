@@ -45,7 +45,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="login-page">
+    <div className="login-page login-auth-page">
       <section className="login-intro" aria-label={copy.introAria}>
         <p className="login-kicker">{copy.kicker}</p>
         <h1>{copy.title}</h1>

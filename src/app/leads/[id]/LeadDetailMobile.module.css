@@ -45,24 +45,11 @@
     white-space: nowrap;
   }
 
-  .identity > div {
-    display: flex;
-    align-items: center;
-    min-width: 0;
+  .identitySubtitle {
     margin-top: 5px;
-    color: var(--muted);
     font-size: 14px;
     line-height: 1.2;
   }
-
-  .identity > div span {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .identityIcon { flex: 0 0 auto; width: 19px; height: 19px; margin-right: 6px; color: var(--brand); }
   .overflowWrap { position: relative; }
   .overflowMenu {
     position: absolute;
