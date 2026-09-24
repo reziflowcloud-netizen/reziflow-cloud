@@ -1,6 +1,6 @@
 # Project State
 
-Last updated against the production repository state by Codex: 2026-09-23.
+Last updated against the production repository state by Codex: 2026-09-24.
 
 ## Project
 
@@ -22,19 +22,20 @@ https://legalhubcrm.com
 
 ## Current Production State
 
-The approved Mobile UX and Staff Routing V2 rollouts are in production.
+The approved Mobile UX, Staff Routing V2, and Forgot Password rollouts are in
+production.
 
 ```text
 branch: main
-production application commit: cb7d54ee055f2c7206ec2476b7ad8e6cb6c2c84c
-production deployment: Hpv2rqh3uec16Qa27rvtDZDstyt2
+production application commit: af4ed41df056676712917091e75fbd0602d8eef4
+production deployment: dpl_FUvk2hDgX8nqaUJ6nxaCcPQsWyVj
 deployment status at rollout verification: READY
 ```
 
-At the start of this documentation-only update, local `main` and `origin/main`
-matched the production application commit. This update changes only
-`PROJECT_STATE.md` and `HANDOFF.md`; it does not redeploy the application or
-change the production database.
+At the start of this documentation-only update, `origin/main` matched the
+production application commit. The follow-up commit changes only
+`PROJECT_STATE.md` and `HANDOFF.md`; it does not change application code or the
+production database.
 
 ## Architecture
 
@@ -59,6 +60,48 @@ npm run build
 Migration deployment uses a separate guarded workflow. A routine build must
 not invoke migration, seed, or backfill commands. Verify database environment
 isolation before any database-aware local QA.
+
+## Forgot Password — Production Complete
+
+The production rollout is complete and accepted:
+
+```text
+production main/application commit: af4ed41df056676712917091e75fbd0602d8eef4
+production deployment: dpl_FUvk2hDgX8nqaUJ6nxaCcPQsWyVj
+migration: 20260923221500_secure_password_reset
+migration result: applied successfully
+production migrations: 47 applied, 0 pending, 0 failed
+```
+
+Implemented and deployed:
+
+- Forgot Password and Reset Password pages.
+- Resend email delivery.
+- Cryptographically secure reset tokens; only the token hash is stored in the
+  database.
+- 30-minute expiry, single-use tokens, and previous-token invalidation.
+- Account-enumeration protection and persistent rate limiting.
+- `User.sessionVersion` and session invalidation after self-service or admin
+  password changes.
+- Password-reset audit events and shared email normalization.
+- RU / UA / PL recovery flows.
+
+Production E2E verification:
+
+- Real email delivered: PASS.
+- Production reset link: PASS.
+- Password reset: PASS.
+- Old password rejected: PASS.
+- New password login: PASS.
+- Token reuse rejected: PASS.
+- Session invalidation: PASS.
+- Unknown-email protection: PASS.
+- Rate limiting: PASS.
+
+Final QA: security regression 79/79 PASS; tenant isolation PASS; mobile
+390/414/430 PASS; desktop 1440 PASS; runtime errors 0; browser errors 0;
+HTTP 5xx 0. A fresh pre-migration `public`-schema backup was created, verified,
+and retained outside Git.
 
 ## Staff Routing V2 — Production Complete (Development 10)
 
@@ -225,8 +268,9 @@ employeeId   -> Employee.id  (visible business responsibility)
 
 ## Next Development Approach
 
-The large Mobile UX redesign and Development 10 (Staff Routing V2) are
-complete. Do not continue either as an open-ended programme. Scope any future
-finding as an independent maintenance/refinement task. Preserve the accepted
-navigation, responsive structure, routing semantics, business logic, tenant
+The large Mobile UX redesign, Development 10 (Staff Routing V2), and Forgot
+Password rollout are complete. Development 09 remains the Maintenance / Small
+Fixes development thread. Scope each future finding as an independent
+maintenance/refinement task. Preserve the accepted navigation, responsive
+structure, routing semantics, authentication behavior, business logic, tenant
 isolation, and permissions unless a new task explicitly authorizes a change.

@@ -1,6 +1,6 @@
 # LegalHub CRM Handoff
 
-Prepared from the verified production state on 2026-09-23.
+Prepared from the verified production state on 2026-09-24.
 
 ## Start Here
 
@@ -26,15 +26,49 @@ Before editing:
 ```text
 URL: https://legalhubcrm.com
 branch: main
-production application commit: cb7d54ee055f2c7206ec2476b7ad8e6cb6c2c84c
-deployment: Hpv2rqh3uec16Qa27rvtDZDstyt2
+production application commit: af4ed41df056676712917091e75fbd0602d8eef4
+deployment: dpl_FUvk2hDgX8nqaUJ6nxaCcPQsWyVj
 status after rollout: READY
 ```
 
-Before this documentation update, local `main` matched `origin/main` at the
-production application commit. This handoff task changes only
-`PROJECT_STATE.md` and `HANDOFF.md`; it does not redeploy application code or
-change the production database.
+Before this documentation update, `origin/main` matched the production
+application commit. This handoff task changes only `PROJECT_STATE.md` and
+`HANDOFF.md`; it does not change application code or the production database.
+
+## Forgot Password — Production Complete
+
+Accepted production state:
+
+```text
+production main/application commit: af4ed41df056676712917091e75fbd0602d8eef4
+production deployment: dpl_FUvk2hDgX8nqaUJ6nxaCcPQsWyVj
+migration: 20260923221500_secure_password_reset
+migration result: applied successfully
+production migrations: 47 applied, 0 pending, 0 failed
+```
+
+Implemented and deployed:
+
+- Forgot Password and Reset Password pages.
+- Resend email delivery.
+- Cryptographically secure reset tokens with only token hashes stored in the
+  database.
+- 30-minute expiry, single-use enforcement, and previous-token invalidation.
+- Account-enumeration protection and persistent rate limiting.
+- `User.sessionVersion`, including session invalidation after self-service and
+  admin password changes.
+- Password-reset audit events and shared email normalization.
+- RU / UA / PL recovery flows.
+
+Production E2E verification passed for real email delivery, the production
+reset link, first reset completion, rejection of the old password, login with
+the new password, rejection of token reuse, session invalidation,
+unknown-email protection, and rate limiting.
+
+Final QA: security regression 79/79 PASS; tenant isolation PASS; mobile
+390/414/430 PASS; desktop 1440 PASS; runtime errors 0; browser errors 0;
+HTTP 5xx 0. The fresh verified pre-migration `public`-schema backup is retained
+outside Git.
 
 ## Staff Routing V2 — Complete (Development 10)
 
@@ -168,11 +202,12 @@ Never run the following merely to inspect the project:
 
 ## Next Work
 
-The Mobile UX programme and Development 10 are closed. New findings should be
-opened as small, independent maintenance/refinement tasks with a clear screen,
-breakpoint, expected behavior, permissions impact, regression scope, and
-deployment gate. Keep production unchanged until the user explicitly approves
-a deployment.
+The Mobile UX programme, Development 10, and Forgot Password rollout are
+closed. Development 09 remains the Maintenance / Small Fixes development
+thread. New findings should be opened as small, independent
+maintenance/refinement tasks with a clear screen, breakpoint, expected
+behavior, permissions impact, regression scope, and deployment gate. Keep
+production unchanged until the user explicitly approves a deployment.
 
 For every follow-up:
 
