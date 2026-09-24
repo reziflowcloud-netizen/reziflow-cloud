@@ -1,3 +1,37 @@
+.dashboardPage,
+.dashboardBody {
+  min-width: 0;
+}
+
+.statsGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.statsGrid .statLink,
+.statsGrid :global(.stat-card),
+.statsGrid :global(.stat-card) > div:last-child {
+  min-width: 0;
+}
+
+.statsGrid :global(.stat-label) {
+  overflow-wrap: anywhere;
+}
+
+.statsGrid :global(.stat-value) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboardPage :global(.dashboard-chart-grid) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dashboardPage :global(.dashboard-chart-grid) > *,
+.eventsCard {
+  min-width: 0;
+}
+
 .dashboardPage :global(.dash-stat-link) {
   display: block;
   text-decoration: none;
@@ -83,6 +117,16 @@
 
 .mobileOnly {
   display: none;
+}
+
+@media (min-width: 769px) and (max-width: 900px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboardPage :global(.dashboard-chart-grid) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 768px) {

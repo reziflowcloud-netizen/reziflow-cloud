@@ -216,8 +216,18 @@ export default function UpcomingEvents() {
     <>
       <style>{`
         .upcoming-item {
+          min-width: 0;
+          max-width: 100%;
           background: var(--bg);
           transition: background 0.15s;
+        }
+        .upcoming-desktop-list,
+        .upcoming-title,
+        .upcoming-meta {
+          min-width: 0;
+        }
+        .upcoming-meta {
+          flex-shrink: 1 !important;
         }
         .upcoming-item:hover {
           background: var(--border) !important;

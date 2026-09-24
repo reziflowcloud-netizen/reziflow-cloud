@@ -19,7 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           userAvatarUrl={(user as any).avatarUrl as string}
           organizationName={user.organizationName as string}
         />
-        <div className="main-content" style={{ flex: 1 }}>
+        <div className="main-content" style={{ flex: 1, minWidth: 0 }}>
           {isConferenceDemoSession(user) && <ConferenceDemoBar />}
           {children}
         </div>

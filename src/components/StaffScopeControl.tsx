@@ -19,6 +19,7 @@ export default function StaffScopeControl({
   restricted = false,
   lang,
   compact = false,
+  collapsedValueLabel = false,
 }: {
   value: StaffScopeValue
   onChange: (value: StaffScopeValue) => void
@@ -26,6 +27,7 @@ export default function StaffScopeControl({
   restricted?: boolean
   lang: Lang
   compact?: boolean
+  collapsedValueLabel?: boolean
 }) {
   const copy = COPY[lang] || COPY.ru
   const [mineAvailable, setMineAvailable] = useState(restricted)
@@ -55,6 +57,61 @@ export default function StaffScopeControl({
   }, [controlVisible, mineAvailable, onChange, restricted, value])
 
   if (controlVisible !== true) return null
+
+  const effectiveValue = restricted ? 'mine' : value
+  const selectedEmployee = effectiveValue.startsWith('employee:')
+    ? employees.find(employee => `employee:${employee.id}` === effectiveValue)
+    : null
+  const collapsedText = effectiveValue === 'all'
+    ? copy.label
+    : effectiveValue === 'mine'
+      ? copy.mine
+      : selectedEmployee?.name || copy.label
+
+  if (collapsedValueLabel) {
+    return (
+      <div
+        data-staff-scope-control="collapsed"
+        data-scope-value={effectiveValue}
+        title={!restricted && !mineAvailable ? copy.link : collapsedText}
+        style={{
+          position: 'relative',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 7,
+          minWidth: 0,
+          width: '100%',
+          minHeight: 36,
+          padding: '5px 28px 5px 9px',
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+          background: 'var(--input-bg)',
+          color: 'var(--text)',
+          fontSize: 12,
+          fontWeight: 600,
+        }}
+      >
+        <span aria-hidden="true" style={{ flex: '0 0 auto' }}>👤</span>
+        <span className="staff-scope-value" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {collapsedText}
+        </span>
+        <span aria-hidden="true" style={{ position: 'absolute', right: 9, color: 'var(--muted)', pointerEvents: 'none' }}>▾</span>
+        <select
+          aria-label={copy.label}
+          value={effectiveValue}
+          disabled={restricted}
+          onChange={event => onChange(event.target.value as StaffScopeValue)}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: restricted ? 'default' : 'pointer' }}
+        >
+          {!restricted && <option value="all">{copy.all}</option>}
+          <option value="mine" disabled={!restricted && !mineAvailable}>{copy.mine}</option>
+          {!restricted && employees.map(employee => (
+            <option key={employee.id} value={`employee:${employee.id}`}>{employee.name}</option>
+          ))}
+        </select>
+      </div>
+    )
+  }
 
   return (
     <label

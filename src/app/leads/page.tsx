@@ -1363,7 +1363,61 @@ export default function LeadsPage() {
 
         @media (min-width: 769px) {
           .leads-page .lead-filter-grid {
-            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)) !important;
+            grid-template-columns: minmax(150px, 1.35fr) repeat(3, minmax(0, 1fr)) !important;
+            align-items: stretch;
+          }
+
+          .leads-page .lead-filter-search,
+          .leads-page .lead-filter-status,
+          .leads-page .lead-filter-source,
+          .leads-page .lead-filter-interest,
+          .leads-page .lead-staff-scope-control,
+          .leads-page .lead-columns-control,
+          .leads-page .lead-view-toggle {
+            min-width: 0;
+          }
+
+          .leads-page .lead-filter-search { grid-column: 1; grid-row: 1; }
+          .leads-page .lead-filter-status { grid-column: 2; grid-row: 1; }
+          .leads-page .lead-filter-source { grid-column: 3; grid-row: 1; }
+          .leads-page .lead-filter-interest { grid-column: 4; grid-row: 1; }
+          .leads-page .lead-staff-scope-control { grid-column: 2; grid-row: 2; }
+          .leads-page .lead-columns-control { grid-column: 3; grid-row: 2; }
+          .leads-page .lead-view-toggle { grid-column: 4; grid-row: 2; }
+
+          .leads-page .lead-filter-grid input,
+          .leads-page .lead-filter-grid select,
+          .leads-page .lead-columns-control button:first-child,
+          .leads-page .lead-view-toggle {
+            min-width: 0;
+            width: 100%;
+          }
+
+          .leads-page .lead-columns-control button:first-child,
+          .leads-page .lead-view-toggle {
+            justify-content: center;
+          }
+        }
+
+        @media (min-width: 1260px) {
+          .leads-page .lead-filter-grid {
+            grid-template-columns: minmax(170px, 1.45fr) minmax(105px, .85fr) minmax(105px, .85fr) minmax(125px, 1fr) minmax(136px, 1.05fr) max-content max-content !important;
+          }
+
+          .leads-page .lead-filter-search,
+          .leads-page .lead-filter-status,
+          .leads-page .lead-filter-source,
+          .leads-page .lead-filter-interest,
+          .leads-page .lead-staff-scope-control,
+          .leads-page .lead-columns-control,
+          .leads-page .lead-view-toggle {
+            grid-column: auto;
+            grid-row: auto;
+          }
+
+          .leads-page .lead-columns-control button:first-child,
+          .leads-page .lead-view-toggle {
+            width: auto;
           }
         }
 
@@ -1778,21 +1832,23 @@ export default function LeadsPage() {
         )}
 
         <div className="lead-filter-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) 160px 160px 180px minmax(210px, auto) auto auto', gap: 10, marginBottom: 10 }}>
-          <input className="input" placeholder={`🔍 ${lt('search_placeholder')}`} value={search} onChange={e => setSearch(e.target.value)} />
-          <select className="select" value={status} onChange={e => setStatus(e.target.value)}>
+          <input className="input lead-filter-search" placeholder={`🔍 ${lt('search_placeholder')}`} value={search} onChange={e => setSearch(e.target.value)} />
+          <select className="select lead-filter-status" value={status} onChange={e => setStatus(e.target.value)}>
             <option value="">{lt('all_statuses')}</option>
             {statusNames.map(item => <option key={item} value={item}>{leadStatusLabel(lang, item)}</option>)}
           </select>
-          <select className="select" value={source} onChange={e => setSource(e.target.value)}>
+          <select className="select lead-filter-source" value={source} onChange={e => setSource(e.target.value)}>
             <option value="">{lt('all_sources')}</option>
             {leadSources.map(item => <option key={item.value} value={item.value}>{leadSourceOptionLabel(lang, item)}</option>)}
           </select>
-          <select className="select" value={interest} onChange={e => setInterest(e.target.value)}>
+          <select className="select lead-filter-interest" value={interest} onChange={e => setInterest(e.target.value)}>
             <option value="">{lt('all_interests')}</option>
             {leadInterests.map(item => <option key={item} value={item}>{item}</option>)}
           </select>
-          <StaffScopeControl value={staffScope} onChange={setStaffScope} employees={employees} restricted={restrictedAccess} lang={lang} />
-          <div ref={colMenuRef} style={{ position: 'relative' }}>
+          <div className="lead-staff-scope-control">
+            <StaffScopeControl value={staffScope} onChange={setStaffScope} employees={employees} restricted={restrictedAccess} lang={lang} collapsedValueLabel />
+          </div>
+          <div ref={colMenuRef} className="lead-columns-control" style={{ position: 'relative' }}>
             <button
               type="button"
               onClick={() => setShowColMenu(current => !current)}
