@@ -246,6 +246,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       baseData.personalAppearTime = personalAppearTime
     }
     if (has('personalAppearLocation')) baseData.personalAppearLocation = nullableText('personalAppearLocation')
+    if (has('personalAppearanceNote')) baseData.personalAppearanceNote = nullableText('personalAppearanceNote')
     if (has('cardPickupDate')) baseData.cardPickupDate = nullableDate('cardPickupDate')
     if (has('cardPickupTime')) {
       const cardPickupTime = nullableText('cardPickupTime')

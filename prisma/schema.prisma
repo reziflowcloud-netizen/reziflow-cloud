@@ -541,6 +541,7 @@ model Case {
   personalAppearDate    DateTime?
   personalAppearTime    String?
   personalAppearLocation String?
+  personalAppearanceNote String?
   cardPickupDate        DateTime?
   cardPickupTime        String?
   cardPickupLocation    String?

@@ -156,6 +156,7 @@ export default function CaseDetailPage() {
         personalAppearDate: data.personalAppearDate?.slice(0, 10) || '',
         personalAppearTime: data.personalAppearTime || '',
         personalAppearLocation: data.personalAppearLocation || '',
+        personalAppearanceNote: data.personalAppearanceNote || '',
         cardPickupDate: data.cardPickupDate?.slice(0, 10) || '',
         cardPickupTime: data.cardPickupTime || '',
         cardPickupLocation: data.cardPickupLocation || '',
@@ -1585,6 +1586,16 @@ export default function CaseDetailPage() {
                         <VoivodeshipOfficeOptions />
                       </select>
                     </div>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 12 }}>
+                    <label className="label">{t('personal_visit_note')}</label>
+                    <input
+                      className="input"
+                      value={form.personalAppearanceNote || ''}
+                      onChange={e => set('personalAppearanceNote', e.target.value)}
+                      placeholder={t('personal_visit_note_placeholder')}
+                    />
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12, marginBottom: 16 }}>
