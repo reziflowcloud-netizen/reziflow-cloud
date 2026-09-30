@@ -121,9 +121,14 @@ const orgText = {
     empty: 'Фирм пока нет',
     adminNamePlaceholder: 'Имя администратора',
     adminEmailPlaceholder: 'Email для входа',
-    adminPasswordPlaceholder: 'Новый пароль, если нужно',
     passwordResetTarget: 'Цель сброса пароля',
     passwordUpdated: 'Пароль обновлён для: {name} (slug: {slug})\nUser ID: {id}',
+    changeAdminPassword: 'Изменить пароль администратора',
+    newAdminPassword: 'Новый пароль',
+    confirmAdminPassword: 'Подтвердите новый пароль',
+    passwordTooShort: 'Пароль должен быть не короче 6 символов',
+    passwordMismatch: 'Пароли не совпадают',
+    passwordResetFailed: 'Не удалось изменить пароль администратора',
     adminMissing: 'Администратор не задан',
     save: 'Сохранить',
     edit: 'Редактировать',
@@ -175,9 +180,14 @@ const orgText = {
     empty: 'Фірм поки немає',
     adminNamePlaceholder: 'Ім’я адміністратора',
     adminEmailPlaceholder: 'Email для входу',
-    adminPasswordPlaceholder: 'Новий пароль, якщо потрібно',
     passwordResetTarget: 'Ціль скидання пароля',
     passwordUpdated: 'Пароль оновлено для: {name} (slug: {slug})\nUser ID: {id}',
+    changeAdminPassword: 'Змінити пароль адміністратора',
+    newAdminPassword: 'Новий пароль',
+    confirmAdminPassword: 'Підтвердьте новий пароль',
+    passwordTooShort: 'Пароль має містити щонайменше 6 символів',
+    passwordMismatch: 'Паролі не збігаються',
+    passwordResetFailed: 'Не вдалося змінити пароль адміністратора',
     adminMissing: 'Адміністратора не задано',
     save: 'Зберегти',
     edit: 'Редагувати',
@@ -229,9 +239,14 @@ const orgText = {
     empty: 'Nie ma jeszcze firm',
     adminNamePlaceholder: 'Imię administratora',
     adminEmailPlaceholder: 'Email do logowania',
-    adminPasswordPlaceholder: 'Nowe hasło, jeśli potrzebne',
     passwordResetTarget: 'Cel resetowania hasła',
     passwordUpdated: 'Hasło zaktualizowano dla: {name} (slug: {slug})\nUser ID: {id}',
+    changeAdminPassword: 'Zmień hasło administratora',
+    newAdminPassword: 'Nowe hasło',
+    confirmAdminPassword: 'Potwierdź nowe hasło',
+    passwordTooShort: 'Hasło musi mieć co najmniej 6 znaków',
+    passwordMismatch: 'Hasła nie są zgodne',
+    passwordResetFailed: 'Nie udało się zmienić hasła administratora',
     adminMissing: 'Administrator nie ustawiony',
     save: 'Zapisz',
     edit: 'Edytuj',
@@ -286,6 +301,9 @@ export default function OrganizationsPage() {
   const [showNew, setShowNew] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [passwordResetTarget, setPasswordResetTarget] = useState<OrganizationItem | null>(null)
+  const [passwordResetting, setPasswordResetting] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' })
   const [canManageAll, setCanManageAll] = useState(false)
   const [form, setForm] = useState({
     name: '',
@@ -304,7 +322,6 @@ export default function OrganizationsPage() {
     trialEndsAt: '',
     adminName: '',
     adminEmail: '',
-    adminPassword: '',
     billingLimits: emptyBillingLimitForm(),
   })
 
@@ -370,7 +387,6 @@ export default function OrganizationsPage() {
       trialEndsAt: org.trialEndsAt ? org.trialEndsAt.slice(0, 10) : '',
       adminName: primaryAdmin?.name || '',
       adminEmail: primaryAdmin?.email || '',
-      adminPassword: '',
       billingLimits: billingLimitsFromSettings(org.settings),
     })
   }
@@ -390,16 +406,17 @@ export default function OrganizationsPage() {
     setError('')
     setSuccess('')
     setSaving(true)
-    const targetOrganization = organizations.find(org => org.id === id)
-    const targetAdmin = targetOrganization?.users?.[0]
-    const payload = canManageAll
-      ? {
-          ...editForm,
-          billingLimits: billingLimitPayload(editForm.billingLimits),
-          organizationSlug: targetOrganization?.slug,
-          adminUserId: targetAdmin?.id,
-        }
-      : editForm
+    const payload = {
+      name: editForm.name,
+      adminName: editForm.adminName,
+      adminEmail: editForm.adminEmail,
+      ...(canManageAll ? {
+        plan: editForm.plan,
+        status: editForm.status,
+        trialEndsAt: editForm.trialEndsAt,
+        billingLimits: billingLimitPayload(editForm.billingLimits),
+      } : {}),
+    }
     const res = await fetch(`/api/organizations/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -413,12 +430,65 @@ export default function OrganizationsPage() {
     }
     setOrganizations(prev => prev.map(org => org.id === id ? data : org))
     setEditingId(null)
-    setSuccess(data.passwordReset
-      ? text.passwordUpdated
-          .replace('{name}', data.passwordReset.organizationName)
-          .replace('{slug}', data.passwordReset.organizationSlug)
-          .replace('{id}', String(data.passwordReset.userId))
-      : text.updated)
+    setSuccess(text.updated)
+  }
+
+  function openPasswordReset(org: OrganizationItem) {
+    if (!org.users?.[0]) {
+      setError(text.adminMissing)
+      return
+    }
+    setError('')
+    setSuccess('')
+    setPasswordForm({ newPassword: '', confirmPassword: '' })
+    setPasswordResetTarget(org)
+  }
+
+  function closePasswordReset() {
+    if (passwordResetting) return
+    setPasswordResetTarget(null)
+    setPasswordForm({ newPassword: '', confirmPassword: '' })
+  }
+
+  async function resetAdminPassword() {
+    const target = passwordResetTarget
+    const targetAdmin = target?.users?.[0]
+    if (!target || !targetAdmin) return
+    setError('')
+    setSuccess('')
+    if (passwordForm.newPassword.length < 6) {
+      setError(text.passwordTooShort)
+      return
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setError(text.passwordMismatch)
+      return
+    }
+
+    setPasswordResetting(true)
+    const res = await fetch(`/api/organizations/${target.id}/admin-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        organizationSlug: target.slug,
+        adminUserId: targetAdmin.id,
+        newPassword: passwordForm.newPassword,
+        confirmPassword: passwordForm.confirmPassword,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setPasswordResetting(false)
+    if (!res.ok) {
+      setError(data.error || text.passwordResetFailed)
+      return
+    }
+
+    setPasswordResetTarget(null)
+    setPasswordForm({ newPassword: '', confirmPassword: '' })
+    setSuccess(text.passwordUpdated
+      .replace('{name}', data.passwordReset.organizationName)
+      .replace('{slug}', data.passwordReset.organizationSlug)
+      .replace('{id}', String(data.passwordReset.userId)))
   }
 
   async function deleteOrganization(org: OrganizationItem) {
@@ -447,6 +517,7 @@ export default function OrganizationsPage() {
 
     setOrganizations(prev => prev.filter(item => item.id !== org.id))
     if (editingId === org.id) setEditingId(null)
+    if (passwordResetTarget?.id === org.id) setPasswordResetTarget(null)
     setSuccess(text.deleted.replace('{name}', org.name))
   }
 
@@ -580,14 +651,6 @@ export default function OrganizationsPage() {
                         <div style={{ display: 'grid', gap: 8, minWidth: 220 }}>
                           <input className="input" value={editForm.adminName} onChange={e => setEditForm(p => ({ ...p, adminName: e.target.value }))} placeholder={text.adminNamePlaceholder} />
                           <input className="input" type="email" value={editForm.adminEmail} onChange={e => setEditForm(p => ({ ...p, adminEmail: e.target.value }))} placeholder={text.adminEmailPlaceholder} />
-                          <input className="input" type="password" value={editForm.adminPassword} onChange={e => setEditForm(p => ({ ...p, adminPassword: e.target.value }))} placeholder={text.adminPasswordPlaceholder} />
-                          <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, background: 'var(--surface-muted, #f8fafc)', fontSize: 12, lineHeight: 1.5 }}>
-                            <div style={{ fontWeight: 700 }}>{text.passwordResetTarget}</div>
-                            <div>{org.name} (slug: {org.slug})</div>
-                            <div>{primaryAdmin?.email || text.adminMissing}</div>
-                            <div>User ID: {primaryAdmin?.id ?? '—'}</div>
-                            <div>Organization ID: {org.id}</div>
-                          </div>
                         </div>
                       ) : (
                         <>
@@ -663,6 +726,9 @@ export default function OrganizationsPage() {
                       ) : canManageAll ? (
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button className="btn btn-secondary" onClick={() => startEdit(org)}>{text.edit}</button>
+                          <button className="btn btn-secondary" onClick={() => openPasswordReset(org)} disabled={!primaryAdmin}>
+                            {text.changeAdminPassword}
+                          </button>
                           <button
                             className="btn btn-secondary"
                             style={{ color: '#b91c1c', borderColor: '#fecaca' }}
@@ -728,6 +794,78 @@ export default function OrganizationsPage() {
             </table>
           </div>
         </div>
+
+        {passwordResetTarget && (() => {
+          const targetAdmin = passwordResetTarget.users?.[0]
+          return (
+            <div className="billing-contact-overlay" role="presentation" onMouseDown={closePasswordReset}>
+              <section
+                className="billing-contact-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="admin-password-reset-title"
+                onMouseDown={event => event.stopPropagation()}
+              >
+                <div className="billing-contact-head">
+                  <div>
+                    <h2 id="admin-password-reset-title">{text.changeAdminPassword}</h2>
+                    <p>{text.passwordResetTarget}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="billing-contact-close"
+                    aria-label={text.cancel}
+                    onClick={closePasswordReset}
+                    disabled={passwordResetting}
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, background: 'var(--bg)', fontSize: 13, lineHeight: 1.55, marginBottom: 16 }}>
+                  <div style={{ fontWeight: 700 }}>{passwordResetTarget.name}</div>
+                  <div>slug: {passwordResetTarget.slug}</div>
+                  <div>{targetAdmin?.email || text.adminMissing}</div>
+                  <div>User ID: {targetAdmin?.id ?? '—'}</div>
+                  <div>Organization ID: {passwordResetTarget.id}</div>
+                </div>
+
+                <div className="billing-contact-form">
+                  <div className="form-group">
+                    <label className="label" htmlFor="admin-new-password">{text.newAdminPassword}</label>
+                    <input
+                      id="admin-new-password"
+                      name="admin-new-password"
+                      className="input"
+                      type="password"
+                      autoComplete="new-password"
+                      value={passwordForm.newPassword}
+                      onChange={event => setPasswordForm(prev => ({ ...prev, newPassword: event.target.value }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="label" htmlFor="admin-confirm-password">{text.confirmAdminPassword}</label>
+                    <input
+                      id="admin-confirm-password"
+                      name="admin-confirm-password"
+                      className="input"
+                      type="password"
+                      autoComplete="new-password"
+                      value={passwordForm.confirmPassword}
+                      onChange={event => setPasswordForm(prev => ({ ...prev, confirmPassword: event.target.value }))}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button type="button" className="btn btn-secondary" onClick={closePasswordReset} disabled={passwordResetting}>{text.cancel}</button>
+                    <button type="button" className="btn btn-primary" onClick={resetAdminPassword} disabled={passwordResetting || !targetAdmin}>
+                      {text.changeAdminPassword}
+                    </button>
+                  </div>
+                </div>
+              </section>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
