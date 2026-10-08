@@ -136,6 +136,7 @@ async function caseApi() {
       },
       findUniqueOrThrow: async () => ({ ...row }),
     },
+    $queryRaw: async () => [{ updatedAt: row.updatedAt, status: row.status }],
     $transaction: async callback => callback(db),
   }
   let authorized = true, organizationId = 'org1'
@@ -154,7 +155,7 @@ async function caseApi() {
     row,
     tasks,
     history,
-    patch: body => module.exports.PATCH({ json: async () => JSON.parse(JSON.stringify({ expectedUpdatedAt: row.updatedAt.toISOString(), ...body })) }, { params: { id: 'case1' } }),
+    patch: (body, headers = {}) => module.exports.PATCH({ headers: new Headers(headers), json: async () => JSON.parse(JSON.stringify({ expectedUpdatedAt: row.updatedAt.toISOString(), ...body })) }, { params: { id: 'case1' } }),
     unauthorized: () => { authorized = false },
     otherTenant: () => { organizationId = 'org2' },
   }
@@ -170,9 +171,11 @@ test('actual PATCH rejects concurrent writes atomically and a reload observes th
   const fresh = await api.patch({ notes: '', expectedUpdatedAt: api.row.updatedAt.toISOString() })
   assert.equal(fresh.status, 200); assert.equal(api.row.notes, null)
   const legacy = await api.patch({ notes: 'old form', expectedUpdatedAt: undefined })
-  assert.equal(legacy.status, 428); assert.equal(api.row.notes, null)
+  assert.equal(legacy.status, 200); assert.equal(api.row.notes, 'old form')
   const quickStatus = await api.patch({ status: 'Working', expectedUpdatedAt: undefined })
-  assert.equal(quickStatus.status, 428)
+  assert.equal(quickStatus.status, 200)
+  assert.equal((await api.patch({ notes: 'must not fallback', expectedUpdatedAt: undefined }, { 'X-LegalHub-Case-Write': 'versioned' })).status, 428)
+  assert.equal((await api.patch({ notes: 'must not fallback', expectedUpdatedAt: null })).status, 400)
   assert.equal((await api.patch({ status: 'Working', expectedUpdatedAt: api.row.updatedAt.toISOString() })).status, 200)
   assert.equal(api.row.status, 'Working')
 })
@@ -188,6 +191,33 @@ test('actual PATCH preserves authentication, tenant scope and time validation', 
   api.otherTenant(); assert.equal((await api.patch({ notes: 'attack' })).status, 404)
   api.unauthorized(); assert.equal((await api.patch({ notes: 'attack' })).status, 401)
   assert.equal(api.row.notes, 'safe')
+})
+
+test('temporary legacy compatibility can be disabled without disabling versioned saves', async () => {
+  const previous = process.env.CASE_LEGACY_PATCH_COMPAT
+  process.env.CASE_LEGACY_PATCH_COMPAT = 'false'
+  try {
+    const api = await caseApi()
+    assert.equal((await api.patch({ notes: 'legacy', expectedUpdatedAt: undefined })).status, 428)
+    assert.equal((await api.patch({ notes: 'versioned' })).status, 200)
+  } finally {
+    if (previous === undefined) delete process.env.CASE_LEGACY_PATCH_COMPAT
+    else process.env.CASE_LEGACY_PATCH_COMPAT = previous
+  }
+})
+
+test('legacy deprecation logging contains only metadata, never edited values', async () => {
+  const original = console.warn, logs = []
+  console.warn = message => logs.push(message)
+  try {
+    const api = await caseApi()
+    assert.equal((await api.patch({ notes: 'private note', cabinetPassword: 'private password', expectedUpdatedAt: undefined })).status, 200)
+    assert.equal(logs.length, 1)
+    const event = JSON.parse(logs[0])
+    assert.equal(event.event, 'case_patch_legacy_manual'); assert.equal(event.deprecated, true)
+    assert.deepEqual(Object.keys(event).sort(), ['caseId', 'deprecated', 'event', 'fieldCount', 'organizationId', 'userId'])
+    assert.ok(!logs[0].includes('private')); assert.ok(!logs[0].includes('cabinetPassword'))
+  } finally { console.warn = original }
 })
 
 test('ordinary notes leave reminders untouched; important date create/clear and status history still use shared logic', async () => {

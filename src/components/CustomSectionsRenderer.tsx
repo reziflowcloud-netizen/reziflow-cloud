@@ -114,7 +114,7 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
       try {
         const res = await fetch('/api/custom-field-values', {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(scope === 'case' ? { 'X-LegalHub-Case-Write': 'versioned' } : {}) },
           body: JSON.stringify({ scope, recordId, values, ...(scope === 'case' ? { expectedUpdatedAt: caseVersion.current } : {}) }),
         })
         if (res.ok) { savedValues.current = { ...values }; if (scope === 'case') caseVersion.current = (await res.json()).updatedAt }
@@ -135,7 +135,7 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
     setMessage('')
     const res = await fetch('/api/custom-field-values', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(scope === 'case' ? { 'X-LegalHub-Case-Write': 'versioned' } : {}) },
       body: JSON.stringify({ scope, recordId, values, ...(scope === 'case' ? { expectedUpdatedAt: caseVersion.current } : {}) }),
     })
     if (res.ok) { savedValues.current = { ...values }; if (scope === 'case') caseVersion.current = (await res.json()).updatedAt }

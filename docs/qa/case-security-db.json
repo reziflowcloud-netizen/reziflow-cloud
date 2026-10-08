@@ -3,7 +3,7 @@
   "origin": "http://localhost:3107",
   "checks": {
     "authentication": "PASS",
-    "allCaseWritesRequireVersion": "PASS",
+    "newWritesRequireVersionAndLegacyManualWorks": "PASS",
     "restrictedCaseAccessAndCrossTenantRelation": "PASS",
     "crossOrigin": "PASS",
     "leadVisibility": "PASS",

@@ -288,11 +288,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (has('staySubPurpose')) caseDetailsData.staySubPurpose = body.staySubPurpose || null
     if (has('workContractEndDate')) caseDetailsData.workContractEndDate = nullableDate('workContractEndDate')
 
-    // Every repository caller now supplies its loaded version, including quick status.
-    if (body.expectedUpdatedAt === undefined) {
+    // Temporary rollout bridge for already-open manual-save bundles. New clients
+    // identify the versioned protocol and must never silently enter this path.
+    const legacy = !has('expectedUpdatedAt')
+    if (legacy && (request.headers?.get('x-legalhub-case-write') === 'versioned' || process.env.CASE_LEGACY_PATCH_COMPAT === 'false')) {
       return NextResponse.json({ error: 'Reload this case before saving (version required)' }, { status: 428 })
     }
-    const expected = new Date(body.expectedUpdatedAt)
+    if (!legacy && typeof body.expectedUpdatedAt !== 'string') return NextResponse.json({ error: 'Invalid version' }, { status: 400 })
+    const expected = legacy ? existing.updatedAt : new Date(body.expectedUpdatedAt)
     if (Number.isNaN(expected.getTime())) return NextResponse.json({ error: 'Invalid version' }, { status: 400 })
     if (expected.getTime() !== existing.updatedAt.getTime()) return NextResponse.json({ error: 'CASE_CONFLICT' }, { status: 409 })
     if (baseData.serviceId && !await prisma.service.findFirst({ where: { id: baseData.serviceId, organizationId } })) {
@@ -306,9 +309,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const fieldIds = Object.keys(customValues || {}).map(Number)
     if (fieldIds.some(id => !Number.isInteger(id) || id <= 0)) return NextResponse.json({ error: 'Invalid custom field' }, { status: 400 })
     const updated = await prisma.$transaction(async tx => {
+      // Legacy clients have no loaded version: retain manual last-writer behavior,
+      // but serialize against CAS writers and always advance the latest version.
+      const locked = legacy ? await tx.$queryRaw<Array<{ updatedAt: Date; status: string }>>`
+        SELECT "updatedAt", "status" FROM "Case"
+        WHERE "id" = ${params.id} AND "organizationId" = ${organizationId}
+        FOR UPDATE
+      ` : null
+      if (legacy && !locked?.length) throw Object.assign(new Error('CASE_CONFLICT'), { status: 409 })
+      const writeVersion = locked?.[0]?.updatedAt || expected
+      const previousStatus = locked?.[0]?.status ?? existing.status
       const claimed = await tx.case.updateMany({
-        where: { AND: [caseWhereForScope(scope, organizationId, { id: params.id }), { updatedAt: expected }] },
-        data: { ...baseData, ...caseDetailsData, updatedAt: new Date(Math.max(Date.now(), existing.updatedAt.getTime() + 1)) },
+        where: { AND: [caseWhereForScope(scope, organizationId, { id: params.id }), { updatedAt: writeVersion }] },
+        data: { ...baseData, ...caseDetailsData, updatedAt: new Date(Math.max(Date.now(), writeVersion.getTime() + 1)) },
       })
       if (claimed.count !== 1) throw Object.assign(new Error('CASE_CONFLICT'), { status: 409 })
       if (fieldIds.length) {
@@ -322,11 +335,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       const updated = await tx.case.findUniqueOrThrow({ where: { id: params.id } })
 
       // История статусов
-      if (body.status && existing.status !== body.status) {
+      if (body.status && previousStatus !== body.status) {
         await tx.statusHistory.create({
           data: {
             caseId: params.id,
-            fromStatus: existing.status,
+            fromStatus: previousStatus,
             toStatus: body.status,
             changedBy: (user as any).name || 'User'
           }
@@ -349,7 +362,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return updated
     })
 
-    return NextResponse.json(updated)
+    if (legacy) {
+      console.warn(JSON.stringify({ event: 'case_patch_legacy_manual', deprecated: true, organizationId, caseId: params.id, userId: Number(user.id), fieldCount: Object.keys(body).length }))
+    }
+    return NextResponse.json(updated, legacy ? { headers: { 'X-LegalHub-Case-Compatibility': 'legacy-manual-temporary', 'Deprecation': '@1791417600' } } : undefined)
   } catch (e: any) {
     if (e.status === 409) return NextResponse.json({ error: 'CASE_CONFLICT' }, { status: 409 })
     if (e.status === 400) return NextResponse.json({ error: e.message }, { status: 400 })

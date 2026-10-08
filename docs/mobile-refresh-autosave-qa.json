@@ -43,7 +43,7 @@
     "debounceMs": 850,
     "architecture": "One serialized state machine; minimal diff patch; manual Save flushes the same queue; edited-during-flight values drain with the next acknowledged version",
     "status": "Compact localized idle/dirty/saving/saved/error/conflict near existing Save; no per-keystroke toast",
-    "concurrency": "All Case PATCH writes require loaded updatedAt; scoped PostgreSQL CAS transaction includes standard/custom fields, status history and ordinary-date reminders. 409 retains edits; missing version returns explicit 428, including status-only writes. Current list and standalone custom callers were adapted.",
+    "concurrency": "Versioned Case PATCH uses scoped PostgreSQL CAS with atomic standard/custom fields, history and reminders; stale writes return 409. New callers mark X-LegalHub-Case-Write: versioned and missing version returns 428. Temporary unmarked versionless legacy manual PATCH uses a tenant-scoped row lock, latest version bump and last-writer manual semantics; deprecated metadata logging only. Explicit null/invalid versions never fall back.",
     "network": "Retains patch and dirty input; error never claims Saved; explicit Retry; 409 requires explicit confirmed reload; no offline storage",
     "navigation": "Authenticated Next/PostgreSQL QA passed app Back, browser Back, other Case via list, bottom navigation and another CRM section. Pending safe edits flush before navigation without ordinary confirms. Failures/drafts retain the existing leave warning. Native iOS process termination remains unverified.",
     "manualSave": "Retained on desktop/mobile, available while autosave is in flight, drains the same queue. Only totalValue/cabinetLogin/cabinetPassword require explicit standard Save. Custom fields and four previously excluded dates now autosave.",
@@ -101,8 +101,8 @@
   },
   "checks": {
     "automatedRegression": {
-      "tests": 130,
-      "pass": 130,
+      "tests": 132,
+      "pass": 132,
       "fail": 0,
       "skipped": 0,
       "databaseTestsEnabled": true
@@ -142,20 +142,19 @@
     },
     "themes": "PASS system metadata across 45 isolated browser combinations; real iPhone native status area NOT RUN",
     "languages": "PASS all five dirty/saving/saved/error/conflict states RU/UA/PL in real authenticated browser",
-    "security": "PASS 129-test suite plus real unauthenticated redirect, restricted Case/custom access, cross-origin 403, foreign service rejection and session revocation",
+    "security": "PASS 132/132 regression tests, plus real auth/restricted scope/cross-origin/foreign relation/session revocation checks for versioned and legacy requests",
     "tenantIsolation": "PASS real authenticated tenant GET/PATCH/custom isolation; restricted Lead visibility and staffScope expansion denial",
     "typescript": "PASS tsc --noEmit",
     "prisma": "PASS validate; no schema or migration source changes",
     "safeNextBuild": "PASS prisma generate + optimized Next build, using unreachable loopback QA port 1; no migrations, seed or deploy",
     "gitDiffCheck": "PASS",
     "authenticatedNextPostgres": "PASS; docs/qa/case-postgres-e2e.json",
-    "productionModeSmoke": "PASS local next start against disposable QA PostgreSQL, localhost:3107: real login cookies, strict 428 for missing version, versioned status 200, restricted/tenant/cross-origin access, Lead visibility, session revocation",
+    "productionModeSmoke": "PASS isolated standalone Next/PostgreSQL and public HTTPS tunnel: real login, new autosave, version-required 428, old manual 200/deprecation, stale 409, restricted/tenant/cross-origin/session checks",
     "mixedManualAutosaveFields": "PASS: editing a manual-only credential does not cancel ordinary-field autosave; credential remains unsaved/dirty until explicit Save"
   },
   "readyForPhasedProductionReview": false,
   "remaining": [
-    "Real iPhone standalone manual checklist execution: native status area, theme switch/cold launch/reopen, keyboard and background behavior.",
-    "Before any production pilot, account for already-open old frontend bundles or external unversioned callers; current repository callers are compatible."
+    "Real iPhone standalone manual checklist: native system area, Light/Dark/Slate, pull/release, autosave persistence, immediate Save and actual background resume. Production remains forbidden until this passes."
   ],
   "qaRunner": "scripts/qa-mobile-autosave.cjs; LEGALHUB_QA_NODE_MODULES points at bundled node_modules; headless installed msedge; optional LEGALHUB_QA_WIDTHS and LEGALHUB_QA_BASELINE=1",
   "screenshot": "docs/qa/mobile-autosave-390-dark-uk.png",
@@ -200,7 +199,12 @@
     "src/lib/themeBoot.ts",
     "tests/case-personal-appearance-note.test.mjs",
     "tests/deployment-safety.test.mjs",
-    "tests/mobile-refresh-autosave.test.mjs"
+    "tests/mobile-refresh-autosave.test.mjs",
+    "scripts/setup-iphone-qa.cjs",
+    "scripts/serve-iphone-qa.cjs",
+    "scripts/qa-iphone-tunnel.cjs",
+    "docs/qa/iphone-tunnel-smoke.json",
+    "vercel.json"
   ],
   "patchCallSites": {
     "repositoryCompatible": true,
@@ -216,37 +220,45 @@
       "scripts/qa-case-security-postgres.cjs: real access/security negative requests",
       "tests/mobile-refresh-autosave.test.mjs: handler mocks and explicit 428/409 assertions"
     ],
-    "externalClients": "Not observable from this repository; no claim of external compatibility. All unversioned callers and already-open old frontend bundles must reload/adopt expectedUpdatedAt. The 428 is deliberate and prevents unversioned overwrites."
+    "externalClients": "Old versionless manual Case PATCH temporarily works with existing last-writer behavior under a tenant-scoped row lock. No CAS guarantee for legacy writes. Response deprecation/compatibility headers and metadata-only logging. New autosave cannot fall back. Set CASE_LEGACY_PATCH_COMPAT=false to remove compatibility in a separate maintenance stage after a stable rollout and old-session reload/adoption."
   },
   "qaEnvironment": {
     "database": "disposable PostgreSQL 16.15 on 127.0.0.1:55432/legalhub_case_qa",
-    "next": "real Next 14.2.35 at 127.0.0.1:3107, synthetic tenants/users, real UI login and auth cookies",
+    "next": "Isolated production-mode Next at 127.0.0.1:3107; restricted tunnel proxy at 127.0.0.1:3108",
     "browser": "headless installed Microsoft Edge through Playwright",
     "scope": "Real routes and DB, no fixture API mocks in the authenticated run. Network failures/delays, touch release and focus/time events are simulated in the browser. No real iPhone hardware.",
     "reports": [
       "docs/qa/case-postgres-e2e.json",
-      "docs/qa/case-security-db.json"
+      "docs/qa/case-security-db.json",
+      "docs/qa/iphone-tunnel-smoke.json"
     ],
-    "cleanup": "COMPLETED: QA Next dev/start processes stopped; named disposable PostgreSQL container and its anonymous volume removed. Production untouched.",
+    "cleanup": "LEFT RUNNING for manual iPhone QA; isolated synthetic database only; app/proxy automatically expire 2026-10-09T16:39:00.433Z",
     "reproduce": [
-      "Start a disposable postgres:16 container bound only to 127.0.0.1:55432 with database legalhub_case_qa and synthetic postgres password disposable-case-qa.",
-      "Set DATABASE_URL to that exact loopback QA database. Run npx prisma db push --skip-generate. Do not use production environment files.",
-      "Load only the existing CREATE FUNCTION/CREATE TRIGGER tail of prisma/migrations/20260922140000_staff_routing_v2/migration.sql into that QA DB, since db push omits SQL triggers needed by the pre-existing routing regression.",
-      "Set a synthetic JWT_SECRET and NEXT_TELEMETRY_DISABLED=1; run npx next dev --hostname 127.0.0.1 --port 3107.",
-      "Set LEGALHUB_QA_NODE_MODULES to the bundled node_modules containing Playwright; run node scripts/qa-case-postgres.cjs and node scripts/qa-case-security-postgres.cjs with the loopback DATABASE_URL.",
-      "Run node --test tests/*.test.mjs tests/security/*.test.mjs with RUN_DB_TESTS=1 against only that disposable DB.",
-      "Stop the QA Next process and remove the named QA container/volume. Build uses DATABASE_URL pointed at loopback port 1, no migration/seed/deploy."
-    ]
+      "Create the named disposable PostgreSQL loopback database as above; no production environment files.",
+      "DATABASE_URL must be 127.0.0.1:55432/legalhub_case_qa. Run node scripts/setup-iphone-qa.cjs and retain the returned temporary session file outside Git.",
+      "node scripts/serve-iphone-qa.cjs build <session-file> builds with an unreachable loopback DB and copies standalone static/public assets.",
+      "node scripts/serve-iphone-qa.cjs serve <session-file> starts isolated Next plus restricted loopback QA proxy.",
+      "Official cloudflared Windows binary, SHA256 verified against GitHub release metadata: cloudflared tunnel --url http://127.0.0.1:3108 --no-autoupdate. Temporary HTTPS URL requires this computer/Docker/tunnel to remain running.",
+      "Run scripts/qa-case-postgres.cjs, scripts/qa-case-security-postgres.cjs and scripts/qa-iphone-tunnel.cjs; use only the disposable loopback database.",
+      "After manual QA, stop the QA helper/tunnel and remove only the named disposable QA container/volume."
+    ],
+    "publicUrl": "https://lodge-charged-duke-thumbzilla.trycloudflare.com",
+    "productionDatabaseIsolated": true,
+    "runtime": "Explicit OS-variable whitelist + isolated DATABASE_URL + independent random JWT_SECRET; refuses local .env files. No production integrations inherited. Secrets in OS temporary directory only.",
+    "autoPreview": "Vercel Git deployment disabled only for feature/mobile-refresh-autosave by vercel.json, before feature push; other branches retain default settings. No Vercel Preview used for iPhone QA."
   },
   "iphoneChecklist": "docs/qa/iphone-standalone-checklist.json",
   "qaRunners": [
     "scripts/qa-mobile-autosave.cjs",
     "scripts/qa-case-postgres.cjs",
-    "scripts/qa-case-security-postgres.cjs"
+    "scripts/qa-case-security-postgres.cjs",
+    "scripts/qa-iphone-tunnel.cjs",
+    "scripts/setup-iphone-qa.cjs",
+    "scripts/serve-iphone-qa.cjs"
   ],
   "controlledRollout": {
     "state": "PREPARED; NOT DEPLOYED",
-    "nextGate": "Execute the real iPhone checklist in an approved QA/staging environment and verify client version transition before production.",
+    "nextGate": "Execute real iPhone checklist against the prepared isolated HTTPS QA environment. Legacy rollout compatibility verified; production not deployed.",
     "phases": [
       "Current Case pilot only; no Leads/Clients/Tasks autosave expansion.",
       "After approval and remaining QA, run a limited Case pilot with selected staff and confirm saved data, errors/conflicts, tasks/dates and manual payment flows.",
@@ -255,5 +267,11 @@
     "rollback": "Revert/deploy frontend and Case API together as a compatible pair. No feature schema migration or data conversion is required."
   },
   "reportUpdatedAt": "2026-10-08",
-  "changedFileCount": 41
+  "changedFileCount": 46,
+  "legacyCompatibility": {
+    "temporary": true,
+    "removal": "Separate maintenance step after stable rollout and legacy-session adoption: CASE_LEGACY_PATCH_COMPAT=false, then remove bridge code. Monitor only metadata events case_patch_legacy_manual.",
+    "risk": "Legacy clients cannot detect stale snapshots and retain prior manual last-writer semantics. New versioned writes retain CAS; legacy writes bump updatedAt and invalidate stale new clients.",
+    "oldContractTest": "PASS real PostgreSQL and public HTTPS replay of old versionless manual payload; old snapshot cannot receive CAS protection."
+  }
 }

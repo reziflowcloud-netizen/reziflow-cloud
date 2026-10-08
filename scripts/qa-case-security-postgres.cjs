@@ -35,10 +35,15 @@ async function main() {
     assert.equal((await api.patch(origin + `/api/cases/${own.id}`, { headers: { origin: 'https://cross-origin.invalid' }, data: { notes: 'attack', expectedUpdatedAt: own.updatedAt } })).status(), 403)
     assert.equal((await api.patch(origin + `/api/cases/${own.id}`, { data: { serviceId: foreignService.id, expectedUpdatedAt: own.updatedAt } })).status(), 400)
     assert.equal((await db.case.findUniqueOrThrow({ where: { id: own.id } })).updatedAt.getTime(), own.updatedAt.getTime())
-    assert.equal((await api.patch(origin + `/api/cases/${own.id}`, { data: { status: 'В работе' } })).status(), 428)
-    assert.equal((await api.patch(origin + '/api/custom-field-values', { data: { scope: 'case', recordId: own.id, values: {} } })).status(), 428)
+    assert.equal((await api.patch(origin + `/api/cases/${hidden.id}`, { data: { notes: 'legacy attack' } })).status(), 404)
+    assert.equal((await api.patch(origin + `/api/cases/${own.id}`, { headers: { 'X-LegalHub-Case-Write': 'versioned' }, data: { status: 'В работе' } })).status(), 428)
+    assert.equal((await api.patch(origin + '/api/custom-field-values', { headers: { 'X-LegalHub-Case-Write': 'versioned' }, data: { scope: 'case', recordId: own.id, values: {} } })).status(), 428)
     assert.equal((await api.patch(origin + `/api/cases/${own.id}`, { data: { status: 'В работе', expectedUpdatedAt: own.updatedAt } })).status(), 200)
-    checks.allCaseWritesRequireVersion = 'PASS'
+    const legacy = await api.patch(origin + `/api/cases/${own.id}`, { data: { notes: 'old manual save' } })
+    assert.equal(legacy.status(), 200)
+    assert.equal(legacy.headers()['x-legalhub-case-compatibility'], 'legacy-manual-temporary')
+    assert.equal((await db.case.findUniqueOrThrow({ where: { id: own.id } })).notes, 'old manual save')
+    checks.newWritesRequireVersionAndLegacyManualWorks = 'PASS'
     checks.restrictedCaseAccessAndCrossTenantRelation = 'PASS'; checks.crossOrigin = 'PASS'
     const leads = await (await api.get(origin + '/api/leads?view=list')).json()
     assert.deepEqual(leads.map(row => row.id), [ownedLead.id])

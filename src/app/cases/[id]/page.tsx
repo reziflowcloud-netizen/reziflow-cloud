@@ -106,10 +106,11 @@ export default function CaseDetailPage() {
     || newDocDate || newDocDesc || newMosDocName || newMosDocDueDate || customReminderTitle || customReminderDate
     || paymentPlan.some(row => row.amount || row.dueDate))
   const autosave = useCaseAutosave(async (patch, version) => {
+    if (!version) throw Object.assign(new Error('Case version required'), { status: 428 })
     const customFieldValues = Object.fromEntries(Object.entries(patch).filter(([key]) => key.startsWith('custom:')).map(([key, value]) => [key.slice(7), value]))
     const fields = Object.fromEntries(Object.entries(patch).filter(([key]) => !key.startsWith('custom:')))
     const res = await fetch(`/api/cases/${id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-LegalHub-Case-Write': 'versioned' },
       body: JSON.stringify({ ...fields, ...(Object.keys(customFieldValues).length ? { customFieldValues } : {}), expectedUpdatedAt: version, reminderLanguage: lang }),
     })
     if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status })

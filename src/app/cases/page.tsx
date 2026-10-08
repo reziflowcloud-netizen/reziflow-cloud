@@ -92,7 +92,7 @@ export default function CasesPage() {
     if (!version) { await loadCases(); return }
     const res = await fetch(`/api/cases/${caseId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-LegalHub-Case-Write': 'versioned' },
       body: JSON.stringify({ status: newStatus, expectedUpdatedAt: version }),
     })
     if (!res.ok) throw new Error(appExperienceText[lang][res.status === 409 ? 'conflict' : 'error'])

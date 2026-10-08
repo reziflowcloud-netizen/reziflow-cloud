@@ -1,12 +1,13 @@
 {
   "environment": {
-    "next": "http://127.0.0.1:3107",
+    "next": "http://localhost:3107",
     "postgres": "127.0.0.1:55432/legalhub_case_qa",
     "disposable": true
   },
   "checks": {
     "real login UI and session": "PASS",
     "PostgreSQL CAS A commit, stale B 409, no partial writes, fresh B commit": "PASS",
+    "old versionless manual Save, version bump, new stale 409, no autosave fallback": "PASS",
     "tenant isolation GET PATCH custom fields; revoked session": "PASS",
     "transactional dates/reminders create update clear, custom fields, rollback": "PASS",
     "list status version and standalone custom-field PATCH compatibility": "PASS",
@@ -137,8 +138,8 @@
   ],
   "errors": [],
   "fixture": {
-    "organizationId": "cmuzlzfpj00006555d6kix62m",
-    "caseId": "cmuzlzftb0005655508gf23iq",
-    "secondCaseId": "cmuzlzftn00076555ucn646t7"
+    "organizationId": "cmuzrn3ai0000ni2zuy1hr6xf",
+    "caseId": "cmuzrn3dr0005ni2z4lvisvg5",
+    "secondCaseId": "cmuzrn3dy0007ni2zyeb77qzg"
   }
 }

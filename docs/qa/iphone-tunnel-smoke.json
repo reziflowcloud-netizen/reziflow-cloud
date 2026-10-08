@@ -1,0 +1,10 @@
+{
+  "origin": "https://lodge-charged-duke-thumbzilla.trycloudflare.com",
+  "environment": "isolated synthetic QA only",
+  "realIPhone": "NOT RUN — user manual check pending",
+  "checks": {
+    "httpsManifestIconsAndRestrictedProxy": "PASS",
+    "newAutosaveNotesStatusAppearanceReopenAndVersionedHeader": "PASS",
+    "manualSaveLegacySaveAndStale409": "PASS"
+  }
+}

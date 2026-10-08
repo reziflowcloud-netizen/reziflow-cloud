@@ -1,6 +1,6 @@
 {
-  "status": "READY; real iPhone execution NOT RUN",
-  "environment": "Use an approved QA/staging URL accessible to the iPhone. This task did not deploy or expose the loopback QA server.",
+  "status": "READY FOR MANUAL IPHONE QA; real iPhone execution NOT RUN",
+  "environment": "Isolated synthetic PostgreSQL + local standalone Next + restricted HTTPS Cloudflare Quick Tunnel. No Production DB or integrations.",
   "record": [
     "iPhone model",
     "iOS version",
@@ -10,7 +10,7 @@
     "Screenshots and observed result for every step"
   ],
   "setup": [
-    "Open the approved QA URL in Safari and authenticate with a QA tenant.",
+    "Open the isolated QA URL in Safari and authenticate with the supplied synthetic QA account.",
     "Use Share > Add to Home Screen. Launch from the new Home Screen icon, without Safari browser chrome.",
     "For first-launch checks use a fresh installation/storage state. Confirm the default Light theme. Keep existing CRM safe-area and navigation layout."
   ],
@@ -55,5 +55,18 @@
     "For every theme capture cold launch, live switch and reopen screenshots. Mark PASS/FAIL per step; do not infer hardware PASS from metadata or browser emulation."
   ],
   "acceptance": "Readable system icons, stable theme on launch/switch/reopen, no unexpected white/cyan area, no CRM content or navigation shift. Exact native iOS background behavior must be observed; configuration alone does not guarantee a hex color or live status-bar update.",
-  "productionChanged": false
+  "productionChanged": false,
+  "url": "https://lodge-charged-duke-thumbzilla.trycloudflare.com",
+  "caseUrl": "https://lodge-charged-duke-thumbzilla.trycloudflare.com/cases/cmuzrh0yo000455aga6n0uaz6",
+  "caseNumber": "IPHONE-QA-001",
+  "expiresAt": "2026-10-09T16:39:00.433Z",
+  "availability": "Keep this computer awake, Docker and QA app/tunnel running. Temporary URL stops with the tunnel. Credentials supplied in the user report, stored only outside Git.",
+  "shortManualChecklist": [
+    "Safari: open QA URL, log into the synthetic tenant, Share > Add to Home Screen; launch from Home Screen. Log in again if iOS requests it. Open IPHONE-QA-001.",
+    "A: switch Light, Dark, Slate; inspect clock/battery/notch area and legibility; close/reopen each theme. Record actual iOS limitations.",
+    "B: Case at top: pull down, see indicator, release; data refreshes and route stays the same.",
+    "C: edit notes without Save, wait Saved, back/reopen and verify. Repeat status and personalAppearanceNote (Important dates > personal visit note); reload/reopen confirms each value.",
+    "D: edit a field and immediately press Save; reopen and verify value.",
+    "E: background CRM for more than 45 seconds, return; verify data refreshes. Keep form clean for this check; dirty inputs must remain protected."
+  ]
 }
