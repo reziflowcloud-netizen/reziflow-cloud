@@ -22,14 +22,15 @@ test('Case API keeps the existing tenant guard and persists create, edit, and cl
   assert.match(route, /caseWhereForScope\(scope, organizationId, \{ id: params\.id \}\)/)
   assert.match(route, /if \(has\('personalAppearanceNote'\)\) baseData\.personalAppearanceNote = nullableText\('personalAppearanceNote'\)/)
   assert.match(route, /String\(body\[key\] \|\| ''\)\.trim\(\) \|\| null/)
-  assert.match(route, /data: \{ \.\.\.baseData, \.\.\.caseDetailsData \}/)
+  assert.match(route, /data: \{ \.\.\.baseData, \.\.\.caseDetailsData, updatedAt:/)
 })
 
 test('Case load and shared save form round-trip personalAppearanceNote without separate business logic', async () => {
   const page = await source('src/app/cases/[id]/page.tsx')
 
   assert.match(page, /personalAppearanceNote: data\.personalAppearanceNote \|\| ''/)
-  assert.match(page, /body: JSON\.stringify\(\{ \.\.\.form,/)
+  assert.match(page, /body: JSON\.stringify\(\{ \.\.\.patch, expectedUpdatedAt: version \}\)/)
+  assert.match(page, /autosave\.flush\(true\)/)
   assert.match(page, /value=\{form\.personalAppearanceNote \|\| ''\}/)
   assert.match(page, /set\('personalAppearanceNote', e\.target\.value\)/)
 })

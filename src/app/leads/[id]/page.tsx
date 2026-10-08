@@ -1,4 +1,7 @@
 'use client'
+import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
+import { useRefreshDraftGuard } from '@/hooks/useRefreshDraftGuard'
+import { freshJson } from '@/lib/screenRefresh'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -18,6 +21,7 @@ function safeLeadBackHref(value: string | null) {
 export default function LeadDetailPage() {
   const { id } = useParams()
   const router = useRouter()
+  const refreshDraft = useRefreshDraftGuard()
   const { lang: currentLang } = useLanguage()
   const { restrictedAccess } = useLeadMobileAccess()
   const lang = normalizeLang(currentLang)
@@ -79,9 +83,15 @@ export default function LeadDetailPage() {
     })
     loadMessages()
     loadReminders()
-    fetch(`/api/leads/${id}`, { cache: 'no-store' })
-      .then(res => res.json())
+    void loadDetail()
+  }, [id])
+
+  function loadDetail() {
+    const revision = refreshDraft.revision.current
+    return freshJson(`/api/leads/${id}`)
       .then(data => {
+        if (refreshDraft.dirty.current || revision !== refreshDraft.revision.current) return
+        markScreenFetched()
         setLead(data)
         setForm({
           status: data.status || 'Новый',
@@ -126,7 +136,9 @@ export default function LeadDetailPage() {
           caseNotes: data.notes || '',
         }))
       })
-  }, [id])
+  }
+  useScreenRefresh(async () => { await loadDetail(); await Promise.all([loadMessages(), loadReminders()]); }, () => !saving && !refreshDraft.dirty.current && !showConvert)
+
 
   const sourceByValue = useMemo(() => {
     const map: Record<string, LeadSourceOption> = {}
@@ -360,6 +372,7 @@ export default function LeadDetailPage() {
   }
 
   async function save() {
+    const savedRevision = refreshDraft.revision.current
     setSaving(true)
     setError('')
     try {
@@ -373,6 +386,7 @@ export default function LeadDetailPage() {
         setError(data.error || lt('save_failed'))
         return
       }
+      refreshDraft.saved(savedRevision)
       setLead(data)
       setForm((current: any) => ({
         ...current,

@@ -1,0 +1,202 @@
+{
+  "baseMainHash": "928d8760b0dec553c61452be8ddbd309fc0bb3ad",
+  "branch": "feature/mobile-refresh-autosave",
+  "productionChanged": false,
+  "migrationNeeded": false,
+  "migrationExecuted": false,
+  "deployed": false,
+  "pwaArchitecture": {
+    "manifest": "public/manifest.json; standalone; /dashboard; static launch palette; no service worker found",
+    "viewport": "device-width, initialScale=1, viewportFit=cover",
+    "theme": "rezi_theme storage, html data-theme, existing CSS palettes; early boot script plus mutation observer"
+  },
+  "statusArea": {
+    "rootCause": "Fixed cyan theme-color, white manifest launch background, Apple default status style; no early theme-aware system metadata",
+    "implementation": "Light #f4f5f7/default; Dark #111827/black; Slate #07111d/black. Existing content offsets and safe-area CSS retained.",
+    "limitations": "Apple black is opaque black on documented legacy standalone behavior, not arbitrary CRM hex. Dynamic changes and exact modern iOS behavior need real hardware verification. No black-translucent content overlay introduced.",
+    "sources": [
+      "https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariHTMLRef/Articles/MetaTags.html",
+      "https://webkit.org/blog/7929/designing-websites-for-iphone-x/"
+    ],
+    "realIphone": "NOT RUN"
+  },
+  "refresh": {
+    "pull": "Mobile touch gesture at top of actual scroll ancestors; 110 raw vertical pixels to arm (66 damped pixels); release required; horizontal, form controls, dialogs, body scroll lock and visible keyboard excluded; cancel resets gesture",
+    "resume": "visibilitychange, focus and pageshow; stale after 45000 ms; successful fetch timestamps; no polling; shared in-flight promise",
+    "manual": "Localized small item in existing mobile More sheet; unsupported/new screens excluded",
+    "scope": [
+      "Dashboard RSC via router.refresh and UpcomingEvents loader",
+      "Cases scoped list and detail",
+      "Leads scoped list and detail/messages/reminders",
+      "Clients list and detail",
+      "Tasks scoped tasks and case lookups",
+      "Calendar scoped tasks and cases"
+    ],
+    "dirtyProtection": "Registered ready checks delay refresh. Case tracks local revisions and acknowledged server version to reject stale responses even if an intervening autosave finishes. Manual detail forms retain conservative input revision guards. No hard reload."
+  },
+  "autosave": {
+    "scope": "Case detail only",
+    "debounceMs": 850,
+    "architecture": "One serialized state machine; minimal diff patch; manual Save flushes the same queue; edited-during-flight values drain with the next acknowledged version",
+    "status": "Compact localized idle/dirty/saving/saved/error/conflict near existing Save; no per-keystroke toast",
+    "concurrency": "Case.updatedAt compare-and-swap in scoped updateMany inside a transaction; monotonic timestamp; status history and fixed important-date reminder writes in same transaction; 409 retains local fields. Versionless full-form writes rejected with 428; existing explicit status-only quick actions retained.",
+    "network": "Retains patch and dirty input; error never claims Saved; explicit Retry; 409 requires explicit confirmed reload; no offline storage",
+    "navigation": "Flush barrier for Case Back button, anchor/bottom navigation, browser Back and mobile logout; beforeunload warning and visibility-hidden best-effort flush. Framework mocks used in browser QA; iOS termination behavior and authenticated Next integration remain unverified.",
+    "manualSave": "Existing Save retained; financial/credentials and other excluded fields require explicit Save; existing custom/reminder follow-up paths remain manual",
+    "excludedFields": [
+      "totalValue",
+      "cabinetLogin",
+      "cabinetPassword",
+      "filingDate",
+      "mosSentAt",
+      "fingerprintsDate",
+      "predictedDecisionDate",
+      "custom fields and MOS ID (separate API architecture)",
+      "financial writes; deletes; imports; organization/identity/password/routing changes"
+    ],
+    "ordinaryFields": "Explicit allowlist in src/lib/caseAutosave.ts: text/select/toggle, service/responsible, notes/personal appearance note, ordinary case/contract fields and server-synchronized important dates",
+    "phase3": "Not started; Leads/Clients/Tasks autosave deferred until full Case QA"
+  },
+  "checks": {
+    "automatedRegression": {
+      "tests": 129,
+      "pass": 125,
+      "fail": 0,
+      "skipped": 4,
+      "skippedReason": "DB-dependent staff routing tests; no test database configured"
+    },
+    "casePilot": "PASS for scoped allowlist in isolated browser; full rollout not proven",
+    "concurrentEdits": "PASS actual PATCH handler with in-memory Prisma mock and browser 409; real PostgreSQL concurrency not run",
+    "refreshAutosaveInteraction": "PASS isolated browser, including dirty refresh suppression and a GET delayed beyond the intervening autosave",
+    "manualSave": "PASS debounce flush yields one patch; existing button; link, app Back and browser Back immediate flush",
+    "importantDatesTasks": "PASS mocked real handler for create/clear and status history, preserving unrelated reminder; full live DB regression not run",
+    "payments": "No financial API touched or autosaved; live financial regression not run",
+    "mobile390414430": {
+      "combinations": 27,
+      "result": "PASS",
+      "scope": "Actual Case React components/CSS in headless Edge, with synthetic touch and mocked APIs/Next router"
+    },
+    "desktop1440": "PASS 9 theme/language combinations in isolated harness",
+    "desktop1024": {
+      "result": "FAIL",
+      "reason": "Existing intrinsic-width overflow; original base main RU/Light also measures 1075 px at 1024. Layout not changed.",
+      "failures": [
+        {
+          "width": 1024,
+          "theme": "light",
+          "lang": "ru",
+          "result": "FAIL",
+          "scrollWidth": 1075
+        },
+        {
+          "width": 1024,
+          "theme": "light",
+          "lang": "uk",
+          "result": "FAIL",
+          "scrollWidth": 1046
+        },
+        {
+          "width": 1024,
+          "theme": "light",
+          "lang": "pl",
+          "result": "FAIL",
+          "scrollWidth": 1085
+        },
+        {
+          "width": 1024,
+          "theme": "dark",
+          "lang": "ru",
+          "result": "FAIL",
+          "scrollWidth": 1075
+        },
+        {
+          "width": 1024,
+          "theme": "dark",
+          "lang": "uk",
+          "result": "FAIL",
+          "scrollWidth": 1046
+        },
+        {
+          "width": 1024,
+          "theme": "dark",
+          "lang": "pl",
+          "result": "FAIL",
+          "scrollWidth": 1085
+        },
+        {
+          "width": 1024,
+          "theme": "slate",
+          "lang": "ru",
+          "result": "FAIL",
+          "scrollWidth": 1075
+        },
+        {
+          "width": 1024,
+          "theme": "slate",
+          "lang": "uk",
+          "result": "FAIL",
+          "scrollWidth": 1046
+        },
+        {
+          "width": 1024,
+          "theme": "slate",
+          "lang": "pl",
+          "result": "FAIL",
+          "scrollWidth": 1085
+        }
+      ]
+    },
+    "themes": "PASS page backgrounds and meta-color in isolated browser; iOS status area NOT RUN",
+    "languages": "PASS RU/UA/PL save status and actual Case component matrix",
+    "security": "PASS existing security suite and mock auth/scoped/version/time/foreign relation checks",
+    "tenantIsolation": "PASS automated guards/mocks; real DB/E2E NOT RUN",
+    "typescript": "PASS standalone tsc and Next build type checking",
+    "prisma": "PASS validate; schema/migrations unchanged",
+    "safeNextBuild": "PASS; loopback invalid QA DB URL; only prisma generate and next build, no migrations/seed/deploy",
+    "gitDiffCheck": "PASS"
+  },
+  "readyForPhasedProductionReview": false,
+  "remaining": [
+    "Real iPhone standalone status area, safe areas, keyboard and background/resume QA",
+    "Authenticated Next/real PostgreSQL Case CRUD, concurrency, Task/Calendar and tenant regression",
+    "Resolve or explicitly accept existing 1024 px overflow",
+    "Review safe integration of custom-field APIs and client-reminder dates before expanding Case autosave; no phase 3 yet"
+  ],
+  "qaRunner": "scripts/qa-mobile-autosave.cjs; LEGALHUB_QA_NODE_MODULES points at bundled node_modules; headless installed msedge; optional LEGALHUB_QA_WIDTHS and LEGALHUB_QA_BASELINE=1",
+  "screenshot": "docs/qa/mobile-autosave-390-dark-uk.png",
+  "changedFiles": [
+    "docs/mobile-refresh-autosave-qa.json",
+    "docs/qa/mobile-autosave-390-dark-uk.png",
+    "public/manifest.json",
+    "scripts/qa-mobile-autosave.cjs",
+    "src/app/api/cases/[id]/route.ts",
+    "src/app/calendar/page.tsx",
+    "src/app/cases/[id]/CaseDetailMobile.tsx",
+    "src/app/cases/[id]/page.tsx",
+    "src/app/cases/page.tsx",
+    "src/app/clients/[id]/page.tsx",
+    "src/app/clients/page.tsx",
+    "src/app/globals.css",
+    "src/app/layout.tsx",
+    "src/app/leads/[id]/page.tsx",
+    "src/app/leads/page.tsx",
+    "src/app/tasks/page.tsx",
+    "src/components/CustomSectionsRenderer.tsx",
+    "src/components/MobileExperience.tsx",
+    "src/components/SystemTheme.tsx",
+    "src/components/UpcomingEvents.tsx",
+    "src/components/layout/MobileNav.tsx",
+    "src/components/layout/MoreBottomSheet.tsx",
+    "src/hooks/useCaseAutosave.ts",
+    "src/hooks/useRefreshDraftGuard.ts",
+    "src/hooks/useScreenRefresh.ts",
+    "src/lib/appExperienceI18n.ts",
+    "src/lib/caseAutosave.ts",
+    "src/lib/screenLeave.ts",
+    "src/lib/screenRefresh.ts",
+    "src/lib/themeBoot.ts",
+    "tests/case-personal-appearance-note.test.mjs",
+    "tests/deployment-safety.test.mjs",
+    "tests/mobile-refresh-autosave.test.mjs"
+  ]
+}

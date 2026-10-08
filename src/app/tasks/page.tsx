@@ -1,4 +1,6 @@
 'use client'
+import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
+import { freshJson } from '@/lib/screenRefresh'
 import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
@@ -192,12 +194,16 @@ export default function TasksPage() {
       })
   }, [])
 
-  useEffect(() => {
+  async function loadTasksScreen() {
     if (!staffScopeReady) return
     const query = `staffScope=${encodeURIComponent(staffScope)}`
-    fetch(`/api/tasks?${query}`, { cache: 'no-store' }).then(r => r.json()).then(d => setTasks(Array.isArray(d) ? d : []))
-    fetch(`/api/cases?${query}`, { cache: 'no-store' }).then(r => r.json()).then(d => setCases(Array.isArray(d) ? d : []))
-  }, [staffScope, staffScopeReady])
+    const [tasksData, casesData] = await Promise.all([freshJson(`/api/tasks?${query}`), freshJson(`/api/cases?${query}`)])
+    setTasks(Array.isArray(tasksData) ? tasksData : [])
+    setCases(Array.isArray(casesData) ? casesData : [])
+    markScreenFetched()
+  }
+  useScreenRefresh(loadTasksScreen, () => staffScopeReady)
+  useEffect(() => { void loadTasksScreen() }, [staffScope, staffScopeReady])
 
   function setF(k: string, v: string) { setForm(p => ({ ...p, [k]: v })) }
   function setE(k: string, v: string) { setEditForm((p: any) => ({ ...p, [k]: v })) }

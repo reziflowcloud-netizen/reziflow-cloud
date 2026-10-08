@@ -1,4 +1,6 @@
 'use client'
+import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
+import { freshJson } from '@/lib/screenRefresh'
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -62,16 +64,19 @@ export default function CasesPage() {
   function loadCases() {
     setLoading(true)
     return Promise.all([
-      fetch(`/api/cases?view=list&staffScope=${encodeURIComponent(staffScope)}`).then(r => r.json()),
-      fetch('/api/statuses').then(r => r.json()),
-      fetch('/api/employees').then(r => r.json()),
+      freshJson(`/api/cases?view=list&staffScope=${encodeURIComponent(staffScope)}`),
+      freshJson('/api/statuses'),
+      freshJson('/api/employees'),
     ]).then(([c, s, e]) => {
       setCases(Array.isArray(c) ? c : [])
       setStatuses(Array.isArray(s) ? s : [])
       setEmployees(Array.isArray(e) ? e.filter((employee: any) => employee.active) : [])
       setLoading(false)
-    })
+      markScreenFetched()
+    }).finally(() => setLoading(false))
   }
+
+  useScreenRefresh(loadCases)
 
   useEffect(() => {
     loadCases()

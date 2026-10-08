@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
 type Scope = 'client' | 'case'
@@ -28,6 +28,7 @@ type Props = {
   recordId: string
   standaloneSave?: boolean
   onStandalonePresenceChange?: (hasSections: boolean) => void
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 function checkboxValue(value: string | undefined) {
@@ -36,15 +37,21 @@ function checkboxValue(value: string | undefined) {
 
 export type CustomSectionsHandle = {
   save: () => Promise<boolean>
+  isDirty: () => boolean
 }
 
-const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function CustomSectionsRenderer({ scope, recordId, standaloneSave = true, onStandalonePresenceChange }, ref) {
+const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function CustomSectionsRenderer({ scope, recordId, standaloneSave = true, onStandalonePresenceChange, onDirtyChange }, ref) {
   const [sections, setSections] = useState<CustomSection[]>([])
+  const savedValues = useRef<Record<number, string>>({})
   const [values, setValues] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [portalTargets, setPortalTargets] = useState<Record<string, HTMLElement>>({})
+
+  useEffect(() => {
+    onDirtyChange?.(JSON.stringify(values) !== JSON.stringify(savedValues.current))
+  }, [values, saving, onDirtyChange])
 
   useEffect(() => {
     let active = true
@@ -61,6 +68,7 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
           })
         })
         setSections(loadedSections)
+        savedValues.current = { ...nextValues }
         setValues(nextValues)
       })
       .finally(() => active && setLoading(false))
@@ -93,6 +101,7 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
   }, [loading, scope, visibleSections])
 
   useImperativeHandle(ref, () => ({
+    isDirty: () => JSON.stringify(values) !== JSON.stringify(savedValues.current),
     save: async () => {
       if (loading || visibleSections.length === 0) return true
       setSaving(true)
@@ -103,6 +112,7 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ scope, recordId, values }),
         })
+        if (res.ok) savedValues.current = { ...values }
         return res.ok
       } catch {
         return false
@@ -123,6 +133,7 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ scope, recordId, values }),
     })
+    if (res.ok) savedValues.current = { ...values }
     setSaving(false)
     setMessage(res.ok ? 'Дополнительные поля сохранены' : 'Не удалось сохранить дополнительные поля')
   }

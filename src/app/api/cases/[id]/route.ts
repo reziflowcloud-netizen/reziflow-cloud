@@ -1,4 +1,5 @@
 // src/app/api/cases/[id]/route.ts
+import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
@@ -60,8 +61,8 @@ async function syncCaseImportantDateTask(args: {
   date?: string | Date | null
   time?: string | null
   location?: string | null
-}) {
-  const existing = await prisma.task.findFirst({
+}, db: Prisma.TransactionClient = prisma) {
+  const existing = await db.task.findFirst({
     where: {
       organizationId: args.organizationId,
       AND: [
@@ -75,7 +76,7 @@ async function syncCaseImportantDateTask(args: {
   })() : {}
 
   if (!args.date) {
-    if (existing) await prisma.task.delete({ where: { id: existing.id } })
+    if (existing) await db.task.delete({ where: { id: existing.id } })
     return
   }
 
@@ -109,18 +110,18 @@ async function syncCaseImportantDateTask(args: {
     }),
   }
 
-  if (existing) await prisma.task.update({ where: { id: existing.id }, data })
-  else await prisma.task.create({ data })
+  if (existing) await db.task.update({ where: { id: existing.id }, data })
+  else await db.task.create({ data })
 }
 
-async function syncFixedImportantDateTasks(organizationId: string, caseRecord: any) {
+async function syncFixedImportantDateTasks(organizationId: string, caseRecord: any, db: Prisma.TransactionClient = prisma) {
   await syncCaseImportantDateTask({
     organizationId,
     caseRecord,
     kind: 'filingDate',
     title: 'Дата подачи',
     date: null,
-  })
+  }, db)
   const personalAppearDate = shouldRetirePersonalAppearTask(
     caseRecord.personalAppearDate,
     caseRecord.statusHistory || []
@@ -135,7 +136,7 @@ async function syncFixedImportantDateTasks(organizationId: string, caseRecord: a
     date: personalAppearDate,
     time: caseRecord.personalAppearTime,
     location: caseRecord.personalAppearLocation,
-  })
+  }, db)
   await syncCaseImportantDateTask({
     organizationId,
     caseRecord,
@@ -144,21 +145,21 @@ async function syncFixedImportantDateTasks(organizationId: string, caseRecord: a
     date: caseRecord.cardPickupDate,
     time: caseRecord.cardPickupTime,
     location: caseRecord.cardPickupLocation,
-  })
+  }, db)
   await syncCaseImportantDateTask({
     organizationId,
     caseRecord,
     kind: 'legalStayDeadline',
     title: 'Срок легального пребывания',
     date: caseRecord.legalStayDeadline,
-  })
+  }, db)
   await syncCaseImportantDateTask({
     organizationId,
     caseRecord,
     kind: 'workContractEndDate',
     title: 'Дата окончания договора',
     date: caseRecord.workContractEndDate,
-  })
+  }, db)
 }
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -280,37 +281,58 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (has('staySubPurpose')) caseDetailsData.staySubPurpose = body.staySubPurpose || null
     if (has('workContractEndDate')) caseDetailsData.workContractEndDate = nullableDate('workContractEndDate')
 
-    const updated = await (prisma as any).case.update({
-      where: { id: params.id },
-      data: { ...baseData, ...caseDetailsData }
-    })
-
-    // История статусов
-    if (body.status && existing.status !== body.status) {
-      await prisma.statusHistory.create({
-        data: {
-          caseId: params.id,
-          fromStatus: existing.status,
-          toStatus: body.status,
-          changedBy: (user as any).name || 'User'
-        }
-      })
+    // Existing status-only quick actions remain explicit. Old full-form clients must reload.
+    const statusOnlyAction = Object.keys(body).length === 1 && has('status')
+    if (body.expectedUpdatedAt === undefined && !statusOnlyAction) {
+      return NextResponse.json({ error: 'Reload this case before saving (version required)' }, { status: 428 })
     }
+    const expected = body.expectedUpdatedAt === undefined ? existing.updatedAt : new Date(body.expectedUpdatedAt)
+    if (Number.isNaN(expected.getTime())) return NextResponse.json({ error: 'Invalid version' }, { status: 400 })
+    if (expected.getTime() !== existing.updatedAt.getTime()) return NextResponse.json({ error: 'CASE_CONFLICT' }, { status: 409 })
+    if (baseData.serviceId && !await prisma.service.findFirst({ where: { id: baseData.serviceId, organizationId } })) {
+      return NextResponse.json({ error: 'Invalid service' }, { status: 400 })
+    }
+    if (employeeId && !await prisma.employee.findFirst({ where: { id: employeeId, organizationId } })) {
+      return NextResponse.json({ error: 'Invalid employee' }, { status: 400 })
+    }
+    const updated = await prisma.$transaction(async tx => {
+      const claimed = await tx.case.updateMany({
+        where: { AND: [caseWhereForScope(scope, organizationId, { id: params.id }), { updatedAt: expected }] },
+        data: { ...baseData, ...caseDetailsData, updatedAt: new Date(Math.max(Date.now(), existing.updatedAt.getTime() + 1)) },
+      })
+      if (claimed.count !== 1) throw Object.assign(new Error('CASE_CONFLICT'), { status: 409 })
+      const updated = await tx.case.findUniqueOrThrow({ where: { id: params.id } })
 
-    const caseForCalendar = await prisma.case.findFirst({
-      where: caseWhereForScope(scope, organizationId, { id: params.id }),
-      include: {
-        client: true,
-        statusHistory: {
-          where: { fromStatus: { not: null } },
-          select: { fromStatus: true, changedAt: true },
+      // История статусов
+      if (body.status && existing.status !== body.status) {
+        await tx.statusHistory.create({
+          data: {
+            caseId: params.id,
+            fromStatus: existing.status,
+            toStatus: body.status,
+            changedBy: (user as any).name || 'User'
+          }
+        })
+      }
+
+      const caseForCalendar = await tx.case.findFirst({
+        where: caseWhereForScope(scope, organizationId, { id: params.id }),
+        include: {
+          client: true,
+          statusHistory: {
+            where: { fromStatus: { not: null } },
+            select: { fromStatus: true, changedAt: true },
+          },
         },
-      },
+      })
+      const calendarFields = ['status', 'employeeId', 'caseNumber', 'filingDate', 'personalAppearDate', 'personalAppearTime', 'personalAppearLocation', 'cardPickupDate', 'cardPickupTime', 'cardPickupLocation', 'legalStayDeadline', 'workContractEndDate']
+      if (caseForCalendar && calendarFields.some(has)) await syncFixedImportantDateTasks(organizationId, caseForCalendar, tx)
+      return updated
     })
-    if (caseForCalendar) await syncFixedImportantDateTasks(organizationId, caseForCalendar)
 
     return NextResponse.json(updated)
   } catch (e: any) {
+    if (e.status === 409) return NextResponse.json({ error: 'CASE_CONFLICT' }, { status: 409 })
     console.error('PATCH case error:', e)
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

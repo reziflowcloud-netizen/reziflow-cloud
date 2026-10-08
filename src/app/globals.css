@@ -6606,3 +6606,9 @@ textarea.input { resize: vertical; }
     min-width: 0;
   }
 }
+
+/* System backdrop follows the existing palette without changing CRM layout. */
+html { background-color: var(--bg); }
+.app-refresh-indicator { position: fixed; top: max(10px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 500; max-width: calc(100vw - 24px); padding: 8px 14px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); font-size: 12px; text-align: center; pointer-events: none; }
+.case-save-status { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.case-save-status[data-state="error"], .case-save-status[data-state="conflict"] { color: var(--danger-strong); }

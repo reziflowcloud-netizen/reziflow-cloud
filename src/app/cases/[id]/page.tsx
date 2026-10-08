@@ -1,4 +1,9 @@
 'use client'
+import { useCaseAutosave } from '@/hooks/useCaseAutosave'
+import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
+import { freshJson } from '@/lib/screenRefresh'
+import { appExperienceText } from '@/lib/appExperienceI18n'
+import { prepareScreenLeave } from '@/lib/screenLeave'
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -93,6 +98,24 @@ export default function CaseDetailPage() {
   const customSectionsRef = useRef<CustomSectionsHandle>(null)
   const mosSelectionAnchorRef = useRef<number | null>(null)
 
+  const saveCopy = appExperienceText[lang]
+  const [customDirty, setCustomDirty] = useState(false)
+  const otherInputDirty = useRef(false)
+  const hasOtherDrafts = () => Boolean(saving || customDirty || otherInputDirty.current || customSectionsRef.current?.isDirty() || mosId.trim() !== initialMosId.trim()
+    || payAmount || payNote || editingPayment || taskTitle || taskDueDate || comment || newDateLabel || newDateValue
+    || newDocDate || newDocDesc || newMosDocName || newMosDocDueDate || customReminderTitle || customReminderDate
+    || paymentPlan.some(row => row.amount || row.dueDate))
+  const autosave = useCaseAutosave(async (patch, version) => {
+    const res = await fetch(`/api/cases/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...patch, expectedUpdatedAt: version }),
+    })
+    if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status })
+    const updated = await res.json()
+    setC((previous: any) => ({ ...previous, ...updated, service: services.find(service => service.id === updated.serviceId) || null }))
+    return updated.updatedAt
+  }, saveCopy.leave, hasOtherDrafts)
+
   // Новые даты
   const [newDateLabel, setNewDateLabel] = useState('')
   const [newDateValue, setNewDateValue] = useState('')
@@ -122,7 +145,21 @@ export default function CaseDetailPage() {
         setMosEmailFieldEnabled(false)
       })
 
-    fetch(`/api/cases/${id}`).then(r => r.json()).then(data => {
+    void loadCaseForm()
+    fetch('/api/statuses').then(r => r.json()).then(d => setStatuses(Array.isArray(d) ? d : []))
+    fetch('/api/services').then(r => r.json()).then(d => setServices(Array.isArray(d) ? d.filter((s: any) => s.active) : []))
+    fetch('/api/employees').then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d.filter((e: any) => e.active) : []))
+    fetch('/api/case-options').then(r => r.json()).then(d => setCaseOptions(Array.isArray(d) ? d : []))
+    fetch('/api/document-templates').then(r => r.json()).then(d => setDocumentTemplates(Array.isArray(d.templates) ? d.templates : [])).catch(() => setDocumentTemplates([]))
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(data => setCurrentUser(data)).catch(() => setCurrentUser(null))
+  }, [id])
+
+  function loadCaseForm(force = false) {
+    const revision = autosave.revision
+    const version = autosave.version
+    return freshJson(`/api/cases/${id}`).then(data => {
+      if (!force && (!autosave.safeToRefresh || hasOtherDrafts() || revision !== autosave.revision || version !== autosave.version)) return
+      otherInputDirty.current = false
       setC(data)
       loadPlannedPayments(data)
       loadMosDocuments(data)
@@ -133,7 +170,7 @@ export default function CaseDetailPage() {
       setMosId(loadedMosId)
       setInitialMosId(loadedMosId)
       setDocuments(data.caseDocuments || [])
-      setForm({
+      const loadedForm = {
         caseNumber: data.caseNumber || '',
         status: data.status || '',
         serviceId: data.serviceId?.toString() || '',
@@ -171,15 +208,14 @@ export default function CaseDetailPage() {
         workContractEndDate: data.workContractEndDate?.slice(0, 10) || '',
         workContractSigned: data.workContractSigned || false,
         staySubPurpose: data.staySubPurpose || '',
-      })
+      }
+      setForm(loadedForm)
+      autosave.initialize(loadedForm, data.updatedAt)
+      markScreenFetched()
     })
-    fetch('/api/statuses').then(r => r.json()).then(d => setStatuses(Array.isArray(d) ? d : []))
-    fetch('/api/services').then(r => r.json()).then(d => setServices(Array.isArray(d) ? d.filter((s: any) => s.active) : []))
-    fetch('/api/employees').then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d.filter((e: any) => e.active) : []))
-    fetch('/api/case-options').then(r => r.json()).then(d => setCaseOptions(Array.isArray(d) ? d : []))
-    fetch('/api/document-templates').then(r => r.json()).then(d => setDocumentTemplates(Array.isArray(d.templates) ? d.templates : [])).catch(() => setDocumentTemplates([]))
-    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(data => setCurrentUser(data)).catch(() => setCurrentUser(null))
-  }, [id])
+  }
+  useScreenRefresh(() => loadCaseForm(), () => autosave.safeToRefresh && !hasOtherDrafts())
+
 
   useEffect(() => {
     if (!c?.assignedTo || form.employeeId || employees.length === 0) return
@@ -187,6 +223,8 @@ export default function CaseDetailPage() {
     const matchingEmployee = employees.find((employee: any) => normalizePersonName(employee.name) === assignedName)
     if (matchingEmployee?.id) {
       setForm((prev: any) => prev.employeeId ? prev : { ...prev, employeeId: String(matchingEmployee.id) })
+      autosave.baseline.employeeId = String(matchingEmployee.id)
+      autosave.values.employeeId = String(matchingEmployee.id)
     }
   }, [c?.assignedTo?.id, employees, form.employeeId])
 
@@ -217,7 +255,7 @@ export default function CaseDetailPage() {
     return fallback.map(v => <option key={v} value={v}>{v}</option>)
   }
 
-  function set(k: string, v: any) { setForm((p: any) => ({ ...p, [k]: v })) }
+  function set(k: string, v: any) { autosave.change(k, v); setForm((p: any) => ({ ...p, [k]: v })) }
 
   function dateOnly(value: any) {
     if (!value) return ''
@@ -261,16 +299,10 @@ export default function CaseDetailPage() {
     setSaving(true)
     try {
       const previous = c || {}
-      const res = await fetch(`/api/cases/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, employeeId: form.employeeId ? parseInt(form.employeeId) : null, staySubPurpose: form.staySubPurpose || null }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `HTTP ${res.status}`)
-      }
-      const updated = await res.json()
+      autosave.values = { ...form }
+      const ok = await autosave.flush(true)
+      if (!ok) return
+      const updated = await freshJson(`/api/cases/${id}`)
       const nextCase = { ...previous, ...updated, service: services.find(s => s.id === parseInt(form.serviceId)) || null }
       setC((prev: any) => ({ ...prev, ...nextCase }))
       const followUpTasks: Promise<any>[] = []
@@ -289,7 +321,8 @@ export default function CaseDetailPage() {
       const customSave = customSectionsRef.current?.save() || Promise.resolve(true)
       const [customOk] = await Promise.all([customSave, ...followUpTasks])
       await loadCaseTasks(nextCase)
-      if (customOk === false) alert(t('custom_fields_save_failed'))
+      if (customOk === false) { otherInputDirty.current = true; alert(t('custom_fields_save_failed')) }
+      else otherInputDirty.current = false
     } catch (err: any) {
       alert(`${t('save_error') || 'Ошибка сохранения'}: ${err.message}`)
     } finally {
@@ -1000,6 +1033,12 @@ export default function CaseDetailPage() {
     }
   }
 
+  const saveStatus = <div className="case-save-status" data-state={autosave.state} role="status" aria-live="polite">
+    {hasOtherDrafts() && autosave.state !== 'error' && autosave.state !== 'conflict' ? saveCopy.dirty : autosave.state === 'idle' ? '' : saveCopy[autosave.state]}
+    {autosave.state === 'error' && <button type="button" className="btn btn-ghost" onClick={() => void autosave.flush()}>{saveCopy.retry}</button>}
+    {autosave.state === 'conflict' && <button type="button" className="btn btn-ghost" onClick={() => { if (confirm(saveCopy.discard)) void loadCaseForm(true) }}>{saveCopy.reload}</button>}
+  </div>
+
   if (!c) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>{t('loading')}</div>
 
   const debt = Math.max(0, c.totalValue - c.totalPaid)
@@ -1041,9 +1080,11 @@ export default function CaseDetailPage() {
         tab={tab}
         setTab={setTab}
         restrictedAccess={restrictedAccess}
-        saving={saving}
+        saveStatus={saveStatus}
+        onCustomDirtyChange={setCustomDirty}
+        saving={saving || autosave.busy}
         onSave={save}
-        onBack={() => router.push('/cases')}
+        onBack={async () => { if (await prepareScreenLeave()) router.push('/cases') }}
         canDeleteCase={canDeleteCases}
         isArchived={isArchiveCaseStatus(form.status || c.status)}
         onDeleteCase={deleteCase}
@@ -1144,7 +1185,8 @@ export default function CaseDetailPage() {
               {t('delete_case')}
             </button>
           )}
-          <button onClick={save} className="btn btn-primary" disabled={saving}>
+          {saveStatus}
+          <button onClick={save} className="btn btn-primary" disabled={saving || autosave.busy}>
             {saving ? t('saving') : t('save')}
           </button>
         </div>
@@ -1675,7 +1717,7 @@ export default function CaseDetailPage() {
                   <div data-custom-fields-slot="case:case-notes" />
                 </div>
 
-                {!isMobilePresentation && <CustomSectionsRenderer ref={customSectionsRef} scope="case" recordId={String(id)} standaloneSave={false} />}
+                {!isMobilePresentation && <CustomSectionsRenderer ref={customSectionsRef} scope="case" recordId={String(id)} standaloneSave={false} onDirtyChange={setCustomDirty} />}
               </div>
             )}
 
