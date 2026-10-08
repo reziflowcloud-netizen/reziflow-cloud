@@ -28,7 +28,7 @@ async function main() {
   const service = await db.service.create({ data: { organizationId: org.id, name: 'QA service' } })
   await db.caseStatus.createMany({ data: ['Новый', 'В работе', 'Архив'].map(name => ({ name, organizationId: org.id })) })
   const payment = await db.payment.create({ data: { caseId: record.id, amount: 15, note: 'QA immutable baseline' } })
-  const browser = await chromium.launch({ channel: 'msedge', headless: true })
+  const browser = await chromium.launch({ headless: true })
   const ctx = await browser.newContext({ viewport: { width: 390, height: 900 }, hasTouch: true })
   const page = await ctx.newPage()
   page.on('pageerror', error => report.errors.push(error.message))
@@ -130,7 +130,8 @@ async function main() {
         const input = field(); await input.waitFor({ state: 'visible' })
         const value = `QA-${width}-${lang}-${suffix}`
         const start = requests.length
-        await input.fill(value); await state(copy[lang].dirty)
+        await input.fill(value)
+        assert.ok(!(await page.locator('.case-save-status:visible').textContent()).includes(copy[lang].dirty))
         await state(copy[lang].saved)
         assert.equal((await persisted()).caseNumber, value)
         assert.equal(requests.length - start, 1)
@@ -204,10 +205,7 @@ async function main() {
       target.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: [touch(100 + distance)] }))
       target.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [] }))
     }, distance)
-    const moreRefresh = async () => {
-      await page.getByRole('navigation', { name: 'Mobile navigation' }).getByRole('button', { name: 'Ещё', exact: true }).click()
-      await page.getByRole('dialog').getByRole('button', { name: 'Обновить', exact: true }).click()
-    }
+    const revalidate = async () => page.evaluate(() => window.dispatchEvent(new Event('legalhub:refresh')))
     await check('pull at top threshold release once; normal scroll; no hard reload or route change', async () => {
       await open(); await field().blur(); await page.evaluate(() => { window.scrollTo(0, 0); window.qaDocumentMarker = 123 })
       let start = reads; await pull(109); await delay(150); assert.equal(reads, start)
@@ -216,7 +214,7 @@ async function main() {
       await page.evaluate(() => window.scrollTo(0, 0)); assert.equal(await page.evaluate(() => window.qaDocumentMarker), 123)
       assert.equal(new URL(page.url()).pathname, `/cases/${record.id}`)
     })
-    await check('dirty pull, dirty resume, manual refresh during pending save preserve latest', async () => {
+    await check('dirty pull, dirty resume, revalidation during pending save preserve latest', async () => {
       await field().fill('dirty pull'); await field().blur(); await page.evaluate(() => window.scrollTo(0, 0))
       let start = reads; await pull(140); await delay(100); assert.equal(reads, start); assert.equal(await field().inputValue(), 'dirty pull')
       await state(copy.ru.saved)
@@ -225,15 +223,15 @@ async function main() {
       await delay(100); assert.equal(reads, start); await state(copy.ru.saved)
       await page.evaluate(() => { Date.now = window.qaNow })
       await page.route('**' + url, async route => { if (route.request().method() === 'PATCH') await delay(1300); await route.continue() })
-      await field().fill('dirty manual pending'); await state(copy.ru.saving); start = reads; await moreRefresh(); await delay(100)
+      await field().fill('dirty manual pending'); await state(copy.ru.saving); start = reads; await revalidate(); await delay(100)
       assert.equal(reads, start); assert.equal(await field().inputValue(), 'dirty manual pending'); await state(copy.ru.saved)
-      await page.unroute('**' + url); await moreRefresh(); await delay(700); assert.equal(reads, start + 1)
+      await page.unroute('**' + url); await revalidate(); await delay(700); assert.equal(reads, start + 1)
       assert.equal(await field().inputValue(), 'dirty manual pending'); assert.equal((await persisted()).caseNumber, 'dirty manual pending')
     })
     await check('resume <45s no fetch >45s one fetch; no polling', async () => {
       await open()
       await page.evaluate(() => { window.qaNow = Date.now; window.qaBase = Date.now(); Date.now = () => window.qaBase })
-      await moreRefresh(); await delay(700); let start = reads
+      await revalidate(); await delay(700); let start = reads
       await page.evaluate(() => { Date.now = () => window.qaBase + 44000; window.dispatchEvent(new Event('focus')) })
       await delay(200); assert.equal(reads, start)
       await page.evaluate(() => { Date.now = () => window.qaBase + 46000; window.dispatchEvent(new Event('focus')); window.dispatchEvent(new Event('focus')) })
@@ -247,7 +245,7 @@ async function main() {
         if (route.request().method() === 'GET') { const response = await route.fetch(); await delay(1500); await route.fulfill({ response }) }
         else await route.continue()
       })
-      await moreRefresh(); await delay(100); await field().fill('edit during real GET'); await state(copy.ru.saved); await delay(1700)
+      await revalidate(); await delay(100); await field().fill('edit during real GET'); await state(copy.ru.saved); await delay(1700)
       assert.equal(await field().inputValue(), 'edit during real GET'); assert.equal((await persisted()).caseNumber, 'edit during real GET')
       await page.unroute('**' + url)
     })
@@ -265,10 +263,10 @@ async function main() {
       assert.equal((await persisted()).caseNumber, 'leave browser Back')
     })
     await page.setViewportSize({ width: 390, height: 900 })
-    for (const lang of ['ru', 'uk', 'pl']) await check(`all five save states localized ${lang}`, async () => {
+    for (const lang of ['ru', 'uk', 'pl']) await check(`hidden dirty label and localized saving/error/conflict states ${lang}`, async () => {
       await page.addInitScript(lang => localStorage.setItem('rezi_lang', lang), lang); await open()
       await page.route('**' + url, async route => { if (route.request().method() === 'PATCH') await delay(500); await route.continue() })
-      await field().fill(`states-${lang}`); await state(copy[lang].dirty); await state(copy[lang].saving); await state(copy[lang].saved); await page.unroute('**' + url)
+      await field().fill(`states-${lang}`); assert.ok(!(await page.locator('.case-save-status:visible').textContent()).includes(copy[lang].dirty)); await state(copy[lang].saving); await state(copy[lang].saved); await page.unroute('**' + url)
       await page.route('**' + url, route => route.request().method() === 'PATCH' ? route.abort('failed') : route.continue())
       await field().fill(`error-${lang}`); await state(copy[lang].error); await page.unroute('**' + url)
       await page.getByRole('button', { name: copy[lang].retry, exact: true }).click(); await state(copy[lang].saved)

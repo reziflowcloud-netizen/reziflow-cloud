@@ -898,7 +898,7 @@ export default function CaseDetailPage() {
   }
 
   const saveStatus = <div className="case-save-status" data-state={autosave.state} role="status" aria-live="polite">
-    {hasOtherDrafts() && autosave.state !== 'error' && autosave.state !== 'conflict' ? saveCopy.dirty : autosave.state === 'idle' ? '' : saveCopy[autosave.state]}
+    {hasOtherDrafts() && autosave.state !== 'error' && autosave.state !== 'conflict' ? '' : autosave.state === 'idle' || autosave.state === 'dirty' ? '' : saveCopy[autosave.state]}
     {autosave.state === 'error' && <button type="button" className="btn btn-ghost" onClick={() => void autosave.flush()}>{saveCopy.retry}</button>}
     {autosave.state === 'conflict' && <button type="button" className="btn btn-ghost" onClick={() => { if (confirm(saveCopy.discard)) void loadCaseForm(true) }}>{saveCopy.reload}</button>}
   </div>

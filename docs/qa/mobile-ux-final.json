@@ -1,0 +1,56 @@
+{
+  "baseProductionCommit": "d363d41cbb1cf383628f208c8008ca0cff5733e1",
+  "scope": [
+    "Hide Case dirty-state label without removing state or leave guards",
+    "Remove only More menu Refresh action"
+  ],
+  "unchanged": [
+    "Case autosave allowlist and 850ms debounce",
+    "minimal PATCH, CAS, 409, legacy compatibility, Retry, manual Save",
+    "pull-to-refresh, resume 45000ms, dirty refresh guards",
+    "schema, security/auth, tenant validation",
+    "Leads/Clients/Tasks autosave remains disabled"
+  ],
+  "validation": {
+    "unitAndDatabaseTests": {
+      "passed": 132,
+      "failed": 0,
+      "skipped": 0
+    },
+    "postgresBrowser": {
+      "checksPassed": 23,
+      "viewportLanguageCombinations": 15,
+      "browserErrors": 0
+    },
+    "securityDb": "PASS; auth, restricted access, tenant relations, cross-origin, session revocation, Lead visibility",
+    "typescript": "PASS",
+    "prismaValidate": "PASS",
+    "safeBuild": "PASS; loopback invalid port 1 build DB; prisma generate + next build",
+    "diffCheck": "PASS"
+  },
+  "browserMatrix": {
+    "combinations": 45,
+    "mobileAnd1440Pass": 36,
+    "desktop1024Fail": 9,
+    "regressionAgainstPreviousProduction": "NONE; exact same widths in all nine 1024 combinations",
+    "desktop1024ScrollWidths": {
+      "ru": 1075,
+      "uk": 1046,
+      "pl": 1085
+    },
+    "baselineArtifacts": "C:/Users/verbe/AppData/Local/Temp/legalhub-mobile-qa-uhFN19/results.json",
+    "newArtifacts": "C:/Users/verbe/AppData/Local/Temp/legalhub-mobile-qa-dW3vWP/results.json",
+    "checks": "Dirty label absent, pending unload blocked, saved unload unblocked, failed navigation warning and Retry, error visible with no false Saved, menu Refresh absent with Tasks/Stages/Calendar/Settings preserved, pull and resume"
+  },
+  "productionQaCase": {
+    "id": "cmuztmhjj0003ud8urcap9vd5",
+    "restoration": "PASS; versioned PATCH 200 then read-only GET; notes/status/appearance baseline restored; all other fields unchanged",
+    "baseline": {
+      "notes": "Synthetic production pilot baseline",
+      "status": "Новый",
+      "personalAppearanceNote": null
+    }
+  },
+  "productionRollout": "PENDING: user requested all QA PASS before deploy; existing 1024 desktop overflow needs explicit exception or separately authorized fix",
+  "migrationExecuted": false
+}

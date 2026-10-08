@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs')
 const connection = new URL(process.env.DATABASE_URL || '')
 assert.equal(connection.hostname, '127.0.0.1'); assert.equal(connection.port, '55432'); assert.equal(connection.pathname, '/legalhub_case_qa')
 const db = new PrismaClient()
-const origin = process.env.LEGALHUB_QA_ORIGIN || 'http://127.0.0.1:3107'
+const origin = process.env.LEGALHUB_QA_ORIGIN || 'http://localhost:3107'
 assert.ok(['localhost', '127.0.0.1'].includes(new URL(origin).hostname)); assert.equal(new URL(origin).port, '3107')
 async function main() {
   const { request } = require(path.join(process.env.LEGALHUB_QA_NODE_MODULES, 'playwright'))
@@ -27,6 +27,7 @@ async function main() {
     const unauthenticated = await anonymous.get(origin + `/api/cases/${own.id}`, { maxRedirects: 0 })
     assert.equal(unauthenticated.status(), 307); assert.ok(unauthenticated.headers().location.includes('/login'))
     assert.equal((await api.post(origin + '/api/auth/login', { data: { email: user.email, password } })).status(), 200)
+    assert.equal((await api.get(origin + '/api/auth/me', { maxRedirects: 0 })).status(), 200)
     checks.authentication = 'PASS'
     assert.equal((await api.get(origin + `/api/cases/${own.id}`)).status(), 200)
     assert.equal((await api.get(origin + `/api/cases/${hidden.id}`)).status(), 404)
