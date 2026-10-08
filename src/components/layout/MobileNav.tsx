@@ -1,6 +1,8 @@
 'use client'
 
 import Link from 'next/link'
+import MobileExperience from '@/components/MobileExperience'
+import { prepareScreenLeave } from '@/lib/screenLeave'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
@@ -111,6 +113,7 @@ export default function MobileNav() {
   }, [pathname])
 
   async function logout() {
+    if (!await prepareScreenLeave()) return
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/')
     router.refresh()
@@ -125,6 +128,7 @@ export default function MobileNav() {
 
   return (
     <>
+      <MobileExperience />
       <MoreBottomSheet
         open={moreOpen}
         pathname={pathname}

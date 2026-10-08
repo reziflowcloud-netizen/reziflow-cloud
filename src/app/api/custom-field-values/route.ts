@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { findScopedCase, findScopedClient } from '@/lib/apiScope'
+import { PATCH as patchCase } from '../cases/[id]/route'
 
 function normalizeScope(value: unknown) {
   return value === 'case' ? 'case' : 'client'
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
   const recordId = String(req.nextUrl.searchParams.get('recordId') || '')
   if (!recordId) return NextResponse.json({ error: 'recordId is required' }, { status: 400 })
   const record = scope === 'case'
-    ? await findScopedCase(recordId, organizationId, { id: true })
+    ? await findScopedCase(recordId, organizationId, { id: true, updatedAt: true })
     : await findScopedClient(recordId, organizationId, { id: true })
   if (!record) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -44,6 +45,7 @@ export async function GET(req: NextRequest) {
   })
 
   return NextResponse.json({
+    ...(scope === 'case' ? { expectedUpdatedAt: record.updatedAt } : {}),
     sections: sections.map(section => ({
       ...section,
       fields: section.fields.map(field => ({
@@ -71,6 +73,12 @@ export async function PATCH(req: NextRequest) {
   if (!record) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const fieldIds = Object.keys(values).map(id => Number(id)).filter(Number.isFinite)
+  // Case fields participate in the same optimistic version and transaction as standard fields.
+  // Clients keep their existing explicit-save flow.
+  if (scope === 'case') {
+    const request = new NextRequest(req.url, { method: 'PATCH', headers: req.headers, body: JSON.stringify({ customFieldValues: values, expectedUpdatedAt: body.expectedUpdatedAt }) })
+    return patchCase(request, { params: { id: recordId } })
+  }
   if (fieldIds.length === 0) return NextResponse.json({ ok: true })
 
   const fields = await prisma.customField.findMany({

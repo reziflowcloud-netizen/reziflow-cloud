@@ -1,4 +1,6 @@
 'use client'
+import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
+import { freshJson } from '@/lib/screenRefresh'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -399,11 +401,12 @@ export default function LeadsPage() {
   function loadLeads() {
     setLoading(true)
     const params = new URLSearchParams({ view: 'list', staffScope })
-    return fetch(`/api/leads?${params}`, { cache: 'no-store' })
-      .then(res => res.json())
-      .then(data => setLeads(Array.isArray(data) ? data : []))
+    return freshJson(`/api/leads?${params}`)
+      .then(data => { setLeads(Array.isArray(data) ? data : []); markScreenFetched() })
       .finally(() => setLoading(false))
   }
+
+  useScreenRefresh(loadLeads)
 
   useEffect(() => {
     loadLeads()

@@ -1,4 +1,5 @@
 // src/app/api/cases/[id]/route.ts
+import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
@@ -8,6 +9,7 @@ import { caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 import { resolveUserIdForEmployee } from '@/lib/employeeSync'
 import { shouldRetirePersonalAppearTask } from '@/lib/caseImportantDateTasks'
 import { serializeDocumentForBrowser } from '@/lib/documentSecurity'
+import { syncCaseDateReminders } from '@/lib/caseDateReminders'
 
 function taskBelongsToCase(
   task: { title: string | null; description: string | null },
@@ -30,6 +32,7 @@ function taskBelongsToCase(
     meta.quickCaseTask,
     meta.fingerprintsAppointment,
     meta.predictedDecision,
+    meta.predictedDecisionDocuments,
     meta.caseImportantDate,
   ]
 
@@ -60,8 +63,8 @@ async function syncCaseImportantDateTask(args: {
   date?: string | Date | null
   time?: string | null
   location?: string | null
-}) {
-  const existing = await prisma.task.findFirst({
+}, db: Prisma.TransactionClient = prisma) {
+  const existing = await db.task.findFirst({
     where: {
       organizationId: args.organizationId,
       AND: [
@@ -75,7 +78,7 @@ async function syncCaseImportantDateTask(args: {
   })() : {}
 
   if (!args.date) {
-    if (existing) await prisma.task.delete({ where: { id: existing.id } })
+    if (existing) await db.task.delete({ where: { id: existing.id } })
     return
   }
 
@@ -109,18 +112,18 @@ async function syncCaseImportantDateTask(args: {
     }),
   }
 
-  if (existing) await prisma.task.update({ where: { id: existing.id }, data })
-  else await prisma.task.create({ data })
+  if (existing) await db.task.update({ where: { id: existing.id }, data })
+  else await db.task.create({ data })
 }
 
-async function syncFixedImportantDateTasks(organizationId: string, caseRecord: any) {
+async function syncFixedImportantDateTasks(organizationId: string, caseRecord: any, db: Prisma.TransactionClient = prisma) {
   await syncCaseImportantDateTask({
     organizationId,
     caseRecord,
     kind: 'filingDate',
     title: 'Дата подачи',
     date: null,
-  })
+  }, db)
   const personalAppearDate = shouldRetirePersonalAppearTask(
     caseRecord.personalAppearDate,
     caseRecord.statusHistory || []
@@ -135,7 +138,7 @@ async function syncFixedImportantDateTasks(organizationId: string, caseRecord: a
     date: personalAppearDate,
     time: caseRecord.personalAppearTime,
     location: caseRecord.personalAppearLocation,
-  })
+  }, db)
   await syncCaseImportantDateTask({
     organizationId,
     caseRecord,
@@ -144,21 +147,21 @@ async function syncFixedImportantDateTasks(organizationId: string, caseRecord: a
     date: caseRecord.cardPickupDate,
     time: caseRecord.cardPickupTime,
     location: caseRecord.cardPickupLocation,
-  })
+  }, db)
   await syncCaseImportantDateTask({
     organizationId,
     caseRecord,
     kind: 'legalStayDeadline',
     title: 'Срок легального пребывания',
     date: caseRecord.legalStayDeadline,
-  })
+  }, db)
   await syncCaseImportantDateTask({
     organizationId,
     caseRecord,
     kind: 'workContractEndDate',
     title: 'Дата окончания договора',
     date: caseRecord.workContractEndDate,
-  })
+  }, db)
 }
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -167,7 +170,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const organizationId = getOrganizationId(user)
   const scope = await getDataAccessScope(user, organizationId)
   try {
-    const c = await (prisma as any).case.findFirst({
+    const c = await prisma.$transaction(async tx => {
+    const record = await (tx as any).case.findFirst({
       where: caseWhereForScope(scope, organizationId, { id: params.id }),
       include: {
         client: true, service: true,
@@ -181,6 +185,10 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         employee: true,
       }
     })
+    if (!record) return null
+    const fields = await tx.customField.findMany({ where: { active: true, section: { organizationId, scope: 'case', active: true } }, select: { id: true, values: { where: { organizationId, recordType: 'case', recordId: params.id }, select: { value: true }, take: 1 } } })
+    return { ...record, customFieldValues: Object.fromEntries(fields.map(field => [field.id, field.values[0]?.value || ''])) }
+    }, { isolationLevel: 'RepeatableRead' })
     if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json({
       ...c,
@@ -280,37 +288,87 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (has('staySubPurpose')) caseDetailsData.staySubPurpose = body.staySubPurpose || null
     if (has('workContractEndDate')) caseDetailsData.workContractEndDate = nullableDate('workContractEndDate')
 
-    const updated = await (prisma as any).case.update({
-      where: { id: params.id },
-      data: { ...baseData, ...caseDetailsData }
-    })
-
-    // История статусов
-    if (body.status && existing.status !== body.status) {
-      await prisma.statusHistory.create({
-        data: {
-          caseId: params.id,
-          fromStatus: existing.status,
-          toStatus: body.status,
-          changedBy: (user as any).name || 'User'
-        }
-      })
+    // Temporary rollout bridge for already-open manual-save bundles. New clients
+    // identify the versioned protocol and must never silently enter this path.
+    const legacy = !has('expectedUpdatedAt')
+    if (legacy && (request.headers?.get('x-legalhub-case-write') === 'versioned' || process.env.CASE_LEGACY_PATCH_COMPAT === 'false')) {
+      return NextResponse.json({ error: 'Reload this case before saving (version required)' }, { status: 428 })
     }
+    if (!legacy && typeof body.expectedUpdatedAt !== 'string') return NextResponse.json({ error: 'Invalid version' }, { status: 400 })
+    const expected = legacy ? existing.updatedAt : new Date(body.expectedUpdatedAt)
+    if (Number.isNaN(expected.getTime())) return NextResponse.json({ error: 'Invalid version' }, { status: 400 })
+    if (expected.getTime() !== existing.updatedAt.getTime()) return NextResponse.json({ error: 'CASE_CONFLICT' }, { status: 409 })
+    if (baseData.serviceId && !await prisma.service.findFirst({ where: { id: baseData.serviceId, organizationId } })) {
+      return NextResponse.json({ error: 'Invalid service' }, { status: 400 })
+    }
+    if (employeeId && !await prisma.employee.findFirst({ where: { id: employeeId, organizationId } })) {
+      return NextResponse.json({ error: 'Invalid employee' }, { status: 400 })
+    }
+    const customValues = body.customFieldValues
+    if (customValues !== undefined && (!customValues || typeof customValues !== 'object' || Array.isArray(customValues))) return NextResponse.json({ error: 'Invalid custom values' }, { status: 400 })
+    const fieldIds = Object.keys(customValues || {}).map(Number)
+    if (fieldIds.some(id => !Number.isInteger(id) || id <= 0)) return NextResponse.json({ error: 'Invalid custom field' }, { status: 400 })
+    const updated = await prisma.$transaction(async tx => {
+      // Legacy clients have no loaded version: retain manual last-writer behavior,
+      // but serialize against CAS writers and always advance the latest version.
+      const locked = legacy ? await tx.$queryRaw<Array<{ updatedAt: Date; status: string }>>`
+        SELECT "updatedAt", "status" FROM "Case"
+        WHERE "id" = ${params.id} AND "organizationId" = ${organizationId}
+        FOR UPDATE
+      ` : null
+      if (legacy && !locked?.length) throw Object.assign(new Error('CASE_CONFLICT'), { status: 409 })
+      const writeVersion = locked?.[0]?.updatedAt || expected
+      const previousStatus = locked?.[0]?.status ?? existing.status
+      const claimed = await tx.case.updateMany({
+        where: { AND: [caseWhereForScope(scope, organizationId, { id: params.id }), { updatedAt: writeVersion }] },
+        data: { ...baseData, ...caseDetailsData, updatedAt: new Date(Math.max(Date.now(), writeVersion.getTime() + 1)) },
+      })
+      if (claimed.count !== 1) throw Object.assign(new Error('CASE_CONFLICT'), { status: 409 })
+      if (fieldIds.length) {
+        const fields = await tx.customField.findMany({ where: { id: { in: fieldIds }, active: true, section: { organizationId, scope: 'case', active: true } } })
+        if (fields.length !== fieldIds.length) throw Object.assign(new Error('Invalid custom field'), { status: 400 })
+        for (const fieldId of fieldIds) {
+          const value = String(customValues[fieldId] ?? '')
+          await tx.customFieldValue.upsert({ where: { fieldId_recordType_recordId: { fieldId, recordType: 'case', recordId: params.id } }, update: { value }, create: { organizationId, fieldId, recordType: 'case', recordId: params.id, value } })
+        }
+      }
+      const updated = await tx.case.findUniqueOrThrow({ where: { id: params.id } })
 
-    const caseForCalendar = await prisma.case.findFirst({
-      where: caseWhereForScope(scope, organizationId, { id: params.id }),
-      include: {
-        client: true,
-        statusHistory: {
-          where: { fromStatus: { not: null } },
-          select: { fromStatus: true, changedAt: true },
+      // История статусов
+      if (body.status && previousStatus !== body.status) {
+        await tx.statusHistory.create({
+          data: {
+            caseId: params.id,
+            fromStatus: previousStatus,
+            toStatus: body.status,
+            changedBy: (user as any).name || 'User'
+          }
+        })
+      }
+
+      const caseForCalendar = await tx.case.findFirst({
+        where: caseWhereForScope(scope, organizationId, { id: params.id }),
+        include: {
+          client: true,
+          statusHistory: {
+            where: { fromStatus: { not: null } },
+            select: { fromStatus: true, changedAt: true },
+          },
         },
-      },
+      })
+      const calendarFields = ['status', 'employeeId', 'caseNumber', 'filingDate', 'personalAppearDate', 'personalAppearTime', 'personalAppearLocation', 'cardPickupDate', 'cardPickupTime', 'cardPickupLocation', 'legalStayDeadline', 'workContractEndDate']
+      if (caseForCalendar && calendarFields.some(has)) await syncFixedImportantDateTasks(organizationId, caseForCalendar, tx)
+      if (caseForCalendar) await syncCaseDateReminders(tx, organizationId, caseForCalendar, body)
+      return updated
     })
-    if (caseForCalendar) await syncFixedImportantDateTasks(organizationId, caseForCalendar)
 
-    return NextResponse.json(updated)
+    if (legacy) {
+      console.warn(JSON.stringify({ event: 'case_patch_legacy_manual', deprecated: true, organizationId, caseId: params.id, userId: Number(user.id), fieldCount: Object.keys(body).length }))
+    }
+    return NextResponse.json(updated, legacy ? { headers: { 'X-LegalHub-Case-Compatibility': 'legacy-manual-temporary', 'Deprecation': '@1791417600' } } : undefined)
   } catch (e: any) {
+    if (e.status === 409) return NextResponse.json({ error: 'CASE_CONFLICT' }, { status: 409 })
+    if (e.status === 400) return NextResponse.json({ error: e.message }, { status: 400 })
     console.error('PATCH case error:', e)
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

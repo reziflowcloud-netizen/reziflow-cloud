@@ -178,6 +178,7 @@ export default function CaseDetailMobile(props: any) {
         </label>
         <button type="button" className={styles.saveButton} onClick={props.onSave} disabled={props.saving}><Icon name="check" />{props.saving ? copy.saving : copy.save}</button>
       </div>
+      {props.saveStatus}
 
       <section className={styles.summary}>
         <Link href={`/clients/${c.client?.id}?backTo=${encodeURIComponent(`/cases/${c.id}`)}`} className={styles.clientRow}>
@@ -282,7 +283,7 @@ export default function CaseDetailMobile(props: any) {
           <div data-section-scope="case" data-section-key="case-notes"><MobileAccordion title={copy.notes} summary={form.notes || props.t('not_specified')}><textarea className={styles.textarea} value={form.notes || ''} onChange={event => props.setField('notes', event.target.value)} rows={5} placeholder={props.t('notes_placeholder')} /><div data-custom-fields-slot="case:case-notes" /></MobileAccordion></div>
 
           {props.mobileActive && <MobileAccordion title={copy.customSections}>
-            <div className={styles.customSections}><CustomSectionsRenderer ref={props.customSectionsRef as RefObject<CustomSectionsHandle>} scope="case" recordId={String(props.id)} standaloneSave={false} /></div>
+            <div className={styles.customSections}><CustomSectionsRenderer ref={props.customSectionsRef as RefObject<CustomSectionsHandle>} scope="case" recordId={String(props.id)} standaloneSave={false} managedValues={props.customValues} onManagedChange={props.onCustomChange} /></div>
           </MobileAccordion>}
         </div>
       )}

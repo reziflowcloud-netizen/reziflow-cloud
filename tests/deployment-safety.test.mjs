@@ -16,7 +16,8 @@ const migrationSql = await readFile(resolve(
 
 test('already-applied migration history preserves the feature SQL checksum', () => {
   assert.equal(
-    createHash('sha256').update(migrationSql).digest('hex'),
+    // Windows Git checkouts can use CRLF; compare the canonical LF SQL from the repository.
+    createHash('sha256').update(migrationSql.toString('utf8').replace(/\r\n/g, '\n')).digest('hex'),
     '681e98fad1c81ad4363bdc7f9f066f64c5b6532c8a84228a66317f54fbfd20f5',
   )
 })

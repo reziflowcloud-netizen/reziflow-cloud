@@ -1,4 +1,6 @@
 'use client'
+import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
+import { freshJson } from '@/lib/screenRefresh'
 import { useState, useEffect } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
@@ -134,13 +136,16 @@ export default function CalendarPage() {
   function loadScopedCalendarData(scope = staffScope) {
     const query = `staffScope=${encodeURIComponent(scope)}`
     return Promise.all([
-      fetch(`/api/tasks?${query}`, { cache: 'no-store' }).then(r => r.json()),
-      fetch(`/api/cases?${query}`, { cache: 'no-store' }).then(r => r.json()),
+      freshJson(`/api/tasks?${query}`),
+      freshJson(`/api/cases?${query}`),
     ]).then(([taskData, caseData]) => {
       setTasks(Array.isArray(taskData) ? taskData : [])
       setCases(Array.isArray(caseData) ? caseData : [])
+      markScreenFetched()
     })
   }
+
+  useScreenRefresh(() => loadScopedCalendarData(), () => staffScopeReady)
 
   useEffect(() => {
     if (staffScopeReady) loadScopedCalendarData(staffScope)

@@ -1,4 +1,7 @@
 'use client'
+import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
+import { useRefreshDraftGuard } from '@/hooks/useRefreshDraftGuard'
+import { freshJson } from '@/lib/screenRefresh'
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -439,6 +442,7 @@ export default function ClientDetailPage() {
   const text = CLIENT_DETAIL_TEXT[lang] || CLIENT_DETAIL_TEXT.ru
   const { id } = useParams()
   const router = useRouter()
+  const refreshDraft = useRefreshDraftGuard()
   const searchParams = useSearchParams()
   const backTo = searchParams.get('backTo') || '/clients'
   const [client, setClient] = useState<any>(null)
@@ -464,7 +468,14 @@ export default function ClientDetailPage() {
   }, [])
 
   useEffect(() => {
-    fetch(`/api/clients/${id}`).then(r => r.json()).then(data => {
+    void loadDetail()
+  }, [id])
+
+  function loadDetail() {
+    const revision = refreshDraft.revision.current
+    return freshJson(`/api/clients/${id}`).then(data => {
+        if (refreshDraft.dirty.current || revision !== refreshDraft.revision.current) return
+        markScreenFetched()
       setClient(data)
       setTravelHistory(data.travelHistory || [])
       setForm({
@@ -505,7 +516,9 @@ export default function ClientDetailPage() {
         familyClientIds: (data.familyLinks || []).map((link: any) => link.relativeClientId),
       })
     })
-  }, [id])
+  }
+  useScreenRefresh(async () => { await loadDetail();  }, () => !saving && !refreshDraft.dirty.current)
+
 
   useEffect(() => {
     fetch('/api/clients').then(r => r.json()).then(data => {
@@ -541,12 +554,14 @@ export default function ClientDetailPage() {
   }
 
   async function save() {
+    const savedRevision = refreshDraft.revision.current
     setSaving(true)
     try {
       const res = await fetch(`/api/clients/${id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const updated = await res.json()
       const selectedFamilyLinks = availableClients
         .filter(item => (form.familyClientIds || []).includes(item.id))
@@ -556,6 +571,7 @@ export default function ClientDetailPage() {
       setShowFamilyPicker(false)
       const customOk = await customSectionsRef.current?.save()
       if (customOk === false) alert(text.customSaveError)
+      else refreshDraft.saved(savedRevision)
     } finally {
       setSaving(false)
     }

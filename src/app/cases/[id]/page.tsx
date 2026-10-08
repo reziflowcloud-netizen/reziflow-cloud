@@ -1,4 +1,9 @@
 'use client'
+import { useCaseAutosave } from '@/hooks/useCaseAutosave'
+import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
+import { freshJson } from '@/lib/screenRefresh'
+import { appExperienceText } from '@/lib/appExperienceI18n'
+import { prepareScreenLeave } from '@/lib/screenLeave'
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -93,6 +98,30 @@ export default function CaseDetailPage() {
   const customSectionsRef = useRef<CustomSectionsHandle>(null)
   const mosSelectionAnchorRef = useRef<number | null>(null)
 
+  const saveCopy = appExperienceText[lang]
+  const [customDirty, setCustomDirty] = useState(false)
+  const otherInputDirty = useRef(false)
+  const hasOtherDrafts = () => Boolean(saving || customDirty || otherInputDirty.current || customSectionsRef.current?.isDirty() || mosId.trim() !== initialMosId.trim()
+    || payAmount || payNote || editingPayment || taskTitle || taskDueDate || comment || newDateLabel || newDateValue
+    || newDocDate || newDocDesc || newMosDocName || newMosDocDueDate || customReminderTitle || customReminderDate
+    || paymentPlan.some(row => row.amount || row.dueDate))
+  const autosave = useCaseAutosave(async (patch, version) => {
+    if (!version) throw Object.assign(new Error('Case version required'), { status: 428 })
+    const customFieldValues = Object.fromEntries(Object.entries(patch).filter(([key]) => key.startsWith('custom:')).map(([key, value]) => [key.slice(7), value]))
+    const fields = Object.fromEntries(Object.entries(patch).filter(([key]) => !key.startsWith('custom:')))
+    const res = await fetch(`/api/cases/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-LegalHub-Case-Write': 'versioned' },
+      body: JSON.stringify({ ...fields, ...(Object.keys(customFieldValues).length ? { customFieldValues } : {}), expectedUpdatedAt: version, reminderLanguage: lang }),
+    })
+    if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status })
+    const updated = await res.json()
+    setC((previous: any) => ({ ...previous, ...updated, service: services.find(service => service.id === updated.serviceId) || null }))
+    if (['status', 'employeeId', 'caseNumber', 'filingDate', 'mosSentAt', 'fingerprintsDate', 'predictedDecisionDate', 'personalAppearDate', 'personalAppearTime', 'personalAppearLocation', 'cardPickupDate', 'cardPickupTime', 'cardPickupLocation', 'legalStayDeadline', 'workContractEndDate'].some(key => key in fields)) {
+      void loadCaseTasks({ ...c, ...updated }).catch(() => {})
+    }
+    return updated.updatedAt
+  }, saveCopy.leave, hasOtherDrafts)
+
   // Новые даты
   const [newDateLabel, setNewDateLabel] = useState('')
   const [newDateValue, setNewDateValue] = useState('')
@@ -122,7 +151,21 @@ export default function CaseDetailPage() {
         setMosEmailFieldEnabled(false)
       })
 
-    fetch(`/api/cases/${id}`).then(r => r.json()).then(data => {
+    void loadCaseForm()
+    fetch('/api/statuses').then(r => r.json()).then(d => setStatuses(Array.isArray(d) ? d : []))
+    fetch('/api/services').then(r => r.json()).then(d => setServices(Array.isArray(d) ? d.filter((s: any) => s.active) : []))
+    fetch('/api/employees').then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d.filter((e: any) => e.active) : []))
+    fetch('/api/case-options').then(r => r.json()).then(d => setCaseOptions(Array.isArray(d) ? d : []))
+    fetch('/api/document-templates').then(r => r.json()).then(d => setDocumentTemplates(Array.isArray(d.templates) ? d.templates : [])).catch(() => setDocumentTemplates([]))
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(data => setCurrentUser(data)).catch(() => setCurrentUser(null))
+  }, [id])
+
+  function loadCaseForm(force = false) {
+    const revision = autosave.revision
+    const version = autosave.version
+    return freshJson(`/api/cases/${id}`).then(data => {
+      if (!force && (!autosave.safeToRefresh || hasOtherDrafts() || revision !== autosave.revision || version !== autosave.version)) return
+      otherInputDirty.current = false
       setC(data)
       loadPlannedPayments(data)
       loadMosDocuments(data)
@@ -133,7 +176,7 @@ export default function CaseDetailPage() {
       setMosId(loadedMosId)
       setInitialMosId(loadedMosId)
       setDocuments(data.caseDocuments || [])
-      setForm({
+      const loadedForm = {
         caseNumber: data.caseNumber || '',
         status: data.status || '',
         serviceId: data.serviceId?.toString() || '',
@@ -171,15 +214,14 @@ export default function CaseDetailPage() {
         workContractEndDate: data.workContractEndDate?.slice(0, 10) || '',
         workContractSigned: data.workContractSigned || false,
         staySubPurpose: data.staySubPurpose || '',
-      })
+      }
+      setForm(loadedForm)
+      autosave.initialize({ ...loadedForm, ...Object.fromEntries(Object.entries(data.customFieldValues || {}).map(([key, value]) => [`custom:${key}`, value])) }, data.updatedAt)
+      markScreenFetched()
     })
-    fetch('/api/statuses').then(r => r.json()).then(d => setStatuses(Array.isArray(d) ? d : []))
-    fetch('/api/services').then(r => r.json()).then(d => setServices(Array.isArray(d) ? d.filter((s: any) => s.active) : []))
-    fetch('/api/employees').then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d.filter((e: any) => e.active) : []))
-    fetch('/api/case-options').then(r => r.json()).then(d => setCaseOptions(Array.isArray(d) ? d : []))
-    fetch('/api/document-templates').then(r => r.json()).then(d => setDocumentTemplates(Array.isArray(d.templates) ? d.templates : [])).catch(() => setDocumentTemplates([]))
-    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(data => setCurrentUser(data)).catch(() => setCurrentUser(null))
-  }, [id])
+  }
+  useScreenRefresh(() => loadCaseForm(), () => autosave.safeToRefresh && !hasOtherDrafts())
+
 
   useEffect(() => {
     if (!c?.assignedTo || form.employeeId || employees.length === 0) return
@@ -187,6 +229,8 @@ export default function CaseDetailPage() {
     const matchingEmployee = employees.find((employee: any) => normalizePersonName(employee.name) === assignedName)
     if (matchingEmployee?.id) {
       setForm((prev: any) => prev.employeeId ? prev : { ...prev, employeeId: String(matchingEmployee.id) })
+      autosave.baseline.employeeId = String(matchingEmployee.id)
+      autosave.values.employeeId = String(matchingEmployee.id)
     }
   }, [c?.assignedTo?.id, employees, form.employeeId])
 
@@ -217,7 +261,7 @@ export default function CaseDetailPage() {
     return fallback.map(v => <option key={v} value={v}>{v}</option>)
   }
 
-  function set(k: string, v: any) { setForm((p: any) => ({ ...p, [k]: v })) }
+  function set(k: string, v: any) { autosave.change(k, v); setForm((p: any) => ({ ...p, [k]: v })) }
 
   function dateOnly(value: any) {
     if (!value) return ''
@@ -261,35 +305,19 @@ export default function CaseDetailPage() {
     setSaving(true)
     try {
       const previous = c || {}
-      const res = await fetch(`/api/cases/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, employeeId: form.employeeId ? parseInt(form.employeeId) : null, staySubPurpose: form.staySubPurpose || null }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `HTTP ${res.status}`)
-      }
-      const updated = await res.json()
+      autosave.values = { ...autosave.values, ...form }
+      const ok = await autosave.flush(true)
+      if (!ok) return
+      const updated = await freshJson(`/api/cases/${id}`)
       const nextCase = { ...previous, ...updated, service: services.find(s => s.id === parseInt(form.serviceId)) || null }
       setC((prev: any) => ({ ...prev, ...nextCase }))
       const followUpTasks: Promise<any>[] = []
       if (mosId.trim() !== initialMosId.trim()) followUpTasks.push(saveMosId())
-      const reminderBaseDate = form.filingDate || form.mosSentAt
-      const filingDateChanged = dateOnly(previous.filingDate) !== form.filingDate || dateOnly(previous.mosSentAt) !== form.mosSentAt
-      if (reminderBaseDate && mosAutoRemindersEnabled && filingDateChanged) {
-        followUpTasks.push(createFilingReminders(reminderBaseDate))
-      }
-      if (dateOnly(previous.fingerprintsDate) !== form.fingerprintsDate) {
-        followUpTasks.push(syncFingerprintsReminder(form.fingerprintsDate, nextCase))
-      }
-      if (dateOnly(previous.predictedDecisionDate) !== form.predictedDecisionDate) {
-        followUpTasks.push(syncPredictedDecisionReminder(form.predictedDecisionDate, nextCase))
-      }
       const customSave = customSectionsRef.current?.save() || Promise.resolve(true)
       const [customOk] = await Promise.all([customSave, ...followUpTasks])
       await loadCaseTasks(nextCase)
-      if (customOk === false) alert(t('custom_fields_save_failed'))
+      if (customOk === false) { otherInputDirty.current = true; alert(t('custom_fields_save_failed')) }
+      else otherInputDirty.current = false
     } catch (err: any) {
       alert(`${t('save_error') || 'Ошибка сохранения'}: ${err.message}`)
     } finally {
@@ -298,7 +326,20 @@ export default function CaseDetailPage() {
   }
 
   async function refreshCase() {
-    const data = await fetch(`/api/cases/${id}`).then(r => r.json())
+    const version = autosave.version
+    const data = await freshJson(`/api/cases/${id}`)
+    // Explicit payment APIs advance the parent version. Adopt it only if the
+    // server still matches our saved editable fields; never bless a remote edit.
+    const dateKeys = new Set(['contractDate', 'mosSentAt', 'predictedDecisionDate', 'fingerprintsDate', 'filingDate', 'personalAppearDate', 'cardPickupDate', 'legalStayDeadline', 'workContractDate', 'workContractEndDate'])
+    const matchesBaseline = Object.entries(autosave.baseline).every(([key, value]) => {
+      const remote = key.startsWith('custom:') ? data.customFieldValues?.[key.slice(7)] : data[key]
+      // Older records display a responsible employee inferred from assignedTo.
+      if (key === 'employeeId' && !remote && !c?.employeeId && data.assignedToId === c?.assignedToId) return true
+      if (typeof value === 'boolean') return Boolean(remote) === value
+      if (typeof value === 'number') return Number(remote || 0) === value
+      return (dateKeys.has(key) ? dateOnly(remote) : String(remote ?? '')) === String(value)
+    })
+    if (!autosave.busy && autosave.state !== 'conflict' && autosave.version === version && matchesBaseline) autosave.version = data.updatedAt
     setC(data)
     await loadPlannedPayments(data)
     await loadMosDocuments(data)
@@ -540,158 +581,6 @@ export default function CaseDetailPage() {
     await loadCaseTasks()
   }
 
-  async function createFilingReminders(filingDate: string) {
-    if (!filingDate || !c?.id || !mosAutoRemindersEnabled) return
-    const tasks = await fetch('/api/tasks').then(r => r.json()).catch(() => [])
-    const existing = new Set(
-      Array.isArray(tasks)
-        ? tasks
-          .map((task: any) => parseTaskDescription(task.description)?.autoReminder)
-          .filter((meta: any) => meta?.caseId === c.id)
-          .map((meta: any) => meta.kind)
-        : []
-    )
-    const reminders = [
-      { kind: 'documents_2w', days: 14, title: t('deliver_documents'), note: `${t('after_filing_2w')} ${c.caseNumber}` },
-      { kind: 'id_1m', days: 30, title: t('get_id_to_mos'), note: `${t('after_filing_1m')} ${c.caseNumber}` },
-      { kind: 'cabinet_login_2m', days: 60, title: t('ask_cabinet_credentials'), note: `${t('after_filing_2m')} ${c.caseNumber}` },
-      { kind: 'check_status_4m', days: 120, title: t('check_cabinet_status'), note: `${t('after_filing_4m')} ${c.caseNumber}` },
-    ]
-    for (const reminder of reminders) {
-      if (existing.has(reminder.kind)) continue
-      await createTaskWithMeta(
-        reminder.title,
-        addDays(filingDate, reminder.days),
-        reminder.note,
-        { autoReminder: { caseId: c.id, caseNumber: c.caseNumber, kind: reminder.kind } }
-      )
-    }
-  }
-
-  async function syncPredictedDecisionReminder(decisionDate: string, caseData = c) {
-    if (!caseData?.id) return
-    const tasks = await fetch('/api/tasks').then(r => r.json()).catch(() => [])
-    const parsedTasks = Array.isArray(tasks)
-      ? tasks.map((task: any) => ({ task, meta: parseTaskDescription(task.description) }))
-      : []
-    const existing = parsedTasks.find(({ meta }: any) => meta.predictedDecision?.caseId === caseData.id)
-    const existingDocumentsReminder = parsedTasks.find(({ meta }: any) => meta.predictedDecisionDocuments?.caseId === caseData.id)
-
-    if (!decisionDate) {
-      if (existing?.task?.id) await fetch(`/api/tasks/${existing.task.id}`, { method: 'DELETE' })
-      if (existingDocumentsReminder?.task?.id) await fetch(`/api/tasks/${existingDocumentsReminder.task.id}`, { method: 'DELETE' })
-      return
-    }
-
-    const clientName = `${caseData.client?.firstName || ''} ${caseData.client?.lastName || ''}`.trim()
-    const caseLabel = caseData.caseNumber || t('no_number')
-    const payload = {
-      title: 'Przewidywana data wydania decyzji',
-      priority: existing?.task?.priority || 'Нормально',
-      dueDate: decisionDate,
-      clientName,
-      status: existing?.task?.status || 'todo',
-      description: JSON.stringify({
-        reminderAt: `${decisionDate}T09:00`,
-        reminderNote: `${t('expected_decision_note')} ${caseLabel}`,
-        predictedDecision: { caseId: caseData.id, caseNumber: caseData.caseNumber || null },
-      }),
-    }
-
-    if (existing?.task?.id) {
-      await fetch(`/api/tasks/${existing.task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-    } else {
-      await fetch('/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-    }
-
-    const documentsReminderDate = new Date(`${decisionDate}T00:00:00`)
-    documentsReminderDate.setDate(documentsReminderDate.getDate() - 45)
-    const documentsReminderDateOnly = documentsReminderDate.toISOString().slice(0, 10)
-    const documentsPayload = {
-      title: t('deliver_extra_documents_office'),
-      priority: existingDocumentsReminder?.task?.priority || 'Нормально',
-      dueDate: documentsReminderDateOnly,
-      clientName,
-      status: existingDocumentsReminder?.task?.status || 'todo',
-      description: JSON.stringify({
-        reminderAt: `${documentsReminderDateOnly}T09:00`,
-        reminderNote: `${t('deliver_extra_documents_note')} ${caseLabel}`,
-        predictedDecisionDocuments: {
-          caseId: caseData.id,
-          caseNumber: caseData.caseNumber || null,
-          predictedDecisionDate: decisionDate,
-          daysBefore: 45,
-        },
-      }),
-    }
-
-    if (existingDocumentsReminder?.task?.id) {
-      await fetch(`/api/tasks/${existingDocumentsReminder.task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(documentsPayload),
-      })
-    } else {
-      await fetch('/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(documentsPayload),
-      })
-    }
-  }
-
-  async function syncFingerprintsReminder(fingerprintsDate: string, caseData = c) {
-    if (!caseData?.id) return
-    const tasks = await fetch('/api/tasks').then(r => r.json()).catch(() => [])
-    const existing = Array.isArray(tasks)
-      ? tasks
-        .map((task: any) => ({ task, meta: parseTaskDescription(task.description) }))
-        .find(({ meta }: any) => meta.fingerprintsAppointment?.caseId === caseData.id)
-      : null
-
-    if (!fingerprintsDate) {
-      if (existing?.task?.id) await fetch(`/api/tasks/${existing.task.id}`, { method: 'DELETE' })
-      return
-    }
-
-    const clientName = `${caseData.client?.firstName || ''} ${caseData.client?.lastName || ''}`.trim()
-    const caseLabel = caseData.caseNumber || t('no_number')
-    const payload = {
-      title: t('fingerprints_task_title'),
-      priority: existing?.task?.priority || 'Нормально',
-      dueDate: fingerprintsDate,
-      clientName,
-      status: existing?.task?.status || 'todo',
-      description: JSON.stringify({
-        reminderAt: `${fingerprintsDate}T09:00`,
-        reminderNote: `${t('fingerprints_task_note')} ${caseLabel}`,
-        fingerprintsAppointment: { caseId: caseData.id, caseNumber: caseData.caseNumber || null },
-      }),
-    }
-
-    if (existing?.task?.id) {
-      await fetch(`/api/tasks/${existing.task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-    } else {
-      await fetch('/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-    }
-  }
-
   async function createCustomReminder(e?: any) {
     e?.preventDefault()
     const title = customReminderTitle.trim()
@@ -734,6 +623,8 @@ export default function CaseDetailPage() {
 
   async function addPayment() {
     if (!payAmount) return
+    await autosave.flush()
+    if (autosave.state === 'error' || autosave.state === 'conflict') return
     await fetch(`/api/cases/${id}/payments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: payAmount, note: payNote, specialMethod: paySpecialMethod }) })
     await refreshCase(); setPayAmount(''); setPayNote(''); setPaySpecialMethod(false)
   }
@@ -750,6 +641,8 @@ export default function CaseDetailPage() {
 
   async function savePaymentEdit() {
     if (!editingPayment?.amount) return
+    await autosave.flush()
+    if (autosave.state === 'error' || autosave.state === 'conflict') return
     await fetch(`/api/cases/${id}/payments/${editingPayment.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -761,6 +654,8 @@ export default function CaseDetailPage() {
 
   async function deletePayment(paymentId: string) {
     if (!confirm(t('delete_payment_confirm'))) return
+    await autosave.flush()
+    if (autosave.state === 'error' || autosave.state === 'conflict') return
     await fetch(`/api/cases/${id}/payments/${paymentId}`, { method: 'DELETE' })
     await refreshCase()
   }
@@ -808,6 +703,8 @@ export default function CaseDetailPage() {
 
   async function convertPlannedPayment(plan: any) {
     if (!plan.amount) return
+    await autosave.flush()
+    if (autosave.state === 'error' || autosave.state === 'conflict') return
     const plannedDate = localDateKey(plan.dueDate)
     const today = localDateKey(new Date())
     const paymentDate = plannedDate && plannedDate < today ? plannedDate : today
@@ -1000,6 +897,12 @@ export default function CaseDetailPage() {
     }
   }
 
+  const saveStatus = <div className="case-save-status" data-state={autosave.state} role="status" aria-live="polite">
+    {hasOtherDrafts() && autosave.state !== 'error' && autosave.state !== 'conflict' ? saveCopy.dirty : autosave.state === 'idle' ? '' : saveCopy[autosave.state]}
+    {autosave.state === 'error' && <button type="button" className="btn btn-ghost" onClick={() => void autosave.flush()}>{saveCopy.retry}</button>}
+    {autosave.state === 'conflict' && <button type="button" className="btn btn-ghost" onClick={() => { if (confirm(saveCopy.discard)) void loadCaseForm(true) }}>{saveCopy.reload}</button>}
+  </div>
+
   if (!c) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>{t('loading')}</div>
 
   const debt = Math.max(0, c.totalValue - c.totalPaid)
@@ -1041,9 +944,13 @@ export default function CaseDetailPage() {
         tab={tab}
         setTab={setTab}
         restrictedAccess={restrictedAccess}
+        saveStatus={saveStatus}
+        onCustomDirtyChange={setCustomDirty}
+        customValues={autosave.values}
+        onCustomChange={(fieldId: number, value: string) => autosave.change(`custom:${fieldId}`, value)}
         saving={saving}
         onSave={save}
-        onBack={() => router.push('/cases')}
+        onBack={async () => { if (await prepareScreenLeave()) router.push('/cases') }}
         canDeleteCase={canDeleteCases}
         isArchived={isArchiveCaseStatus(form.status || c.status)}
         onDeleteCase={deleteCase}
@@ -1144,6 +1051,7 @@ export default function CaseDetailPage() {
               {t('delete_case')}
             </button>
           )}
+          {saveStatus}
           <button onClick={save} className="btn btn-primary" disabled={saving}>
             {saving ? t('saving') : t('save')}
           </button>
@@ -1675,7 +1583,7 @@ export default function CaseDetailPage() {
                   <div data-custom-fields-slot="case:case-notes" />
                 </div>
 
-                {!isMobilePresentation && <CustomSectionsRenderer ref={customSectionsRef} scope="case" recordId={String(id)} standaloneSave={false} />}
+                {!isMobilePresentation && <CustomSectionsRenderer ref={customSectionsRef} scope="case" recordId={String(id)} standaloneSave={false} managedValues={autosave.values} onManagedChange={(fieldId, value) => autosave.change(`custom:${fieldId}`, value)} />}
               </div>
             )}
 

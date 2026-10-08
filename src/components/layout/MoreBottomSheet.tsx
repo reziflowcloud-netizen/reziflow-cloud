@@ -1,6 +1,9 @@
 'use client'
 
 import Link from 'next/link'
+import { requestScreenRefresh } from '@/components/MobileExperience'
+import { appExperienceText } from '@/lib/appExperienceI18n'
+import { supportsScreenRefresh } from '@/lib/screenRefresh'
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
 import type { Lang } from '@/lib/translations'
@@ -200,6 +203,7 @@ export default function MoreBottomSheet({ open, pathname, user, onClose, onLogou
             )
           })}
         </div>
+        {supportsScreenRefresh(pathname) && <button type="button" className="btn btn-ghost" onClick={() => { onClose(); requestScreenRefresh() }}>{appExperienceText[lang].refresh}</button>}
         <div className={styles.preferenceGrid}>
           <div className={styles.preferenceGroup}>
             <span className={styles.preferenceLabel}>{labels.language}</span>

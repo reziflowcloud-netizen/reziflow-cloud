@@ -1,0 +1,311 @@
+{
+  "baseMainHash": "928d8760b0dec553c61452be8ddbd309fc0bb3ad",
+  "branch": "feature/mobile-refresh-autosave",
+  "productionChanged": false,
+  "migrationNeeded": false,
+  "migrationExecuted": {
+    "production": false,
+    "newFeatureMigration": false,
+    "qaSetup": "prisma db push into disposable DB; existing Staff Routing V2 function/trigger loaded from its unchanged SQL migration for regression fidelity"
+  },
+  "deployed": false,
+  "pwaArchitecture": {
+    "manifest": "public/manifest.json; standalone; /dashboard; static launch palette; no service worker found",
+    "viewport": "device-width, initialScale=1, viewportFit=cover",
+    "theme": "rezi_theme storage, html data-theme, existing CSS palettes; early boot script plus mutation observer"
+  },
+  "statusArea": {
+    "rootCause": "Fixed cyan theme-color, white manifest launch background, Apple default status style; no early theme-aware system metadata",
+    "implementation": "Light #f4f5f7/default; Dark #111827/black; Slate #07111d/black. Existing content offsets and safe-area CSS retained.",
+    "limitations": "Apple black is opaque black on documented legacy standalone behavior, not arbitrary CRM hex. Dynamic changes and exact modern iOS behavior need real hardware verification. No black-translucent content overlay introduced.",
+    "sources": [
+      "https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariHTMLRef/Articles/MetaTags.html",
+      "https://webkit.org/blog/7929/designing-websites-for-iphone-x/"
+    ],
+    "realIphone": "NOT RUN"
+  },
+  "refresh": {
+    "pull": "Mobile touch gesture at top of actual scroll ancestors; 110 raw vertical pixels to arm (66 damped pixels); release required; horizontal, form controls, dialogs, body scroll lock and visible keyboard excluded; cancel resets gesture",
+    "resume": "visibilitychange, focus and pageshow; stale after 45000 ms; successful fetch timestamps; no polling; shared in-flight promise",
+    "manual": "Localized small item in existing mobile More sheet; unsupported/new screens excluded",
+    "scope": [
+      "Dashboard RSC via router.refresh and UpcomingEvents loader",
+      "Cases scoped list and detail",
+      "Leads scoped list and detail/messages/reminders",
+      "Clients list and detail",
+      "Tasks scoped tasks and case lookups",
+      "Calendar scoped tasks and cases"
+    ],
+    "dirtyProtection": "Registered ready checks delay refresh. Case tracks local revisions and acknowledged server version to reject stale responses even if an intervening autosave finishes. Manual detail forms retain conservative input revision guards. No hard reload."
+  },
+  "autosave": {
+    "scope": "Case detail only",
+    "debounceMs": 850,
+    "architecture": "One serialized state machine; minimal diff patch; manual Save flushes the same queue; edited-during-flight values drain with the next acknowledged version",
+    "status": "Compact localized idle/dirty/saving/saved/error/conflict near existing Save; no per-keystroke toast",
+    "concurrency": "Versioned Case PATCH uses scoped PostgreSQL CAS with atomic standard/custom fields, history and reminders; stale writes return 409. New callers mark X-LegalHub-Case-Write: versioned and missing version returns 428. Temporary unmarked versionless legacy manual PATCH uses a tenant-scoped row lock, latest version bump and last-writer manual semantics; deprecated metadata logging only. Explicit null/invalid versions never fall back.",
+    "network": "Retains patch and dirty input; error never claims Saved; explicit Retry; 409 requires explicit confirmed reload; no offline storage",
+    "navigation": "Authenticated Next/PostgreSQL QA passed app Back, browser Back, other Case via list, bottom navigation and another CRM section. Pending safe edits flush before navigation without ordinary confirms. Failures/drafts retain the existing leave warning. Native iOS process termination remains unverified.",
+    "manualSave": "Retained on desktop/mobile, available while autosave is in flight, drains the same queue. Only totalValue/cabinetLogin/cabinetPassword require explicit standard Save. Custom fields and four previously excluded dates now autosave.",
+    "excludedFields": [
+      "totalValue",
+      "cabinetLogin",
+      "cabinetPassword"
+    ],
+    "ordinaryFields": "Explicit allowlist in src/lib/caseAutosave.ts: text/select/toggle, service/responsible, notes/personal appearance note, ordinary case/contract fields and server-synchronized important dates",
+    "phase3": "Not started; Leads/Clients/Tasks autosave remains deferred.",
+    "enabledFields": [
+      "caseNumber",
+      "status",
+      "serviceId",
+      "stayPurpose",
+      "stayType",
+      "contractType",
+      "contractDate",
+      "contractNumber",
+      "contractSigned",
+      "mosNumber",
+      "mosSentByPost",
+      "mosEmail",
+      "personalAppearDate",
+      "personalAppearTime",
+      "personalAppearLocation",
+      "personalAppearanceNote",
+      "cardPickupDate",
+      "cardPickupTime",
+      "cardPickupLocation",
+      "legalStayDeadline",
+      "notes",
+      "trustee",
+      "employeeId",
+      "workContractType",
+      "workContractNumber",
+      "workContractDate",
+      "workContractEndDate",
+      "workContractSigned",
+      "staySubPurpose",
+      "filingDate",
+      "mosSentAt",
+      "fingerprintsDate",
+      "predictedDecisionDate"
+    ],
+    "customFields": "Active organization-owned Case custom fields (text, textarea, number, date, email, checkbox, select), stored as custom:<id> in the same queue and as minimal customFieldValues in the same Case CAS transaction. They do not invoke financial or credential APIs.",
+    "specialHandling": [
+      "MOS ID: explicit DocUpdate delete/create API, retained manual because it replaces an existing record",
+      "Payments and payment plans: explicit financial/task APIs",
+      "Custom date creation/deletion: explicit CaseCustomDate APIs",
+      "Comments and document update records: explicit APIs",
+      "Document uploads/deletes and MOS document submission: explicit APIs",
+      "Case delete: explicit destructive action"
+    ]
+  },
+  "checks": {
+    "automatedRegression": {
+      "tests": 132,
+      "pass": 132,
+      "fail": 0,
+      "skipped": 0,
+      "databaseTestsEnabled": true
+    },
+    "casePilot": "PASS authenticated real Next/PostgreSQL for 33 ordinary fields plus Case custom fields; see exact enabled fields and test reports",
+    "concurrentEdits": "PASS PostgreSQL: A/B same version, stale B 409, no partial writes, UI conflict/reload, fresh B succeeds; parallel same-version writers yield 200/409",
+    "refreshAutosaveInteraction": "PASS real Next/DB: dirty pull, dirty resume, manual refresh during pending save, delayed GET rejected after intervening autosave",
+    "manualSave": "PASS before debounce and during delayed autosave; desktop/mobile manual Save across 5 widths x 3 languages",
+    "importantDatesTasks": "PASS real PostgreSQL transactional create/update/clear, create-once filing reminders, task rollback on stale/custom invalid writes, browser date autosave and nullable clear",
+    "payments": "PASS original payment record unchanged by autosave; explicit payment UI then Case autosave uses a safely acknowledged updatedAt. Payment API implementation unchanged.",
+    "mobile390414430": {
+      "combinations": 27,
+      "result": "PASS",
+      "scope": "Actual Case React components/CSS in headless Edge, with synthetic touch and mocked APIs/Next router"
+    },
+    "desktop1440": {
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "layout": "PASS"
+    },
+    "desktop1024": {
+      "autosave": "PASS authenticated Next/DB",
+      "manualSave": "PASS authenticated Next/DB",
+      "layout": "Existing overflow accepted for this task; unchanged in all nine baseline/feature comparisons",
+      "worsened": false,
+      "baselineHash": "928d8760b0dec553c61452be8ddbd309fc0bb3ad",
+      "widthByLanguage": {
+        "ru": 1075,
+        "uk": 1046,
+        "pl": 1085
+      },
+      "themes": [
+        "light",
+        "dark",
+        "slate"
+      ]
+    },
+    "themes": "PASS system metadata across 45 isolated browser combinations; real iPhone native status area NOT RUN",
+    "languages": "PASS all five dirty/saving/saved/error/conflict states RU/UA/PL in real authenticated browser",
+    "security": "PASS 132/132 regression tests, plus real auth/restricted scope/cross-origin/foreign relation/session revocation checks for versioned and legacy requests",
+    "tenantIsolation": "PASS real authenticated tenant GET/PATCH/custom isolation; restricted Lead visibility and staffScope expansion denial",
+    "typescript": "PASS tsc --noEmit",
+    "prisma": "PASS validate; no schema or migration source changes",
+    "safeNextBuild": "PASS prisma generate + optimized Next build, using unreachable loopback QA port 1; no migrations, seed or deploy",
+    "gitDiffCheck": "PASS",
+    "authenticatedNextPostgres": "PASS; docs/qa/case-postgres-e2e.json",
+    "productionModeSmoke": "PASS isolated standalone Next/PostgreSQL and public HTTPS tunnel: real login, new autosave, version-required 428, old manual 200/deprecation, stale 409, restricted/tenant/cross-origin/session checks",
+    "mixedManualAutosaveFields": "PASS: editing a manual-only credential does not cancel ordinary-field autosave; credential remains unsaved/dirty until explicit Save"
+  },
+  "readyForPhasedProductionReview": true,
+  "remaining": [
+    "Controlled Production deployment and safe demo Case pilot; restore test values.",
+    "Production real iPhone refresh/resume/Light-Dark-Slate check; user confirmation required after deployment."
+  ],
+  "qaRunner": "scripts/qa-mobile-autosave.cjs; LEGALHUB_QA_NODE_MODULES points at bundled node_modules; headless installed msedge; optional LEGALHUB_QA_WIDTHS and LEGALHUB_QA_BASELINE=1",
+  "screenshot": "docs/qa/mobile-autosave-390-dark-uk.png",
+  "changedFiles": [
+    "docs/mobile-refresh-autosave-qa.json",
+    "docs/qa/case-postgres-e2e.json",
+    "docs/qa/case-security-db.json",
+    "docs/qa/iphone-standalone-checklist.json",
+    "docs/qa/mobile-autosave-390-dark-uk.png",
+    "public/manifest.json",
+    "scripts/qa-case-postgres.cjs",
+    "scripts/qa-case-security-postgres.cjs",
+    "scripts/qa-mobile-autosave.cjs",
+    "src/app/api/cases/[id]/route.ts",
+    "src/app/api/cases/route.ts",
+    "src/app/api/custom-field-values/route.ts",
+    "src/app/calendar/page.tsx",
+    "src/app/cases/[id]/CaseDetailMobile.tsx",
+    "src/app/cases/[id]/page.tsx",
+    "src/app/cases/page.tsx",
+    "src/app/clients/[id]/page.tsx",
+    "src/app/clients/page.tsx",
+    "src/app/globals.css",
+    "src/app/layout.tsx",
+    "src/app/leads/[id]/page.tsx",
+    "src/app/leads/page.tsx",
+    "src/app/tasks/page.tsx",
+    "src/components/CustomSectionsRenderer.tsx",
+    "src/components/MobileExperience.tsx",
+    "src/components/SystemTheme.tsx",
+    "src/components/UpcomingEvents.tsx",
+    "src/components/layout/MobileNav.tsx",
+    "src/components/layout/MoreBottomSheet.tsx",
+    "src/hooks/useCaseAutosave.ts",
+    "src/hooks/useRefreshDraftGuard.ts",
+    "src/hooks/useScreenRefresh.ts",
+    "src/lib/appExperienceI18n.ts",
+    "src/lib/caseAutosave.ts",
+    "src/lib/caseDateReminders.ts",
+    "src/lib/screenLeave.ts",
+    "src/lib/screenRefresh.ts",
+    "src/lib/themeBoot.ts",
+    "tests/case-personal-appearance-note.test.mjs",
+    "tests/deployment-safety.test.mjs",
+    "tests/mobile-refresh-autosave.test.mjs",
+    "scripts/setup-iphone-qa.cjs",
+    "scripts/serve-iphone-qa.cjs",
+    "scripts/qa-iphone-tunnel.cjs",
+    "docs/qa/iphone-tunnel-smoke.json",
+    "vercel.json"
+  ],
+  "patchCallSites": {
+    "repositoryCompatible": true,
+    "mainEndpoint": [
+      "src/app/cases/[id]/page.tsx: shared versioned engine used by desktop/mobile/manual Save",
+      "src/app/cases/page.tsx: versioned quick status action; errors reload the list without optimistic false success",
+      "src/app/api/custom-field-values/route.ts: Case branch delegates a versioned minimal custom patch to the main endpoint"
+    ],
+    "standaloneCustomCaller": "src/components/CustomSectionsRenderer.tsx reads and sends expectedUpdatedAt for standalone Case save; main Case page uses managed values and the shared engine; Clients unchanged",
+    "testCallers": [
+      "scripts/qa-mobile-autosave.cjs: mock network adapter",
+      "scripts/qa-case-postgres.cjs: real versioned requests and explicit negative cases",
+      "scripts/qa-case-security-postgres.cjs: real access/security negative requests",
+      "tests/mobile-refresh-autosave.test.mjs: handler mocks and explicit 428/409 assertions"
+    ],
+    "externalClients": "Old versionless manual Case PATCH temporarily works with existing last-writer behavior under a tenant-scoped row lock. No CAS guarantee for legacy writes. Response deprecation/compatibility headers and metadata-only logging. New autosave cannot fall back. Set CASE_LEGACY_PATCH_COMPAT=false to remove compatibility in a separate maintenance stage after a stable rollout and old-session reload/adoption."
+  },
+  "qaEnvironment": {
+    "database": "disposable PostgreSQL 16.15 on 127.0.0.1:55432/legalhub_case_qa",
+    "next": "Isolated production-mode Next at 127.0.0.1:3107; restricted tunnel proxy at 127.0.0.1:3108",
+    "browser": "headless installed Microsoft Edge through Playwright",
+    "scope": "Real routes and DB, no fixture API mocks in the authenticated run. Network failures/delays, touch release and focus/time events are simulated in the browser. No real iPhone hardware.",
+    "reports": [
+      "docs/qa/case-postgres-e2e.json",
+      "docs/qa/case-security-db.json",
+      "docs/qa/iphone-tunnel-smoke.json"
+    ],
+    "cleanup": "LEFT RUNNING for manual iPhone QA; isolated synthetic database only; app/proxy automatically expire 2026-10-09T16:39:00.433Z",
+    "reproduce": [
+      "Create the named disposable PostgreSQL loopback database as above; no production environment files.",
+      "DATABASE_URL must be 127.0.0.1:55432/legalhub_case_qa. Run node scripts/setup-iphone-qa.cjs and retain the returned temporary session file outside Git.",
+      "node scripts/serve-iphone-qa.cjs build <session-file> builds with an unreachable loopback DB and copies standalone static/public assets.",
+      "node scripts/serve-iphone-qa.cjs serve <session-file> starts isolated Next plus restricted loopback QA proxy.",
+      "Official cloudflared Windows binary, SHA256 verified against GitHub release metadata: cloudflared tunnel --url http://127.0.0.1:3108 --no-autoupdate. Temporary HTTPS URL requires this computer/Docker/tunnel to remain running.",
+      "Run scripts/qa-case-postgres.cjs, scripts/qa-case-security-postgres.cjs and scripts/qa-iphone-tunnel.cjs; use only the disposable loopback database.",
+      "After manual QA, stop the QA helper/tunnel and remove only the named disposable QA container/volume."
+    ],
+    "publicUrl": "https://lodge-charged-duke-thumbzilla.trycloudflare.com",
+    "productionDatabaseIsolated": true,
+    "runtime": "Explicit OS-variable whitelist + isolated DATABASE_URL + independent random JWT_SECRET; refuses local .env files. No production integrations inherited. Secrets in OS temporary directory only.",
+    "autoPreview": "Vercel Git deployment disabled only for feature/mobile-refresh-autosave by vercel.json, before feature push; other branches retain default settings. No Vercel Preview used for iPhone QA."
+  },
+  "iphoneChecklist": "docs/qa/iphone-standalone-checklist.json",
+  "qaRunners": [
+    "scripts/qa-mobile-autosave.cjs",
+    "scripts/qa-case-postgres.cjs",
+    "scripts/qa-case-security-postgres.cjs",
+    "scripts/qa-iphone-tunnel.cjs",
+    "scripts/setup-iphone-qa.cjs",
+    "scripts/serve-iphone-qa.cjs"
+  ],
+  "controlledRollout": {
+    "state": "AUTHORIZED CONTROLLED PRODUCTION PILOT; deployment and production smoke pending",
+    "nextGate": "Production Ready for merged verified application, legacy compatibility enabled, test/demo Case-only smoke with restoration, then actual Production iPhone confirmation.",
+    "phases": [
+      "Current Case pilot only; no Leads/Clients/Tasks autosave expansion.",
+      "After approval and remaining QA, run a limited Case pilot with selected staff and confirm saved data, errors/conflicts, tasks/dates and manual payment flows.",
+      "Expand Case usage only after pilot results; review other entity autosave separately."
+    ],
+    "rollback": "Revert/deploy frontend and Case API together as a compatible pair. No feature schema migration or data conversion is required."
+  },
+  "reportUpdatedAt": "2026-10-08",
+  "changedFileCount": 46,
+  "legacyCompatibility": {
+    "temporary": true,
+    "removal": "Separate maintenance step after stable rollout and legacy-session adoption: CASE_LEGACY_PATCH_COMPAT=false, then remove bridge code. Monitor only metadata events case_patch_legacy_manual.",
+    "risk": "Legacy clients cannot detect stale snapshots and retain prior manual last-writer semantics. New versioned writes retain CAS; legacy writes bump updatedAt and invalidate stale new clients.",
+    "oldContractTest": "PASS real PostgreSQL and public HTTPS replay of old versionless manual payload; old snapshot cannot receive CAS protection."
+  },
+  "manualIPhoneQA": {
+    "result": "PASS — personally confirmed by user on real iPhone standalone Home Screen mode",
+    "confirmed": [
+      "Case autosave works without Save",
+      "pull-to-refresh works",
+      "native system area visually adapts to CRM theme",
+      "Home Screen standalone works correctly"
+    ],
+    "authorization": "Controlled Production pilot authorized for verified commit eef58784bb5dd796f57783d9ce2719bf3404e52b; no autosave expansion",
+    "productionHardwareRecheck": "Pending after Production Ready; staging confirmation must not be relabeled as Production hardware evidence."
+  },
+  "rollbackPoint": {
+    "main": "928d8760b0dec553c61452be8ddbd309fc0bb3ad",
+    "deploymentId": "dpl_EFrKZmn6NdELJXbYBdycbsKHinUd",
+    "method": "Application deployment rollback only; no DB schema/data migration in this rollout."
+  },
+  "productionPreflight": {
+    "mainChangedSinceVerifiedFeatureBase": false,
+    "legacyCompatibility": "ENABLED: no Production CASE_LEGACY_PATCH_COMPAT override; code disables only for literal false.",
+    "buildCommand": "Next.js preset; no build/install override. package.json build is prisma generate && next build.",
+    "migration": "NONE — prisma schema/migration diff against origin/main empty."
+  },
+  "futureMaintenance": {
+    "title": "Retire temporary legacy Case PATCH compatibility after stable rollout",
+    "status": "DEFERRED; do not disable during current rollout",
+    "gates": [
+      "Observe stable production Case autosave pilot",
+      "Confirm old client bundles/sessions have reloaded or retired",
+      "Review metadata-only case_patch_legacy_manual usage over agreed observation period",
+      "Disable with CASE_LEGACY_PATCH_COMPAT=false in separately approved maintenance rollout, then remove bridge code"
+    ],
+    "scope": "Separate maintenance; no Leads/Clients/Tasks/payments/financial/credentials autosave expansion."
+  }
+}

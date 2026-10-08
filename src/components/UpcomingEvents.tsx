@@ -1,4 +1,6 @@
 'use client'
+import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
+import { freshJson } from '@/lib/screenRefresh'
 import { useState, useEffect, type CSSProperties } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
 import type { Lang } from '@/lib/translations'
@@ -61,18 +63,21 @@ export default function UpcomingEvents() {
   const [saving, setSaving] = useState(false)
   const [items, setItems] = useState<any[]>([])
 
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/tasks').then(r => r.json()),
-      fetch('/api/task-priorities').then(r => r.json()),
+  function loadEvents() {
+    return Promise.all([
+      freshJson('/api/tasks'),
+      freshJson('/api/task-priorities'),
     ]).then(([t, p]) => {
       const taskList = Array.isArray(t) ? t : []
       const prioList = Array.isArray(p) ? p : []
       setTasks(taskList)
       setPriorities(prioList)
       buildItems(taskList)
+      markScreenFetched()
     })
-  }, [])
+  }
+  useScreenRefresh(loadEvents, () => !editingTask && !saving)
+  useEffect(() => { void loadEvents() }, [])
 
   function taskMeta(task: any) {
     try { return JSON.parse(task?.description || '{}') || {} } catch { return {} }

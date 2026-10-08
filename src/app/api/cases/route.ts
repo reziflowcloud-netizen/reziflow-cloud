@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
           totalValue: true,
           totalPaid: true,
           createdAt: true,
+          updatedAt: true,
           client: { select: { firstName: true, lastName: true, phone: true } },
           assignedTo: { select: { id: true, name: true, email: true } },
           employee: { select: { id: true, name: true } },

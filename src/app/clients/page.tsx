@@ -1,4 +1,6 @@
 'use client'
+import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
+import { freshJson } from '@/lib/screenRefresh'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -49,6 +51,11 @@ export default function ClientsPage() {
   const [showColMenu, setShowColMenu] = useState(false)
   const colMenuRef = useRef<HTMLDivElement>(null)
 
+  useScreenRefresh(async () => {
+    const data = await freshJson('/api/clients?view=list')
+    setClients(Array.isArray(data) ? data : [])
+    setLoadError(false)
+  })
   useEffect(() => {
     fetch('/api/clients?view=list')
       .then(r => {
@@ -57,6 +64,7 @@ export default function ClientsPage() {
       })
       .then(data => {
         setClients(Array.isArray(data) ? data : [])
+        markScreenFetched()
         setLoadError(false)
         setLoading(false)
       })

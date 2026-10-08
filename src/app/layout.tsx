@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import SystemTheme from '@/components/SystemTheme'
+import { themeBootScript } from '@/lib/themeBoot'
 
 export const metadata: Metadata = {
   title: 'LegalHub CRM — CRM для компаний по легализации в Польше',
@@ -15,20 +17,21 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#06b6d4',
+  themeColor: '#f4f5f7',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ru">
+    <html lang="ru" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="LegalHub" />
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
-      <body>{children}</body>
+      <body><SystemTheme />{children}</body>
     </html>
   )
 }
