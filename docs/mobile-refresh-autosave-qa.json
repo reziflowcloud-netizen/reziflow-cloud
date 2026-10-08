@@ -152,9 +152,10 @@
     "productionModeSmoke": "PASS isolated standalone Next/PostgreSQL and public HTTPS tunnel: real login, new autosave, version-required 428, old manual 200/deprecation, stale 409, restricted/tenant/cross-origin/session checks",
     "mixedManualAutosaveFields": "PASS: editing a manual-only credential does not cancel ordinary-field autosave; credential remains unsaved/dirty until explicit Save"
   },
-  "readyForPhasedProductionReview": false,
+  "readyForPhasedProductionReview": true,
   "remaining": [
-    "Real iPhone standalone manual checklist: native system area, Light/Dark/Slate, pull/release, autosave persistence, immediate Save and actual background resume. Production remains forbidden until this passes."
+    "Controlled Production deployment and safe demo Case pilot; restore test values.",
+    "Production real iPhone refresh/resume/Light-Dark-Slate check; user confirmation required after deployment."
   ],
   "qaRunner": "scripts/qa-mobile-autosave.cjs; LEGALHUB_QA_NODE_MODULES points at bundled node_modules; headless installed msedge; optional LEGALHUB_QA_WIDTHS and LEGALHUB_QA_BASELINE=1",
   "screenshot": "docs/qa/mobile-autosave-390-dark-uk.png",
@@ -257,8 +258,8 @@
     "scripts/serve-iphone-qa.cjs"
   ],
   "controlledRollout": {
-    "state": "PREPARED; NOT DEPLOYED",
-    "nextGate": "Execute real iPhone checklist against the prepared isolated HTTPS QA environment. Legacy rollout compatibility verified; production not deployed.",
+    "state": "AUTHORIZED CONTROLLED PRODUCTION PILOT; deployment and production smoke pending",
+    "nextGate": "Production Ready for merged verified application, legacy compatibility enabled, test/demo Case-only smoke with restoration, then actual Production iPhone confirmation.",
     "phases": [
       "Current Case pilot only; no Leads/Clients/Tasks autosave expansion.",
       "After approval and remaining QA, run a limited Case pilot with selected staff and confirm saved data, errors/conflicts, tasks/dates and manual payment flows.",
@@ -273,5 +274,38 @@
     "removal": "Separate maintenance step after stable rollout and legacy-session adoption: CASE_LEGACY_PATCH_COMPAT=false, then remove bridge code. Monitor only metadata events case_patch_legacy_manual.",
     "risk": "Legacy clients cannot detect stale snapshots and retain prior manual last-writer semantics. New versioned writes retain CAS; legacy writes bump updatedAt and invalidate stale new clients.",
     "oldContractTest": "PASS real PostgreSQL and public HTTPS replay of old versionless manual payload; old snapshot cannot receive CAS protection."
+  },
+  "manualIPhoneQA": {
+    "result": "PASS — personally confirmed by user on real iPhone standalone Home Screen mode",
+    "confirmed": [
+      "Case autosave works without Save",
+      "pull-to-refresh works",
+      "native system area visually adapts to CRM theme",
+      "Home Screen standalone works correctly"
+    ],
+    "authorization": "Controlled Production pilot authorized for verified commit eef58784bb5dd796f57783d9ce2719bf3404e52b; no autosave expansion",
+    "productionHardwareRecheck": "Pending after Production Ready; staging confirmation must not be relabeled as Production hardware evidence."
+  },
+  "rollbackPoint": {
+    "main": "928d8760b0dec553c61452be8ddbd309fc0bb3ad",
+    "deploymentId": "dpl_EFrKZmn6NdELJXbYBdycbsKHinUd",
+    "method": "Application deployment rollback only; no DB schema/data migration in this rollout."
+  },
+  "productionPreflight": {
+    "mainChangedSinceVerifiedFeatureBase": false,
+    "legacyCompatibility": "ENABLED: no Production CASE_LEGACY_PATCH_COMPAT override; code disables only for literal false.",
+    "buildCommand": "Next.js preset; no build/install override. package.json build is prisma generate && next build.",
+    "migration": "NONE — prisma schema/migration diff against origin/main empty."
+  },
+  "futureMaintenance": {
+    "title": "Retire temporary legacy Case PATCH compatibility after stable rollout",
+    "status": "DEFERRED; do not disable during current rollout",
+    "gates": [
+      "Observe stable production Case autosave pilot",
+      "Confirm old client bundles/sessions have reloaded or retired",
+      "Review metadata-only case_patch_legacy_manual usage over agreed observation period",
+      "Disable with CASE_LEGACY_PATCH_COMPAT=false in separately approved maintenance rollout, then remove bridge code"
+    ],
+    "scope": "Separate maintenance; no Leads/Clients/Tasks/payments/financial/credentials autosave expansion."
   }
 }

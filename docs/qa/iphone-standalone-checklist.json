@@ -1,5 +1,5 @@
 {
-  "status": "READY FOR MANUAL IPHONE QA; real iPhone execution NOT RUN",
+  "status": "PASS personally confirmed by user on real iPhone standalone mode in isolated QA; Production iPhone verification pending",
   "environment": "Isolated synthetic PostgreSQL + local standalone Next + restricted HTTPS Cloudflare Quick Tunnel. No Production DB or integrations.",
   "record": [
     "iPhone model",
@@ -68,5 +68,11 @@
     "C: edit notes without Save, wait Saved, back/reopen and verify. Repeat status and personalAppearanceNote (Important dates > personal visit note); reload/reopen confirms each value.",
     "D: edit a field and immediately press Save; reopen and verify value.",
     "E: background CRM for more than 45 seconds, return; verify data refreshes. Keep form clean for this check; dirty inputs must remain protected."
+  ],
+  "userConfirmation": [
+    "autosave works without Save",
+    "pull-to-refresh works",
+    "system area adapts to CRM theme",
+    "Home Screen mode works correctly"
   ]
 }
