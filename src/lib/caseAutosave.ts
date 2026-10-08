@@ -6,8 +6,10 @@ export const CASE_AUTOSAVE_FIELDS = new Set([
   'cardPickupDate', 'cardPickupTime', 'cardPickupLocation', 'legalStayDeadline', 'notes',
   'trustee', 'employeeId', 'workContractType', 'workContractNumber', 'workContractDate',
   'workContractEndDate', 'workContractSigned', 'staySubPurpose',
+  'filingDate', 'mosSentAt', 'fingerprintsDate', 'predictedDecisionDate',
 ])
-// Financial values, credentials and dates with separate client reminder writes stay explicit.
+const canAutosave = (key: string) => CASE_AUTOSAVE_FIELDS.has(key) || /^custom:\d+$/.test(key)
+// Financial values and credentials stay explicit.
 export class CaseAutosave {
   baseline: Record<string, unknown> = {}
   values: Record<string, unknown> = {}
@@ -30,14 +32,14 @@ export class CaseAutosave {
     if (this.state !== 'conflict' && this.state !== 'error') {
       this.state = 'dirty'
       this.cancelTimer()
-      if (CASE_AUTOSAVE_FIELDS.has(key)) this.timer = setTimeout(() => { void this.flush() }, 850)
+      if (Object.keys(this.patch(false)).length) this.timer = setTimeout(() => { void this.flush() }, 850)
     }
     this.notify()
   }
   private cancelTimer() { if (this.timer) clearTimeout(this.timer); this.timer = null }
   private patch(manual: boolean) {
     return Object.fromEntries(Object.entries(this.values).filter(([key, value]) =>
-      value !== this.baseline[key] && (manual || CASE_AUTOSAVE_FIELDS.has(key))))
+      value !== this.baseline[key] && (manual || canAutosave(key))))
   }
   async flush(manual = false): Promise<boolean> {
     this.cancelTimer()

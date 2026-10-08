@@ -29,6 +29,8 @@ type Props = {
   standaloneSave?: boolean
   onStandalonePresenceChange?: (hasSections: boolean) => void
   onDirtyChange?: (dirty: boolean) => void
+  managedValues?: Record<string, unknown>
+  onManagedChange?: (fieldId: number, value: string) => void
 }
 
 function checkboxValue(value: string | undefined) {
@@ -40,9 +42,10 @@ export type CustomSectionsHandle = {
   isDirty: () => boolean
 }
 
-const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function CustomSectionsRenderer({ scope, recordId, standaloneSave = true, onStandalonePresenceChange, onDirtyChange }, ref) {
+const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function CustomSectionsRenderer({ scope, recordId, standaloneSave = true, onStandalonePresenceChange, onDirtyChange, managedValues, onManagedChange }, ref) {
   const [sections, setSections] = useState<CustomSection[]>([])
   const savedValues = useRef<Record<number, string>>({})
+  const caseVersion = useRef<string | undefined>()
   const [values, setValues] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -50,8 +53,8 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
   const [portalTargets, setPortalTargets] = useState<Record<string, HTMLElement>>({})
 
   useEffect(() => {
-    onDirtyChange?.(JSON.stringify(values) !== JSON.stringify(savedValues.current))
-  }, [values, saving, onDirtyChange])
+    if (!managedValues) onDirtyChange?.(JSON.stringify(values) !== JSON.stringify(savedValues.current))
+  }, [values, saving, onDirtyChange, managedValues])
 
   useEffect(() => {
     let active = true
@@ -60,6 +63,7 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
       .then(res => res.json())
       .then(data => {
         if (!active) return
+        caseVersion.current = data.expectedUpdatedAt
         const loadedSections = data.sections || []
         const nextValues: Record<number, string> = {}
         loadedSections.forEach((section: CustomSection) => {
@@ -101,8 +105,9 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
   }, [loading, scope, visibleSections])
 
   useImperativeHandle(ref, () => ({
-    isDirty: () => JSON.stringify(values) !== JSON.stringify(savedValues.current),
+    isDirty: () => !managedValues && JSON.stringify(values) !== JSON.stringify(savedValues.current),
     save: async () => {
+      if (managedValues) return true
       if (loading || visibleSections.length === 0) return true
       setSaving(true)
       setMessage('')
@@ -110,9 +115,9 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
         const res = await fetch('/api/custom-field-values', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ scope, recordId, values }),
+          body: JSON.stringify({ scope, recordId, values, ...(scope === 'case' ? { expectedUpdatedAt: caseVersion.current } : {}) }),
         })
-        if (res.ok) savedValues.current = { ...values }
+        if (res.ok) { savedValues.current = { ...values }; if (scope === 'case') caseVersion.current = (await res.json()).updatedAt }
         return res.ok
       } catch {
         return false
@@ -131,20 +136,21 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
     const res = await fetch('/api/custom-field-values', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scope, recordId, values }),
+      body: JSON.stringify({ scope, recordId, values, ...(scope === 'case' ? { expectedUpdatedAt: caseVersion.current } : {}) }),
     })
-    if (res.ok) savedValues.current = { ...values }
+    if (res.ok) { savedValues.current = { ...values }; if (scope === 'case') caseVersion.current = (await res.json()).updatedAt }
     setSaving(false)
     setMessage(res.ok ? 'Дополнительные поля сохранены' : 'Не удалось сохранить дополнительные поля')
   }
 
   function setValue(fieldId: number, value: string) {
+    if (onManagedChange) { onManagedChange(fieldId, value); return }
     setValues(current => ({ ...current, [fieldId]: value }))
     setMessage('')
   }
 
   function renderField(field: CustomField) {
-    const value = values[field.id] || ''
+    const value = managedValues ? String(managedValues[`custom:${field.id}`] ?? '') : values[field.id] || ''
     const common = {
       id: `custom-field-${scope}-${recordId}-${field.id}`,
       className: 'input',

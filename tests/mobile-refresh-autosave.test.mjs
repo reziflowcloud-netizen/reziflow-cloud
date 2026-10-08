@@ -55,6 +55,19 @@ test('serial saves retain edits typed during a pending request and use the new v
   assert.equal(engine.safeToRefresh, true)
 })
 
+test('editing a manual-only field cannot cancel pending ordinary autosave', async () => {
+  const calls = []
+  const engine = new CaseAutosave(async patch => { calls.push(patch); return 'v2' }, () => {})
+  engine.initialize({ notes: '', cabinetPassword: '' }, 'v1')
+  engine.change('notes', 'safe draft')
+  engine.change('cabinetPassword', 'manual draft')
+  await new Promise(resolve => setTimeout(resolve, 900))
+  assert.deepEqual(calls, [{ notes: 'safe draft' }])
+  assert.equal(engine.values.cabinetPassword, 'manual draft')
+  assert.equal(engine.dirty, true)
+  assert.equal(engine.state, 'dirty')
+})
+
 test('network failure never reports saved; explicit retry sends the retained patch', async () => {
   let online = false
   let calls = 0
@@ -133,6 +146,7 @@ async function caseApi() {
     '@/lib/auth': { getUser: async () => authorized ? { role: 'admin' } : null, getOrganizationId: () => organizationId },
     '@/lib/apiScope': { getDataAccessScope: async () => ({}), caseWhereForScope: (_scope, org, where) => ({ ...where, organizationId: org }) },
     '@/lib/caseImportantDateTasks': { shouldRetirePersonalAppearTask },
+    '@/lib/caseDateReminders': { syncCaseDateReminders: async () => {} },
     '@/lib/employeeSync': { resolveUserIdForEmployee: async (_org, id) => id === 1 ? 'user1' : null },
   }
   new Function('require', 'module', 'exports', await compile('../src/app/api/cases/[id]/route.ts'))(name => mocks[name] || {}, module, module.exports)
@@ -158,7 +172,9 @@ test('actual PATCH rejects concurrent writes atomically and a reload observes th
   const legacy = await api.patch({ notes: 'old form', expectedUpdatedAt: undefined })
   assert.equal(legacy.status, 428); assert.equal(api.row.notes, null)
   const quickStatus = await api.patch({ status: 'Working', expectedUpdatedAt: undefined })
-  assert.equal(quickStatus.status, 200); assert.equal(api.row.status, 'Working')
+  assert.equal(quickStatus.status, 428)
+  assert.equal((await api.patch({ status: 'Working', expectedUpdatedAt: api.row.updatedAt.toISOString() })).status, 200)
+  assert.equal(api.row.status, 'Working')
 })
 
 test('actual PATCH preserves authentication, tenant scope and time validation', async () => {

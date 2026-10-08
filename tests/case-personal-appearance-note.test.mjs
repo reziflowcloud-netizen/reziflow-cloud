@@ -29,7 +29,7 @@ test('Case load and shared save form round-trip personalAppearanceNote without s
   const page = await source('src/app/cases/[id]/page.tsx')
 
   assert.match(page, /personalAppearanceNote: data\.personalAppearanceNote \|\| ''/)
-  assert.match(page, /body: JSON\.stringify\(\{ \.\.\.patch, expectedUpdatedAt: version \}\)/)
+  assert.match(page, /expectedUpdatedAt: version, reminderLanguage: lang/)
   assert.match(page, /autosave\.flush\(true\)/)
   assert.match(page, /value=\{form\.personalAppearanceNote \|\| ''\}/)
   assert.match(page, /set\('personalAppearanceNote', e\.target\.value\)/)

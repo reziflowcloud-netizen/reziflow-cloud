@@ -1,0 +1,12 @@
+{
+  "environment": "isolated Next + PostgreSQL 16.15",
+  "origin": "http://localhost:3107",
+  "checks": {
+    "authentication": "PASS",
+    "allCaseWritesRequireVersion": "PASS",
+    "restrictedCaseAccessAndCrossTenantRelation": "PASS",
+    "crossOrigin": "PASS",
+    "leadVisibility": "PASS",
+    "sessionRevocation": "PASS"
+  }
+}

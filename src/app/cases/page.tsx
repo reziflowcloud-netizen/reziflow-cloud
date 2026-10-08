@@ -1,6 +1,7 @@
 'use client'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
 import { freshJson } from '@/lib/screenRefresh'
+import { appExperienceText } from '@/lib/appExperienceI18n'
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -85,13 +86,19 @@ export default function CasesPage() {
 
   async function quickChangeStatus(caseId: string, newStatus: string, e: React.MouseEvent) {
     e.stopPropagation()
-    setCases(prev => prev.map(c => c.id === caseId ? { ...c, status: newStatus } : c))
     setStatusPopup(null)
-    await fetch(`/api/cases/${caseId}`, {
+    try {
+    const version = cases.find(c => c.id === caseId)?.updatedAt
+    if (!version) { await loadCases(); return }
+    const res = await fetch(`/api/cases/${caseId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: newStatus }),
+      body: JSON.stringify({ status: newStatus, expectedUpdatedAt: version }),
     })
+    if (!res.ok) throw new Error(appExperienceText[lang][res.status === 409 ? 'conflict' : 'error'])
+    const updated = await res.json()
+    setCases(prev => prev.map(c => c.id === caseId ? { ...c, status: updated.status, updatedAt: updated.updatedAt } : c))
+    } catch (error) { alert((error as Error).message); await loadCases() }
   }
 
   async function deleteCase(caseId: string, e: React.MouseEvent) {

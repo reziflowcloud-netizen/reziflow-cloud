@@ -1,0 +1,144 @@
+{
+  "environment": {
+    "next": "http://127.0.0.1:3107",
+    "postgres": "127.0.0.1:55432/legalhub_case_qa",
+    "disposable": true
+  },
+  "checks": {
+    "real login UI and session": "PASS",
+    "PostgreSQL CAS A commit, stale B 409, no partial writes, fresh B commit": "PASS",
+    "tenant isolation GET PATCH custom fields; revoked session": "PASS",
+    "transactional dates/reminders create update clear, custom fields, rollback": "PASS",
+    "list status version and standalone custom-field PATCH compatibility": "PASS",
+    "rapid edits A/B/C 300ms minimal final DB C": "PASS",
+    "manual Save before debounce and during delayed autosave serializes latest": "PASS",
+    "network failure preserves local input; retry writes exactly once": "PASS",
+    "real UI conflict retained; confirmed reload observes A; fresh B succeeds": "PASS",
+    "custom text/number use same Case CAS queue; clear nullable field": "PASS",
+    "ordinary service select, transactional date autosave and nullable clear": "PASS",
+    "pull at top threshold release once; normal scroll; no hard reload or route change": "PASS",
+    "dirty pull, dirty resume, manual refresh during pending save preserve latest": "PASS",
+    "resume <45s no fetch >45s one fetch; no polling": "PASS",
+    "late real GET snapshot cannot overwrite intervening autosave": "PASS",
+    "authenticated app Back bottom navigation other Case other section flush without confirms": "PASS",
+    "all five save states localized ru": "PASS",
+    "all five save states localized uk": "PASS",
+    "all five save states localized pl": "PASS",
+    "payments untouched by autosave": "PASS",
+    "explicit payment UI then Case autosave uses acknowledged parent version": "PASS",
+    "CRUD isolated Case create read manual patch archive delete": "PASS"
+  },
+  "viewports": [
+    {
+      "width": 390,
+      "lang": "ru",
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "scrollWidth": 390
+    },
+    {
+      "width": 390,
+      "lang": "uk",
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "scrollWidth": 390
+    },
+    {
+      "width": 390,
+      "lang": "pl",
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "scrollWidth": 390
+    },
+    {
+      "width": 414,
+      "lang": "ru",
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "scrollWidth": 414
+    },
+    {
+      "width": 414,
+      "lang": "uk",
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "scrollWidth": 414
+    },
+    {
+      "width": 414,
+      "lang": "pl",
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "scrollWidth": 414
+    },
+    {
+      "width": 430,
+      "lang": "ru",
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "scrollWidth": 430
+    },
+    {
+      "width": 430,
+      "lang": "uk",
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "scrollWidth": 430
+    },
+    {
+      "width": 430,
+      "lang": "pl",
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "scrollWidth": 430
+    },
+    {
+      "width": 1024,
+      "lang": "ru",
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "scrollWidth": 1075
+    },
+    {
+      "width": 1024,
+      "lang": "uk",
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "scrollWidth": 1046
+    },
+    {
+      "width": 1024,
+      "lang": "pl",
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "scrollWidth": 1085
+    },
+    {
+      "width": 1440,
+      "lang": "ru",
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "scrollWidth": 1440
+    },
+    {
+      "width": 1440,
+      "lang": "uk",
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "scrollWidth": 1440
+    },
+    {
+      "width": 1440,
+      "lang": "pl",
+      "autosave": "PASS",
+      "manualSave": "PASS",
+      "scrollWidth": 1440
+    }
+  ],
+  "errors": [],
+  "fixture": {
+    "organizationId": "cmuzlzfpj00006555d6kix62m",
+    "caseId": "cmuzlzftb0005655508gf23iq",
+    "secondCaseId": "cmuzlzftn00076555ucn646t7"
+  }
+}

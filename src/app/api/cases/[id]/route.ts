@@ -9,6 +9,7 @@ import { caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
 import { resolveUserIdForEmployee } from '@/lib/employeeSync'
 import { shouldRetirePersonalAppearTask } from '@/lib/caseImportantDateTasks'
 import { serializeDocumentForBrowser } from '@/lib/documentSecurity'
+import { syncCaseDateReminders } from '@/lib/caseDateReminders'
 
 function taskBelongsToCase(
   task: { title: string | null; description: string | null },
@@ -31,6 +32,7 @@ function taskBelongsToCase(
     meta.quickCaseTask,
     meta.fingerprintsAppointment,
     meta.predictedDecision,
+    meta.predictedDecisionDocuments,
     meta.caseImportantDate,
   ]
 
@@ -168,7 +170,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const organizationId = getOrganizationId(user)
   const scope = await getDataAccessScope(user, organizationId)
   try {
-    const c = await (prisma as any).case.findFirst({
+    const c = await prisma.$transaction(async tx => {
+    const record = await (tx as any).case.findFirst({
       where: caseWhereForScope(scope, organizationId, { id: params.id }),
       include: {
         client: true, service: true,
@@ -182,6 +185,10 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         employee: true,
       }
     })
+    if (!record) return null
+    const fields = await tx.customField.findMany({ where: { active: true, section: { organizationId, scope: 'case', active: true } }, select: { id: true, values: { where: { organizationId, recordType: 'case', recordId: params.id }, select: { value: true }, take: 1 } } })
+    return { ...record, customFieldValues: Object.fromEntries(fields.map(field => [field.id, field.values[0]?.value || ''])) }
+    }, { isolationLevel: 'RepeatableRead' })
     if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json({
       ...c,
@@ -281,12 +288,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (has('staySubPurpose')) caseDetailsData.staySubPurpose = body.staySubPurpose || null
     if (has('workContractEndDate')) caseDetailsData.workContractEndDate = nullableDate('workContractEndDate')
 
-    // Existing status-only quick actions remain explicit. Old full-form clients must reload.
-    const statusOnlyAction = Object.keys(body).length === 1 && has('status')
-    if (body.expectedUpdatedAt === undefined && !statusOnlyAction) {
+    // Every repository caller now supplies its loaded version, including quick status.
+    if (body.expectedUpdatedAt === undefined) {
       return NextResponse.json({ error: 'Reload this case before saving (version required)' }, { status: 428 })
     }
-    const expected = body.expectedUpdatedAt === undefined ? existing.updatedAt : new Date(body.expectedUpdatedAt)
+    const expected = new Date(body.expectedUpdatedAt)
     if (Number.isNaN(expected.getTime())) return NextResponse.json({ error: 'Invalid version' }, { status: 400 })
     if (expected.getTime() !== existing.updatedAt.getTime()) return NextResponse.json({ error: 'CASE_CONFLICT' }, { status: 409 })
     if (baseData.serviceId && !await prisma.service.findFirst({ where: { id: baseData.serviceId, organizationId } })) {
@@ -295,12 +301,24 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (employeeId && !await prisma.employee.findFirst({ where: { id: employeeId, organizationId } })) {
       return NextResponse.json({ error: 'Invalid employee' }, { status: 400 })
     }
+    const customValues = body.customFieldValues
+    if (customValues !== undefined && (!customValues || typeof customValues !== 'object' || Array.isArray(customValues))) return NextResponse.json({ error: 'Invalid custom values' }, { status: 400 })
+    const fieldIds = Object.keys(customValues || {}).map(Number)
+    if (fieldIds.some(id => !Number.isInteger(id) || id <= 0)) return NextResponse.json({ error: 'Invalid custom field' }, { status: 400 })
     const updated = await prisma.$transaction(async tx => {
       const claimed = await tx.case.updateMany({
         where: { AND: [caseWhereForScope(scope, organizationId, { id: params.id }), { updatedAt: expected }] },
         data: { ...baseData, ...caseDetailsData, updatedAt: new Date(Math.max(Date.now(), existing.updatedAt.getTime() + 1)) },
       })
       if (claimed.count !== 1) throw Object.assign(new Error('CASE_CONFLICT'), { status: 409 })
+      if (fieldIds.length) {
+        const fields = await tx.customField.findMany({ where: { id: { in: fieldIds }, active: true, section: { organizationId, scope: 'case', active: true } } })
+        if (fields.length !== fieldIds.length) throw Object.assign(new Error('Invalid custom field'), { status: 400 })
+        for (const fieldId of fieldIds) {
+          const value = String(customValues[fieldId] ?? '')
+          await tx.customFieldValue.upsert({ where: { fieldId_recordType_recordId: { fieldId, recordType: 'case', recordId: params.id } }, update: { value }, create: { organizationId, fieldId, recordType: 'case', recordId: params.id, value } })
+        }
+      }
       const updated = await tx.case.findUniqueOrThrow({ where: { id: params.id } })
 
       // История статусов
@@ -327,12 +345,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       })
       const calendarFields = ['status', 'employeeId', 'caseNumber', 'filingDate', 'personalAppearDate', 'personalAppearTime', 'personalAppearLocation', 'cardPickupDate', 'cardPickupTime', 'cardPickupLocation', 'legalStayDeadline', 'workContractEndDate']
       if (caseForCalendar && calendarFields.some(has)) await syncFixedImportantDateTasks(organizationId, caseForCalendar, tx)
+      if (caseForCalendar) await syncCaseDateReminders(tx, organizationId, caseForCalendar, body)
       return updated
     })
 
     return NextResponse.json(updated)
   } catch (e: any) {
     if (e.status === 409) return NextResponse.json({ error: 'CASE_CONFLICT' }, { status: 409 })
+    if (e.status === 400) return NextResponse.json({ error: e.message }, { status: 400 })
     console.error('PATCH case error:', e)
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

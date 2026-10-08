@@ -1,0 +1,59 @@
+{
+  "status": "READY; real iPhone execution NOT RUN",
+  "environment": "Use an approved QA/staging URL accessible to the iPhone. This task did not deploy or expose the loopback QA server.",
+  "record": [
+    "iPhone model",
+    "iOS version",
+    "Safari version",
+    "QA URL and feature commit",
+    "Date/time",
+    "Screenshots and observed result for every step"
+  ],
+  "setup": [
+    "Open the approved QA URL in Safari and authenticate with a QA tenant.",
+    "Use Share > Add to Home Screen. Launch from the new Home Screen icon, without Safari browser chrome.",
+    "For first-launch checks use a fresh installation/storage state. Confirm the default Light theme. Keep existing CRM safe-area and navigation layout."
+  ],
+  "themes": [
+    {
+      "theme": "Light",
+      "configuredThemeColor": "#f4f5f7",
+      "configuredAppleStyle": "default",
+      "checks": [
+        "First launch: photograph the area around clock, battery, signal and notch/Dynamic Island. Compare with the CRM top background.",
+        "Confirm dark clock/system icons remain readable on the light background.",
+        "Switch from Dark and Slate to Light while the standalone app stays open; verify background and contrast.",
+        "Close the app normally, reopen from the Home Screen, then force-close/reopen. Verify Light is restored without a bright/dark startup mismatch or overlap."
+      ]
+    },
+    {
+      "theme": "Dark",
+      "configuredThemeColor": "#111827",
+      "configuredAppleStyle": "black",
+      "checks": [
+        "Select Dark through the existing More > Theme control. Observe the system status area and CRM top boundary.",
+        "Confirm white clock/system icons remain readable. Record if the native area is opaque black rather than the configured CRM color.",
+        "Switch Light -> Dark -> Slate -> Dark without leaving standalone mode; check contrast after each transition.",
+        "Close/reopen normally and force-close/reopen. Verify saved Dark theme restores at first visible frame and content does not move under the status area."
+      ]
+    },
+    {
+      "theme": "Slate",
+      "configuredThemeColor": "#07111d",
+      "configuredAppleStyle": "black",
+      "checks": [
+        "Select Slate through More > Theme and photograph the status area next to the CRM background.",
+        "Confirm white clock/system icons remain readable; record any black-to-slate seam.",
+        "Switch Light -> Slate -> Dark -> Slate; verify contrast, theme persistence and no safe-area shift.",
+        "Close/reopen normally and force-close/reopen. Verify Slate restores immediately without a Light flash."
+      ]
+    }
+  ],
+  "additional": [
+    "Repeat on Case Detail and Dashboard. Verify original header/controls/bottom navigation positions.",
+    "Show/dismiss keyboard, rotate portrait/landscape and return from background after <45 s and >45 s. Check no notch overlap or navigation clipping.",
+    "For every theme capture cold launch, live switch and reopen screenshots. Mark PASS/FAIL per step; do not infer hardware PASS from metadata or browser emulation."
+  ],
+  "acceptance": "Readable system icons, stable theme on launch/switch/reopen, no unexpected white/cyan area, no CRM content or navigation shift. Exact native iOS background behavior must be observed; configuration alone does not guarantee a hex color or live status-bar update.",
+  "productionChanged": false
+}

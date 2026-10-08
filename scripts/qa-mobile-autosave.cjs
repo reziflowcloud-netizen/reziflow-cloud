@@ -15,6 +15,7 @@ async function main() {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'legalhub-mobile-qa-'))
   const src = path.join(root, 'src').replaceAll('\\', '/')
   const baseline = process.env.LEGALHUB_QA_BASELINE === '1'
+  const baselineAll = process.env.LEGALHUB_QA_BASELINE_ALL === '1'
   let casePage = src + '/app/cases/[id]/page.tsx'
   if (baseline) {
     const { execFileSync } = require('node:child_process')
@@ -59,8 +60,8 @@ async function main() {
   const widths = process.env.LEGALHUB_QA_WIDTHS ? process.env.LEGALHUB_QA_WIDTHS.split(',').map(Number) : [390, 414, 430, 1024, 1440]
   try {
     for (const width of baseline ? [1024] : widths) {
-      for (const theme of baseline ? ['light'] : ['light', 'dark', 'slate']) {
-        for (const lang of baseline ? ['ru'] : ['ru', 'uk', 'pl']) {
+      for (const theme of baseline && !baselineAll ? ['light'] : ['light', 'dark', 'slate']) {
+        for (const lang of baseline && !baselineAll ? ['ru'] : ['ru', 'uk', 'pl']) {
           const page = await browser.newPage({ viewport: { width, height: 900 }, hasTouch: width < 768 })
           const errors = []
           page.on('pageerror', error => errors.push(error.message))
@@ -99,7 +100,7 @@ async function main() {
             console.error({ width, theme, lang, writes, errors, status: await page.locator('.case-save-status').textContent() })
             throw error
           })
-          assert.equal(writes.length, 1); assert.equal(writes[0].caseNumber, 'QA-new'); assert.equal(Object.keys(writes[0]).length, 2)
+          assert.equal(writes.length, 1); assert.equal(writes[0].caseNumber, 'QA-new'); assert.equal(Object.keys(writes[0]).length, 3)
           assert.ok((await page.locator('.case-save-status:visible').textContent()).includes({ ru: '✓ Сохранено', uk: '✓ Збережено', pl: '✓ Zapisano' }[lang]))
           assert.equal(await page.locator('.app-refresh-indicator').count(), 0)
           }
