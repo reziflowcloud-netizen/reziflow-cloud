@@ -18,13 +18,13 @@
     "custom text/number use same Case CAS queue; clear nullable field": "PASS",
     "ordinary service select, transactional date autosave and nullable clear": "PASS",
     "pull at top threshold release once; normal scroll; no hard reload or route change": "PASS",
-    "dirty pull, dirty resume, manual refresh during pending save preserve latest": "PASS",
+    "dirty pull, dirty resume, revalidation during pending save preserve latest": "PASS",
     "resume <45s no fetch >45s one fetch; no polling": "PASS",
     "late real GET snapshot cannot overwrite intervening autosave": "PASS",
     "authenticated app Back bottom navigation other Case other section flush without confirms": "PASS",
-    "all five save states localized ru": "PASS",
-    "all five save states localized uk": "PASS",
-    "all five save states localized pl": "PASS",
+    "hidden dirty label and localized saving/error/conflict states ru": "PASS",
+    "hidden dirty label and localized saving/error/conflict states uk": "PASS",
+    "hidden dirty label and localized saving/error/conflict states pl": "PASS",
     "payments untouched by autosave": "PASS",
     "explicit payment UI then Case autosave uses acknowledged parent version": "PASS",
     "CRUD isolated Case create read manual patch archive delete": "PASS"
@@ -138,8 +138,8 @@
   ],
   "errors": [],
   "fixture": {
-    "organizationId": "cmuzrn3ai0000ni2zuy1hr6xf",
-    "caseId": "cmuzrn3dr0005ni2z4lvisvg5",
-    "secondCaseId": "cmuzrn3dy0007ni2zyeb77qzg"
+    "organizationId": "cmv00gf6r0000c8r5i8615ci0",
+    "caseId": "cmv00gfa60005c8r5jexv94s5",
+    "secondCaseId": "cmv00gfah0007c8r5g94vg7w3"
   }
 }

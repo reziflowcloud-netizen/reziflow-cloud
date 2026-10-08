@@ -19,7 +19,7 @@ async function main() {
   let casePage = src + '/app/cases/[id]/page.tsx'
   if (baseline) {
     const { execFileSync } = require('node:child_process')
-    const original = execFileSync('git', ['show', '928d8760b0dec553c61452be8ddbd309fc0bb3ad:src/app/cases/[id]/page.tsx'], { encoding: 'utf8' })
+    const original = execFileSync('git', ['show', 'd363d41cbb1cf383628f208c8008ca0cff5733e1:src/app/cases/[id]/page.tsx'], { encoding: 'utf8' })
       .replace("from '../CaseMobileAccessContext'", `from ${JSON.stringify(src + '/app/cases/CaseMobileAccessContext.tsx')}`)
       .replace("from './CaseDetailMobile'", `from ${JSON.stringify(src + '/app/cases/[id]/CaseDetailMobile.tsx')}`)
     casePage = path.join(dir, 'baseline-page.tsx').replaceAll('\\', '/')
@@ -30,11 +30,13 @@ async function main() {
     import CasePage from ${JSON.stringify(casePage)};
     import MobileExperience from ${JSON.stringify(src + '/components/MobileExperience.tsx')};
     import SystemTheme from ${JSON.stringify(src + '/components/SystemTheme.tsx')};
+    import MoreBottomSheet from ${JSON.stringify(src + '/components/layout/MoreBottomSheet.tsx')};
     import { themeBootScript } from ${JSON.stringify(src + '/lib/themeBoot.ts')};
     import { LanguageProvider } from ${JSON.stringify(src + '/context/LanguageContext.tsx')};
     import ${JSON.stringify(src + '/app/globals.css')};
     new Function(themeBootScript)();
-    createRoot(document.getElementById('root')!).render(<LanguageProvider><SystemTheme/><MobileExperience/><div style={{display:'flex'}}><div className="main-content" style={{flex:1}}><CasePage/></div></div><a href="/clients" id="qa-navigate">Clients</a></LanguageProvider>);
+    function QA(){const [more,setMore]=React.useState(false);return <LanguageProvider><SystemTheme/><MobileExperience/><div style={{display:'flex'}}><div className="main-content" style={{flex:1}}><CasePage/></div></div><a href="/clients" id="qa-navigate">Clients</a><button id="qa-more" onClick={()=>setMore(true)}>More</button><MoreBottomSheet open={more} pathname="/cases/case1" user={{role:'owner',name:'QA'}} onClose={()=>setMore(false)} onLogout={()=>{}}/></LanguageProvider>}
+    createRoot(document.getElementById('root')!).render(<QA/>);
   `)
   await fs.writeFile(path.join(dir, 'navigation.js'), `
     export const useParams=()=>({id:'case1'}); export const usePathname=()=>'/cases/case1';
@@ -55,7 +57,7 @@ async function main() {
   })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
   const origin = `http://127.0.0.1:${server.address().port}`
-  const browser = await chromium.launch({ headless: true, channel: 'msedge' })
+  const browser = await chromium.launch({ headless: true })
   const results = []
   const widths = process.env.LEGALHUB_QA_WIDTHS ? process.env.LEGALHUB_QA_WIDTHS.split(',').map(Number) : [390, 414, 430, 1024, 1440]
   try {
@@ -66,13 +68,14 @@ async function main() {
           const errors = []
           page.on('pageerror', error => errors.push(error.message))
           const record = { id: 'case1', updatedAt: '2026-10-08T10:00:00.000Z', caseNumber: 'QA-1', status: 'Новый', serviceId: 1, notes: '', personalAppearanceNote: 'clear me', client: { firstName: 'Test', lastName: 'Client' }, service: { id: 1, name: 'Service' }, payments: [], comments: [], statusHistory: [], customDates: [], docUpdates: [], caseDocuments: [] }
-          const writes = []; let reads = 0, offline = false, readDelay = 0
+          const writes = []; let reads = 0, offline = false, readDelay = 0, writeDelay = 0
           await page.route('**/api/**', async route => {
             const url = new URL(route.request().url())
             let data = []
             if (url.pathname === '/api/cases/case1') {
               if (route.request().method() === 'PATCH') {
                 if (offline) return route.abort('internetdisconnected')
+                if (writeDelay) await new Promise(resolve => setTimeout(resolve, writeDelay))
                 const patch = route.request().postDataJSON(); writes.push(patch)
                 if (patch.expectedUpdatedAt !== record.updatedAt) return route.fulfill({ status: 409, json: { error: 'CASE_CONFLICT' } })
                 Object.assign(record, patch, { updatedAt: new Date(new Date(record.updatedAt).getTime() + 1).toISOString() }); delete record.expectedUpdatedAt
@@ -95,14 +98,27 @@ async function main() {
           const input = width < 768 ? page.locator('[data-section-key="case-basic"] input').first() : page.locator('input:visible').first()
           await input.waitFor({ state: 'visible' })
           if (!baseline) {
+          writeDelay = 2500
           await input.fill('QA-new')
+          assert.ok(!(await page.locator('.case-save-status:visible').textContent()).includes({ru:'Есть несохранённые изменения',uk:'Є незбережені зміни',pl:'Niezapisane zmiany'}[lang]))
+          assert.equal(await page.evaluate(() => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented }), true)
           await page.waitForFunction(() => document.querySelector('.case-save-status')?.dataset.state === 'saved').catch(async error => {
             console.error({ width, theme, lang, writes, errors, status: await page.locator('.case-save-status').textContent() })
             throw error
           })
           assert.equal(writes.length, 1); assert.equal(writes[0].caseNumber, 'QA-new'); assert.equal(Object.keys(writes[0]).length, 3)
+          writeDelay = 0
           assert.ok((await page.locator('.case-save-status:visible').textContent()).includes({ ru: '✓ Сохранено', uk: '✓ Збережено', pl: '✓ Zapisano' }[lang]))
+          assert.equal(await page.evaluate(() => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented }), false)
           assert.equal(await page.locator('.app-refresh-indicator').count(), 0)
+          if (width < 768) {
+          await page.locator('#qa-more').click()
+          const sheet = page.locator('#mobile-more-sheet')
+          await sheet.waitFor({ state: 'visible' })
+          assert.equal(await sheet.getByRole('button', { name: /^(Обновить|Оновити|Odśwież)$/ }).count(), 0)
+          for (const href of ['/tasks', '/stages', '/calendar', '/settings']) assert.equal(await sheet.locator(`a[href="${href}"]`).count(), 1)
+          await sheet.locator('button').first().click()
+          }
           }
           const size = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, viewport: innerWidth, meta: document.querySelector('meta[name="theme-color"]').content }))
           if (size.scroll > size.viewport && theme === 'light' && lang === 'ru') {
@@ -165,6 +181,13 @@ async function main() {
             offline = true; await input.fill('offline-edit')
             await page.waitForFunction(() => document.querySelector('.case-save-status')?.dataset.state === 'error')
             assert.equal(await input.inputValue(), 'offline-edit')
+            assert.ok((await page.locator('.case-save-status:visible').textContent()).includes('Не вдалося зберегти'))
+            assert.ok(!(await page.locator('.case-save-status:visible').textContent()).includes('✓ Збережено'))
+            const warning = page.waitForEvent('dialog')
+            const attemptedLeave = page.locator('#qa-navigate').click()
+            const dialog = await warning; assert.equal(dialog.message(), 'Зміни не збережені. Залишитися на сторінці?'); await dialog.accept(); await attemptedLeave
+            assert.equal(await input.inputValue(), 'offline-edit')
+            assert.equal(await page.evaluate(() => location.origin), origin)
             offline = false; await page.locator('.case-save-status button:visible').click()
             await page.waitForFunction(() => document.querySelector('.case-save-status')?.dataset.state === 'saved')
             record.updatedAt = '2026-10-08T11:00:00.000Z'
