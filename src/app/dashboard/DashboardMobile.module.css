@@ -151,8 +151,13 @@
     line-height: 1.08;
   }
 
+  .dashboardHeader > div:first-child {
+    flex: 1;
+    min-width: 0;
+  }
+
   .dashboardHeader :global(.page-subtitle) {
-    max-width: calc(100vw - 90px);
+    max-width: 100%;
     margin-top: 5px;
     overflow: hidden;
     color: var(--muted);
@@ -169,13 +174,9 @@
     min-height: 44px;
     padding: 0;
     border-color: color-mix(in srgb, var(--brand) 45%, var(--border));
-    border-radius: 50%;
+    border-radius: 12px;
     color: var(--brand);
     font-size: 0;
-  }
-
-  .dashboardVideoButton span {
-    font-size: 15px !important;
   }
 
   .dashboardBody {

@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -22,6 +22,7 @@ export default function NotificationCenter() {
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(false)
   const bell = useRef<HTMLElement | null>(null)
+  const overlay = useRef<HTMLDivElement>(null)
   const panel = useRef<HTMLDivElement>(null)
   const inFlight = useRef(false)
   const sync = useCallback(async (next?: string) => {
@@ -44,10 +45,46 @@ export default function NotificationCenter() {
   useEffect(() => { setOpen(false) }, [pathname])
   useEffect(() => {
     if (!available) return
-    const show = () => { bell.current = document.activeElement as HTMLElement; setOpen(true) }
+    const show = (event: Event) => {
+      if (open) { setOpen(false); bell.current?.focus() }
+      else { bell.current = (event as CustomEvent<HTMLElement>).detail || document.activeElement as HTMLElement; setOpen(true) }
+    }
     window.addEventListener('legalhub:open-notifications', show)
     return () => { window.removeEventListener('legalhub:open-notifications', show) }
-  }, [available])
+  }, [available, open])
+  useLayoutEffect(() => {
+    if (!open) return
+    const position = () => {
+      if (!overlay.current) return
+      // Keep the opener and focus return valid when crossing the mobile breakpoint.
+      if (!bell.current?.getBoundingClientRect().width) {
+        bell.current = Array.from(document.querySelectorAll<HTMLElement>('[data-notification-bell]')).find(button => button.getBoundingClientRect().width > 0) || null
+      }
+      if (!bell.current || window.innerWidth <= 768) return
+      const anchor = bell.current.getBoundingClientRect()
+      const card = bell.current.closest('.sidebar-profile')?.getBoundingClientRect() || anchor
+      const sidebar = bell.current.closest('.sidebar')?.getBoundingClientRect() || card
+      const width = Math.min(400, window.innerWidth - 24)
+      const left = Math.max(12, Math.min(sidebar.right + 12, window.innerWidth - width - 12))
+      const bottom = Math.max(12, Math.min(window.innerHeight - card.bottom, window.innerHeight * 0.2))
+      const values = {
+        '--notification-left': left, '--notification-bottom': bottom,
+        '--notification-width': width,
+        '--notification-height': Math.min(window.innerHeight * 0.75, window.innerHeight - bottom - 12),
+        '--bell-left': anchor.left - 4, '--bell-right': anchor.right + 4,
+        '--bell-top': anchor.top - 4, '--bell-bottom': anchor.bottom + 4,
+      }
+      for (const [key, value] of Object.entries(values)) overlay.current.style.setProperty(key, `${value}px`)
+    }
+    position()
+    const observer = new ResizeObserver(position)
+    if (bell.current) observer.observe(bell.current)
+    const card = bell.current?.closest('.sidebar-profile')
+    if (card) observer.observe(card)
+    window.addEventListener('resize', position)
+    window.addEventListener('scroll', position, true)
+    return () => { observer.disconnect(); window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true) }
+  }, [open])
   useEffect(() => { publishNotificationStatus({ available, unread }) }, [available, unread])
   useEffect(() => () => { publishNotificationStatus({ available: false, unread: 0 }) }, [])
   useEffect(() => {
@@ -64,7 +101,15 @@ export default function NotificationCenter() {
     if (!open) return
     void sync()
     const oldOverflow = document.body.style.overflow
+    const oldPaddingRight = document.body.style.paddingRight
+    const paddingRight = parseFloat(getComputedStyle(document.body).paddingRight) || 0
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+    const preserveWidth = () => {
+      document.body.style.paddingRight = window.innerWidth > 768 && scrollbarWidth > 0 ? `${paddingRight + scrollbarWidth}px` : oldPaddingRight
+    }
+    preserveWidth()
     document.body.style.overflow = 'hidden'
+    window.addEventListener('resize', preserveWidth)
     const frame = requestAnimationFrame(() => panel.current?.querySelector<HTMLButtonElement>('button')?.focus())
     const keys = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { setOpen(false); bell.current?.focus() }
@@ -76,7 +121,7 @@ export default function NotificationCenter() {
       }
     }
     document.addEventListener('keydown', keys)
-    return () => { cancelAnimationFrame(frame); document.body.style.overflow = oldOverflow; document.removeEventListener('keydown', keys) }
+    return () => { cancelAnimationFrame(frame); document.body.style.overflow = oldOverflow; document.body.style.paddingRight = oldPaddingRight; window.removeEventListener('resize', preserveWidth); document.removeEventListener('keydown', keys) }
   }, [open, sync])
   async function markRead(id?: string) {
     try {
@@ -92,7 +137,7 @@ export default function NotificationCenter() {
   }
   if (!available) return null
   return <>
-    {open && createPortal(<div className={styles.overlay} onClick={event => { if (event.target === event.currentTarget) { setOpen(false); bell.current?.focus() } }}>
+    {open && createPortal(<div ref={overlay} className={styles.overlay} onClick={event => { if (event.target === event.currentTarget) { setOpen(false); bell.current?.focus() } }}>
       <div ref={panel} className={styles.panel} role="dialog" aria-modal="true" aria-labelledby="notification-center-title">
         <div className={styles.panelHeader}><h2 id="notification-center-title">{copy.center}</h2><button className={styles.iconButton} aria-label={copy.close} onClick={() => { setOpen(false); bell.current?.focus() }}>×</button></div>
         <div className={styles.toolbar}><button disabled={!unread || loading} onClick={() => void markRead()}>{copy.markAll}</button><Link href="/settings/notifications" onClick={async event => { event.preventDefault(); if (await prepareScreenLeave()) window.location.assign('/settings/notifications') }}>{copy.settings}</Link></div>

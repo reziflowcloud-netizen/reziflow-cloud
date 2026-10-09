@@ -52,6 +52,9 @@
   }
 
   .createButton svg { width: 21px; height: 21px; }
+  .header .createButton { min-width: 0; max-width: 100%; }
+  .header .createButton svg { flex-shrink: 0; }
+  .header .createButton span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .headerMenuWrap { position: relative; }
 
   .roundButton,
