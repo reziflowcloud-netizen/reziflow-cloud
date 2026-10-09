@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
@@ -194,6 +195,7 @@ export default function Sidebar({
             <div className="sidebar-profile-role">{roleLabel}</div>
             {organizationName && <div className="sidebar-profile-org">{t.company}: {organizationName}</div>}
           </div>
+          <NotificationBell placement="sidebar" />
         </div>
 
         <button onClick={handleLogout} className="sidebar-logout">

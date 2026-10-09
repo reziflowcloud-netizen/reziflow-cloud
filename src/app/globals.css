@@ -112,7 +112,7 @@ body { background: var(--bg); color: var(--text); transition: background 0.2s, c
   padding: 0 8px 12px;
   transition: background 0.2s;
 }
-.main-content { margin-left: var(--sidebar-width); min-height: 100vh; }
+.main-content { margin-left: var(--sidebar-width); min-height: 100vh; min-width: 0; }
 
 .sidebar-logo {
   display: flex; align-items: center; gap: 10px;
@@ -155,7 +155,7 @@ body { background: var(--bg); color: var(--text); transition: background 0.2s, c
   background: linear-gradient(135deg, rgba(6,182,212,0.14), rgba(224,242,254,0.04));
   box-shadow: inset 0 0 0 1px rgba(224,242,254,0.03), 0 0 18px rgba(6,182,212,0.05);
 }
-.sidebar-profile-avatar { width: 34px !important; height: 34px !important; font-size: 12px !important; }
+.sidebar-profile-avatar { width: 34px !important; height: 34px !important; font-size: 12px !important; flex-shrink: 0; }
 .sidebar-profile-text { min-width: 0; flex: 1; }
 .sidebar-profile-name { color: var(--sidebar-text); font-weight: 700; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-profile-role, .sidebar-profile-org { color: var(--sidebar-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

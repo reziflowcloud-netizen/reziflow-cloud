@@ -1,4 +1,10 @@
 .slot { flex: 0 0 44px; min-width: 44px; margin-left: 8px; align-self: center; }
+.mobileSlot { display: none; }
+.sidebarSlot { flex: 0 0 32px; min-width: 32px; margin-left: 0; }
+.sidebarSlot .bell { width: 32px; height: 32px; border-radius: 8px; border-color: var(--sidebar-border); background: transparent; color: var(--sidebar-text); }
+.sidebarSlot .bell:hover { background: var(--sidebar-btn); border-color: var(--brand); }
+.sidebarSlot .bell:focus-visible { outline-color: var(--sidebar-active-text); }
+.sidebarSlot .badge { top: -6px; right: -6px; min-width: 17px; padding: 1px 3px; border-color: var(--sidebar-bg); font-size: 10px; }
 .bell { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); cursor: pointer; }
 .bell:hover { border-color: var(--brand); }
 .bell:focus-visible, .panel button:focus-visible, .panel a:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
@@ -37,6 +43,8 @@
 .settings label { display: inline-flex; align-items: center; gap: 10px; line-height: 1.5; min-height: 44px; }
 .settingsTable label { justify-content: center; width: 100%; }
 @media (max-width: 768px) {
+  .mobileSlot { display: block; }
+  .sidebarSlot { display: none; }
   .overlay { padding: 0; align-items: flex-end; }
   .panel { width: 100%; max-height: calc(100dvh - env(safe-area-inset-top) - 40px); border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); }
   .slot { margin-left: 0; }
