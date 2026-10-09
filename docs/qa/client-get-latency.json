@@ -1,0 +1,1419 @@
+{
+  "isolatedDatabase": true,
+  "productionUntouched": true,
+  "fixture": {
+    "cases": 16,
+    "services": 1,
+    "phones": 4,
+    "stays": 8,
+    "travelRows": 12,
+    "familyLinks": 1,
+    "customFields": 20
+  },
+  "samples": [
+    {
+      "label": "stable-main single connection",
+      "transportDelayEachDirectionMs": 0,
+      "connectionLimit": 1,
+      "requestAborted": false,
+      "status": 200,
+      "errorCode": null,
+      "totalMs": 80,
+      "sqlCount": 12,
+      "selectCount": 12,
+      "transactionMs": null,
+      "slowestQuery": {
+        "command": "SELECT",
+        "table": "User",
+        "durationMs": 9,
+        "at": 1791532361663
+      },
+      "operations": [
+        {
+          "model": "User",
+          "action": "findFirst",
+          "inTransaction": false,
+          "durationMs": 12
+        },
+        {
+          "model": "Client",
+          "action": "findFirst",
+          "inTransaction": false,
+          "durationMs": 40
+        },
+        {
+          "model": "ClientFamilyLink",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 4
+        },
+        {
+          "model": "Client",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 5
+        },
+        {
+          "action": "queryRaw",
+          "inTransaction": false,
+          "durationMs": 4
+        }
+      ],
+      "sql": [
+        {
+          "command": "SELECT",
+          "table": "User",
+          "durationMs": 9,
+          "at": 1791532361663
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 5,
+          "at": 1791532361673
+        },
+        {
+          "command": "SELECT",
+          "table": "Case",
+          "durationMs": 4,
+          "at": 1791532361679
+        },
+        {
+          "command": "SELECT",
+          "table": "Service",
+          "durationMs": 3,
+          "at": 1791532361683
+        },
+        {
+          "command": "SELECT",
+          "table": "TravelHistory",
+          "durationMs": 4,
+          "at": 1791532361688
+        },
+        {
+          "command": "SELECT",
+          "table": "PreviousPolandStay",
+          "durationMs": 3,
+          "at": 1791532361691
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientPhone",
+          "durationMs": 3,
+          "at": 1791532361695
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientFamilyLink",
+          "durationMs": 3,
+          "at": 1791532361698
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 2,
+          "at": 1791532361701
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientFamilyLink",
+          "durationMs": 3,
+          "at": 1791532361708
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 3,
+          "at": 1791532361714
+        },
+        {
+          "command": "SELECT",
+          "table": null,
+          "durationMs": 3,
+          "at": 1791532361718
+        }
+      ]
+    },
+    {
+      "label": "feature before available connections",
+      "transportDelayEachDirectionMs": 0,
+      "connectionLimit": 6,
+      "requestAborted": false,
+      "status": 200,
+      "errorCode": null,
+      "totalMs": 78,
+      "sqlCount": 16,
+      "selectCount": 13,
+      "transactionMs": 70,
+      "slowestQuery": {
+        "command": "SELECT",
+        "table": "User",
+        "durationMs": 4,
+        "at": 1791532361922
+      },
+      "operations": [
+        {
+          "model": "User",
+          "action": "findFirst",
+          "inTransaction": false,
+          "durationMs": 4
+        },
+        {
+          "model": "Client",
+          "action": "findFirst",
+          "inTransaction": true,
+          "durationMs": 27
+        },
+        {
+          "model": "ClientFamilyLink",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 23
+        },
+        {
+          "model": "Client",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 5
+        },
+        {
+          "model": "CustomField",
+          "action": "findMany",
+          "inTransaction": true,
+          "durationMs": 9
+        }
+      ],
+      "sql": [
+        {
+          "command": "SELECT",
+          "table": "User",
+          "durationMs": 4,
+          "at": 1791532361922
+        },
+        {
+          "command": "BEGIN",
+          "table": null,
+          "durationMs": 1,
+          "at": 1791532361924
+        },
+        {
+          "command": "SET",
+          "table": null,
+          "durationMs": 1,
+          "at": 1791532361925
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 2,
+          "at": 1791532361931
+        },
+        {
+          "command": "SELECT",
+          "table": "Case",
+          "durationMs": 3,
+          "at": 1791532361935
+        },
+        {
+          "command": "SELECT",
+          "table": "Service",
+          "durationMs": 2,
+          "at": 1791532361938
+        },
+        {
+          "command": "SELECT",
+          "table": "TravelHistory",
+          "durationMs": 2,
+          "at": 1791532361940
+        },
+        {
+          "command": "SELECT",
+          "table": "PreviousPolandStay",
+          "durationMs": 2,
+          "at": 1791532361943
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientPhone",
+          "durationMs": 2,
+          "at": 1791532361946
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientFamilyLink",
+          "durationMs": 2,
+          "at": 1791532361948
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 2,
+          "at": 1791532361951
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientFamilyLink",
+          "durationMs": 3,
+          "at": 1791532361977
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 3,
+          "at": 1791532361982
+        },
+        {
+          "command": "SELECT",
+          "table": "CustomField",
+          "durationMs": 3,
+          "at": 1791532361987
+        },
+        {
+          "command": "SELECT",
+          "table": "CustomFieldValue",
+          "durationMs": 3,
+          "at": 1791532361991
+        },
+        {
+          "command": "COMMIT",
+          "table": null,
+          "durationMs": 1,
+          "at": 1791532361994
+        }
+      ]
+    },
+    {
+      "label": "feature before single connection",
+      "transportDelayEachDirectionMs": 0,
+      "connectionLimit": 1,
+      "requestAborted": false,
+      "status": 500,
+      "errorCode": "P2028",
+      "errorDetail": "Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5026 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.",
+      "stackFrames": [
+        "    at $n.handleRequestError (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\node_modules\\@prisma\\client\\runtime\\library.js:121:7315)",
+        "    at $n.handleAndLogRequestError (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\node_modules\\@prisma\\client\\runtime\\library.js:121:6623)",
+        "    at $n.request (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\node_modules\\@prisma\\client\\runtime\\library.js:121:6307)",
+        "    at async l (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\node_modules\\@prisma\\client\\runtime\\library.js:130:9633)",
+        "    at async C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\scripts\\qa-client-get-latency.cjs:61:18",
+        "    at async GET.prisma_1.prisma.$transaction.isolationLevel (eval at load (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\scripts\\qa-client-get-latency.cjs:46:5), <anonymous>:150:28)",
+        "    at async Proxy._transactionWithCallback (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\node_modules\\@prisma\\client\\runtime\\library.js:130:8000)",
+        "    at async Server.<anonymous> (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\scripts\\qa-client-get-latency.cjs:73:26)"
+      ],
+      "totalMs": 5038,
+      "sqlCount": 14,
+      "selectCount": 11,
+      "transactionMs": 5017,
+      "slowestQuery": {
+        "command": "SELECT",
+        "table": "User",
+        "durationMs": 3,
+        "at": 1791532362136
+      },
+      "operations": [
+        {
+          "model": "User",
+          "action": "findFirst",
+          "inTransaction": false,
+          "durationMs": 4
+        },
+        {
+          "model": "Client",
+          "action": "findFirst",
+          "inTransaction": true,
+          "durationMs": 27
+        },
+        {
+          "model": "ClientFamilyLink",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 4990
+        },
+        {
+          "model": "Client",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 4
+        },
+        {
+          "model": "CustomField",
+          "action": "findMany",
+          "inTransaction": true,
+          "durationMs": 3
+        },
+        {
+          "model": "Client",
+          "action": "findFirst",
+          "inTransaction": true,
+          "durationMs": 2
+        }
+      ],
+      "sql": [
+        {
+          "command": "SELECT",
+          "table": "User",
+          "durationMs": 3,
+          "at": 1791532362136
+        },
+        {
+          "command": "BEGIN",
+          "table": null,
+          "durationMs": 1,
+          "at": 1791532362138
+        },
+        {
+          "command": "SET",
+          "table": null,
+          "durationMs": 1,
+          "at": 1791532362140
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 3,
+          "at": 1791532362147
+        },
+        {
+          "command": "SELECT",
+          "table": "Case",
+          "durationMs": 3,
+          "at": 1791532362150
+        },
+        {
+          "command": "SELECT",
+          "table": "Service",
+          "durationMs": 2,
+          "at": 1791532362153
+        },
+        {
+          "command": "SELECT",
+          "table": "TravelHistory",
+          "durationMs": 2,
+          "at": 1791532362156
+        },
+        {
+          "command": "SELECT",
+          "table": "PreviousPolandStay",
+          "durationMs": 2,
+          "at": 1791532362159
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientPhone",
+          "durationMs": 2,
+          "at": 1791532362162
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientFamilyLink",
+          "durationMs": 2,
+          "at": 1791532362164
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 1,
+          "at": 1791532362166
+        },
+        {
+          "command": "ROLLBACK",
+          "table": null,
+          "durationMs": 2,
+          "at": 1791532367155
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientFamilyLink",
+          "durationMs": 2,
+          "at": 1791532367158
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 2,
+          "at": 1791532367163
+        }
+      ]
+    },
+    {
+      "label": "feature before browser disconnect",
+      "transportDelayEachDirectionMs": 0,
+      "connectionLimit": 1,
+      "requestAborted": true,
+      "status": 500,
+      "errorCode": "P2028",
+      "errorDetail": "Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5054 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.",
+      "stackFrames": [
+        "    at $n.handleRequestError (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\node_modules\\@prisma\\client\\runtime\\library.js:121:7315)",
+        "    at $n.handleAndLogRequestError (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\node_modules\\@prisma\\client\\runtime\\library.js:121:6623)",
+        "    at $n.request (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\node_modules\\@prisma\\client\\runtime\\library.js:121:6307)",
+        "    at async l (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\node_modules\\@prisma\\client\\runtime\\library.js:130:9633)",
+        "    at async C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\scripts\\qa-client-get-latency.cjs:61:18",
+        "    at async GET.prisma_1.prisma.$transaction.isolationLevel (eval at load (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\scripts\\qa-client-get-latency.cjs:46:5), <anonymous>:150:28)",
+        "    at async Proxy._transactionWithCallback (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\node_modules\\@prisma\\client\\runtime\\library.js:130:8000)",
+        "    at async Server.<anonymous> (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\scripts\\qa-client-get-latency.cjs:73:26)"
+      ],
+      "totalMs": 5078,
+      "sqlCount": 14,
+      "selectCount": 11,
+      "transactionMs": 5010,
+      "slowestQuery": {
+        "command": "SELECT",
+        "table": "ClientFamilyLink",
+        "durationMs": 24,
+        "at": 1791532372325
+      },
+      "operations": [
+        {
+          "model": "User",
+          "action": "findFirst",
+          "inTransaction": false,
+          "durationMs": 5
+        },
+        {
+          "model": "Client",
+          "action": "findFirst",
+          "inTransaction": true,
+          "durationMs": 28
+        },
+        {
+          "model": "ClientFamilyLink",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 5005
+        },
+        {
+          "model": "Client",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 17
+        },
+        {
+          "model": "CustomField",
+          "action": "findMany",
+          "inTransaction": true,
+          "durationMs": 1
+        },
+        {
+          "model": "Client",
+          "action": "findFirst",
+          "inTransaction": true,
+          "durationMs": 9
+        }
+      ],
+      "sql": [
+        {
+          "command": "SELECT",
+          "table": "User",
+          "durationMs": 4,
+          "at": 1791532367283
+        },
+        {
+          "command": "BEGIN",
+          "table": null,
+          "durationMs": 6,
+          "at": 1791532367290
+        },
+        {
+          "command": "SET",
+          "table": null,
+          "durationMs": 1,
+          "at": 1791532367291
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 3,
+          "at": 1791532367297
+        },
+        {
+          "command": "SELECT",
+          "table": "Case",
+          "durationMs": 3,
+          "at": 1791532367301
+        },
+        {
+          "command": "SELECT",
+          "table": "Service",
+          "durationMs": 3,
+          "at": 1791532367304
+        },
+        {
+          "command": "SELECT",
+          "table": "TravelHistory",
+          "durationMs": 2,
+          "at": 1791532367307
+        },
+        {
+          "command": "SELECT",
+          "table": "PreviousPolandStay",
+          "durationMs": 2,
+          "at": 1791532367310
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientPhone",
+          "durationMs": 2,
+          "at": 1791532367313
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientFamilyLink",
+          "durationMs": 2,
+          "at": 1791532367316
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 1,
+          "at": 1791532367318
+        },
+        {
+          "command": "ROLLBACK",
+          "table": null,
+          "durationMs": 12,
+          "at": 1791532372300
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientFamilyLink",
+          "durationMs": 24,
+          "at": 1791532372325
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 16,
+          "at": 1791532372343
+        }
+      ]
+    },
+    {
+      "label": "feature before slow DB available connections",
+      "transportDelayEachDirectionMs": 300,
+      "connectionLimit": 6,
+      "requestAborted": false,
+      "status": 500,
+      "errorCode": "P2028",
+      "errorDetail": "Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5920 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.",
+      "stackFrames": [
+        "    at $n.handleRequestError (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\node_modules\\@prisma\\client\\runtime\\library.js:121:7315)",
+        "    at $n.handleAndLogRequestError (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\node_modules\\@prisma\\client\\runtime\\library.js:121:6623)",
+        "    at $n.request (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\node_modules\\@prisma\\client\\runtime\\library.js:121:6307)",
+        "    at async l (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\node_modules\\@prisma\\client\\runtime\\library.js:130:9633)",
+        "    at async C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\scripts\\qa-client-get-latency.cjs:61:18",
+        "    at async GET.prisma_1.prisma.$transaction.isolationLevel (eval at load (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\scripts\\qa-client-get-latency.cjs:46:5), <anonymous>:150:28)",
+        "    at async Proxy._transactionWithCallback (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\node_modules\\@prisma\\client\\runtime\\library.js:130:8000)",
+        "    at async Server.<anonymous> (C:\\Users\\verbe\\.codex\\worktrees\\3ee7\\legalhub-integration\\scripts\\qa-client-get-latency.cjs:73:26)"
+      ],
+      "totalMs": 8403,
+      "sqlCount": 8,
+      "selectCount": 5,
+      "transactionMs": 6533,
+      "slowestQuery": {
+        "command": "SELECT",
+        "table": "Client",
+        "durationMs": 1254,
+        "at": 1791532379912
+      },
+      "operations": [
+        {
+          "model": "User",
+          "action": "findFirst",
+          "inTransaction": false,
+          "durationMs": 1239
+        },
+        {
+          "model": "Client",
+          "action": "findFirst",
+          "inTransaction": true,
+          "durationMs": 5918
+        },
+        {
+          "model": "Client",
+          "action": "findFirst",
+          "inTransaction": true,
+          "durationMs": 4
+        }
+      ],
+      "sql": [
+        {
+          "command": "SELECT",
+          "table": "User",
+          "durationMs": 1239,
+          "at": 1791532377415
+        },
+        {
+          "command": "BEGIN",
+          "table": null,
+          "durationMs": 619,
+          "at": 1791532378036
+        },
+        {
+          "command": "SET",
+          "table": null,
+          "durationMs": 617,
+          "at": 1791532378653
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 1254,
+          "at": 1791532379912
+        },
+        {
+          "command": "SELECT",
+          "table": "Case",
+          "durationMs": 1237,
+          "at": 1791532381149
+        },
+        {
+          "command": "SELECT",
+          "table": "Service",
+          "durationMs": 1239,
+          "at": 1791532382389
+        },
+        {
+          "command": "SELECT",
+          "table": "TravelHistory",
+          "durationMs": 1245,
+          "at": 1791532383635
+        },
+        {
+          "command": "ROLLBACK",
+          "table": null,
+          "durationMs": 899,
+          "at": 1791532384569
+        }
+      ]
+    },
+    {
+      "label": "fixed single connection",
+      "transportDelayEachDirectionMs": 0,
+      "connectionLimit": 1,
+      "requestAborted": false,
+      "status": 200,
+      "errorCode": null,
+      "totalMs": 48,
+      "sqlCount": 14,
+      "selectCount": 11,
+      "transactionMs": 27,
+      "slowestQuery": {
+        "command": "SELECT",
+        "table": "User",
+        "durationMs": 4,
+        "at": 1791532384705
+      },
+      "operations": [
+        {
+          "model": "User",
+          "action": "findFirst",
+          "inTransaction": false,
+          "durationMs": 5
+        },
+        {
+          "model": "Client",
+          "action": "findFirst",
+          "inTransaction": true,
+          "durationMs": 34
+        },
+        {
+          "model": "CustomField",
+          "action": "findMany",
+          "inTransaction": true,
+          "durationMs": 34
+        },
+        {
+          "model": "ClientFamilyLink",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 3
+        },
+        {
+          "model": "Client",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 3
+        }
+      ],
+      "sql": [
+        {
+          "command": "SELECT",
+          "table": "User",
+          "durationMs": 4,
+          "at": 1791532384705
+        },
+        {
+          "command": "BEGIN",
+          "table": null,
+          "durationMs": 4,
+          "at": 1791532384712
+        },
+        {
+          "command": "SET",
+          "table": null,
+          "durationMs": 1,
+          "at": 1791532384713
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 3,
+          "at": 1791532384718
+        },
+        {
+          "command": "SELECT",
+          "table": "Case",
+          "durationMs": 3,
+          "at": 1791532384722
+        },
+        {
+          "command": "SELECT",
+          "table": "Service",
+          "durationMs": 2,
+          "at": 1791532384725
+        },
+        {
+          "command": "SELECT",
+          "table": "TravelHistory",
+          "durationMs": 2,
+          "at": 1791532384727
+        },
+        {
+          "command": "SELECT",
+          "table": "PreviousPolandStay",
+          "durationMs": 2,
+          "at": 1791532384729
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientPhone",
+          "durationMs": 2,
+          "at": 1791532384731
+        },
+        {
+          "command": "SELECT",
+          "table": "CustomField",
+          "durationMs": 2,
+          "at": 1791532384735
+        },
+        {
+          "command": "SELECT",
+          "table": "CustomFieldValue",
+          "durationMs": 2,
+          "at": 1791532384738
+        },
+        {
+          "command": "COMMIT",
+          "table": null,
+          "durationMs": 0,
+          "at": 1791532384739
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientFamilyLink",
+          "durationMs": 2,
+          "at": 1791532384743
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 1,
+          "at": 1791532384746
+        }
+      ]
+    },
+    {
+      "label": "fixed slow sequential 1",
+      "transportDelayEachDirectionMs": 300,
+      "connectionLimit": 1,
+      "requestAborted": false,
+      "status": 200,
+      "errorCode": null,
+      "totalMs": 16184,
+      "sqlCount": 15,
+      "selectCount": 12,
+      "transactionMs": 11178,
+      "slowestQuery": {
+        "command": "SELECT",
+        "table": "Client",
+        "durationMs": 1255,
+        "at": 1791532404798
+      },
+      "operations": [
+        {
+          "model": "User",
+          "action": "findFirst",
+          "inTransaction": false,
+          "durationMs": 1254
+        },
+        {
+          "model": "Client",
+          "action": "findFirst",
+          "inTransaction": true,
+          "durationMs": 11810
+        },
+        {
+          "model": "CustomField",
+          "action": "findMany",
+          "inTransaction": true,
+          "durationMs": 11809
+        },
+        {
+          "model": "ClientFamilyLink",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 1235
+        },
+        {
+          "model": "Client",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 1879
+        }
+      ],
+      "sql": [
+        {
+          "command": "SELECT",
+          "table": "User",
+          "durationMs": 1253,
+          "at": 1791532389871
+        },
+        {
+          "command": "BEGIN",
+          "table": null,
+          "durationMs": 626,
+          "at": 1791532390503
+        },
+        {
+          "command": "SET",
+          "table": null,
+          "durationMs": 613,
+          "at": 1791532391117
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 1234,
+          "at": 1791532392352
+        },
+        {
+          "command": "SELECT",
+          "table": "Case",
+          "durationMs": 1248,
+          "at": 1791532393601
+        },
+        {
+          "command": "SELECT",
+          "table": "Service",
+          "durationMs": 1233,
+          "at": 1791532394835
+        },
+        {
+          "command": "SELECT",
+          "table": "TravelHistory",
+          "durationMs": 1236,
+          "at": 1791532396072
+        },
+        {
+          "command": "SELECT",
+          "table": "PreviousPolandStay",
+          "durationMs": 1233,
+          "at": 1791532397306
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientPhone",
+          "durationMs": 1248,
+          "at": 1791532398554
+        },
+        {
+          "command": "SELECT",
+          "table": "CustomField",
+          "durationMs": 1243,
+          "at": 1791532399802
+        },
+        {
+          "command": "SELECT",
+          "table": "CustomFieldValue",
+          "durationMs": 1251,
+          "at": 1791532401054
+        },
+        {
+          "command": "COMMIT",
+          "table": null,
+          "durationMs": 627,
+          "at": 1791532401681
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientFamilyLink",
+          "durationMs": 1234,
+          "at": 1791532402919
+        },
+        {
+          "command": "SELECT",
+          "table": null,
+          "durationMs": 619,
+          "at": 1791532403539
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 1255,
+          "at": 1791532404798
+        }
+      ]
+    },
+    {
+      "label": "fixed slow sequential 2",
+      "transportDelayEachDirectionMs": 300,
+      "connectionLimit": 1,
+      "requestAborted": false,
+      "status": 200,
+      "errorCode": null,
+      "totalMs": 16223,
+      "sqlCount": 15,
+      "selectCount": 12,
+      "transactionMs": 11244,
+      "slowestQuery": {
+        "command": "SELECT",
+        "table": "ClientPhone",
+        "durationMs": 1266,
+        "at": 1791532418685
+      },
+      "operations": [
+        {
+          "model": "User",
+          "action": "findFirst",
+          "inTransaction": false,
+          "durationMs": 1241
+        },
+        {
+          "model": "Client",
+          "action": "findFirst",
+          "inTransaction": true,
+          "durationMs": 11873
+        },
+        {
+          "model": "CustomField",
+          "action": "findMany",
+          "inTransaction": true,
+          "durationMs": 11873
+        },
+        {
+          "model": "ClientFamilyLink",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 1235
+        },
+        {
+          "model": "Client",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 1872
+        }
+      ],
+      "sql": [
+        {
+          "command": "SELECT",
+          "table": "User",
+          "durationMs": 1239,
+          "at": 1791532409936
+        },
+        {
+          "command": "BEGIN",
+          "table": null,
+          "durationMs": 626,
+          "at": 1791532410566
+        },
+        {
+          "command": "SET",
+          "table": null,
+          "durationMs": 605,
+          "at": 1791532411172
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 1242,
+          "at": 1791532412420
+        },
+        {
+          "command": "SELECT",
+          "table": "Case",
+          "durationMs": 1251,
+          "at": 1791532413673
+        },
+        {
+          "command": "SELECT",
+          "table": "Service",
+          "durationMs": 1242,
+          "at": 1791532414917
+        },
+        {
+          "command": "SELECT",
+          "table": "TravelHistory",
+          "durationMs": 1249,
+          "at": 1791532416167
+        },
+        {
+          "command": "SELECT",
+          "table": "PreviousPolandStay",
+          "durationMs": 1251,
+          "at": 1791532417418
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientPhone",
+          "durationMs": 1266,
+          "at": 1791532418685
+        },
+        {
+          "command": "SELECT",
+          "table": "CustomField",
+          "durationMs": 1245,
+          "at": 1791532419932
+        },
+        {
+          "command": "SELECT",
+          "table": "CustomFieldValue",
+          "durationMs": 1252,
+          "at": 1791532421184
+        },
+        {
+          "command": "COMMIT",
+          "table": null,
+          "durationMs": 625,
+          "at": 1791532421810
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientFamilyLink",
+          "durationMs": 1234,
+          "at": 1791532423046
+        },
+        {
+          "command": "SELECT",
+          "table": null,
+          "durationMs": 624,
+          "at": 1791532423671
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 1245,
+          "at": 1791532424918
+        }
+      ]
+    },
+    {
+      "label": "fixed slow sequential 3",
+      "transportDelayEachDirectionMs": 300,
+      "connectionLimit": 1,
+      "requestAborted": false,
+      "status": 200,
+      "errorCode": null,
+      "totalMs": 16205,
+      "sqlCount": 15,
+      "selectCount": 12,
+      "transactionMs": 11216,
+      "slowestQuery": {
+        "command": "SELECT",
+        "table": "User",
+        "durationMs": 1254,
+        "at": 1791532430018
+      },
+      "operations": [
+        {
+          "model": "User",
+          "action": "findFirst",
+          "inTransaction": false,
+          "durationMs": 1256
+        },
+        {
+          "model": "Client",
+          "action": "findFirst",
+          "inTransaction": true,
+          "durationMs": 11837
+        },
+        {
+          "model": "CustomField",
+          "action": "findMany",
+          "inTransaction": true,
+          "durationMs": 11837
+        },
+        {
+          "model": "ClientFamilyLink",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 1248
+        },
+        {
+          "model": "Client",
+          "action": "findMany",
+          "inTransaction": false,
+          "durationMs": 1859
+        }
+      ],
+      "sql": [
+        {
+          "command": "SELECT",
+          "table": "User",
+          "durationMs": 1254,
+          "at": 1791532430018
+        },
+        {
+          "command": "BEGIN",
+          "table": null,
+          "durationMs": 616,
+          "at": 1791532430639
+        },
+        {
+          "command": "SET",
+          "table": null,
+          "durationMs": 628,
+          "at": 1791532431267
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 1241,
+          "at": 1791532432513
+        },
+        {
+          "command": "SELECT",
+          "table": "Case",
+          "durationMs": 1236,
+          "at": 1791532433751
+        },
+        {
+          "command": "SELECT",
+          "table": "Service",
+          "durationMs": 1247,
+          "at": 1791532434999
+        },
+        {
+          "command": "SELECT",
+          "table": "TravelHistory",
+          "durationMs": 1250,
+          "at": 1791532436250
+        },
+        {
+          "command": "SELECT",
+          "table": "PreviousPolandStay",
+          "durationMs": 1247,
+          "at": 1791532437498
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientPhone",
+          "durationMs": 1233,
+          "at": 1791532438732
+        },
+        {
+          "command": "SELECT",
+          "table": "CustomField",
+          "durationMs": 1248,
+          "at": 1791532439981
+        },
+        {
+          "command": "SELECT",
+          "table": "CustomFieldValue",
+          "durationMs": 1250,
+          "at": 1791532441232
+        },
+        {
+          "command": "COMMIT",
+          "table": null,
+          "durationMs": 623,
+          "at": 1791532441855
+        },
+        {
+          "command": "SELECT",
+          "table": "ClientFamilyLink",
+          "durationMs": 1247,
+          "at": 1791532443106
+        },
+        {
+          "command": "SELECT",
+          "table": null,
+          "durationMs": 626,
+          "at": 1791532443733
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 1228,
+          "at": 1791532444965
+        }
+      ]
+    },
+    {
+      "label": "fixed foreign tenant",
+      "transportDelayEachDirectionMs": 0,
+      "connectionLimit": 1,
+      "requestAborted": false,
+      "status": 404,
+      "errorCode": null,
+      "totalMs": 19,
+      "sqlCount": 6,
+      "selectCount": 3,
+      "transactionMs": 11,
+      "slowestQuery": {
+        "command": "SELECT",
+        "table": "User",
+        "durationMs": 3,
+        "at": 1791532445078
+      },
+      "operations": [
+        {
+          "model": "User",
+          "action": "findFirst",
+          "inTransaction": false,
+          "durationMs": 4
+        },
+        {
+          "model": "Client",
+          "action": "findFirst",
+          "inTransaction": true,
+          "durationMs": 13
+        },
+        {
+          "model": "CustomField",
+          "action": "findMany",
+          "inTransaction": true,
+          "durationMs": 13
+        }
+      ],
+      "sql": [
+        {
+          "command": "SELECT",
+          "table": "User",
+          "durationMs": 3,
+          "at": 1791532445078
+        },
+        {
+          "command": "BEGIN",
+          "table": null,
+          "durationMs": 1,
+          "at": 1791532445081
+        },
+        {
+          "command": "SET",
+          "table": null,
+          "durationMs": 1,
+          "at": 1791532445082
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 3,
+          "at": 1791532445088
+        },
+        {
+          "command": "SELECT",
+          "table": "CustomField",
+          "durationMs": 2,
+          "at": 1791532445091
+        },
+        {
+          "command": "COMMIT",
+          "table": null,
+          "durationMs": 0,
+          "at": 1791532445092
+        }
+      ]
+    },
+    {
+      "label": "fixed restricted user",
+      "transportDelayEachDirectionMs": 0,
+      "connectionLimit": 1,
+      "requestAborted": false,
+      "status": 404,
+      "errorCode": null,
+      "totalMs": 27,
+      "sqlCount": 7,
+      "selectCount": 4,
+      "transactionMs": 13,
+      "slowestQuery": {
+        "command": "SELECT",
+        "table": "User",
+        "durationMs": 4,
+        "at": 1791532445215
+      },
+      "operations": [
+        {
+          "model": "User",
+          "action": "findFirst",
+          "inTransaction": false,
+          "durationMs": 5
+        },
+        {
+          "model": "Client",
+          "action": "findFirst",
+          "inTransaction": true,
+          "durationMs": 21
+        },
+        {
+          "model": "CustomField",
+          "action": "findMany",
+          "inTransaction": true,
+          "durationMs": 20
+        }
+      ],
+      "sql": [
+        {
+          "command": "SELECT",
+          "table": "User",
+          "durationMs": 4,
+          "at": 1791532445215
+        },
+        {
+          "command": "BEGIN",
+          "table": null,
+          "durationMs": 4,
+          "at": 1791532445222
+        },
+        {
+          "command": "SET",
+          "table": null,
+          "durationMs": 0,
+          "at": 1791532445223
+        },
+        {
+          "command": "SELECT",
+          "table": "Client",
+          "durationMs": 2,
+          "at": 1791532445228
+        },
+        {
+          "command": "SELECT",
+          "table": "CustomField",
+          "durationMs": 2,
+          "at": 1791532445231
+        },
+        {
+          "command": "SELECT",
+          "table": "CustomFieldValue",
+          "durationMs": 2,
+          "at": 1791532445234
+        },
+        {
+          "command": "COMMIT",
+          "table": null,
+          "durationMs": 1,
+          "at": 1791532445235
+        }
+      ]
+    }
+  ],
+  "checks": {
+    "poolStarvationReproduced": "PASS",
+    "disconnectNotRequired": "PASS",
+    "slowDatabaseBeyondInteractiveDeadline": "PASS",
+    "parentCustomSnapshotRetained": "PASS",
+    "tenantAndRestrictedIsolation": "PASS"
+  },
+  "complete": true
+}
