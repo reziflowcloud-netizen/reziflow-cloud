@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { entityWrite, entityWriteError, EntityWriteError, writeEntityCustomFields, readEntityCustomFields } from '@/lib/entityWrite'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { normalizeLeadBody } from '@/lib/leads'
 import { normalizePhones, phonesWithLegacy, primaryPhone } from '@/lib/phones'
 import { findScopedLead, getDataAccessScope, leadWhereForScope } from '@/lib/apiScope'
+import { resolveUserIdForEmployee } from '@/lib/employeeSync'
 import { leadAssignmentData } from '@/lib/leadAssignmentPolicy'
 
 export const dynamic = 'force-dynamic'
@@ -61,10 +61,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
 
-  const scope = await getDataAccessScope(user, organizationId)
-  return prisma.$transaction(async tx => {
-  const lead = await tx.lead.findFirst({
-    where: leadWhereForScope(scope, organizationId, { id: params.id }),
+  const lead = await (prisma as any).lead.findFirst({
+    where: leadWhereForScope(await getDataAccessScope(user, organizationId), organizationId, { id: params.id }),
     include: {
       assignedTo: { select: { id: true, name: true } },
       employee: { select: { id: true, name: true } },
@@ -72,8 +70,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     },
   })
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json({ ...lead, phones: phonesWithLegacy(lead), customFieldValues: await readEntityCustomFields(tx, organizationId, 'lead', params.id) })
-  }, { isolationLevel: 'RepeatableRead' })
+  return NextResponse.json({ ...lead, phones: phonesWithLegacy(lead) })
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
@@ -82,54 +79,62 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const organizationId = getOrganizationId(user)
 
   const scope = await getDataAccessScope(user, organizationId)
-  try {
+  const existing = await (prisma as any).lead.findFirst({
+    where: leadWhereForScope(scope, organizationId, { id: params.id }),
+    include: {
+      assignedTo: { select: { id: true, name: true } },
+      employee: { select: { id: true, name: true } },
+      phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
+    },
+  })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
   const body = await request.json()
-  return await entityWrite(request, 'lead', body, leadWhereForScope(scope, organizationId, { id: params.id }), async (tx, existing, claim) => {
-  const normalized = normalizeLeadBody({ ...existing, ...body })
-  const data: any = Object.fromEntries(Object.entries(normalized).filter(([key]) => Object.prototype.hasOwnProperty.call(body, key)))
-  if ('firstName' in body || 'lastName' in body) data.fullName = normalized.fullName
-  if (scope.restricted && ('assignedToId' in body || 'employeeId' in body)) data.assignedToId = scope.userId
-  for (const key of ['deadlineAt','lastContactAt','nextContactAt']) if (data[key] instanceof Date && !Number.isFinite(data[key].getTime())) throw new EntityWriteError(400, 'Invalid date')
-  if (data.assignedToId && !await tx.user.findFirst({ where: { id: data.assignedToId, organizationId }, select: { id: true } })) throw new EntityWriteError(400, 'User not found')
+  const data = normalizeLeadBody({ ...existing, ...body })
+  if (scope.restricted && scope.userId) data.assignedToId = scope.userId
   const shouldUpdatePhones = Array.isArray(body.phones)
   const phones = shouldUpdatePhones ? normalizePhones(body.phones, data.phone) : []
   if (shouldUpdatePhones) data.phone = primaryPhone(phones, data.phone)
   if (body.status !== undefined && data.status && data.status !== existing.status) {
-    const targetStatus = await tx.leadStatus.findFirst({
+    const targetStatus = await (prisma as any).leadStatus.findFirst({
       where: { organizationId, name: data.status },
       select: { requireReason: true, reasons: true },
     })
     const reasons = Array.isArray(targetStatus?.reasons) ? targetStatus.reasons.map((item: any) => String(item)) : []
-    if (targetStatus?.requireReason && !normalized.statusReason) {
-      throw new EntityWriteError(400, 'Укажите причину смены статуса')
+    if (targetStatus?.requireReason && !data.statusReason) {
+      return NextResponse.json({ error: 'Укажите причину смены статуса', requireReason: true, reasons }, { status: 400 })
     }
-    if (targetStatus?.requireReason && reasons.length && !reasons.includes(String(normalized.statusReason))) {
-      throw new EntityWriteError(400, 'Выберите причину из списка')
+    if (targetStatus?.requireReason && reasons.length && !reasons.includes(String(data.statusReason))) {
+      return NextResponse.json({ error: 'Выберите причину из списка', requireReason: true, reasons }, { status: 400 })
     }
     if (!targetStatus?.requireReason) {
       data.statusReason = null
       data.statusReasonComment = null
-    } else {
-      data.statusReason = normalized.statusReason
-      data.statusReasonComment = normalized.statusReasonComment
     }
   }
   if (body.employeeId !== undefined && data.employeeId && data.employeeId !== existing.employeeId) {
-    const employee = await tx.employee.findFirst({
+    const employee = await (prisma as any).employee.findFirst({
       where: { id: data.employeeId, organizationId, active: true },
       select: { id: true },
     })
-    if (!employee) throw new EntityWriteError(400, 'Employee not found')
+    if (!employee) return NextResponse.json({ error: 'Employee not found' }, { status: 400 })
   }
   if (body.employeeId !== undefined && !scope.restricted) {
     Object.assign(data, leadAssignmentData(
       data.employeeId,
-      data.employeeId ? (await tx.employee.findFirst({ where: { organizationId, id: data.employeeId }, select: { userId: true } }))?.userId : null,
+      data.employeeId ? await resolveUserIdForEmployee(organizationId, data.employeeId) : null,
     ))
   }
-    if (data.assignedToId && !await tx.user.findFirst({ where: { organizationId, id: data.assignedToId }, select: { id: true } })) throw new EntityWriteError(400, 'User not found')
-    const updated = await claim(data)
-    await writeEntityCustomFields(tx, organizationId, 'lead', params.id, body.customFieldValues)
+  const lead = await (prisma as any).$transaction(async (tx: any) => {
+    const updated = await tx.lead.update({
+      where: { id: params.id },
+      data,
+      include: {
+        assignedTo: { select: { id: true, name: true } },
+        employee: { select: { id: true, name: true } },
+        phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
+      },
+    })
     if (shouldUpdatePhones) {
       await tx.leadPhone.deleteMany({ where: { leadId: params.id, organizationId } })
       if (phones.length) {
@@ -163,8 +168,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         })
       }
     }
-    if ((body.assignedToId !== undefined || body.employeeId !== undefined) && (data.assignedToId || null) !== (existing.assignedToId || null)) {
-      const previousAssignedTo = existing.assignedToId ? await tx.user.findFirst({ where: { id: existing.assignedToId, organizationId }, select: { name: true } }) : null
+    if (body.assignedToId !== undefined && (data.assignedToId || null) !== (existing.assignedToId || null)) {
       const assignedTo = data.assignedToId
         ? await tx.user.findFirst({ where: { id: data.assignedToId, organizationId }, select: { name: true } })
         : null
@@ -174,15 +178,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
           leadId: params.id,
           authorId: user.id,
           contactAt: new Date(),
-          note: `Ответственный изменен: ${previousAssignedTo?.name || '—'} -> ${assignedTo?.name || '—'}`,
+          note: `Ответственный изменен: ${existing.assignedTo?.name || '—'} -> ${assignedTo?.name || '—'}`,
         },
       })
     }
     if (body.nextContactAt !== undefined || body.nextContactNote !== undefined) {
       const previousAt = existing.nextContactAt ? new Date(existing.nextContactAt).getTime() : null
-      const nextAt = updated.nextContactAt ? new Date(updated.nextContactAt).getTime() : null
+      const nextAt = data.nextContactAt ? new Date(data.nextContactAt).getTime() : null
       const previousNote = existing.nextContactNote || ''
-      const nextNote = updated.nextContactNote || ''
+      const nextNote = data.nextContactNote || ''
       if (previousAt !== nextAt || previousNote !== nextNote) {
         await tx.leadContactHistory.create({
           data: {
@@ -191,17 +195,26 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
             authorId: user.id,
             contactAt: new Date(),
             note: 'Изменен следующий контакт',
-            nextContactAt: updated.nextContactAt || null,
-            nextContactNote: updated.nextContactNote || null,
+            nextContactAt: data.nextContactAt || null,
+            nextContactNote: data.nextContactNote || null,
           },
         })
       }
       await syncNextContactTask(tx, updated, organizationId, scope.restricted && scope.userId ? scope.userId : Number(user.id))
     }
-    const lead = await tx.lead.findFirst({ where: { id: params.id, organizationId }, include: { assignedTo: { select: { id: true, name: true } }, employee: { select: { id: true, name: true } }, phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } })
-    return { ...lead, phones: phonesWithLegacy(lead) }
+    return shouldUpdatePhones
+      ? await tx.lead.findUnique({
+          where: { id: params.id },
+          include: {
+            assignedTo: { select: { id: true, name: true } },
+            employee: { select: { id: true, name: true } },
+            phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
+          },
+        })
+      : updated
   })
-  } catch (error) { return entityWriteError(error) }
+
+  return NextResponse.json({ ...lead, phones: phonesWithLegacy(lead) })
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {

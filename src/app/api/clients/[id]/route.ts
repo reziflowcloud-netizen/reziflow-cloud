@@ -1,6 +1,5 @@
 // src/app/api/clients/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { entityWrite, entityWriteError, EntityWriteError, writeEntityCustomFields, readEntityCustomFields } from '@/lib/entityWrite'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { deleteCloudinaryDocumentResources } from '@/lib/cloudinary'
@@ -79,6 +78,40 @@ function normalizePreviousPolandStays(value: any) {
     .filter(item => item.entryDate || item.exitDate || item.basis)
 }
 
+async function getClientMosFields(clientId: string, organizationId: string) {
+  try {
+    const rows = await prisma.$queryRaw<Array<{
+      gender: string | null
+      previousPolandEntryDate: Date | null
+      previousPolandExitDate: Date | null
+      previousPolandBasis: string | null
+    }>>`
+      SELECT "gender", "previousPolandEntryDate", "previousPolandExitDate", "previousPolandBasis"
+      FROM "Client"
+      WHERE "id" = ${clientId} AND "organizationId" = ${organizationId}
+      LIMIT 1
+    `
+    return rows[0] || {}
+  } catch (error) {
+    console.error('Client MOS fields load error:', error)
+    return {}
+  }
+}
+
+async function updateClientMosFields(tx: any, clientId: string, organizationId: string, body: any) {
+  const hasPreviousStayRows = Array.isArray(body.previousPolandStays)
+  const firstPreviousStay = hasPreviousStayRows ? normalizePreviousPolandStays(body.previousPolandStays)[0] : null
+  await tx.$executeRaw`
+    UPDATE "Client"
+    SET
+      "gender" = ${body.gender || null},
+      "previousPolandEntryDate" = ${hasPreviousStayRows ? firstPreviousStay?.entryDate || null : dateOrNull(body.previousPolandEntryDate)},
+      "previousPolandExitDate" = ${hasPreviousStayRows ? firstPreviousStay?.exitDate || null : dateOrNull(body.previousPolandExitDate)},
+      "previousPolandBasis" = ${hasPreviousStayRows ? firstPreviousStay?.basis || null : body.previousPolandBasis || null}
+    WHERE "id" = ${clientId} AND "organizationId" = ${organizationId}
+  `
+}
+
 async function getFamilyLinksForClient(clientId: string, organizationId: string, scope?: DataAccessScope) {
   const links = await (prisma as any).clientFamilyLink.findMany({
     where: { organizationId },
@@ -123,9 +156,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
   const scope = await getDataAccessScope(user, organizationId)
-  return prisma.$transaction(async tx => {
   try {
-    const client = await tx.client.findFirst({
+    const client = await (prisma as any).client.findFirst({
       where: clientWhereForScope(scope, organizationId, { id: params.id }),
       include: {
         cases: { where: caseWhereForScope(scope, organizationId), include: { service: true }, orderBy: { createdAt: 'desc' } },
@@ -144,10 +176,11 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     })
     if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const familyLinks = await getFamilyLinksForClient(params.id, organizationId, scope)
-    return NextResponse.json({ ...client, phones: phonesWithLegacy(client), customFieldValues: await readEntityCustomFields(tx, organizationId, 'client', params.id), familyLinks })
+    const mosFields = await getClientMosFields(params.id, organizationId)
+    return NextResponse.json({ ...client, ...mosFields, phones: phonesWithLegacy(client), familyLinks })
   } catch (e) {
     // fallback
-    const client = await tx.client.findFirst({
+    const client = await prisma.client.findFirst({
       where: clientWhereForScope(scope, organizationId, { id: params.id }),
       include: {
         cases: { where: caseWhereForScope(scope, organizationId), orderBy: { createdAt: 'desc' } },
@@ -155,9 +188,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       }
     })
     if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json({ ...client, phones: phonesWithLegacy(client), customFieldValues: await readEntityCustomFields(tx, organizationId, 'client', params.id), travelHistory: [], previousPolandStays: client.previousPolandStays || [] })
+    const mosFields = await getClientMosFields(params.id, organizationId)
+    return NextResponse.json({ ...client, ...mosFields, phones: phonesWithLegacy(client), travelHistory: [], previousPolandStays: client.previousPolandStays || [] })
   }
-  }, { isolationLevel: 'RepeatableRead' })
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
@@ -167,7 +200,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const scope = await getDataAccessScope(user, organizationId)
   try {
     const body = await request.json()
-    return await entityWrite(request, 'client', body, clientWhereForScope(scope, organizationId, { id: params.id }), async (tx, existingClient, claim) => {
+    const existingClient = await prisma.client.findFirst({ where: clientWhereForScope(scope, organizationId, { id: params.id }) })
+    if (!existingClient) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const shouldUpdatePhones = Array.isArray(body.phones)
     const phones = shouldUpdatePhones ? normalizePhones(body.phones, body.phone) : []
     const mainPhone = shouldUpdatePhones ? primaryPhone(phones, body.phone) : (body.phone || null)
@@ -179,12 +213,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       ? Array.from(new Set<string>(body.familyClientIds.map((value: any) => String(value)).filter((value: string) => value && value !== params.id)))
       : []
     const validFamilyClients = familyClientIds.length > 0
-      ? await tx.client.findMany({ where: clientWhereForScope(scope, organizationId, { id: { in: familyClientIds } }), select: { id: true } })
+      ? await prisma.client.findMany({ where: clientWhereForScope(scope, organizationId, { id: { in: familyClientIds } }), select: { id: true } })
       : []
-    const validFamilyIds = validFamilyClients.map((item: any) => item.id)
+    const validFamilyIds = validFamilyClients.map(item => item.id)
 
-    if (validFamilyIds.length !== familyClientIds.length) throw new EntityWriteError(400, 'Client not found')
-    const allData: any = {
+    const client = await prisma.$transaction(async tx => {
+      const updated = await (tx as any).client.update({
+        where: { id: params.id },
+        data: {
         firstName: body.firstName,
         lastName: body.lastName,
         phone: mainPhone,
@@ -231,17 +267,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         finesInPoland: body.finesInPoland || false,
         finesDescription: body.finesDescription || null,
         }
-      Object.assign(allData, { gender: body.gender || null, previousPolandEntryDate: dateOrNull(body.previousPolandEntryDate), previousPolandExitDate: dateOrNull(body.previousPolandExitDate), previousPolandBasis: body.previousPolandBasis || null })
-      const data: any = Object.fromEntries(Object.entries(allData).filter(([key]) => Object.prototype.hasOwnProperty.call(body, key)))
-      if (shouldUpdatePhones) data.phone = mainPhone
-      if (shouldUpdatePreviousPolandStays) Object.assign(data, { previousPolandEntryDate: previousPolandStays[0]?.entryDate || null, previousPolandExitDate: previousPolandStays[0]?.exitDate || null, previousPolandBasis: previousPolandStays[0]?.basis || null })
-      for (const value of [...Object.values(data), ...previousPolandStays.flatMap(stay => [stay.entryDate, stay.exitDate])]) if (value instanceof Date && !Number.isFinite(value.getTime())) throw new EntityWriteError(400, 'Invalid date')
-      for (const [key, value] of Object.entries(data)) {
-        if (['statusUKR','firstResidenceCard','finesInPoland'].includes(key)) { if (typeof value !== 'boolean') throw new EntityWriteError(400, 'Invalid field') }
-        else if (value != null && !(value instanceof Date) && typeof value !== 'string') throw new EntityWriteError(400, 'Invalid field')
-      }
-      const updated = await claim(data)
-      await writeEntityCustomFields(tx, organizationId, 'client', params.id, body.customFieldValues)
+      })
+      await updateClientMosFields(tx, params.id, organizationId, body)
 
       if (shouldUpdatePreviousPolandStays) {
         await (tx as any).previousPolandStay.deleteMany({ where: { clientId: params.id } })
@@ -298,20 +325,74 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         }
       }
 
-      if (['legalTitle', 'rentalEndDate', 'firstName', 'lastName'].some(key => key in body)) await syncRentalEndTask(tx, organizationId, updated)
-      if (['passportExpiresAt', 'firstName', 'lastName'].some(key => key in body) && updated.passportExpiresAt) {
-        const name = [updated.firstName, updated.lastName].join(' ')
-        const oldName = [existingClient.firstName, existingClient.lastName].join(' ')
-        const prior = await tx.task.findFirst({ where: { organizationId, OR: [{ description: { contains: '"clientPassportEnd":{"clientId":"' + params.id + '"' } }, { title: 'Окончание паспорта: ' + oldName, clientName: oldName }] } })
-        const taskData = { title: 'Окончание паспорта: ' + name, clientName: name, dueDate: updated.passportExpiresAt, description: JSON.stringify({ reminderAt: new Date(updated.passportExpiresAt.getTime() - 90*86400000).toISOString(), reminderNote: 'Паспорт клиента ' + name + ' истекает через 90 дней', clientPassportEnd: { clientId: params.id } }) }
-        if (prior) await tx.task.update({ where: { id: prior.id }, data: taskData })
-        else await tx.task.create({ data: { ...taskData, organizationId, priority: 'Срочно', status: 'todo', assignedToId: scope.restricted ? scope.userId : null } })
-      }
+      await syncRentalEndTask(tx, organizationId, updated)
 
-      const client = await tx.client.findFirst({ where: { id: params.id, organizationId }, include: { phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] }, previousPolandStays: { orderBy: { order: 'asc' } } } })
-      return { ...client, phones: phonesWithLegacy(client) }
+      return shouldUpdatePhones
+        ? await (tx as any).client.findUnique({
+            where: { id: params.id },
+            include: {
+              phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
+              previousPolandStays: { orderBy: { order: 'asc' } },
+            },
+          })
+        : shouldUpdatePreviousPolandStays
+          ? await (tx as any).client.findUnique({
+              where: { id: params.id },
+              include: { previousPolandStays: { orderBy: { order: 'asc' } } },
+            })
+          : updated
     })
-  } catch (error) { return entityWriteError(error) }
+    // Если указана дата окончания паспорта — создаём задачу в календаре
+    if (body.passportExpiresAt) {
+      try {
+        const clientName = `${body.firstName} ${body.lastName}`
+        const taskTitle = `Окончание паспорта: ${clientName}`
+        // Проверяем не существует ли уже такая задача
+        const existingTask = await (prisma as any).task.findFirst({
+          where: {
+            organizationId,
+            title: taskTitle,
+            clientName: clientName,
+          }
+        })
+        if (!existingTask) {
+          await (prisma as any).task.create({
+            data: {
+              organizationId,
+              title: taskTitle,
+              priority: 'Срочно',
+              status: 'todo',
+              dueDate: new Date(body.passportExpiresAt),
+              clientName: clientName,
+              assignedToId: scope.restricted && scope.userId ? scope.userId : null,
+              description: JSON.stringify({
+                reminderAt: new Date(new Date(body.passportExpiresAt).getTime() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+                reminderNote: `Паспорт клиента ${clientName} истекает через 90 дней`
+              })
+            }
+          })
+        } else {
+          // Обновляем дату если задача уже есть
+          await (prisma as any).task.update({
+            where: { id: existingTask.id },
+            data: {
+              dueDate: new Date(body.passportExpiresAt),
+              description: JSON.stringify({
+                reminderAt: new Date(new Date(body.passportExpiresAt).getTime() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+                reminderNote: `Паспорт клиента ${clientName} истекает через 90 дней`
+              })
+            }
+          })
+        }
+      } catch (e) { console.error('Calendar task error:', e) }
+    }
+
+    const mosFields = await getClientMosFields(params.id, organizationId)
+    return NextResponse.json({ ...client, ...mosFields, phones: phonesWithLegacy(client) })
+  } catch (e: any) {
+    console.error(e)
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {

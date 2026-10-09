@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
 
-type Scope = 'client' | 'case' | 'lead'
+type Scope = 'client' | 'case'
 
 type SectionSetting = {
   scope: Scope
@@ -387,7 +387,6 @@ export default function SectionSettingsPage() {
   const customGrouped = useMemo(() => ({
     client: sections.filter(item => item.scope === 'client'),
     case: sections.filter(item => item.scope === 'case'),
-    lead: sections.filter(item => item.scope === 'lead'),
   }), [sections])
 
   function toggle(scope: Scope, sectionKey: string) {
@@ -527,7 +526,7 @@ export default function SectionSettingsPage() {
     return (
       <>
         <option value="">{text.standalonePlacement}</option>
-        {(scope === 'lead' ? [] : grouped[scope]).map(item => {
+        {grouped[scope].map(item => {
           const label = standardLabel(item)
           return <option key={item.sectionKey} value={item.sectionKey}>{label.title}</option>
         })}
@@ -868,7 +867,6 @@ export default function SectionSettingsPage() {
                 >
                   <option value="client">{text.clientCard}</option>
                   <option value="case">{text.caseCard}</option>
-                  <option value="lead">{t('leads')}</option>
                 </select>
                 <select className="input" disabled={!canManage} value={newSection.targetSectionKey} onChange={e => setNewSection(current => ({ ...current, targetSectionKey: e.target.value }))}>
                   {placementOptions(newSection.scope)}
@@ -882,7 +880,6 @@ export default function SectionSettingsPage() {
             <h3 style={{ margin: '8px 0 12px' }}>{text.customSections}</h3>
             {renderCustomGroup(text.clientCard, customGrouped.client)}
             {renderCustomGroup(text.caseCard, customGrouped.case)}
-            {renderCustomGroup(t('leads'), customGrouped.lead)}
 
             <h3 style={{ margin: '22px 0 12px' }}>{text.standardSections}</h3>
             {renderStandardGroup(text.clientCard, grouped.client)}

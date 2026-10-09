@@ -1,10 +1,6 @@
 'use client'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
-import { useEntityAutosave } from '@/hooks/useEntityAutosave'
-import { CLIENT_AUTOSAVE_FIELDS, entityFieldPolicy, customFormValues, patchEntity } from '@/lib/entityAutosave'
-import { sameValue } from '@/lib/caseAutosave'
-import { appExperienceText } from '@/lib/appExperienceI18n'
-import EntitySaveStatus from '@/components/EntitySaveStatus'
+import { useRefreshDraftGuard } from '@/hooks/useRefreshDraftGuard'
 import { freshJson } from '@/lib/screenRefresh'
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -446,10 +442,11 @@ export default function ClientDetailPage() {
   const text = CLIENT_DETAIL_TEXT[lang] || CLIENT_DETAIL_TEXT.ru
   const { id } = useParams()
   const router = useRouter()
+  const refreshDraft = useRefreshDraftGuard()
   const searchParams = useSearchParams()
   const backTo = searchParams.get('backTo') || '/clients'
   const [client, setClient] = useState<any>(null)
-  const [form, setFormState] = useState<any>({})
+  const [form, setForm] = useState<any>({})
   const [saving, setSaving] = useState(false)
   const [travelHistory, setTravelHistory] = useState<any[]>([])
   const [availableClients, setAvailableClients] = useState<any[]>([])
@@ -461,22 +458,6 @@ export default function ClientDetailPage() {
   const [statuses, setStatuses] = useState<any[]>([])
   const [isMobilePresentation, setIsMobilePresentation] = useState(false)
   const customSectionsRef = useRef<CustomSectionsHandle>(null)
-
-  const saveCopy = appExperienceText[lang]
-  const hasOtherDrafts = () => Boolean(showAddTravel && (newTravel.country || newTravel.entryDate || newTravel.exitDate))
-  const autosave = useEntityAutosave(async (patch, version) => {
-    const updated = await patchEntity('/api/clients/' + id, patch, version)
-    setClient((current: any) => ({ ...current, ...updated }))
-    return updated.updatedAt
-  }, saveCopy.leave, hasOtherDrafts, entityFieldPolicy(CLIENT_AUTOSAVE_FIELDS))
-  function setForm(action: any) {
-    const next = typeof action === 'function' ? action(autosave.values) : action
-    for (const [key, value] of Object.entries(next)) if (!sameValue(value, autosave.values[key])) autosave.change(key, value)
-    setFormState({ ...autosave.values })
-  }
-  async function goBack() {
-    if ((await autosave.flush() && !hasOtherDrafts()) || !confirm(saveCopy.leave)) router.push(backTo)
-  }
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 768px)')
@@ -490,15 +471,14 @@ export default function ClientDetailPage() {
     void loadDetail()
   }, [id])
 
-  function loadDetail(force = false) {
-    const revision = autosave.revision
-    const version = autosave.version
+  function loadDetail() {
+    const revision = refreshDraft.revision.current
     return freshJson(`/api/clients/${id}`).then(data => {
-        if (!force && (!autosave.safeToRefresh || revision !== autosave.revision || version !== autosave.version)) return
+        if (refreshDraft.dirty.current || revision !== refreshDraft.revision.current) return
         markScreenFetched()
       setClient(data)
       setTravelHistory(data.travelHistory || [])
-      const values = {
+      setForm({
         firstName: data.firstName || '', lastName: data.lastName || '',
         previousFirstName: data.previousFirstName || '', previousLastName: data.previousLastName || '',
         maidenName: data.maidenName || '',
@@ -534,13 +514,10 @@ export default function ClientDetailPage() {
         finesDescription: data.finesDescription || '',
         hasFamilyClients: (data.familyLinks || []).length > 0,
         familyClientIds: (data.familyLinks || []).map((link: any) => link.relativeClientId),
-          ...customFormValues(data.customFieldValues),
-        }
-        autosave.initialize(values, data.updatedAt)
-        setFormState(values)
+      })
     })
   }
-  useScreenRefresh(async () => { await loadDetail();  }, () => !saving && autosave.safeToRefresh && !hasOtherDrafts())
+  useScreenRefresh(async () => { await loadDetail();  }, () => !saving && !refreshDraft.dirty.current)
 
 
   useEffect(() => {
@@ -577,8 +554,27 @@ export default function ClientDetailPage() {
   }
 
   async function save() {
+    const savedRevision = refreshDraft.revision.current
     setSaving(true)
-    try { if (await autosave.flush(true)) setShowFamilyPicker(false) } finally { setSaving(false) }
+    try {
+      const res = await fetch(`/api/clients/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const updated = await res.json()
+      const selectedFamilyLinks = availableClients
+        .filter(item => (form.familyClientIds || []).includes(item.id))
+        .map(item => ({ relativeClientId: item.id, relativeClient: item }))
+      setForm((prev: any) => ({ ...prev, phone: updated.phone || prev.phone || '', phones: ensurePhoneRows(updated.phones, updated.phone || prev.phone || '') }))
+      setClient((prev: any) => ({ ...prev, ...updated, familyLinks: selectedFamilyLinks }))
+      setShowFamilyPicker(false)
+      const customOk = await customSectionsRef.current?.save()
+      if (customOk === false) alert(text.customSaveError)
+      else refreshDraft.saved(savedRevision)
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function deleteClient() {
@@ -656,8 +652,7 @@ export default function ClientDetailPage() {
           closedCases={closedCases}
           saving={saving}
           onSave={save}
-          saveStatus={<EntitySaveStatus engine={autosave} lang={lang} reload={() => void loadDetail(true)} />}
-          onBack={goBack}
+          onBack={() => router.push(backTo)}
           canDeleteClient={canDeleteClient}
           onDeleteClient={deleteClient}
           availableClients={availableClients}
@@ -680,14 +675,12 @@ export default function ClientDetailPage() {
           onUpdatePreviousPolandStay={updatePreviousPolandStay}
           onRemovePreviousPolandStay={removePreviousPolandStay}
           customSectionsRef={customSectionsRef}
-          managedValues={autosave.values}
-          onManagedChange={(fieldId: number, value: string) => setForm((p: any) => ({ ...p, [`custom:${fieldId}`]: value }))}
         />
       )}
 
       <div className={`page-header ${styles.desktopOnly}`}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={goBack} className="btn btn-ghost" style={{ padding: '6px 10px' }}>←</button>
+          <button onClick={() => router.push(backTo)} className="btn btn-ghost" style={{ padding: '6px 10px' }}>←</button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div className="avatar" style={{ width: 44, height: 44, fontSize: 16 }}>{client.firstName[0]}{client.lastName[0]}</div>
             <div>
@@ -704,7 +697,6 @@ export default function ClientDetailPage() {
           )}
         </div>
       </div>
-      <div className={styles.desktopOnly}><EntitySaveStatus engine={autosave} lang={lang} reload={() => void loadDetail(true)} /></div>
 
       <div className={`page-body ${styles.desktopOnly}`}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
@@ -1186,7 +1178,7 @@ export default function ClientDetailPage() {
               <div data-custom-fields-slot="client:client-previous-poland-stays" />
             </div>
 
-            {!isMobilePresentation && <CustomSectionsRenderer ref={customSectionsRef} scope="client" recordId={String(id)} managedValues={autosave.values} onManagedChange={(fieldId, value) => setForm((p: any) => ({ ...p, [`custom:${fieldId}`]: value }))} standaloneSave={false} />}
+            {!isMobilePresentation && <CustomSectionsRenderer ref={customSectionsRef} scope="client" recordId={String(id)} standaloneSave={false} />}
 
           </div>
 

@@ -79,7 +79,6 @@ type TasksMobileProps = {
   onCloseTask: () => void
   onEditChange: (key: string, value: string) => void
   onEditClient: (clientId: string) => void
-  saveStatus?: ReactNode
   onSaveTask: () => void
   onDeleteTask: (id: string) => void
   onMovePriority: (task: MobileTask, priority: string) => Promise<void>
@@ -410,7 +409,6 @@ export default function TasksMobile(props: TasksMobileProps) {
               )}
               <button type="button" className={styles.editDeleteAction} onClick={() => props.onDeleteTask(props.selectedTask!.id)}>{copy.delete}</button>
             </div>
-            {props.saveStatus}
             <div className={styles.editFooter}><button type="button" className={styles.primaryButton} onClick={props.onSaveTask}><span aria-hidden="true">✓</span>{copy.save}</button><button type="button" className={styles.secondaryButton} onClick={props.onCloseTask}>{copy.cancel}</button></div>
           </section>
         </div>

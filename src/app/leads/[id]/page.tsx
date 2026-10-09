@@ -1,11 +1,6 @@
 'use client'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
-import { useEntityAutosave } from '@/hooks/useEntityAutosave'
-import { LEAD_AUTOSAVE_FIELDS, entityFieldPolicy, customFormValues, patchEntity } from '@/lib/entityAutosave'
-import { sameValue } from '@/lib/caseAutosave'
-import { appExperienceText } from '@/lib/appExperienceI18n'
-import EntitySaveStatus from '@/components/EntitySaveStatus'
-import CustomSectionsRenderer from '@/components/CustomSectionsRenderer'
+import { useRefreshDraftGuard } from '@/hooks/useRefreshDraftGuard'
 import { freshJson } from '@/lib/screenRefresh'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -26,13 +21,14 @@ function safeLeadBackHref(value: string | null) {
 export default function LeadDetailPage() {
   const { id } = useParams()
   const router = useRouter()
+  const refreshDraft = useRefreshDraftGuard()
   const { lang: currentLang } = useLanguage()
   const { restrictedAccess } = useLeadMobileAccess()
   const lang = normalizeLang(currentLang)
   const locale = LEAD_LOCALES[lang] || 'ru-RU'
   const lt = (key: string) => leadText(lang, key)
   const [lead, setLead] = useState<any>(null)
-  const [form, setFormState] = useState<any>({})
+  const [form, setForm] = useState<any>({})
   const [services, setServices] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
@@ -71,28 +67,6 @@ export default function LeadDetailPage() {
   const [error, setError] = useState('')
   const [backToLeads, setBackToLeads] = useState('/leads')
 
-  const saveCopy = appExperienceText[lang]
-  const hasOtherDrafts = () => Boolean(messageForm.text.trim() || quickNote.trim() || quickNextContactAt || quickNextContactNote.trim() || reminderForm.reminderAt || reminderForm.note.trim() || showConvert)
-  const autosave = useEntityAutosave(async (patch, version) => {
-    const updated = await patchEntity('/api/leads/' + id, patch, version)
-    setLead((current: any) => ({ ...current, ...updated }))
-    // Assignment/name are derived by the same server business rules; keep clean companion fields in sync.
-    for (const key of ['assignedToId', 'fullName']) if (!(key in patch) && sameValue(autosave.values[key], autosave.baseline[key])) {
-      const value = key === 'assignedToId' ? updated[key] ? String(updated[key]) : '' : updated[key] || ''
-      autosave.values = { ...autosave.values, [key]: value }; autosave.baseline = { ...autosave.baseline, [key]: value }
-    }
-    setFormState({ ...autosave.values })
-    return updated.updatedAt
-  }, saveCopy.leave, hasOtherDrafts, entityFieldPolicy(LEAD_AUTOSAVE_FIELDS))
-  function setForm(action: any) {
-    const next = typeof action === 'function' ? action(autosave.values) : action
-    for (const [key, value] of Object.entries(next)) if (!sameValue(value, autosave.values[key])) autosave.change(key, value)
-    setFormState({ ...autosave.values })
-  }
-  async function goBack() {
-    if ((await autosave.flush() && !hasOtherDrafts()) || !confirm(saveCopy.leave)) router.push(backToLeads)
-  }
-
   const dialogRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -112,15 +86,14 @@ export default function LeadDetailPage() {
     void loadDetail()
   }, [id])
 
-  function loadDetail(force = false) {
-    const revision = autosave.revision
-    const version = autosave.version
+  function loadDetail() {
+    const revision = refreshDraft.revision.current
     return freshJson(`/api/leads/${id}`)
       .then(data => {
-        if (!force && (!autosave.safeToRefresh || revision !== autosave.revision || version !== autosave.version)) return
+        if (refreshDraft.dirty.current || revision !== refreshDraft.revision.current) return
         markScreenFetched()
         setLead(data)
-        const values = {
+        setForm({
           status: data.status || 'Новый',
           source: data.source || 'manual',
           fullName: data.fullName || '',
@@ -148,10 +121,7 @@ export default function LeadDetailPage() {
           lastContactAt: data.lastContactAt?.slice(0, 16) || '',
           lastContactNote: data.lastContactNote || '',
           notes: data.notes || '',
-          ...customFormValues(data.customFieldValues),
-        }
-        autosave.initialize(values, data.updatedAt)
-        setFormState(values)
+        })
         setMessageForm(current => ({ ...current, channel: data.source || 'manual' }))
         setConvertForm(current => ({
           ...current,
@@ -167,7 +137,7 @@ export default function LeadDetailPage() {
         }))
       })
   }
-  useScreenRefresh(async () => { await loadDetail(); await Promise.all([loadMessages(), loadReminders()]); }, () => !saving && autosave.safeToRefresh && !hasOtherDrafts())
+  useScreenRefresh(async () => { await loadDetail(); await Promise.all([loadMessages(), loadReminders()]); }, () => !saving && !refreshDraft.dirty.current && !showConvert)
 
 
   const sourceByValue = useMemo(() => {
@@ -293,7 +263,6 @@ export default function LeadDetailPage() {
   }
 
   async function recordQuickContact(actionKey: string) {
-    if (!await autosave.flush(true)) return
     setQuickSaving(true)
     setError('')
     const baseNote = lt(actionKey)
@@ -314,7 +283,13 @@ export default function LeadDetailPage() {
         setError(data.error || lt('save_failed'))
         return
       }
-      await loadDetail()
+      setForm((current: any) => ({
+        ...current,
+        lastContactAt: toDateTimeLocal(data.contactAt),
+        lastContactNote: prependContactNote(current.lastContactNote || '', data.contactAt, data.note || ''),
+        nextContactAt: data.nextContactAt ? toDateTimeLocal(data.nextContactAt) : '',
+        nextContactNote: data.nextContactNote || '',
+      }))
       setQuickNote('')
       setQuickNextContactAt('')
       setQuickNextContactNote('')
@@ -326,10 +301,33 @@ export default function LeadDetailPage() {
   async function scheduleQuickContact() {
     if (!quickNextContactAt && !quickNextContactNote.trim()) return
     setQuickSaving(true)
+    setError('')
     try {
-      setForm((current: any) => ({ ...current, nextContactAt: quickNextContactAt, nextContactNote: quickNextContactNote }))
-      if (await autosave.flush()) { setQuickNextContactAt(''); setQuickNextContactNote('') }
-    } finally { setQuickSaving(false) }
+      const res = await fetch(`/api/leads/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          nextContactAt: quickNextContactAt,
+          nextContactNote: quickNextContactNote,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || lt('save_failed'))
+        return
+      }
+      setLead(data)
+      setForm((current: any) => ({
+        ...current,
+        nextContactAt: data.nextContactAt ? toDateTimeLocal(data.nextContactAt) : '',
+        nextContactNote: data.nextContactNote || '',
+      }))
+      setQuickNextContactAt('')
+      setQuickNextContactNote('')
+    } finally {
+      setQuickSaving(false)
+    }
   }
 
   async function addReminder() {
@@ -374,8 +372,32 @@ export default function LeadDetailPage() {
   }
 
   async function save() {
+    const savedRevision = refreshDraft.revision.current
     setSaving(true)
-    try { await autosave.flush(true) } finally { setSaving(false) }
+    setError('')
+    try {
+      const res = await fetch(`/api/leads/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || lt('save_failed'))
+        return
+      }
+      refreshDraft.saved(savedRevision)
+      setLead(data)
+      setForm((current: any) => ({
+        ...current,
+        phone: data.phone || current.phone || '',
+        phones: ensurePhoneRows(data.phones, data.phone || current.phone || ''),
+        employeeId: data.employeeId ? String(data.employeeId) : '',
+        assignedToId: data.assignedToId ? String(data.assignedToId) : '',
+      }))
+    } finally {
+      setSaving(false)
+    }
   }
 
   function openConvertModal() {
@@ -390,7 +412,6 @@ export default function LeadDetailPage() {
   }
 
   async function convertToClient() {
-    if (!await autosave.flush(true)) return
     setConverting(true)
     setError('')
     try {
@@ -470,9 +491,8 @@ export default function LeadDetailPage() {
         sourceLabel={sourceLabel}
         instagramHref={instagramHref}
         facebookHref={facebookHref}
-        onBack={goBack}
+        onBack={() => router.push(backToLeads)}
         onSave={save}
-        saveStatus={<EntitySaveStatus engine={autosave} lang={lang} reload={() => void loadDetail(true)} />}
         onOpenConvert={openConvertModal}
         onDelete={deleteLead}
         onQuickAction={recordQuickContact}
@@ -483,7 +503,7 @@ export default function LeadDetailPage() {
       />
       <div className="page-header lead-detail-desktop-presentation">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={goBack} className="btn btn-ghost" style={{ padding: '6px 10px' }}>←</button>
+          <button onClick={() => router.push(backToLeads)} className="btn btn-ghost" style={{ padding: '6px 10px' }}>←</button>
           <div>
             <div className="page-title">{leadDisplayName(lead)}</div>
             <div className="page-subtitle">{form.phone || lead.phone || lead.email || lead.instagram || lt('contact_not_set')}</div>
@@ -503,7 +523,6 @@ export default function LeadDetailPage() {
       </div>
 
       <div className="page-body lead-detail-desktop-presentation">
-        <EntitySaveStatus engine={autosave} lang={lang} reload={() => void loadDetail(true)} />
         {error && <div className="error-msg">{error}</div>}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
@@ -893,7 +912,6 @@ export default function LeadDetailPage() {
           </div>
         </div>
       )}
-      <CustomSectionsRenderer scope="lead" recordId={String(id)} managedValues={autosave.values} onManagedChange={(fieldId, value) => setForm((p: any) => ({ ...p, [`custom:${fieldId}`]: value }))} standaloneSave={false} />
     </div>
   )
 }

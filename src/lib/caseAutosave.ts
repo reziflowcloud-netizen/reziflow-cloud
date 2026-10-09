@@ -10,7 +10,7 @@ export const CASE_AUTOSAVE_FIELDS = new Set([
 ])
 const canAutosave = (key: string) => CASE_AUTOSAVE_FIELDS.has(key) || /^custom:\d+$/.test(key)
 // Financial values and credentials stay explicit.
-export class EntityAutosave {
+export class CaseAutosave {
   baseline: Record<string, unknown> = {}
   values: Record<string, unknown> = {}
   version = ''
@@ -18,8 +18,8 @@ export class EntityAutosave {
   revision = 0
   private flight: Promise<boolean> | null = null
   private timer: ReturnType<typeof setTimeout> | null = null
-  constructor(private write: (patch: Record<string, unknown>, version: string) => Promise<string>, private notify: () => void, private allowed: (key: string) => boolean = canAutosave) {}
-  get dirty() { return Object.keys(this.values).some(key => !sameValue(this.values[key], this.baseline[key])) }
+  constructor(private write: (patch: Record<string, unknown>, version: string) => Promise<string>, private notify: () => void) {}
+  get dirty() { return Object.keys(this.values).some(key => this.values[key] !== this.baseline[key]) }
   get busy() { return this.flight !== null }
   get safeToRefresh() { return !this.dirty && !this.busy && this.state !== 'conflict' }
   initialize(values: Record<string, unknown>, version: string) {
@@ -39,7 +39,7 @@ export class EntityAutosave {
   private cancelTimer() { if (this.timer) clearTimeout(this.timer); this.timer = null }
   private patch(manual: boolean) {
     return Object.fromEntries(Object.entries(this.values).filter(([key, value]) =>
-      !sameValue(value, this.baseline[key]) && (manual || this.allowed(key))))
+      value !== this.baseline[key] && (manual || canAutosave(key))))
   }
   async flush(manual = false): Promise<boolean> {
     this.cancelTimer()
@@ -73,7 +73,3 @@ export class EntityAutosave {
   }
   dispose() { this.cancelTimer() }
 }
-
-export function sameValue(a: unknown, b: unknown) { return Object.is(a, b) || (typeof a === 'object' && typeof b === 'object' && JSON.stringify(a) === JSON.stringify(b)) }
-// Case keeps the approved field policy and the exact same shared queue.
-export class CaseAutosave extends EntityAutosave {}

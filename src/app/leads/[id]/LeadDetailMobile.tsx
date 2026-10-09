@@ -34,7 +34,6 @@ type LeadDetailMobileProps = {
   setQuickNextContactNote: Dispatch<SetStateAction<string>>
   reminderForm: { reminderAt: string; note: string }
   setReminderForm: Dispatch<SetStateAction<{ reminderAt: string; note: string }>>
-  saveStatus?: import('react').ReactNode
   saving: boolean
   savingMessage: boolean
   savingReminder: boolean
@@ -247,7 +246,6 @@ export default function LeadDetailMobile(props: LeadDetailMobileProps) {
           {props.saving ? lt('saving') : copy.save}
         </button>
       </div>
-      {props.saveStatus}
 
       {props.error && <div className={styles.error} role="alert">{props.error}</div>}
 

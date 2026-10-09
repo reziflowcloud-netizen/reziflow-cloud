@@ -3,7 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
-type Scope = 'client' | 'case' | 'lead'
+type Scope = 'client' | 'case'
 
 type CustomField = {
   id: number
@@ -45,7 +45,7 @@ export type CustomSectionsHandle = {
 const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function CustomSectionsRenderer({ scope, recordId, standaloneSave = true, onStandalonePresenceChange, onDirtyChange, managedValues, onManagedChange }, ref) {
   const [sections, setSections] = useState<CustomSection[]>([])
   const savedValues = useRef<Record<number, string>>({})
-  const recordVersion = useRef<string | undefined>()
+  const caseVersion = useRef<string | undefined>()
   const [values, setValues] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -63,7 +63,7 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
       .then(res => res.json())
       .then(data => {
         if (!active) return
-        recordVersion.current = data.expectedUpdatedAt
+        caseVersion.current = data.expectedUpdatedAt
         const loadedSections = data.sections || []
         const nextValues: Record<number, string> = {}
         loadedSections.forEach((section: CustomSection) => {
@@ -114,10 +114,10 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
       try {
         const res = await fetch('/api/custom-field-values', {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', ...(scope === 'case' ? { 'X-LegalHub-Case-Write': 'versioned' } : { 'X-LegalHub-Entity-Write': 'versioned' }) },
-          body: JSON.stringify({ scope, recordId, values, expectedUpdatedAt: recordVersion.current }),
+          headers: { 'Content-Type': 'application/json', ...(scope === 'case' ? { 'X-LegalHub-Case-Write': 'versioned' } : {}) },
+          body: JSON.stringify({ scope, recordId, values, ...(scope === 'case' ? { expectedUpdatedAt: caseVersion.current } : {}) }),
         })
-        if (res.ok) { savedValues.current = { ...values }; recordVersion.current = (await res.json()).updatedAt }
+        if (res.ok) { savedValues.current = { ...values }; if (scope === 'case') caseVersion.current = (await res.json()).updatedAt }
         return res.ok
       } catch {
         return false
@@ -135,10 +135,10 @@ const CustomSectionsRenderer = forwardRef<CustomSectionsHandle, Props>(function 
     setMessage('')
     const res = await fetch('/api/custom-field-values', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', ...(scope === 'case' ? { 'X-LegalHub-Case-Write': 'versioned' } : { 'X-LegalHub-Entity-Write': 'versioned' }) },
-      body: JSON.stringify({ scope, recordId, values, expectedUpdatedAt: recordVersion.current }),
+      headers: { 'Content-Type': 'application/json', ...(scope === 'case' ? { 'X-LegalHub-Case-Write': 'versioned' } : {}) },
+      body: JSON.stringify({ scope, recordId, values, ...(scope === 'case' ? { expectedUpdatedAt: caseVersion.current } : {}) }),
     })
-    if (res.ok) { savedValues.current = { ...values }; recordVersion.current = (await res.json()).updatedAt }
+    if (res.ok) { savedValues.current = { ...values }; if (scope === 'case') caseVersion.current = (await res.json()).updatedAt }
     setSaving(false)
     setMessage(res.ok ? 'Дополнительные поля сохранены' : 'Не удалось сохранить дополнительные поля')
   }
