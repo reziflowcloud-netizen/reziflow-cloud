@@ -6,6 +6,7 @@ import MarketingLanguageSelect from '@/components/MarketingLanguageSelect'
 import PasswordEyeIcon from '@/components/PasswordEyeIcon'
 import { useMarketingLanguage } from '@/hooks/useMarketingLanguage'
 import { getAuthCopy } from '@/lib/authI18n'
+import { safeNotificationReturn } from '@/lib/notificationPolicy'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -36,7 +37,7 @@ export default function LoginPage() {
       })
       await res.json()
       if (!res.ok) setError(copy.loginError)
-      else router.push('/dashboard')
+      else router.push(safeNotificationReturn(new URLSearchParams(window.location.search).get('next')))
     } catch {
       setError(copy.connectionError)
     } finally {

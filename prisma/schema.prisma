@@ -30,6 +30,9 @@ model User {
   leadMessages        LeadMessage[]
   employee            Employee?            @relation("EmployeeUser")
   passwordResetTokens PasswordResetToken[]
+  notifications Notification[]
+  notificationPreference NotificationPreference?
+  pushSubscriptions PushSubscription[]
 
   @@unique([id, organizationId])
 }
@@ -102,6 +105,9 @@ model Organization {
   referralAttribution   ReferralAttribution?
   referralCommissions   ReferralCommission[]
   leadChannelRoutes     LeadChannelRoute[]
+  notifications Notification[]
+  notificationPreferences NotificationPreference[]
+  pushSubscriptions PushSubscription[]
 
   @@index([billingStatus])
   @@index([billingProvider])
@@ -790,6 +796,85 @@ model PreviousPolandStay {
   client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId, order])
+}
+
+model Notification {
+  id             String                     @id @default(cuid())
+  organizationId String
+  userId         Int
+  organization   Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User                       @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  type           String
+  title          String
+  body           String
+  entityType     String
+  entityId       String
+  deepLink       String
+  dedupeKey      String
+  inApp          Boolean                    @default(true)
+  pushRequested  Boolean                    @default(false)
+  readAt         DateTime?
+  createdAt      DateTime                   @default(now())
+  deliveries     NotificationPushDelivery[]
+
+  @@unique([organizationId, userId, dedupeKey])
+  @@unique([id, userId, organizationId])
+  @@index([organizationId, userId, inApp, readAt, createdAt])
+}
+
+model NotificationPreference {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  scope          String       @default("mine")
+  events         Json         @default("{}")
+  pushEnabled    Boolean      @default(false)
+  showClientName Boolean      @default(false)
+  language       String       @default("uk")
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([userId, organizationId])
+}
+
+model PushSubscription {
+  id                    String                     @id @default(cuid())
+  organizationId        String
+  userId                Int
+  organization          Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user                  User                       @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  endpointHash          String                     @unique
+  encryptedSubscription String
+  deviceLabel           String
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  disabledAt            DateTime?
+  lastFailureAt         DateTime?
+  deliveries            NotificationPushDelivery[]
+
+  @@unique([id, userId, organizationId])
+  @@index([organizationId, userId, disabledAt])
+}
+
+model NotificationPushDelivery {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         Int
+  notificationId String
+  subscriptionId String
+  notification   Notification     @relation(fields: [notificationId, userId, organizationId], references: [id, userId, organizationId], onDelete: Cascade)
+  subscription   PushSubscription @relation(fields: [subscriptionId, userId, organizationId], references: [id, userId, organizationId], onDelete: Cascade)
+  attempts       Int              @default(0)
+  nextAttemptAt  DateTime         @default(now())
+  leaseToken     String?
+  leaseUntil     DateTime?
+  deliveredAt    DateTime?
+  terminalAt     DateTime?
+  createdAt      DateTime         @default(now())
+
+  @@unique([notificationId, subscriptionId])
+  @@index([nextAttemptAt, deliveredAt, terminalAt, leaseUntil])
 }
 
 model ConferenceEvent {

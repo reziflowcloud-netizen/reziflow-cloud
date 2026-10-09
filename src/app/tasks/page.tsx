@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
 import { freshJson } from '@/lib/screenRefresh'
 import { useEntityAutosave } from '@/hooks/useEntityAutosave'
@@ -466,6 +467,13 @@ export default function TasksPage() {
     } catch { alert(saveCopy.refreshError) }
   }
 
+  useEffect(() => {
+    const target = new URLSearchParams(window.location.search).get('notificationTask')
+    if (target && /^[\w-]{1,100}$/.test(target)) void openTask({ id: target } as Task)
+    // Notification links use the same authorized detail fetch and editor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const selectedClient = clients.find(c => c.id === selectedClientId)
   const clientCases = selectedClientId ? cases.filter(item => item.clientId === selectedClientId) : cases
   const selectedService = services.find(item => item.id.toString() === selectedServiceId)
@@ -595,7 +603,7 @@ export default function TasksPage() {
           <button onClick={() => setShowPriorityManager(v => !v)} className="btn btn-secondary">{t('sections')}</button>
           <button onClick={() => setShowForm(v => !v)} className="btn btn-primary">{showForm ? '✕ ' + t('close') : t('new_task')}</button>
         </div>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>

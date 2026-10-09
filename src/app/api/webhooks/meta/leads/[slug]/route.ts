@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { notifyAssignment } from '@/lib/notifications'
 import { prisma } from '@/lib/prisma'
 import { normalizeLeadBody } from '@/lib/leads'
 import { applyLeadWebhookMapping, getLeadWebhookSettings, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
@@ -221,6 +222,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
             },
           },
         })
+        await notifyAssignment(tx, 'lead', created)
         return created
       })
       createdLeadIds.push(lead.id)

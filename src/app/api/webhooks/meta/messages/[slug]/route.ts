@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { notifyAssignment } from '@/lib/notifications'
 import { prisma } from '@/lib/prisma'
 import { getLeadWebhookSettings, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
 import { assertBillingLimit, isBillingLimitError } from '@/lib/billing'
@@ -256,8 +257,9 @@ async function syncMetaConversationMessages(args: {
             facebook: args.channel === 'facebook' ? displayName : null,
             notes: `Лид создан из сообщения ${sourceLabel(args.channel)}`,
           },
-          select: { id: true, fullName: true, instagram: true },
+          select: { id: true, fullName: true, instagram: true, organizationId: true, assignedToId: true, employeeId: true, createdAt: true, updatedAt: true },
         })
+      await notifyAssignment(tx, 'lead', lead)
     }
 
     const candidateRows = textMessages.map(message => {
@@ -601,8 +603,9 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
             facebook: channel === 'facebook' ? displayName : null,
             notes: `Лид создан из сообщения ${sourceLabel(channel)}`,
           },
-          select: { id: true, fullName: true, instagram: true },
+          select: { id: true, fullName: true, instagram: true, organizationId: true, assignedToId: true, employeeId: true, createdAt: true, updatedAt: true },
         })
+        await notifyAssignment(tx, 'lead', lead)
       }
 
       await tx.leadMessage.create({

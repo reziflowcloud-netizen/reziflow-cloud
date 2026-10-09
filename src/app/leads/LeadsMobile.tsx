@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 
 import Link from 'next/link'
 import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react'
@@ -200,7 +201,7 @@ export default function LeadsMobile(props: LeadsMobileProps) {
 
   return (
     <section className={`${styles.mobileOnly} ${styles.shell}`} aria-label={copy.leads}>
-      <div className={styles.header}>
+      <div data-notification-header="list" className={styles.header}>
         <div>
           <h1 className={styles.title}>{copy.leads}</h1>
           <div className={styles.subtitle}>{copy.total}: {props.leads.length} · {copy.active}: {props.activeCount}</div>
@@ -214,7 +215,7 @@ export default function LeadsMobile(props: LeadsMobileProps) {
             </div>
           )}
         </div>
-      </div>
+      <NotificationBell /></div>
 
       <div className={styles.primaryActions}>
         <Link href="/leads/new" className={styles.primaryAction}>＋ {copy.add}</Link>

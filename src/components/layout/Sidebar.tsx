@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import MetaMessageNotifier from '@/components/MetaMessageNotifier'
+import { disconnectPushDevice } from '@/lib/notificationBrowser'
 import { normalizeLang, type Lang } from '@/lib/translations'
 
 type Theme = 'light' | 'dark' | 'slate'
@@ -87,6 +88,7 @@ export default function Sidebar({
   }
 
   async function handleLogout() {
+    await disconnectPushDevice()
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/')
   }

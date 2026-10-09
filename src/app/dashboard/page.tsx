@@ -1,3 +1,4 @@
+import NotificationBell from '@/components/NotificationBell'
 // src/app/dashboard/page.tsx
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
@@ -65,7 +66,7 @@ export default async function DashboardPage() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <TutorialVideoButton videoKey="dashboard" className={styles.dashboardVideoButton} />
         </div>
-      </div>
+      <NotificationBell /></div>
 
       <div className={`page-body ${styles.dashboardBody}`}>
 

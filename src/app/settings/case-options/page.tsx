@@ -1,5 +1,6 @@
 // src/app/settings/case-options/page.tsx
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -312,7 +313,7 @@ export default function CaseOptionsPage() {
           <div className="page-subtitle">{text.subtitle}</div>
         </div>
         <Link href={returnTo} className="btn btn-secondary">{t('back')}</Link>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
 

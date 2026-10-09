@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from 'react'
 import Link from 'next/link'
@@ -150,7 +151,7 @@ export default function ClientsMobile({
 
   return (
     <section className={`${styles.mobileOnly} ${styles.shell}`} aria-label={t('clients_title')} data-mobile-clients>
-      <div className={styles.header}>
+      <div data-notification-header="list" className={styles.header}>
         <div>
           <h1 className={styles.title}>{t('clients_title')}</h1>
           <div className={styles.subtitle}>{t('total')}: {clients.length}</div>
@@ -169,7 +170,7 @@ export default function ClientsMobile({
             </div>
           )}
         </div>
-      </div>
+      <NotificationBell /></div>
 
       <Link href="/clients/new" className={styles.primaryAction}>＋ {t('add_client').replace(/^\+\s*/, '')}</Link>
 

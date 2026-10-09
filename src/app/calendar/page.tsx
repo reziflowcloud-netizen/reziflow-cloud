@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
 import { freshJson } from '@/lib/screenRefresh'
 import { useState, useEffect } from 'react'
@@ -518,7 +519,7 @@ export default function CalendarPage() {
           <button onClick={nextMonth} className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: 16 }}>›</button>
           <button onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()) }} className="btn btn-ghost" style={{ fontSize: 13 }}>{t('today')}</button>
         </div>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
         <div className="card" style={{ marginBottom: 14 }}>

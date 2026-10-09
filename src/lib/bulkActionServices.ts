@@ -1,4 +1,6 @@
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import { notificationEventsEnabled, notifyLeadAssignmentBatch } from '@/lib/notifications'
 import type { DataAccessScope } from '@/lib/apiScope'
 import {
   BulkRequestError,
@@ -67,7 +69,17 @@ export async function executeLeadBulkAction(args: {
     const assignedToId = employee
       ? await resolveUserIdForEmployee(organizationId, employee.id)
       : null
-    const result = await (prisma as any).lead.updateMany({
+    const result = notificationEventsEnabled() ? await prisma.$transaction(async tx => {
+      const selected = await tx.lead.findMany({ where, select: { id: true } })
+      if (!selected.length) return { count: 0 }
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM "Lead" WHERE id IN (${Prisma.join(selected.map(record => record.id))}) ORDER BY id FOR UPDATE`)
+      const previous = await tx.lead.findMany({ where: { AND: [where, { id: { in: selected.map(record => record.id) } }] } })
+      const changedWhere = { organizationId, id: { in: previous.map(record => record.id) } }
+      const result = await tx.lead.updateMany({ where: changedWhere, data: leadAssignmentData(employee?.id, assignedToId) })
+      const updated = await tx.lead.findMany({ where: changedWhere })
+      await notifyLeadAssignmentBatch(tx, organizationId, updated, previous)
+      return result
+    }, { timeout: 15000 }) : await (prisma as any).lead.updateMany({
       where,
       data: leadAssignmentData(employee?.id, assignedToId),
     })

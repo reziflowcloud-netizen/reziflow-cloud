@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
 import { freshJson } from '@/lib/screenRefresh'
 import { useState, useEffect, useRef } from 'react'
@@ -160,7 +161,7 @@ export default function ClientsPage() {
           <TutorialVideoButton videoKey="clients" />
           <Link href="/clients/new" className="btn btn-primary">{t('add_client')}</Link>
         </div>
-      </div>
+      <NotificationBell /></div>
       <div className="page-body client-desktop-presentation">
         {/* Поиск и колонки */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>

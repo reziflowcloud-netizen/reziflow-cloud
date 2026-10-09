@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
 import { useEntityAutosave } from '@/hooks/useEntityAutosave'
 import { LEAD_AUTOSAVE_FIELDS, entityFieldPolicy, customFormValues, patchEntity } from '@/lib/entityAutosave'
@@ -500,7 +501,7 @@ export default function LeadDetailPage() {
           )}
           <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? lt('saving') : lt('save')}</button>
         </div>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body lead-detail-desktop-presentation">
         <EntitySaveStatus engine={autosave} lang={lang} reload={() => void loadDetail(true)} />

@@ -1,5 +1,6 @@
 // src/app/cases/new/page.tsx
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useLanguage } from '@/context/LanguageContext'
@@ -185,7 +186,7 @@ export default function NewCasePage() {
             {loading ? t('creating_case') : `💾 ${t('create_case')}`}
           </button>
         </div>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
         <form onSubmit={handleSubmit}>

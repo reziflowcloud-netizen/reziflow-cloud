@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -1311,7 +1312,7 @@ function onFormSubmit(e) {
           <div className="page-subtitle">{text.subtitle}</div>
         </div>
         <Link href="/settings" className="btn btn-secondary">{text.back}</Link>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
         {error && (

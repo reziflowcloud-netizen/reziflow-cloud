@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
 import { useEntityAutosave } from '@/hooks/useEntityAutosave'
 import { CLIENT_AUTOSAVE_FIELDS, entityFieldPolicy, customFormValues, patchEntity } from '@/lib/entityAutosave'
@@ -703,7 +704,7 @@ export default function ClientDetailPage() {
             <button onClick={deleteClient} style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', color: '#dc2626', fontWeight: 500, fontSize: 13 }}>{text.delete}</button>
           )}
         </div>
-      </div>
+      <NotificationBell /></div>
       <div className={styles.desktopOnly}><EntitySaveStatus engine={autosave} lang={lang} reload={() => void loadDetail(true)} /></div>
 
       <div className={`page-body ${styles.desktopOnly}`}>

@@ -1,0 +1,48 @@
+.slot { flex: 0 0 44px; min-width: 44px; margin-left: 8px; align-self: center; }
+.bell { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); cursor: pointer; }
+.bell:hover { border-color: var(--brand); }
+.bell:focus-visible, .panel button:focus-visible, .panel a:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.badge { position: absolute; top: -5px; right: -5px; min-width: 21px; padding: 2px 4px; border: 2px solid var(--surface); border-radius: 20px; background: var(--danger-strong); color: var(--surface); font-size: 11px; font-weight: 800; }
+.overlay { position: fixed; inset: 0; z-index: 220; background: color-mix(in srgb, var(--text) 22%, transparent); display: flex; justify-content: flex-end; align-items: flex-start; padding: 76px 24px 24px; }
+.panel { width: 440px; max-width: 100%; max-height: calc(100dvh - 100px); display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); color: var(--text); box-shadow: var(--shadow-md); overflow: hidden; }
+.panelHeader { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 8px; gap: 12px; }
+.panelHeader h2 { font-size: 20px; }
+.iconButton { width: 44px; height: 44px; border: none; background: transparent; color: var(--text); font-size: 28px; cursor: pointer; }
+.toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 18px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.toolbar button, .markRead { color: var(--text); border: none; background: transparent; text-decoration: underline; cursor: pointer; min-height: 30px; }
+.toolbar button:disabled { color: var(--muted); cursor: default; }
+.list { overflow-y: auto; overscroll-behavior: contain; padding: 10px; }
+.item { display: flex; gap: 12px; padding: 14px 10px; margin-bottom: 4px; border-radius: 12px; border: 1px solid var(--border); }
+.unread { background: color-mix(in srgb, var(--brand) 9%, var(--surface)); border-left: 3px solid var(--brand); }
+.eventIcon { color: var(--notification-info); background: color-mix(in srgb, var(--notification-info) 10%, var(--surface)); border-radius: 10px; display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; font-size: 20px; }
+.urgent { color: var(--danger-text); background: var(--danger-soft); }
+.upcoming { color: var(--notification-warning); background: color-mix(in srgb, var(--notification-warning) 10%, var(--surface)); }
+.itemCopy { min-width: 0; overflow-wrap: anywhere; flex: 1; }
+.itemCopy a { display: block; text-decoration: none; }
+.itemCopy strong { font-size: 14px; line-height: 1.4; }
+.itemCopy p { font-size: 13px; margin-top: 5px; line-height: 1.5; }
+.itemCopy time, .readState { color: var(--muted); font-size: 12px; }
+.markRead { display: block; text-align: left; font-size: 12px; }
+.empty { color: var(--muted); padding: 32px 12px; text-align: center; }
+.error { color: var(--danger-text); background: var(--danger-soft); border-radius: 10px; padding: 12px; }
+.settings { max-width: 820px; display: grid; gap: 18px; }
+.settings h2 { font-size: 18px; margin-bottom: 12px; }
+.settings :global(.btn-primary) { color: var(--notification-on-accent); }
+.settings p { color: var(--muted); line-height: 1.5; margin: 8px 0; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
+.settingsTable { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.settingsTable th, .settingsTable td { padding: 12px 6px; border-bottom: 1px solid var(--border); text-align: left; overflow-wrap: anywhere; }
+.settingsTable th:not(:first-child), .settingsTable td:not(:first-child) { text-align: center; width: 66px; }
+.settings input[type=checkbox], .settings input[type=radio] { accent-color: var(--brand); width: 19px; height: 19px; flex-shrink: 0; }
+.settings label { display: inline-flex; align-items: center; gap: 10px; line-height: 1.5; min-height: 44px; }
+.settingsTable label { justify-content: center; width: 100%; }
+@media (max-width: 768px) {
+  .overlay { padding: 0; align-items: flex-end; }
+  .panel { width: 100%; max-height: calc(100dvh - env(safe-area-inset-top) - 40px); border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+  .slot { margin-left: 0; }
+  :global([data-notification-header="compact"]):has(.slot) { grid-template-columns: auto minmax(0, 1fr) auto auto auto; }
+  :global([data-notification-header="list"]):has(.slot) { grid-template-columns: minmax(0, 1fr) 44px 44px; }
+  :global([data-notification-header="detail"]):has(.slot) { grid-template-columns: 44px minmax(0, 1fr) 44px 44px; }
+  :global([data-notification-header="client-detail"]):has(.slot) { grid-template-columns: 44px 50px minmax(0, 1fr) auto 44px; }
+  .settingsTable th:not(:first-child), .settingsTable td:not(:first-child) { width: 58px; }
+}

@@ -1,3 +1,4 @@
+import NotificationBell from '@/components/NotificationBell'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getUser } from '@/lib/auth'
@@ -81,7 +82,7 @@ export default async function ConferenceReportPage() {
           <div className="page-subtitle">First-touch attribution · 30 days · no personal data</div>
         </div>
         <Link href="/settings" className="btn btn-secondary">Back</Link>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body" style={{ display: 'grid', gap: 18 }}>
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>

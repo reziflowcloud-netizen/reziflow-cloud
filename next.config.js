@@ -19,7 +19,7 @@ const nextConfig = {
       "worker-src 'self' blob:",
     ].join('; ')
 
-    return [{
+    return [{ source: '/notification-sw.js', headers: [{ key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' }, { key: 'Service-Worker-Allowed', value: '/' }] }, {
       source: '/:path*',
       headers: [
         { key: 'Content-Security-Policy-Report-Only', value: cspReportOnly },

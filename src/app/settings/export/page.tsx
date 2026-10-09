@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -640,7 +641,7 @@ export default function ExportPage() {
           <div className="page-subtitle">{text.subtitle}</div>
         </div>
         <Link href="/settings" className="btn btn-secondary">{text.back}</Link>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
         {lastError && (

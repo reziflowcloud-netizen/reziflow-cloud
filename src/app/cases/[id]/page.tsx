@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import { useCaseAutosave } from '@/hooks/useCaseAutosave'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
 import { freshJson } from '@/lib/screenRefresh'
@@ -1056,7 +1057,7 @@ export default function CaseDetailPage() {
             {saving ? t('saving') : t('save')}
           </button>
         </div>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
         {/* Статистика */}

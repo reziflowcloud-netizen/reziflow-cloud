@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import Link from 'next/link'
@@ -166,7 +167,7 @@ export default function CasesMobile(props: CasesMobileProps) {
 
   return (
     <section className={`${styles.mobileOnly} ${styles.shell}`} aria-label={copy.cases}>
-      <div className={styles.header}>
+      <div data-notification-header="list" className={styles.header}>
         <div>
           <h1 className={styles.title}>{copy.cases}</h1>
           <div className={styles.subtitle}>{copy.total}: {props.cases.length}</div>
@@ -181,7 +182,7 @@ export default function CasesMobile(props: CasesMobileProps) {
             </div>
           )}
         </div>
-      </div>
+      <NotificationBell /></div>
 
       <div className={styles.primaryActions}>
         <Link href="/cases/new" className={styles.primaryAction}>＋ {copy.add}</Link>

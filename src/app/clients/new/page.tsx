@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import PhoneListEditor, { ensurePhoneRows } from '@/components/PhoneListEditor'
@@ -74,7 +75,7 @@ export default function NewClientPage() {
             {loading ? t('saving') : t('save')}
           </button>
         </div>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
         {error && <div className="error-msg">{error}</div>}

@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
 import { freshJson } from '@/lib/screenRefresh'
 import { appExperienceText } from '@/lib/appExperienceI18n'
@@ -347,7 +348,7 @@ export default function CasesPage() {
           <TutorialVideoButton videoKey="cases" />
           <Link href="/cases/new" className="btn btn-primary">{t('new_case')}</Link>
         </div>
-      </div>
+      <NotificationBell /></div>
       <div className="page-body case-desktop-presentation">
         {/* Фильтры */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>

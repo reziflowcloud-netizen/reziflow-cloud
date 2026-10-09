@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -101,7 +102,7 @@ export default function NewLeadPage() {
             <button type="button" className="btn btn-secondary" onClick={() => router.back()}>{lt('cancel')}</button>
             <button className="btn btn-primary" disabled={loading}>{loading ? lt('saving') : lt('save')}</button>
           </div>
-        </div>
+        <NotificationBell /></div>
 
         <div className="page-body">
           {error && <div className="error-msg">{error}</div>}

@@ -1,5 +1,6 @@
 // src/app/settings/users/page.tsx
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -276,7 +277,7 @@ export default function UsersSettingsPage() {
             {text.addUser}
           </button>
         </div>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
 

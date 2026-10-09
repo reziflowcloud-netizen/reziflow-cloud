@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import MobileExperience from '@/components/MobileExperience'
+import NotificationCenter from '@/components/NotificationCenter'
+import { disconnectPushDevice } from '@/lib/notificationBrowser'
 import { prepareScreenLeave } from '@/lib/screenLeave'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -114,6 +116,7 @@ export default function MobileNav() {
 
   async function logout() {
     if (!await prepareScreenLeave()) return
+    await disconnectPushDevice()
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/')
     router.refresh()
@@ -129,6 +132,7 @@ export default function MobileNav() {
   return (
     <>
       <MobileExperience />
+      <NotificationCenter />
       <MoreBottomSheet
         open={moreOpen}
         pathname={pathname}
