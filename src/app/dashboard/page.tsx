@@ -11,6 +11,7 @@ import DashboardOnboarding, { DashboardOnboardingStep } from '@/components/Dashb
 import { DashboardText, LocalizedDate, LocalizedMonthLabel } from '@/components/DashboardI18n'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
 import MobileDashboardChart from '@/components/MobileDashboardChart'
+import MobileHeaderActions from '@/components/mobile/MobileHeaderActions'
 import styles from './DashboardMobile.module.css'
 
 export const dynamic = 'force-dynamic'
@@ -63,10 +64,11 @@ export default async function DashboardPage() {
           <div className="page-title"><Tr k="dashboard_title" /></div>
           <div className="page-subtitle"><Tr k="dashboard_welcome" />, {user?.name as string}!</div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <TutorialVideoButton videoKey="dashboard" className={styles.dashboardVideoButton} />
-        </div>
-      <NotificationBell /></div>
+        <MobileHeaderActions>
+          <TutorialVideoButton videoKey="dashboard" mobileHeaderAction className={styles.dashboardVideoButton} />
+          <NotificationBell />
+        </MobileHeaderActions>
+      </div>
 
       <div className={`page-body ${styles.dashboardBody}`}>
 

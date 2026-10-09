@@ -1,5 +1,6 @@
 'use client'
 import NotificationBell from '@/components/NotificationBell'
+import MobileHeaderActions from '@/components/mobile/MobileHeaderActions'
 
 import Link from 'next/link'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
@@ -205,13 +206,16 @@ export default function ClientDetailMobile(props: any) {
             {form.email && <a href={`mailto:${form.email}`}>{form.email}</a>}
           </div>
         </div>
-        {props.canDeleteClient && (
-          <div className={styles.overflowWrap} ref={overflowRef}>
-            <button type="button" className={styles.circleButton} aria-label={copy.more} aria-expanded={overflowOpen} onClick={() => setOverflowOpen((value: boolean) => !value)}><Icon name="more" /></button>
-            {overflowOpen && <div className={styles.overflowMenu}><button type="button" className={styles.dangerAction} onClick={props.onDeleteClient}>{copy.delete}</button></div>}
-          </div>
-        )}
-      <NotificationBell /></header>
+        <MobileHeaderActions>
+          {props.canDeleteClient && (
+            <div className={styles.overflowWrap} ref={overflowRef}>
+              <button data-mobile-header-action type="button" className={styles.circleButton} aria-label={copy.more} aria-expanded={overflowOpen} onClick={() => setOverflowOpen((value: boolean) => !value)}><Icon name="more" /></button>
+              {overflowOpen && <div className={styles.overflowMenu}><button type="button" className={styles.dangerAction} onClick={props.onDeleteClient}>{copy.delete}</button></div>}
+            </div>
+          )}
+          <NotificationBell />
+        </MobileHeaderActions>
+      </header>
 
       <div className={styles.primaryActions}>
         <button type="button" className={styles.saveButton} onClick={props.onSave} disabled={props.saving}><Icon name="check" />{props.saving ? copy.saving : copy.save}</button>

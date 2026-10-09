@@ -34,13 +34,17 @@
 
   .header {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
     align-items: center;
     min-height: 52px;
     padding: 10px 16px;
   }
 
+  .header[data-mobile-header-primary="true"] { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .header[data-mobile-header-back="true"] { grid-template-columns: 44px minmax(0, 1fr) auto; }
+  .header[data-mobile-header-back="true"][data-mobile-header-primary="true"] { grid-template-columns: 44px minmax(0, 1fr) auto auto; }
+  .headerCopy h1, .headerSubtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .headerCopy { min-width: 0; }
   .headerCopy h1 { margin: 0; font-size: clamp(24px, 7vw, 28px); font-weight: 800; line-height: 1.12; }
   .headerSubtitle { margin-top: 3px; color: var(--muted); font-size: 14px; line-height: 1.3; }

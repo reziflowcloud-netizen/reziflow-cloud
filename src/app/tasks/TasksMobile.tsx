@@ -257,7 +257,7 @@ export default function TasksMobile(props: TasksMobileProps) {
         )}
         overflowAction={(
           <div className={styles.headerMenuWrap}>
-            <button type="button" className={styles.roundButton} aria-label={copy.actions} aria-expanded={headerMenuOpen} onClick={() => setHeaderMenuOpen(value => !value)}><TaskIcon type="more" /></button>
+            <button data-mobile-header-action type="button" className={styles.roundButton} aria-label={copy.actions} aria-expanded={headerMenuOpen} onClick={() => setHeaderMenuOpen(value => !value)}><TaskIcon type="more" /></button>
             {headerMenuOpen && (
               <div className={styles.headerMenu}>
                 {props.canManagePriorities && <button type="button" onClick={() => { props.onTogglePriorityManager(); setHeaderMenuOpen(false) }}>{copy.sections}</button>}

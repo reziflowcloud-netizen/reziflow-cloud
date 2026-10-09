@@ -1,5 +1,6 @@
 'use client'
 import NotificationBell from '@/components/NotificationBell'
+import MobileHeaderActions from '@/components/mobile/MobileHeaderActions'
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react'
 import Link from 'next/link'
@@ -218,23 +219,26 @@ export default function LeadDetailMobile(props: LeadDetailMobileProps) {
             fallback={lt('contact_not_set')}
           />
         </div>
-        <div className={styles.overflowWrap} ref={overflowRef}>
-          <button type="button" className={styles.circleButton} aria-label={copy.more} aria-expanded={overflowOpen} onClick={() => setOverflowOpen(value => !value)}>
-            <MobileIcon name="more" className={styles.headerIcon} />
-          </button>
-          {overflowOpen && (
-            <div className={styles.overflowMenu}>
-              <Link href="/dashboard" onClick={() => setOverflowOpen(false)}>{copy.dashboard}</Link>
-              {props.lead.convertedClientId ? (
-                <Link href={`/clients/${props.lead.convertedClientId}`} onClick={() => setOverflowOpen(false)}>{copy.openClient}</Link>
-              ) : (
-                <button type="button" onClick={() => { setOverflowOpen(false); props.onOpenConvert() }} disabled={props.converting}>{copy.convert}</button>
-              )}
-              <button type="button" className={styles.destructiveAction} onClick={() => { setOverflowOpen(false); props.onDelete() }}>{copy.deleteLead}</button>
-            </div>
-          )}
-        </div>
-      <NotificationBell /></header>
+        <MobileHeaderActions>
+          <div className={styles.overflowWrap} ref={overflowRef}>
+            <button data-mobile-header-action type="button" className={styles.circleButton} aria-label={copy.more} aria-expanded={overflowOpen} onClick={() => setOverflowOpen(value => !value)}>
+              <MobileIcon name="more" className={styles.headerIcon} />
+            </button>
+            {overflowOpen && (
+              <div className={styles.overflowMenu}>
+                <Link href="/dashboard" onClick={() => setOverflowOpen(false)}>{copy.dashboard}</Link>
+                {props.lead.convertedClientId ? (
+                  <Link href={`/clients/${props.lead.convertedClientId}`} onClick={() => setOverflowOpen(false)}>{copy.openClient}</Link>
+                ) : (
+                  <button type="button" onClick={() => { setOverflowOpen(false); props.onOpenConvert() }} disabled={props.converting}>{copy.convert}</button>
+                )}
+                <button type="button" className={styles.destructiveAction} onClick={() => { setOverflowOpen(false); props.onDelete() }}>{copy.deleteLead}</button>
+              </div>
+            )}
+          </div>
+          <NotificationBell />
+        </MobileHeaderActions>
+      </header>
 
       <div className={styles.primaryActions}>
         <label className={styles.statusControl} style={statusStyle} data-lead-status-color={statusColor}>

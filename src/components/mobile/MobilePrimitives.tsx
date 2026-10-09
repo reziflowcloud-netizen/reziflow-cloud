@@ -1,5 +1,6 @@
 'use client'
 import NotificationBell from '@/components/NotificationBell'
+import MobileHeaderActions from './MobileHeaderActions'
 
 import Link from 'next/link'
 import { useState, type HTMLAttributes, type ReactNode } from 'react'
@@ -29,15 +30,18 @@ export function CompactMobileHeader({
   className?: string
 }) {
   return (
-    <header data-notification-header="compact" className={classes(styles.mobileOnly, styles.header, className)}>
+    <header data-notification-header="compact" data-mobile-header-back={Boolean(backHref)} data-mobile-header-primary={Boolean(primaryAction)} className={classes(styles.mobileOnly, styles.header, className)}>
       {backHref && <Link href={backHref} className={styles.iconButton} aria-label="Back">←</Link>}
       <div className={styles.headerCopy}>
         <h1>{title}</h1>
         {subtitle && <div className={styles.headerSubtitle}>{subtitle}</div>}
       </div>
       {primaryAction && <div className={styles.headerAction}>{primaryAction}</div>}
-      {overflowAction && <div className={styles.headerOverflow}>{overflowAction}</div>}
-    <NotificationBell /></header>
+      <MobileHeaderActions>
+        {overflowAction && <div className={styles.headerOverflow}>{overflowAction}</div>}
+        <NotificationBell />
+      </MobileHeaderActions>
+    </header>
   )
 }
 
