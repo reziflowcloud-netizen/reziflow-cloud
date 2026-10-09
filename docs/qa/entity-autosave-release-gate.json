@@ -1,0 +1,99 @@
+{
+  "baseMain": "7d5f56ae8e9222e5c2652db576325785ec33634a",
+  "branch": "feature/autosave-leads-clients-tasks",
+  "productionUnchanged": true,
+  "productionDeployed": false,
+  "sharedQueueReused": true,
+  "postgresIsolated": true,
+  "tests": {
+    "unitAndDatabase": {
+      "pass": 142,
+      "fail": 0,
+      "skipped": 0
+    },
+    "newFullMatrix": {
+      "combinations": 135,
+      "checks": 30,
+      "browserErrors": 0,
+      "http5xx": 0
+    },
+    "finalSmoke": {
+      "checks": 37,
+      "browserErrors": 0,
+      "http5xx": 0
+    },
+    "finalApi": {
+      "checks": 16,
+      "oldFullVersionlessManualPayloads": "PASS"
+    },
+    "caseRegression": {
+      "checks": 23,
+      "viewports": 15,
+      "errors": []
+    },
+    "layout": {
+      "comparisons": 45,
+      "worsened": 0,
+      "client1024BaselineScrollWidth": 1108
+    },
+    "typeScript": "PASS",
+    "prismaValidate": "PASS",
+    "safeBuild": "PASS",
+    "buildDatabase": "127.0.0.1:1 intentionally unreachable",
+    "diffCheck": "PASS"
+  },
+  "legacyCompatibility": {
+    "temporary": true,
+    "newAutosaveFallback": false,
+    "disableFlags": [
+      "LEAD_LEGACY_PATCH_COMPAT=false",
+      "CLIENT_LEGACY_PATCH_COMPAT=false",
+      "TASK_LEGACY_PATCH_COMPAT=false"
+    ],
+    "removal": "Separate maintenance after remaining explicit callers migrate and old open sessions expire. Case legacy path retained."
+  },
+  "scopeNotes": [
+    "Client has no native notes column; custom textarea supported",
+    "Task status/responsible/description exist in API/schema; existing modal edits title, priority, relation, date and reminder note. No unrelated controls or layout redesign added.",
+    "Family regrouping is manual Save only. Conversion/messages/contact actions/task creation/deletion remain explicit.",
+    "Client 1024 baseline overflow is identical to base main; not a blocker."
+  ],
+  "migrationNeeded": false,
+  "changedFiles": [
+    "docs/qa/autosave-leads-clients-tasks-inventory.json",
+    "docs/qa/case-postgres-e2e.json",
+    "docs/qa/entity-autosave-api-final.json",
+    "docs/qa/entity-autosave-changed-files.txt",
+    "docs/qa/entity-autosave-final-smoke.json",
+    "docs/qa/entity-autosave-postgres-e2e.json",
+    "docs/qa/entity-autosave-release-gate.json",
+    "docs/qa/entity-layout-baseline.json",
+    "docs/qa/entity-layout-feature.json",
+    "scripts/qa-entity-autosave.cjs",
+    "scripts/qa-entity-layout.cjs",
+    "scripts/serve-iphone-qa.cjs",
+    "src/app/api/clients/[id]/route.ts",
+    "src/app/api/custom-field-values/route.ts",
+    "src/app/api/custom-sections/route.ts",
+    "src/app/api/leads/[id]/route.ts",
+    "src/app/api/tasks/[id]/route.ts",
+    "src/app/clients/[id]/ClientDetailMobile.tsx",
+    "src/app/clients/[id]/page.tsx",
+    "src/app/leads/[id]/LeadDetailMobile.tsx",
+    "src/app/leads/[id]/page.tsx",
+    "src/app/settings/sections/page.tsx",
+    "src/app/tasks/TasksMobile.tsx",
+    "src/app/tasks/page.tsx",
+    "src/components/CustomSectionsRenderer.tsx",
+    "src/components/EntitySaveStatus.tsx",
+    "src/hooks/useCaseAutosave.ts",
+    "src/hooks/useEntityAutosave.ts",
+    "src/lib/caseAutosave.ts",
+    "src/lib/entityAutosave.ts",
+    "src/lib/entityWrite.ts",
+    "tests/entity-autosave.test.mjs",
+    "tests/entity-write-compatibility.test.mjs",
+    "vercel.json"
+  ],
+  "readyForControlledAutosaveProductionPilot": true
+}

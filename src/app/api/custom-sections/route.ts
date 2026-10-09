@@ -8,7 +8,7 @@ function canManage(user: any) {
 }
 
 function normalizeScope(value: unknown) {
-  return value === 'case' ? 'case' : 'client'
+  return value === 'case' || value === 'lead' ? value : 'client'
 }
 
 export async function GET(req: NextRequest) {

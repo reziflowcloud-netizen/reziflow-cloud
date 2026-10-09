@@ -35,10 +35,10 @@ const proxy = http.createServer((req, res) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive')
   res.setHeader('X-LegalHub-Environment', 'isolated-iphone-qa')
   if (Date.now() >= Date.parse(state.expiresAt)) { res.writeHead(503); res.end('QA session expired'); return }
-  const readable = !pathname.startsWith('/api/') || /^\/api\/(auth\/me|cases(?:\/[^/]+(?:\/documents)?)?|clients(?:\/[^/]+)?|employees|services|statuses|case-options|custom-sections|custom-field-values|organization-settings|ui-section-settings|user-preferences|users|tasks|staff-scope|notifications\/meta-messages|leads|billing|lead-statuses|lead-sources|task-priorities)$/.test(pathname)
+  const readable = !pathname.startsWith('/api/') || /^\/api\/(auth\/me|cases(?:\/[^/]+(?:\/documents)?)?|clients(?:\/[^/]+)?|employees|services|statuses|case-options|custom-sections|custom-field-values|organization-settings|ui-section-settings|user-preferences|users|tasks(?:\/[^/]+)?|staff-scope|notifications\/meta-messages|leads(?:\/[^/]+(?:\/(?:messages|reminders))?)?|billing|lead-statuses|lead-sources|task-priorities)$/.test(pathname)
   const permitted = (['GET', 'HEAD'].includes(req.method) && readable)
     || (req.method === 'POST' && ['/api/auth/login', '/api/auth/logout'].includes(pathname))
-    || (req.method === 'PATCH' && (/^\/api\/cases\/[^/]+$/.test(pathname) || pathname === '/api/custom-field-values'))
+    || (req.method === 'PATCH' && (/^\/api\/(?:cases|leads|clients|tasks)\/[^/]+$/.test(pathname) || pathname === '/api/custom-field-values'))
   if (!permitted || /^\/api\/(webhooks|contact|partner|conference|meta|auth\/(register|forgot-password|reset-password))/.test(pathname)) {
     res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'This operation is disabled in isolated iPhone QA' })); return
   }

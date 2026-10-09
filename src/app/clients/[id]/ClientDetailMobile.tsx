@@ -216,6 +216,7 @@ export default function ClientDetailMobile(props: any) {
         <button type="button" className={styles.saveButton} onClick={props.onSave} disabled={props.saving}><Icon name="check" />{props.saving ? copy.saving : copy.save}</button>
         <Link href={`/cases/new?clientId=${props.id}`} className={styles.newCaseButton}><Icon name="plus" />{copy.newCase}</Link>
       </div>
+      {props.saveStatus}
 
       {summaryItems.length > 0 && (
         <section className={styles.summaryCard} aria-label={copy.summary}>
@@ -363,7 +364,7 @@ export default function ClientDetailMobile(props: any) {
 
         <div className={hasStandaloneCustomSections ? undefined : styles.hiddenCustomSections}>
           <MobileAccordion title={copy.custom}>
-            <div className={styles.customSections}><CustomSectionsRenderer ref={props.customSectionsRef as RefObject<CustomSectionsHandle>} scope="client" recordId={String(props.id)} standaloneSave={false} onStandalonePresenceChange={setHasStandaloneCustomSections} /></div>
+            <div className={styles.customSections}><CustomSectionsRenderer ref={props.customSectionsRef as RefObject<CustomSectionsHandle>} scope="client" recordId={String(props.id)} managedValues={props.managedValues} onManagedChange={props.onManagedChange} standaloneSave={false} onStandalonePresenceChange={setHasStandaloneCustomSections} /></div>
           </MobileAccordion>
         </div>
 
