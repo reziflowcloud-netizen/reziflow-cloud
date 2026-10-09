@@ -12,11 +12,14 @@
 
   .header {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 12px;
-    align-items: start;
+    align-items: center;
     margin-bottom: 14px;
   }
+
+  .header > div:first-child { min-width: 0; }
+  .title, .subtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .title {
     margin: 0;

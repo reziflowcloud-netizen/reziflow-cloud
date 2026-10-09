@@ -12,11 +12,14 @@
 
   .header {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 12px;
-    align-items: start;
+    align-items: center;
     margin-bottom: 14px;
   }
+
+  .header > div:first-child { min-width: 0; }
+  .title, .subtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .title { margin: 0; font-size: 30px; font-weight: 850; letter-spacing: -.035em; line-height: 1.05; }
   .subtitle { margin-top: 5px; color: var(--muted); font-size: 14px; line-height: 1.25; }

@@ -1,0 +1,27 @@
+.group { display: flex; align-items: center; gap: 8px; }
+@media (max-width: 768px) {
+  .group { flex-shrink: 0; min-width: max-content; align-self: center; }
+  .action:global([data-mobile-header-action]),
+  .group :global(button[data-mobile-header-action][data-mobile-header-action]) {
+    display: inline-flex; align-items: center; justify-content: center;
+    flex: 0 0 44px; width: 44px; min-width: 44px; height: 44px; min-height: 44px;
+    margin: 0; padding: 0; gap: 0 !important;
+    border: 1px solid var(--border); border-radius: 12px;
+    background: var(--surface); color: var(--text); box-shadow: none;
+    font-size: 20px; line-height: 1; cursor: pointer; transform: none;
+    transition: background-color 120ms, border-color 120ms, opacity 120ms;
+  }
+  .group :global(button[data-mobile-header-action][data-mobile-header-action]) svg {
+    display: block; flex: 0 0 24px; width: 24px; height: 24px;
+  }
+  .group :global(button[data-mobile-header-action][data-mobile-header-action]):hover {
+    background: color-mix(in srgb, var(--brand) 8%, var(--surface));
+    border-color: var(--brand); transform: none;
+  }
+  .group :global(button[data-mobile-header-action][data-mobile-header-action]):active {
+    background: color-mix(in srgb, var(--brand) 14%, var(--surface)); opacity: 0.75; transform: none;
+  }
+  .group :global(button[data-mobile-header-action][data-mobile-header-action]):focus-visible {
+    outline: 2px solid var(--brand); outline-offset: 3px;
+  }
+}

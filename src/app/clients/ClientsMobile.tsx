@@ -1,5 +1,6 @@
 'use client'
 import NotificationBell from '@/components/NotificationBell'
+import MobileHeaderActions from '@/components/mobile/MobileHeaderActions'
 
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from 'react'
 import Link from 'next/link'
@@ -156,21 +157,25 @@ export default function ClientsMobile({
           <h1 className={styles.title}>{t('clients_title')}</h1>
           <div className={styles.subtitle}>{t('total')}: {clients.length}</div>
         </div>
-        <div className={styles.overflowWrap} ref={overflowRef}>
-          <button
-            type="button"
-            className={styles.iconButton}
-            aria-label="Menu"
-            aria-expanded={overflowOpen}
-            onClick={() => setOverflowOpen(value => !value)}
-          >•••</button>
-          {overflowOpen && (
-            <div className={styles.overflowMenu}>
-              <TutorialVideoButton videoKey="clients" className={styles.overflowVideo} />
-            </div>
-          )}
-        </div>
-      <NotificationBell /></div>
+        <MobileHeaderActions>
+          <div className={styles.overflowWrap} ref={overflowRef}>
+            <button
+              data-mobile-header-action
+              type="button"
+              className={styles.iconButton}
+              aria-label="Menu"
+              aria-expanded={overflowOpen}
+              onClick={() => setOverflowOpen(value => !value)}
+            >•••</button>
+            {overflowOpen && (
+              <div className={styles.overflowMenu}>
+                <TutorialVideoButton videoKey="clients" className={styles.overflowVideo} />
+              </div>
+            )}
+          </div>
+          <NotificationBell />
+        </MobileHeaderActions>
+      </div>
 
       <Link href="/clients/new" className={styles.primaryAction}>＋ {t('add_client').replace(/^\+\s*/, '')}</Link>
 

@@ -1,5 +1,6 @@
 'use client'
 import NotificationBell from '@/components/NotificationBell'
+import MobileHeaderActions from '@/components/mobile/MobileHeaderActions'
 
 import Link from 'next/link'
 import { useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
@@ -159,16 +160,19 @@ export default function CaseDetailMobile(props: any) {
           <div style={serviceStyle} className={styles.identityService}>{service?.name || props.t('service_not_selected')}</div>
           <div className={styles.identityClient}>{clientName}</div>
         </div>
-        <div className={styles.overflowWrap}>
-          <button type="button" className={styles.circleButton} aria-label={copy.more} aria-expanded={overflowOpen} onClick={() => setOverflowOpen(value => !value)}><Icon name="more" /></button>
-          {overflowOpen && (
-            <div className={styles.overflowMenu}>
-              <Link href="/dashboard" onClick={() => setOverflowOpen(false)}>{copy.dashboard}</Link>
-              {props.canDeleteCase && props.isArchived && <button type="button" className={styles.dangerAction} onClick={props.onDeleteCase}>{copy.deleteCase}</button>}
-            </div>
-          )}
-        </div>
-      <NotificationBell /></header>
+        <MobileHeaderActions>
+          <div className={styles.overflowWrap}>
+            <button data-mobile-header-action type="button" className={styles.circleButton} aria-label={copy.more} aria-expanded={overflowOpen} onClick={() => setOverflowOpen(value => !value)}><Icon name="more" /></button>
+            {overflowOpen && (
+              <div className={styles.overflowMenu}>
+                <Link href="/dashboard" onClick={() => setOverflowOpen(false)}>{copy.dashboard}</Link>
+                {props.canDeleteCase && props.isArchived && <button type="button" className={styles.dangerAction} onClick={props.onDeleteCase}>{copy.deleteCase}</button>}
+              </div>
+            )}
+          </div>
+          <NotificationBell />
+        </MobileHeaderActions>
+      </header>
 
       <div className={styles.primaryActions}>
         <label className={styles.statusControl} style={statusStyle} data-case-status-color={statusColor}>

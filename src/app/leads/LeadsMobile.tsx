@@ -1,5 +1,6 @@
 'use client'
 import NotificationBell from '@/components/NotificationBell'
+import MobileHeaderActions from '@/components/mobile/MobileHeaderActions'
 
 import Link from 'next/link'
 import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react'
@@ -206,16 +207,19 @@ export default function LeadsMobile(props: LeadsMobileProps) {
           <h1 className={styles.title}>{copy.leads}</h1>
           <div className={styles.subtitle}>{copy.total}: {props.leads.length} · {copy.active}: {props.activeCount}</div>
         </div>
-        <div className={styles.overflowWrap} ref={overflowRef}>
-          <button type="button" className={styles.iconButton} aria-label="Menu" aria-expanded={overflowOpen} onClick={() => setOverflowOpen(value => !value)}>•••</button>
-          {overflowOpen && (
-            <div className={styles.overflowMenu}>
-              <Link href="/dashboard">⌂ {copy.dashboard}</Link>
-              <Link href="/calendar">◷ {copy.calendar}</Link>
-            </div>
-          )}
-        </div>
-      <NotificationBell /></div>
+        <MobileHeaderActions>
+          <div className={styles.overflowWrap} ref={overflowRef}>
+            <button data-mobile-header-action type="button" className={styles.iconButton} aria-label="Menu" aria-expanded={overflowOpen} onClick={() => setOverflowOpen(value => !value)}>•••</button>
+            {overflowOpen && (
+              <div className={styles.overflowMenu}>
+                <Link href="/dashboard">⌂ {copy.dashboard}</Link>
+                <Link href="/calendar">◷ {copy.calendar}</Link>
+              </div>
+            )}
+          </div>
+          <NotificationBell />
+        </MobileHeaderActions>
+      </div>
 
       <div className={styles.primaryActions}>
         <Link href="/leads/new" className={styles.primaryAction}>＋ {copy.add}</Link>

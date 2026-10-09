@@ -30,6 +30,7 @@ type TutorialVideoButtonProps = {
   missingLabel?: string
   missingBehavior?: 'hide' | 'disabled'
   className?: string
+  mobileHeaderAction?: boolean
   style?: CSSProperties
 }
 
@@ -39,6 +40,7 @@ export default function TutorialVideoButton({
   missingLabel,
   missingBehavior = 'hide',
   className = '',
+  mobileHeaderAction = false,
   style,
 }: TutorialVideoButtonProps) {
   const { lang } = useLanguage()
@@ -86,6 +88,7 @@ export default function TutorialVideoButton({
   return (
     <button
       type="button"
+      data-mobile-header-action={mobileHeaderAction ? true : undefined}
       className={`btn btn-secondary ${styles.button} ${className}`.trim()}
       onClick={openVideo}
       disabled={!url}
@@ -95,10 +98,9 @@ export default function TutorialVideoButton({
     >
       <span className={styles.desktopIcon} aria-hidden="true" style={{ fontSize: 12 }}>▶</span>
       <svg className={styles.mobileIcon} width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
-        <rect x="2" y="4.5" width="20" height="15" rx="4" stroke="currentColor" strokeWidth="1.8" />
-        <path d="m10 8 6 4-6 4V8Z" fill="currentColor" />
+        <path d="m8 5 11 7-11 7V5Z" fill="currentColor" />
       </svg>
-      {url ? (label || text.button) : (missingLabel || text.missing)}
+      <span className={styles.label}>{url ? (label || text.button) : (missingLabel || text.missing)}</span>
     </button>
   )
 }

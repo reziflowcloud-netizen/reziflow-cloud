@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
 import NotificationBell from '@/components/NotificationBell'
+import MobileHeaderActions from '@/components/mobile/MobileHeaderActions'
 import MobileEntityIcon from '@/components/mobile/MobileEntityIcon'
 import styles from './CalendarMobile.module.css'
 
@@ -318,15 +319,18 @@ export default function CalendarMobile(props: CalendarMobileProps) {
           <button type="button" className={styles.newTaskButton} onClick={() => props.onNewTask(selectedKey)}>
             <span aria-hidden="true">＋</span>{props.t('new_task').replace(/^\+\s*/, '')}
           </button>
-          <div className={styles.actionsWrap} ref={actionsRef}>
-            <button type="button" className={styles.actionsButton} aria-label={props.t('mobile_actions')} aria-expanded={actionsOpen} onClick={() => setActionsOpen(value => !value)}>•••</button>
-            {actionsOpen && (
-              <div className={styles.actionsMenu}>
-                <TutorialVideoButton videoKey="calendar" className={styles.actionItem} />
-                <button type="button" className={styles.actionItem} onClick={() => { selectToday(); setActionsOpen(false) }}>{props.t('today')}</button>
-              </div>
-            )}
-          </div>
+          <MobileHeaderActions>
+            <div className={styles.actionsWrap} ref={actionsRef}>
+              <button data-mobile-header-action type="button" className={styles.actionsButton} aria-label={props.t('mobile_actions')} aria-expanded={actionsOpen} onClick={() => setActionsOpen(value => !value)}>•••</button>
+              {actionsOpen && (
+                <div className={styles.actionsMenu}>
+                  <TutorialVideoButton videoKey="calendar" className={styles.actionItem} />
+                  <button type="button" className={styles.actionItem} onClick={() => { selectToday(); setActionsOpen(false) }}>{props.t('today')}</button>
+                </div>
+              )}
+            </div>
+            <NotificationBell />
+          </MobileHeaderActions>
         </header>
 
         <div className={styles.modeRow}>
@@ -334,7 +338,6 @@ export default function CalendarMobile(props: CalendarMobileProps) {
             <button type="button" role="tab" aria-selected={mode === 'month'} className={mode === 'month' ? styles.modeActive : ''} onClick={() => setMode('month')}>{props.t('calendar_month')}</button>
             <button type="button" role="tab" aria-selected={mode === 'list'} className={mode === 'list' ? styles.modeActive : ''} onClick={() => setMode('list')}>{props.t('calendar_list')}</button>
           </div>
-          <NotificationBell />
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>{props.scopeControl}</div>
 
