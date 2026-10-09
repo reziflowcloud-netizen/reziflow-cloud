@@ -1,0 +1,90 @@
+{
+  "productionChanged": false,
+  "stableProductionDeployment": "dpl_CfvyrA3AwDDVpa21pHy3C3cL7d9s",
+  "stableProductionSource": "7d5f56ae8e9222e5c2652db576325785ec33634a",
+  "mainRollbackCommit": "b5b9086cd2a331f3bc83ac6049cb0ddb83fb8ae4",
+  "productionReadOnlyVerification": {
+    "clientGET": [200, 200, 200],
+    "browserErrors": 0,
+    "runtimeErrors": 0,
+    "runtimeWindow": "Vercel last 30 minutes filtered to current dpl_CfvyrA3AwDDVpa21pHy3C3cL7d9s; observed 2026-10-09 around 07:50 UTC",
+    "deploymentPromoted": false,
+    "databaseWritten": false
+  },
+  "productionFailureEvidence": {
+    "endpoint": "GET /api/clients/[id]",
+    "deployment": "dpl_2SADmaXNBnDmkmjhBm1nU3c9km9L",
+    "timeUTC": "2026-10-09T07:28:12.437Z",
+    "httpStatus": 500,
+    "code": "P2028",
+    "timeoutMs": 5000,
+    "elapsedAtErrorMs": 5561,
+    "prismaVersion": "5.22.0",
+    "stackFrames": [
+      "prisma.client.findFirst() - Transaction already closed: expired transaction",
+      "r._.$transaction.isolationLevel (/var/task/.next/server/chunks/5900.js:1:2840)",
+      "Proxy._transactionWithCallback (/var/task/node_modules/@prisma/client/runtime/library.js:130:8000)",
+      "/var/task/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:38411"
+    ]
+  },
+  "beforeSource": "68ab77a24a292505d0beb1000b7e05574c57c1bd:src/app/api/clients/[id]/route.ts",
+  "exactBeforeCodePath": [
+    "GET at line 121: getUser / getOrganizationId / getDataAccessScope (User read outside transaction)",
+    "Line 126: prisma.$transaction(async tx => ..., {isolationLevel: RepeatableRead}); implicit interactive timeout 5000 ms",
+    "Line 128: tx.client.findFirst; Client + cases + service + travelHistory + previousPolandStays + phones + familyLinks + relativeClient reads",
+    "Line 146: getFamilyLinksForClient at line 82; global prisma.clientFamilyLink.findMany and global prisma.client.findMany (not tx), plus transitive family graph mapping",
+    "Line 147: phonesWithLegacy mapping and readEntityCustomFields(tx); CustomField + CustomFieldValue reads",
+    "Line 149 catch / line 150: fallback tx.client.findFirst on same expired transaction; this is the final P2028 frame observed in real PostgreSQL reproduction"
+  ],
+  "rootCause": "The autosave feature wrapped the complete multi-query Client GET in a 5-second interactive transaction, but kept getFamilyLinksForClient on the outer Prisma client. With one available pool connection, tx holds the connection while awaiting an outer query that requires another connection. The outer query waits until the transaction expires, and subsequent tx custom reads / catch fallback read fail with P2028. Sequential relation reads also exceed the same interactive lifetime under transport latency even with spare connections.",
+  "proofAndLimits": {
+    "confirmed": "Exact accepted feature route reproduces P2028 on real PostgreSQL with connection_limit=1 and no network delay; stable main and fixed route return 200 under identical constraints. Spare connections remove the fast failure. Artificial DB transport latency reproduces timeout with spare connections too.",
+    "productionPoolConfiguration": "Not read or changed. Production logs prove transaction expiry and final stack; no per-query/pool-wait trace was present, so the precise production balance of pool contention versus transport latency cannot be retroactively measured.",
+    "localQAMissed": "Original isolated DB used a fast local transport and a pool with spare connections. No connection_limit=1 / slow transport case existed; spare-connection before route succeeds in 78 ms.",
+    "requestDisconnect": "Normal open request reproduces 500/P2028. Aborting the synthetic HTTP client at 100 ms also leaves server handler running until P2028 at ~5 seconds. Production browser received HTTP 500, while Vercel independently logged Prisma expiry; no evidence attributes the incident to user internet.",
+    "queryMetrics": "Prisma query events count SQL statements including BEGIN/SET/COMMIT/ROLLBACK, plus the real access-scope User read. Middleware durations additionally include connection acquisition wait. Synthetic auth replaces JWT lookup; timings are isolated handler measurements, not production performance claims. Extra slow-path SELECT is a pool/control read."
+  },
+  "fix": {
+    "interactiveTransactionNecessary": false,
+    "interactiveTransactionRemoved": true,
+    "timeoutIncreased": false,
+    "readSnapshotRetained": "Client version/relations and managed custom fields are two independent Prisma operations in a RepeatableRead array transaction; family graph reads and mapping occur after batch commit.",
+    "redundantReadsRemoved": "Direct familyLinks/relativeClient include removed because getFamilyLinksForClient already computes and replaces the final familyLinks response.",
+    "fallback": "Reduced-detail fallback starts a fresh batch, never reuses an expired transaction.",
+    "writePath": "PATCH, expectedUpdatedAt, CAS, stale 409, minimal updates, Retry, legacy flags and tenant/auth predicates unchanged.",
+    "ordinaryReadBatchWhy": "Parent updatedAt and custom values must share a snapshot so an autosave cannot acknowledge an older custom value under a newer version. No callback, external Prisma call, graph mapping or network work is held inside the batch.",
+    "reference": "https://www.prisma.io/docs/orm/v6/prisma-client/queries/transactions"
+  },
+  "measurements": {
+    "stableMainSingleConnection": {"endpointMs":80,"sqlStatements":12,"selects":12,"transactionMs":null},
+    "beforeSpareConnections": {"endpointMs":78,"sqlStatements":16,"selects":13,"transactionMs":70},
+    "beforeSingleConnection": {"endpointMs":5038,"status":500,"code":"P2028","sqlStatements":14,"selects":11,"transactionMs":5017},
+    "beforeSlowTransportSpareConnections": {"endpointMs":8403,"status":500,"code":"P2028","transactionMs":6533},
+    "afterSingleConnection": {"endpointMs":48,"sqlStatements":14,"selects":11,"transactionMs":27},
+    "afterSlowTransportSequential": {"endpointMs":[16184,16223,16205],"status":[200,200,200],"sqlStatements":[15,15,15],"transactionMs":[11178,11244,11216]},
+    "detailsIncludingSlowestQueryAndOperations": "client-get-latency.json"
+  },
+  "safetyGate": {
+    "unitAndDatabaseTests": {"pass":142,"fail":0,"skip":0},
+    "realEntityAPIBrowserChecks": {"pass":37,"browserErrors":0,"http5xx":0},
+    "caseRegression": {"pass":23,"viewports":15,"errors":0},
+    "clientGET": "PASS",
+    "clientVersionedPATCH": "PASS",
+    "clientAutosave": "PASS",
+    "clientManualSave": "PASS",
+    "clientCAS409": "PASS",
+    "clientLegacySave": "PASS",
+    "leadAutosave": "PASS",
+    "taskAutosave": "PASS",
+    "security": "PASS",
+    "tenantIsolation": "PASS",
+    "leadVisibility": "PASS",
+    "typeScript": "PASS",
+    "prismaValidate": "PASS",
+    "safeBuild": "PASS; intentionally unreachable DATABASE_URL 127.0.0.1:1; prisma generate + next build",
+    "diffCheck": "PASS",
+    "migrationNeeded": false
+  },
+  "readyForSecondControlledProductionAttempt": true,
+  "deploymentAuthorizedByThisTask": false
+}

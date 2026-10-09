@@ -1,6 +1,6 @@
 // src/app/api/clients/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { entityWrite, entityWriteError, EntityWriteError, writeEntityCustomFields, readEntityCustomFields } from '@/lib/entityWrite'
+import { entityWrite, entityWriteError, EntityWriteError, writeEntityCustomFields } from '@/lib/entityWrite'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { deleteCloudinaryDocumentResources } from '@/lib/cloudinary'
@@ -123,41 +123,43 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
   const scope = await getDataAccessScope(user, organizationId)
-  return prisma.$transaction(async tx => {
+  // Keep the autosave version and managed custom values in one read snapshot.
+  // A batch transaction has no interactive callback lifetime; family graph reads
+  // below run only after its connection has been released.
+  const customFieldsQuery = () => prisma.customField.findMany({
+    where: { active: true, section: { organizationId, scope: 'client', active: true } },
+    select: { id: true, values: { where: { organizationId, recordType: 'client', recordId: params.id }, take: 1 } },
+  })
+  let client: any
+  let fields: Awaited<ReturnType<typeof customFieldsQuery>>
+  let fullDetail = true
   try {
-    const client = await tx.client.findFirst({
+    ;[client, fields] = await prisma.$transaction([prisma.client.findFirst({
       where: clientWhereForScope(scope, organizationId, { id: params.id }),
       include: {
         cases: { where: caseWhereForScope(scope, organizationId), include: { service: true }, orderBy: { createdAt: 'desc' } },
         travelHistory: { orderBy: { entryDate: 'desc' } },
         previousPolandStays: { orderBy: { order: 'asc' } },
         phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
-        familyLinks: {
-          include: {
-            relativeClient: {
-              select: { id: true, firstName: true, lastName: true, phone: true, email: true },
-            },
-          },
-          orderBy: { createdAt: 'asc' },
-        },
       }
-    })
-    if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    const familyLinks = await getFamilyLinksForClient(params.id, organizationId, scope)
-    return NextResponse.json({ ...client, phones: phonesWithLegacy(client), customFieldValues: await readEntityCustomFields(tx, organizationId, 'client', params.id), familyLinks })
+    }), customFieldsQuery()], { isolationLevel: 'RepeatableRead' })
   } catch (e) {
-    // fallback
-    const client = await tx.client.findFirst({
+    // Preserve the existing reduced-detail fallback, using a fresh batch rather
+    // than trying another query on an aborted/expired interactive transaction.
+    fullDetail = false
+    ;[client, fields] = await prisma.$transaction([prisma.client.findFirst({
       where: clientWhereForScope(scope, organizationId, { id: params.id }),
       include: {
         cases: { where: caseWhereForScope(scope, organizationId), orderBy: { createdAt: 'desc' } },
         previousPolandStays: { orderBy: { order: 'asc' } },
       }
-    })
-    if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json({ ...client, phones: phonesWithLegacy(client), customFieldValues: await readEntityCustomFields(tx, organizationId, 'client', params.id), travelHistory: [], previousPolandStays: client.previousPolandStays || [] })
+    }), customFieldsQuery()], { isolationLevel: 'RepeatableRead' })
   }
-  }, { isolationLevel: 'RepeatableRead' })
+  if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const customFieldValues = Object.fromEntries(fields.map(field => [field.id, field.values[0]?.value || '']))
+  if (!fullDetail) return NextResponse.json({ ...client, phones: phonesWithLegacy(client), customFieldValues, travelHistory: [], previousPolandStays: client.previousPolandStays || [] })
+  const familyLinks = await getFamilyLinksForClient(params.id, organizationId, scope)
+  return NextResponse.json({ ...client, phones: phonesWithLegacy(client), customFieldValues, familyLinks })
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
