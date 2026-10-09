@@ -1,6 +1,11 @@
 'use client'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
 import { freshJson } from '@/lib/screenRefresh'
+import { useEntityAutosave } from '@/hooks/useEntityAutosave'
+import { TASK_AUTOSAVE_FIELDS, entityFieldPolicy, patchEntity } from '@/lib/entityAutosave'
+import { sameValue } from '@/lib/caseAutosave'
+import { appExperienceText } from '@/lib/appExperienceI18n'
+import EntitySaveStatus from '@/components/EntitySaveStatus'
 import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
@@ -9,7 +14,7 @@ import TasksMobile, { type MobileTask } from './TasksMobile'
 import StaffScopeControl from '@/components/StaffScopeControl'
 import type { StaffScopeValue } from '@/lib/staffScope'
 
-interface Task { id: string; title: string; priority: string; dueDate?: string; clientName?: string; description?: string; status?: string; assignedTo?: { id?: number; name?: string | null } | null }
+interface Task { updatedAt: string; assignedToId?: number | null; id: string; title: string; priority: string; dueDate?: string; clientName?: string; description?: string; status?: string; assignedTo?: { id?: number; name?: string | null } | null }
 interface Priority { id: number; name: string; color: string; order: number }
 interface Client { id: string; firstName: string; lastName: string; phone?: string }
 interface Service { id: number; name: string; color?: string; active?: boolean }
@@ -142,7 +147,7 @@ export default function TasksPage() {
   const [showForm, setShowForm] = useState(false)
   const [showPriorityManager, setShowPriorityManager] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
-  const [editForm, setEditForm] = useState<any>(null)
+  const [editForm, setEditFormState] = useState<any>(null)
   const [form, setForm] = useState({ title: '', clientId: '', priority: '', dueDate: '', reminderAt: '', reminderNote: '' })
   const [newPriorityName, setNewPriorityName] = useState('')
   const [newPriorityColor, setNewPriorityColor] = useState('#6b7280')
@@ -152,6 +157,34 @@ export default function TasksPage() {
   const [dragOverPriority, setDragOverPriority] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
   const dragTask = useRef<Task | null>(null)
+  const saveCopy = appExperienceText[lang]
+  const taskId = useRef('')
+  const opening = useRef(0)
+  const hasOtherDrafts = () => Boolean(showForm && (form.title || form.clientId || form.dueDate || form.reminderAt || form.reminderNote) || showPriorityManager && (newPriorityName || editingPriority))
+  const autosave = useEntityAutosave(async (patch, version) => {
+    const values = autosave.values
+    const body = { ...patch }
+    if (['reminderAt','reminderNote','clientId'].some(key => key in patch)) {
+      const meta = taskMeta({ description: String(values.description || '') } as Task)
+      body.description = JSON.stringify({ ...meta, reminderAt: values.reminderAt || null, reminderNote: values.reminderNote || '', clientId: values.clientId || null })
+    }
+    delete body.reminderAt; delete body.reminderNote; delete body.clientId
+    const updated = await patchEntity('/api/tasks/' + taskId.current, body, version)
+    setTasks(list => list.map(task => task.id === updated.id ? { ...task, ...updated } : task))
+    setSelectedTask(current => current?.id === updated.id ? { ...current, ...updated } : current)
+    return updated.updatedAt
+  }, saveCopy.leave, hasOtherDrafts, entityFieldPolicy(TASK_AUTOSAVE_FIELDS))
+  function setEditForm(action: any) {
+    const next = typeof action === 'function' ? action(autosave.values) : action
+    for (const [key, value] of Object.entries(next)) if (!sameValue(value, autosave.values[key])) autosave.change(key, value)
+    setEditFormState({ ...autosave.values })
+  }
+  async function closeTask() {
+    if (await autosave.flush() || !confirm(saveCopy.leave)) {
+      opening.current++; taskId.current = ''; autosave.initialize({}, ''); setSelectedTask(null); setEditFormState(null)
+    }
+  }
+
   // Touch drag state
   const touchDragTask = useRef<Task | null>(null)
   const touchGhost = useRef<HTMLDivElement | null>(null)
@@ -196,13 +229,17 @@ export default function TasksPage() {
 
   async function loadTasksScreen() {
     if (!staffScopeReady) return
+    const revision = autosave.revision
+    const version = autosave.version
     const query = `staffScope=${encodeURIComponent(staffScope)}`
     const [tasksData, casesData] = await Promise.all([freshJson(`/api/tasks?${query}`), freshJson(`/api/cases?${query}`)])
+    if (!autosave.safeToRefresh || revision !== autosave.revision || version !== autosave.version || hasOtherDrafts()) return
     setTasks(Array.isArray(tasksData) ? tasksData : [])
     setCases(Array.isArray(casesData) ? casesData : [])
+    if (selectedTask) await openTask(selectedTask, true)
     markScreenFetched()
   }
-  useScreenRefresh(loadTasksScreen, () => staffScopeReady)
+  useScreenRefresh(loadTasksScreen, () => staffScopeReady && autosave.safeToRefresh && !hasOtherDrafts())
   useEffect(() => { void loadTasksScreen() }, [staffScope, staffScopeReady])
 
   function setF(k: string, v: string) { setForm(p => ({ ...p, [k]: v })) }
@@ -211,7 +248,7 @@ export default function TasksPage() {
     return client ? `${client.firstName} ${client.lastName}`.trim() : ''
   }
   function taskMeta(task: Task): any {
-    try { return JSON.parse(task.description || '{}') } catch { return {} }
+    try { const parsed = JSON.parse(task.description || '{}'); return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : { description: task.description } } catch { return { description: task.description || '' } }
   }
   function taskMatchesCase(task: Task, item: CaseItem) {
     const meta = taskMeta(task)
@@ -337,19 +374,11 @@ export default function TasksPage() {
   }
 
   async function moveToPriority(task: Task, targetPriority: string) {
-    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, priority: targetPriority } : t))
-    await fetch(`/api/tasks/${task.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: task.title,
-        priority: targetPriority,
-        dueDate: task.dueDate || null,
-        clientName: task.clientName || '',
-        description: task.description || '',
-        status: task.status || 'todo',
-      }),
-    })
+    if (taskId.current === task.id) { setE('priority', targetPriority); await autosave.flush(); return }
+    try {
+      const updated = await patchEntity('/api/tasks/' + task.id, { priority: targetPriority }, task.updatedAt)
+      setTasks(list => list.map(item => item.id === task.id ? { ...item, ...updated } : item))
+    } catch (error) { alert((error as { status?: number }).status === 409 ? saveCopy.conflict : saveCopy.error) }
   }
 
   // ─── Task CRUD ────────────────────────────────────────
@@ -375,29 +404,14 @@ export default function TasksPage() {
 
   async function saveTask() {
     if (!editForm) return
-    const meta = taskMeta(editForm)
-    const res = await fetch(`/api/tasks/${editForm.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: editForm.title,
-        priority: editForm.priority,
-        dueDate: editForm.dueDate || null,
-        clientName: editForm.clientName || '',
-        description: JSON.stringify({ ...meta, reminderAt: editForm.reminderAt || null, reminderNote: editForm.reminderNote || '' }),
-        status: editForm.status || 'todo',
-      }),
-    })
-    const updated = await res.json()
-    setTasks(p => p.map(t => t.id === updated.id ? updated : t))
-    setSelectedTask(null)
+    if (await autosave.flush(true)) await closeTask()
   }
 
   async function deleteTask(id: string) {
     if (!confirm('Удалить задачу?')) return
     await fetch(`/api/tasks/${id}`, { method: 'DELETE' })
     setTasks(p => p.filter(t => t.id !== id))
-    setSelectedTask(null)
+    opening.current++; taskId.current = ''; autosave.initialize({}, ''); setEditFormState(null); setSelectedTask(null)
   }
 
   // ─── Priority CRUD ────────────────────────────────────
@@ -431,18 +445,25 @@ export default function TasksPage() {
     setPriorities(prev => prev.filter(p => p.id !== id))
   }
 
-  function openTask(task: Task) {
-    const rem = parseReminder(task)
-    const normalizedClientName = String(task.clientName || '').trim().toLowerCase()
-    const matchingClient = clients.find(client => clientName(client).toLowerCase() === normalizedClientName)
-    setSelectedTask(task)
-    setEditForm({
-      ...task,
-      clientId: matchingClient?.id || '',
-      dueDate: task.dueDate?.slice(0, 10) ?? '',
-      reminderAt: rem.at ? rem.at.slice(0, 16) : '',
-      reminderNote: rem.note,
-    })
+  async function openTask(task: Task, refresh = false) {
+    if (!refresh && taskId.current && !await autosave.flush()) {
+      if (confirm(saveCopy.leave)) return
+      autosave.initialize({}, '')
+    }
+    const sequence = ++opening.current
+    const revision = autosave.revision
+    const version = autosave.version
+    try {
+      const loaded = await freshJson('/api/tasks/' + task.id)
+      if (sequence !== opening.current || revision !== autosave.revision || version !== autosave.version || !autosave.safeToRefresh) return
+      const rem = parseReminder(loaded)
+      const meta = taskMeta(loaded)
+      const matchingClient = clients.find(client => clientName(client).toLowerCase() === String(loaded.clientName || '').trim().toLowerCase())
+      const values = { title: loaded.title, description: loaded.description || '', priority: loaded.priority, status: loaded.status || 'todo', assignedToId: loaded.assignedToId || null, clientName: loaded.clientName || '', clientId: meta.clientId || matchingClient?.id || '', dueDate: loaded.dueDate?.slice(0,10) || '', reminderAt: rem.at?.slice(0,16) || '', reminderNote: rem.note }
+      taskId.current = loaded.id
+      autosave.initialize(values, loaded.updatedAt)
+      setSelectedTask(loaded); setEditFormState({ ...values, id: loaded.id })
+    } catch { alert(saveCopy.refreshError) }
   }
 
   const selectedClient = clients.find(c => c.id === selectedClientId)
@@ -502,13 +523,14 @@ export default function TasksPage() {
         onFormChange={setF}
         onCreateTask={createTask}
         onOpenTask={task => openTask(task as Task)}
-        onCloseTask={() => setSelectedTask(null)}
+        onCloseTask={() => void closeTask()}
         onEditChange={setE}
         onEditClient={clientId => {
           const client = clients.find(item => item.id === clientId)
           setEditForm((previous: any) => ({ ...previous, clientId, clientName: client ? clientName(client) : '' }))
         }}
         onSaveTask={saveTask}
+        saveStatus={<EntitySaveStatus engine={autosave} lang={lang} reload={() => { autosave.initialize({}, ''); if (selectedTask) void openTask(selectedTask, true) }} />}
         onDeleteTask={deleteTask}
         onMovePriority={(task, priority) => moveToPriority(task as Task, priority)}
         onNewPriorityName={setNewPriorityName}
@@ -888,8 +910,8 @@ export default function TasksPage() {
       {selectedTask !== null && editForm !== null && (
         <div
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
-          onClick={e => { if (e.target === e.currentTarget) setSelectedTask(null) }}>
-          <div style={{
+          onClick={e => { if (e.target === e.currentTarget) void closeTask() }}>
+          <div role="dialog" aria-modal="true" aria-label={t('edit_task')} style={{
             background: 'var(--surface)',
             borderRadius: isMobile ? '16px 16px 0 0' : 12,
             padding: isMobile ? '20px 16px 0' : 28,
@@ -905,7 +927,7 @@ export default function TasksPage() {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ fontWeight: 700, fontSize: 17 }}>{t('edit_task')}</div>
-              <button onClick={() => setSelectedTask(null)}
+              <button onClick={() => void closeTask()}
                 style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
             </div>
 
@@ -995,9 +1017,10 @@ export default function TasksPage() {
               </div>
             )}
 
+            <EntitySaveStatus engine={autosave} lang={lang} reload={() => { autosave.initialize({}, ''); if (selectedTask) void openTask(selectedTask, true) }} />
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <button onClick={saveTask} className="btn btn-primary" style={{ flex: 1 }}>{t('save')}</button>
-              <button onClick={() => setSelectedTask(null)} className="btn btn-secondary">{t('cancel')}</button>
+              <button onClick={() => void closeTask()} className="btn btn-secondary">{t('cancel')}</button>
               <button onClick={() => deleteTask(selectedTask.id)}
                 style={{ background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontWeight: 500 }}>
                 🗑

@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { findScopedCase, findScopedClient } from '@/lib/apiScope'
+import { findScopedCase, findScopedClient, findScopedLead } from '@/lib/apiScope'
 import { PATCH as patchCase } from '../cases/[id]/route'
+import { PATCH as patchClient } from '../clients/[id]/route'
+import { PATCH as patchLead } from '../leads/[id]/route'
 
 function normalizeScope(value: unknown) {
-  return value === 'case' ? 'case' : 'client'
-}
-
-function normalizeValue(value: unknown) {
-  if (typeof value === 'boolean') return value ? 'true' : 'false'
-  if (value === null || value === undefined) return ''
-  return String(value)
+  return value === 'case' || value === 'lead' ? value : 'client'
 }
 
 export async function GET(req: NextRequest) {
@@ -24,7 +20,7 @@ export async function GET(req: NextRequest) {
   if (!recordId) return NextResponse.json({ error: 'recordId is required' }, { status: 400 })
   const record = scope === 'case'
     ? await findScopedCase(recordId, organizationId, { id: true, updatedAt: true })
-    : await findScopedClient(recordId, organizationId, { id: true })
+    : scope === 'lead' ? await findScopedLead(recordId, organizationId, { id: true, updatedAt: true }) : await findScopedClient(recordId, organizationId, { id: true, updatedAt: true })
   if (!record) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const sections = await prisma.customSection.findMany({
@@ -45,7 +41,7 @@ export async function GET(req: NextRequest) {
   })
 
   return NextResponse.json({
-    ...(scope === 'case' ? { expectedUpdatedAt: record.updatedAt } : {}),
+    expectedUpdatedAt: record.updatedAt,
     sections: sections.map(section => ({
       ...section,
       fields: section.fields.map(field => ({
@@ -72,43 +68,8 @@ export async function PATCH(req: NextRequest) {
     : await findScopedClient(recordId, organizationId, { id: true })
   if (!record) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const fieldIds = Object.keys(values).map(id => Number(id)).filter(Number.isFinite)
-  // Case fields participate in the same optimistic version and transaction as standard fields.
-  // Clients keep their existing explicit-save flow.
-  if (scope === 'case') {
-    const request = new NextRequest(req.url, { method: 'PATCH', headers: req.headers, body: JSON.stringify({ customFieldValues: values, expectedUpdatedAt: body.expectedUpdatedAt }) })
-    return patchCase(request, { params: { id: recordId } })
-  }
-  if (fieldIds.length === 0) return NextResponse.json({ ok: true })
-
-  const fields = await prisma.customField.findMany({
-    where: {
-      id: { in: fieldIds },
-      active: true,
-      section: { organizationId, scope, active: true },
-    },
-  })
-  const allowed = new Set(fields.map(field => field.id))
-
-  await prisma.$transaction(fieldIds.filter(id => allowed.has(id)).map(fieldId => (
-    prisma.customFieldValue.upsert({
-      where: {
-        fieldId_recordType_recordId: {
-          fieldId,
-          recordType: scope,
-          recordId,
-        },
-      },
-      update: { value: normalizeValue(values[fieldId]) },
-      create: {
-        organizationId,
-        fieldId,
-        recordType: scope,
-        recordId,
-        value: normalizeValue(values[fieldId]),
-      },
-    })
-  )))
-
-  return NextResponse.json({ ok: true })
+  const payload: any = { customFieldValues: values }
+  if (Object.prototype.hasOwnProperty.call(body, 'expectedUpdatedAt')) payload.expectedUpdatedAt = body.expectedUpdatedAt
+  const request = new NextRequest(req.url, { method: 'PATCH', headers: req.headers, body: JSON.stringify(payload) })
+  return (scope === 'case' ? patchCase : scope === 'lead' ? patchLead : patchClient)(request, { params: { id: recordId } })
 }
