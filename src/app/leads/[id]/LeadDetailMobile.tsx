@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react'
 import Link from 'next/link'
@@ -202,7 +203,7 @@ export default function LeadDetailMobile(props: LeadDetailMobileProps) {
 
   return (
     <section className={`${styles.mobileOnly} ${styles.shell}`} data-mobile-lead-detail data-active-tab={activeTab}>
-      <header className={styles.header}>
+      <header data-notification-header="detail" className={styles.header}>
         <button type="button" className={styles.circleButton} aria-label={copy.back} onClick={props.onBack}>
           <MobileIcon name="back" className={styles.headerIcon} />
         </button>
@@ -233,7 +234,7 @@ export default function LeadDetailMobile(props: LeadDetailMobileProps) {
             </div>
           )}
         </div>
-      </header>
+      <NotificationBell /></header>
 
       <div className={styles.primaryActions}>
         <label className={styles.statusControl} style={statusStyle} data-lead-status-color={statusColor}>

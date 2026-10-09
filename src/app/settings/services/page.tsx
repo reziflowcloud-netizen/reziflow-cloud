@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
@@ -195,7 +196,7 @@ export default function ServicesPage() {
           <div className="page-subtitle">{t('services_sub')}</div>
         </div>
         <Link href="/settings" className="btn btn-secondary">{t('back')}</Link>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
         {/* Add form */}

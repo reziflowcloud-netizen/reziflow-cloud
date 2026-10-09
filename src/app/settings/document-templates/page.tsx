@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -161,7 +162,7 @@ export default function DocumentTemplatesPage() {
           <div className="page-subtitle">{text.subtitle}</div>
         </div>
         <Link href="/settings" className="btn btn-secondary">{t('back')}</Link>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
         {error && (

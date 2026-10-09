@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
@@ -651,7 +652,7 @@ export default function SectionSettingsPage() {
           <Link className="btn btn-secondary" href="/settings">{t('back')}</Link>
           {canManage && <button className="btn btn-primary" onClick={saveStandard} disabled={saving}>{saving ? text.saving : text.saveVisibility}</button>}
         </div>
-      </div>
+      <NotificationBell /></div>
       <div className="page-body" style={{ maxWidth: 1120 }}>
         {message && <div className="card" style={{ marginBottom: 16 }}>{message}</div>}
         {!canManage && !loading && (

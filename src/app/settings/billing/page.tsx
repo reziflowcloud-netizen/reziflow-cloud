@@ -1,3 +1,4 @@
+import NotificationBell from '@/components/NotificationBell'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getOrganizationId, getUser } from '@/lib/auth'
@@ -46,7 +47,7 @@ export default async function BillingSettingsPage() {
             <div className="page-subtitle"><BillingText id="restrictedSubtitle" /></div>
           </div>
           <Link href="/settings" className="btn btn-secondary"><BillingText id="back" /></Link>
-        </div>
+        <NotificationBell /></div>
         <div className="page-body">
           <div className="card" style={{ maxWidth: 680 }}>
             <div style={{ fontWeight: 700, marginBottom: 8 }}><BillingText id="noAccessTitle" /></div>
@@ -74,7 +75,7 @@ export default async function BillingSettingsPage() {
           <div className="page-subtitle"><BillingText id="subtitle" /></div>
         </div>
         <Link href="/settings" className="btn btn-secondary"><BillingText id="back" /></Link>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
         <section className="billing-hero">

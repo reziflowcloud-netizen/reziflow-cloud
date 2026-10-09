@@ -1,3 +1,4 @@
+import NotificationBell from '@/components/NotificationBell'
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import {
@@ -79,7 +80,7 @@ export default async function NewCasesPage({
           <div className="page-subtitle"><DashboardText k="new_cases_subtitle" /></div>
         </div>
         <Link href="/dashboard" className="btn btn-secondary"><DashboardText k="back" /></Link>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
         <div className="card" style={{ marginBottom: 16 }}>

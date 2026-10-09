@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { notifyAssignment } from '@/lib/notifications'
 import { prisma } from '@/lib/prisma'
 import { normalizeLeadBody } from '@/lib/leads'
 import { applyLeadWebhookMapping, getLeadWebhookSettings, keyMatches, sanitizeLeadWebhookPayload } from '@/lib/leadWebhook'
@@ -164,6 +165,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
       },
     })
+    await notifyAssignment(tx, 'lead', created)
     return created
   })
 

@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 
 import Link from 'next/link'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
@@ -193,7 +194,7 @@ export default function ClientDetailMobile(props: any) {
 
   return (
     <section className={styles.mobileOnly} data-mobile-client-detail aria-label={copy.client}>
-      <header className={styles.header}>
+      <header data-notification-header="client-detail" className={styles.header}>
         <button type="button" className={styles.circleButton} aria-label="Back" onClick={props.onBack}><Icon name="back" /></button>
         <div className={styles.avatar} style={avatarStyle}>{clientInitials(client)}</div>
         <div className={styles.identity}>
@@ -210,7 +211,7 @@ export default function ClientDetailMobile(props: any) {
             {overflowOpen && <div className={styles.overflowMenu}><button type="button" className={styles.dangerAction} onClick={props.onDeleteClient}>{copy.delete}</button></div>}
           </div>
         )}
-      </header>
+      <NotificationBell /></header>
 
       <div className={styles.primaryActions}>
         <button type="button" className={styles.saveButton} onClick={props.onSave} disabled={props.saving}><Icon name="check" />{props.saving ? copy.saving : copy.save}</button>

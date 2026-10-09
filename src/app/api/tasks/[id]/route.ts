@@ -5,6 +5,7 @@ import { getOrganizationId, getUser } from '@/lib/auth'
 import { getDataAccessScope, taskWhereForScope, clientWhereForScope, findScopedTask } from '@/lib/apiScope'
 
 import { entityWrite, entityWriteError, EntityWriteError } from '@/lib/entityWrite'
+import { notifyAssignment } from '@/lib/notifications'
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const user = await getUser()
@@ -37,7 +38,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         try { meta = JSON.parse(data.description) } catch { meta = null }
         if (meta?.clientId && !await tx.client.findFirst({ where: clientWhereForScope(scope, organizationId, { id: meta.clientId }), select: { id: true } })) throw new EntityWriteError(400, 'Client not found')
       }
-      return claim(data)
+      const updated = await claim(data)
+      await notifyAssignment(tx, 'task', updated, existing)
+      return updated
     })
   } catch (error) { return entityWriteError(error) }
 }

@@ -8,6 +8,7 @@ import {
   shouldRetirePersonalAppearTask,
 } from '@/lib/caseImportantDateTasks'
 import { SAFE_ASSIGNEE_SELECT } from '@/lib/security'
+import { notifyAssignment } from '@/lib/notifications'
 import { applyEmployeeStaffScope, applyUserStaffScope, resolveStaffScope, StaffScopeError } from '@/lib/staffScope'
 
 export async function GET(request: NextRequest) {
@@ -71,7 +72,10 @@ export async function POST(request: NextRequest) {
   const organizationId = getOrganizationId(user)
   const scope = await getDataAccessScope(user, organizationId)
   const body = await request.json()
-  const task = await prisma.task.create({
+  const assignedToId = scope.restricted && scope.userId ? scope.userId : body.assignedToId ? parseInt(body.assignedToId) : null
+  if (assignedToId && !await prisma.user.findFirst({ where: { id: assignedToId, organizationId }, select: { id: true } })) return NextResponse.json({ error: 'User not found' }, { status: 400 })
+  const task = await prisma.$transaction(async tx => {
+  const created = await tx.task.create({
     data: {
       organizationId,
       title: body.title,
@@ -79,8 +83,11 @@ export async function POST(request: NextRequest) {
       priority: body.priority || 'Нормально',
       dueDate: body.dueDate ? new Date(body.dueDate) : null,
       clientName: body.clientName || null,
-      assignedToId: scope.restricted && scope.userId ? scope.userId : body.assignedToId ? parseInt(body.assignedToId) : null,
+      assignedToId,
     }
+  })
+  await notifyAssignment(tx, 'task', created)
+  return created
   })
   return NextResponse.json(task)
 }

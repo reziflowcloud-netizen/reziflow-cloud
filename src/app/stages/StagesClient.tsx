@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
@@ -58,7 +59,7 @@ export default function StagesClient({ statuses, clients, canConfigureStatuses }
           <TutorialVideoButton videoKey="stages" />
           <Link href="/settings/statuses" className="btn btn-secondary">Настроить статусы</Link>
         </div>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
         <div className="card" style={{ marginBottom: 16 }}>

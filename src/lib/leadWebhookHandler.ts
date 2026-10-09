@@ -4,6 +4,7 @@ import { normalizeLeadBody } from '@/lib/leads'
 import { applyLeadWebhookMapping, getLeadWebhookSettings, keyMatches, sanitizeLeadWebhookPayload, settingsObject } from '@/lib/leadWebhook'
 import { assertBillingLimit, billingLimitResponsePayload, isBillingLimitError } from '@/lib/billing'
 import { resolveInboundLeadAssignment } from '@/lib/leadRouting'
+import { notifyAssignment } from '@/lib/notifications'
 
 export function readWebhookKey(request: NextRequest, body: any, pathKey?: string) {
   const authorization = request.headers.get('authorization') || ''
@@ -216,7 +217,8 @@ export async function handleLeadWebhookPost(request: NextRequest, slug: string, 
     if (!lead) {
       await assertBillingLimit(organization.id, 'leads')
 
-      lead = await (prisma as any).lead.create({
+      lead = await prisma.$transaction(async tx => {
+      const created = await tx.lead.create({
         data: {
           organizationId: organization.id,
           ...data,
@@ -225,6 +227,9 @@ export async function handleLeadWebhookPost(request: NextRequest, slug: string, 
         include: {
           assignedTo: { select: { id: true, name: true } },
         },
+      })
+      await notifyAssignment(tx, 'lead', created)
+      return created
       })
       await (prisma as any).leadWebhookLog.create({
         data: {

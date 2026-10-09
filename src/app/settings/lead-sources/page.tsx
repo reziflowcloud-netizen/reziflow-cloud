@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -163,7 +164,7 @@ export default function LeadSourcesSettingsPage() {
           <div className="page-subtitle">{t('lead_sources_sub')}</div>
         </div>
         <Link href="/settings" className="btn btn-secondary">{t('back')}</Link>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
         <div style={{ maxWidth: 720 }}>

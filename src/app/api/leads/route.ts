@@ -7,6 +7,7 @@ import { getDataAccessScope, leadWhereForScope, taskWhereForScope } from '@/lib/
 import { assertBillingLimit, billingLimitResponsePayload, isBillingLimitError } from '@/lib/billing'
 import { resolveUserIdForEmployee } from '@/lib/employeeSync'
 import { leadAssignmentData } from '@/lib/leadAssignmentPolicy'
+import { notifyAssignment } from '@/lib/notifications'
 import { applyEmployeeStaffScope, applyUserStaffScope, resolveStaffScope, StaffScopeError } from '@/lib/staffScope'
 
 export const dynamic = 'force-dynamic'
@@ -218,7 +219,8 @@ export async function POST(request: NextRequest) {
     throw error
   }
 
-  const lead = await (prisma as any).lead.create({
+  const lead = await prisma.$transaction(async tx => {
+  const created = await tx.lead.create({
     data: {
       organizationId,
       ...data,
@@ -229,6 +231,9 @@ export async function POST(request: NextRequest) {
       employee: { select: { id: true, name: true } },
       phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
     },
+  })
+  await notifyAssignment(tx, 'lead', created)
+  return created
   })
   await createNextContactTask(lead, organizationId, scope.restricted && scope.userId ? scope.userId : Number(user.id))
 

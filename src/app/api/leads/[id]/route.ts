@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { notifyAssignment } from '@/lib/notifications'
 import { entityWrite, entityWriteError, EntityWriteError, writeEntityCustomFields, readEntityCustomFields } from '@/lib/entityWrite'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
@@ -129,6 +130,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
     if (data.assignedToId && !await tx.user.findFirst({ where: { organizationId, id: data.assignedToId }, select: { id: true } })) throw new EntityWriteError(400, 'User not found')
     const updated = await claim(data)
+    await notifyAssignment(tx, 'lead', updated, existing)
     await writeEntityCustomFields(tx, organizationId, 'lead', params.id, body.customFieldValues)
     if (shouldUpdatePhones) {
       await tx.leadPhone.deleteMany({ where: { leadId: params.id, organizationId } })

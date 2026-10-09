@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import Link from 'next/link'
 import { Fragment, useEffect, useState } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
@@ -532,7 +533,7 @@ export default function OrganizationsPage() {
           <Link href="/settings" className="btn btn-secondary">{t('back')}</Link>
           {canManageAll && <button className="btn btn-primary" onClick={() => setShowNew(true)}>{t('new_company')}</button>}
         </div>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
         {error && (

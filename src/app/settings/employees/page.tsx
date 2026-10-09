@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -165,7 +166,7 @@ export default function EmployeesSettingsPage() {
           <div className="page-subtitle">{text.subtitle}</div>
         </div>
         <Link href={returnTo} className="btn btn-secondary">{t('back')}</Link>
-      </div>
+      <NotificationBell /></div>
       <div className="page-body">
         {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 16px', marginBottom: 16, color: '#dc2626', fontSize: 13 }}>{error}</div>}
         <div className="card" style={{ maxWidth: 900 }}>

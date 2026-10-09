@@ -1,5 +1,6 @@
 // src/components/PageHeader.tsx
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import { useLanguage } from '@/context/LanguageContext'
 import Link from 'next/link'
 import { ReactNode } from 'react'
@@ -34,6 +35,6 @@ export default function PageHeader({ titleKey, subtitleKey, subtitleValue, actio
         )}
         {children}
       </div>
-    </div>
+    <NotificationBell /></div>
   )
 }

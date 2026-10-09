@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 
 import Link from 'next/link'
 import { useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
@@ -151,7 +152,7 @@ export default function CaseDetailMobile(props: any) {
 
   return (
     <section className={styles.mobileOnly} data-mobile-case-detail aria-label={copy.details}>
-      <header className={styles.header}>
+      <header data-notification-header="detail" className={styles.header}>
         <button type="button" className={styles.circleButton} aria-label="Back" onClick={props.onBack}><Icon name="back" /></button>
         <div className={styles.identity}>
           {String(c.caseNumber || '').trim() && <h1>{c.caseNumber}</h1>}
@@ -167,7 +168,7 @@ export default function CaseDetailMobile(props: any) {
             </div>
           )}
         </div>
-      </header>
+      <NotificationBell /></header>
 
       <div className={styles.primaryActions}>
         <label className={styles.statusControl} style={statusStyle} data-case-status-color={statusColor}>

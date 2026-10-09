@@ -1,3 +1,4 @@
+import NotificationBell from '@/components/NotificationBell'
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { formatMoney } from '@/lib/dashboardAnalytics'
@@ -65,7 +66,7 @@ export default async function DebtPage() {
           <div className="page-subtitle"><DashboardText k="debt_subtitle" /></div>
         </div>
         <Link href="/dashboard" className="btn btn-secondary"><DashboardText k="back" /></Link>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body">
         <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>

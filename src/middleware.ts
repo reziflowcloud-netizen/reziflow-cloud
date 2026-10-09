@@ -11,6 +11,7 @@ import {
   setConferenceAttributionCookie,
 } from './lib/conferenceAttribution'
 import { isSameOriginRequest, shouldEnforceSameOrigin } from './lib/requestSecurity'
+import { safeNotificationReturn } from './lib/notificationPolicy'
 
 const PUBLIC_PATHS = [
   '/',
@@ -30,6 +31,8 @@ const PUBLIC_PATHS = [
   '/favicon.svg',
   '/favicon.png',
   '/manifest.json',
+  '/notification-sw.js',
+  '/api/internal/notifications',
   '/api/auth/login',
   '/api/auth/register',
   '/api/auth/forgot-password',
@@ -66,15 +69,21 @@ export async function middleware(request: NextRequest) {
         response.cookies.delete('auth-token')
         return addConferenceAttribution(response)
       }
-      if (payload) return addConferenceAttribution(NextResponse.redirect(new URL('/dashboard', request.url)))
+      if (payload && safeNotificationReturn(request.nextUrl.searchParams.get('next')) === '/dashboard') return addConferenceAttribution(NextResponse.redirect(new URL('/dashboard', request.url)))
     }
     return addConferenceAttribution(NextResponse.next())
   }
 
   // Protected route
-  if (!token) return NextResponse.redirect(new URL('/login', request.url))
+  const loginRedirect = () => {
+    if (pathname.startsWith('/api/notifications')) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const url = new URL('/login', request.url)
+    if (safeNotificationReturn(pathname) !== '/dashboard') url.searchParams.set('next', pathname)
+    return NextResponse.redirect(url)
+  }
+  if (!token) return loginRedirect()
   const payload = await verifyToken(token)
-  if (!payload) return NextResponse.redirect(new URL('/login', request.url))
+  if (!payload) return loginRedirect()
 
   if (isConferenceDemoSession(payload)) {
     if (isConferenceDemoPageBlocked(pathname)) {

@@ -7,6 +7,9 @@ a { color: inherit; }
 :root {
   --brand: #06b6d4;
   --brand-hover: #0891b2;
+  --notification-info: #0369a1;
+  --notification-on-accent: var(--sidebar-bg);
+  --notification-warning: #92400e;
   --bg: #f4f5f7;
   --surface: #ffffff;
   --border: #e5e7eb;
@@ -36,6 +39,8 @@ a { color: inherit; }
 
 /* ─── Dark Theme ─────────────────────────── */
 [data-theme="dark"] {
+  --notification-info: #7dd3fc;
+  --notification-warning: #fcd34d;
   --brand: #22d3ee;
   --brand-hover: #06b6d4;
   --bg: #111827;
@@ -64,6 +69,8 @@ a { color: inherit; }
 
 /* Slate + Cyan Theme */
 [data-theme="slate"] {
+  --notification-info: #7dd3fc;
+  --notification-warning: #fcd34d;
   --brand: #06b6d4;
   --brand-hover: #0891b2;
   --bg: #07111d;

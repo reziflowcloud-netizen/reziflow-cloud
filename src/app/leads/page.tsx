@@ -1,4 +1,5 @@
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
 import { freshJson } from '@/lib/screenRefresh'
 
@@ -1705,7 +1706,7 @@ export default function LeadsPage() {
           <Link href="/dashboard" className="btn btn-secondary">{lt('dashboard')}</Link>
           <Link href="/leads/new" className="btn btn-primary">{lt('add_lead')}</Link>
         </div>
-      </div>
+      <NotificationBell /></div>
 
       <div className="page-body lead-desktop-presentation">
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>

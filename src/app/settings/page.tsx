@@ -1,15 +1,19 @@
 // src/app/settings/page.tsx
 'use client'
+import NotificationBell from '@/components/NotificationBell'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
+import { notificationText } from '@/lib/notificationI18n'
 
 export default function SettingsPage() {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
+  const [notificationsAvailable, setNotificationsAvailable] = useState(false)
   const [canManageAll, setCanManageAll] = useState(false)
   const [canManageBilling, setCanManageBilling] = useState(false)
 
   useEffect(() => {
+    fetch('/api/notifications/preferences', { cache: 'no-store' }).then(response => setNotificationsAvailable(response.ok)).catch(() => undefined)
     fetch('/api/auth/me')
       .then(res => res.json())
       .then(data => {
@@ -23,6 +27,7 @@ export default function SettingsPage() {
   }, [])
 
   const items = useMemo(() => [
+    ...(notificationsAvailable ? [{ href: '/settings/notifications', icon: '♧', title: notificationText[lang].center, desc: notificationText[lang].settings }] : []),
     {
       href: '/settings/statuses',
       icon: '🔵',
@@ -106,14 +111,14 @@ export default function SettingsPage() {
       title: t('integrations_title'),
       desc: t('integrations_sub'),
     },
-  ], [canManageAll, canManageBilling, t])
+  ], [canManageAll, canManageBilling, t, lang, notificationsAvailable])
 
   return (
     <div className="fade-in">
       <div className="page-header">
         <div className="page-title">{t('settings_title')}</div>
         <Link href="/dashboard" className="btn btn-secondary">{t('back')}</Link>
-      </div>
+      <NotificationBell /></div>
       <div className="page-body">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, maxWidth: 900 }}>
           {items.map(item => (
