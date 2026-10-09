@@ -1,5 +1,8 @@
 .mobileOnly { display: none; }
 .desktopOnly { display: block; }
+.desktopHeader { flex-wrap: wrap; gap: 12px; }
+.desktopHeader > div { min-width: 0; }
+.desktopHeader > div:nth-child(2), .desktopHeader :global(.cal-header-nav) { margin-left: auto; }
 
 @media (max-width: 768px) {
   .desktopOnly { display: none !important; }
@@ -93,6 +96,8 @@
     cursor: pointer;
   }
 
+  .modeRow { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .modeRow .modeSwitch { flex: 1; min-width: 0; margin-bottom: 0; }
   .modeSwitch {
     display: grid;
     grid-template-columns: 1fr 1fr;

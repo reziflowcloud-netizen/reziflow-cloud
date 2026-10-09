@@ -496,7 +496,7 @@ export default function CalendarPage() {
       `}</style>
 
       {/* Шапка страницы */}
-      <div className="page-header">
+      <div className={`page-header ${calendarStyles.desktopHeader}`}>
         <div>
           <div className="page-title">{t('calendar_title')}</div>
           <div className="page-subtitle" style={{ display: 'none' }} id="cal-subtitle-desktop">{t('calendar_sub')}</div>

@@ -1,6 +1,7 @@
 // src/app/settings/page.tsx
 'use client'
 import NotificationBell from '@/components/NotificationBell'
+import NotificationIcon from '@/components/NotificationIcon'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
@@ -27,7 +28,7 @@ export default function SettingsPage() {
   }, [])
 
   const items = useMemo(() => [
-    ...(notificationsAvailable ? [{ href: '/settings/notifications', icon: '♧', title: notificationText[lang].center, desc: notificationText[lang].settings }] : []),
+    ...(notificationsAvailable ? [{ href: '/settings/notifications', icon: <NotificationIcon size={32} />, title: notificationText[lang].center, desc: notificationText[lang].settings }] : []),
     {
       href: '/settings/statuses',
       icon: '🔵',

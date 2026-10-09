@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import TutorialVideoButton from '@/components/TutorialVideoButton'
+import NotificationBell from '@/components/NotificationBell'
 import MobileEntityIcon from '@/components/mobile/MobileEntityIcon'
 import styles from './CalendarMobile.module.css'
 
@@ -328,9 +329,12 @@ export default function CalendarMobile(props: CalendarMobileProps) {
           </div>
         </header>
 
-        <div className={styles.modeSwitch} role="tablist" aria-label={props.t('calendar_view')}>
-          <button type="button" role="tab" aria-selected={mode === 'month'} className={mode === 'month' ? styles.modeActive : ''} onClick={() => setMode('month')}>{props.t('calendar_month')}</button>
-          <button type="button" role="tab" aria-selected={mode === 'list'} className={mode === 'list' ? styles.modeActive : ''} onClick={() => setMode('list')}>{props.t('calendar_list')}</button>
+        <div className={styles.modeRow}>
+          <div className={styles.modeSwitch} role="tablist" aria-label={props.t('calendar_view')}>
+            <button type="button" role="tab" aria-selected={mode === 'month'} className={mode === 'month' ? styles.modeActive : ''} onClick={() => setMode('month')}>{props.t('calendar_month')}</button>
+            <button type="button" role="tab" aria-selected={mode === 'list'} className={mode === 'list' ? styles.modeActive : ''} onClick={() => setMode('list')}>{props.t('calendar_list')}</button>
+          </div>
+          <NotificationBell />
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>{props.scopeControl}</div>
 
