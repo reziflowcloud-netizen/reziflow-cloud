@@ -42,6 +42,25 @@
 .settings input[type=checkbox], .settings input[type=radio] { accent-color: var(--brand); width: 19px; height: 19px; flex-shrink: 0; }
 .settings label { display: inline-flex; align-items: center; gap: 10px; line-height: 1.5; min-height: 44px; }
 .settingsTable label { justify-content: center; width: 100%; }
+@media (min-width: 769px) {
+  .overlay { padding: 0; background: transparent; pointer-events: none; }
+  /* The backdrop leaves the real sidebar bell clickable for repeat-click close. */
+  .overlay::before {
+    content: ''; position: fixed; inset: 0; pointer-events: auto;
+    background: color-mix(in srgb, var(--text) 22%, transparent);
+    clip-path: polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0,
+      var(--bell-left) var(--bell-top), var(--bell-right) var(--bell-top),
+      var(--bell-right) var(--bell-bottom), var(--bell-left) var(--bell-bottom),
+      var(--bell-left) var(--bell-top));
+  }
+  .panel {
+    position: fixed; left: var(--notification-left, 222px); bottom: var(--notification-bottom, 16px);
+    width: var(--notification-width, 400px); max-width: calc(100vw - 24px);
+    max-height: var(--notification-height, 75dvh); pointer-events: auto;
+  }
+  .panelHeader, .toolbar { flex-shrink: 0; }
+  .list { min-height: 0; }
+}
 @media (max-width: 768px) {
   .mobileSlot { display: block; }
   .sidebarSlot { display: none; }

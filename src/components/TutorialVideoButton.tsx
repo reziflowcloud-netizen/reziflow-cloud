@@ -4,22 +4,23 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
 import { tutorialVideos, type TutorialVideoKey } from '@/lib/tutorialVideos'
+import styles from './TutorialVideoButton.module.css'
 
 const copy = {
   ru: {
     button: 'Видео',
     missing: 'Видео скоро',
-    title: 'Открыть обучающее видео',
+    title: 'Видеоинструкция',
   },
   uk: {
     button: 'Відео',
     missing: 'Відео скоро',
-    title: 'Відкрити навчальне відео',
+    title: 'Відеоінструкція',
   },
   pl: {
     button: 'Wideo',
     missing: 'Wideo wkrótce',
-    title: 'Otwórz wideo szkoleniowe',
+    title: 'Instrukcja wideo',
   },
 }
 
@@ -85,14 +86,18 @@ export default function TutorialVideoButton({
   return (
     <button
       type="button"
-      className={`btn btn-secondary ${className}`.trim()}
+      className={`btn btn-secondary ${styles.button} ${className}`.trim()}
       onClick={openVideo}
       disabled={!url}
       title={url ? `${text.title}: ${video.title}` : video.title}
       aria-label={url ? `${text.title}: ${video.title}` : video.title}
       style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 7, ...style }}
     >
-      <span aria-hidden="true" style={{ fontSize: 12 }}>▶</span>
+      <span className={styles.desktopIcon} aria-hidden="true" style={{ fontSize: 12 }}>▶</span>
+      <svg className={styles.mobileIcon} width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+        <rect x="2" y="4.5" width="20" height="15" rx="4" stroke="currentColor" strokeWidth="1.8" />
+        <path d="m10 8 6 4-6 4V8Z" fill="currentColor" />
+      </svg>
       {url ? (label || text.button) : (missingLabel || text.missing)}
     </button>
   )
