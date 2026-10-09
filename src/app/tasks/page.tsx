@@ -555,6 +555,7 @@ export default function TasksPage() {
         .kanban-scroll {
           display: grid;
           gap: 12px;
+          overflow-x: auto;
           grid-template-columns: repeat(${Math.max(priorities.length, 1)}, minmax(200px, 1fr));
         }
         .task-overdue-card {
