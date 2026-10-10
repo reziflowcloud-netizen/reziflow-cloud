@@ -35,6 +35,7 @@ test('existing Service Worker: stable tags, badge, safe click/focus, no data cac
   const handlers={},shown=[],badges=[],navigated=[],opened=[]
   let windows=[{url:'https://legalhubcrm.com/dashboard',postMessage(message,ports){ports?.[0].postMessage('not-handled')},navigate:async url=>{navigated.push(url);return windows[0]},focus:async()=>navigated.push('focus')}]
   const self={location:{origin:'https://legalhubcrm.com'},addEventListener:(name,handler)=>handlers[name]=handler,registration:{showNotification:async(...args)=>shown.push(args)},navigator:{setAppBadge:async n=>badges.push(n),clearAppBadge:async()=>badges.push(0)},clients:{matchAll:async()=>windows,openWindow:async url=>opened.push(url)}}
+  self.crypto={randomUUID}
   vm.runInNewContext(fs.readFileSync('public/notification-sw.js','utf8'),{self,URL,MessageChannel,setTimeout,clearTimeout})
   async function dispatch(type,data){let pending;handlers[type]({...data,waitUntil:p=>pending=p});await pending}
   const payload={body:'Synthetic only',tag:'same-id',url:'/notifications/open/test-id',unread:1}

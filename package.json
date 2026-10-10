@@ -9,7 +9,7 @@
     "start": "next start",
     "seed": "node prisma/seed.js",
     "test:security": "node --test tests/security/hardening.test.mjs",
-    "test:notifications": "node --test tests/notifications-policy.test.mjs tests/notifications-db.test.mjs tests/push-pilot.test.mjs tests/push-pilot-api.test.mjs tests/notification-click.test.mjs",
+    "test:notifications": "node --test tests/notifications-policy.test.mjs tests/notifications-db.test.mjs tests/push-pilot.test.mjs tests/push-pilot-api.test.mjs tests/notification-click.test.mjs tests/push-pilot-diagnostics.test.mjs",
     "postinstall": "prisma generate"
   },
   "prisma": {

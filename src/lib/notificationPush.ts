@@ -16,6 +16,7 @@ export function pushPayload(notification: any, preferences: ReturnType<typeof no
     tag: notification.id,
     url: `/notifications/open/${notification.id}`,
     unread,
+    pilotDiagnostics: isPushPilotNotification(notification),
   }
 }
 type PushSender = (subscription: any, payload: string, options: any) => Promise<unknown>
