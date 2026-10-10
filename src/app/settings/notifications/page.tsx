@@ -1,5 +1,6 @@
 'use client'
 import NotificationBell from '@/components/NotificationBell'
+import PushPilotDiagnostics from '@/components/PushPilotDiagnostics'
 import { useCallback, useEffect, useState } from 'react'
 import { useLanguage } from '@/context/LanguageContext'
 import { notificationText } from '@/lib/notificationI18n'
@@ -23,6 +24,7 @@ export default function NotificationSettings() {
   const [message, setMessage] = useState<'saved' | 'error' | null>(null)
   const [unavailable, setUnavailable] = useState(false)
   const [missingEntity, setMissingEntity] = useState(false)
+  const [pilotDiagnostics, setPilotDiagnostics] = useState(false)
   const refreshDevices = useCallback(async () => {
     const response = await fetch('/api/notifications/subscriptions', { cache: 'no-store' })
     const data = response.ok ? await response.json() : null
@@ -41,6 +43,7 @@ export default function NotificationSettings() {
   }, [])
   useEffect(() => {
     setMissingEntity(new URLSearchParams(window.location.search).has('unavailable'))
+    setPilotDiagnostics(new URLSearchParams(window.location.search).get('pilotDiagnostics') === '1')
     fetch('/api/notifications/preferences', { cache: 'no-store' }).then(async response => {
       if (!response.ok) { setUnavailable(true); return }
       const data = await response.json(); setConfig(data); setPreferences(data.preferences)
@@ -127,6 +130,7 @@ export default function NotificationSettings() {
           </div>}
           {testStatus && <p role="status">{testStatus === 'accepted' ? pushPilotText[lang].accepted : pushPilotPending[lang]}</p>}
         </section>
+        {config.pushAvailable && <PushPilotDiagnostics initiallyOpen={pilotDiagnostics} />}
         <section className="card"><table className={styles.settingsTable}><thead><tr><th scope="col">{copy.event}</th><th scope="col">{copy.inApp}</th><th scope="col">{copy.push}</th></tr></thead><tbody>
           {NOTIFICATION_TYPES.map(type => <tr key={type}><td>{copy.events[type]}</td>{(['inApp', 'push'] as const).map(channel => <td key={channel}><label><input type="checkbox" disabled={busy} aria-label={`${copy.events[type]}: ${copy[channel]}`} checked={preferences.events[type][channel]} onChange={event => setPreferences({ ...preferences, events: { ...preferences.events, [type]: { ...preferences.events[type], [channel]: event.target.checked } } })} /></label></td>)}</tr>)}
         </tbody></table></section>

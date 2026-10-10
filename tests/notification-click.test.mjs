@@ -4,11 +4,13 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { MessageChannel } from 'node:worker_threads'
+import { randomUUID } from 'node:crypto'
 
 const path='/notifications/open/synthetic-id',origin='https://legalhubcrm.com'
 async function click(windows,rawPath=path) {
  const handlers={},opened=[]
  const self={location:{origin},addEventListener:(name,handler)=>handlers[name]=handler,clients:{matchAll:async()=>windows,openWindow:async url=>opened.push(url)}}
+ self.crypto={randomUUID}
  vm.runInNewContext(fs.readFileSync('public/notification-sw.js','utf8'),{self,URL,MessageChannel,setTimeout,clearTimeout})
  let pending,closed=false
  handlers.notificationclick({notification:{data:{url:rawPath},close(){closed=true}},waitUntil:p=>pending=p})

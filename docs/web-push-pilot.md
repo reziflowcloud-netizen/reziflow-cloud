@@ -92,6 +92,14 @@ Reproduce with `NOTIFICATIONS_TEST_DATABASE_URL` pointing only to a loopback dat
 
 ## Changed files
 
+### Activation diagnostics after the failed repeat
+
+The background repeat after the first activation fix again restored Settings with the new synthetic notification unread. System-click activation remains **FAIL**; no real-device success is inferred from VM tests. Request logs show worker script requests before the repeat but cannot prove which worker executed on iPhone.
+
+The single allowlisted pilot can expand the device check in Notifications Settings and confirm the active worker version through a MessageChannel. This check does not prompt for permission, subscribe, mark a notification read or send a provider push. The read-only authenticated diagnostics API exposes only the expected version and an own synthetic test ID. Its POST accepts fixed stages/version and opaque notification/runtime IDs only, rechecks own tenant/user and a recent valid synthetic marker, and logs those bounded fields for diagnosis. It denies foreign origins, non-pilot users, arbitrary fields, client payloads, endpoints and real records; it performs no database writes. The worker reports receipt and click stages only for marked synthetic tests. Trace requests are bounded, do not precede navigation with a network wait, and failures cannot stop the normal click fallback. No worker storage/cache is introduced. Normal notification settings for non-pilot users have no diagnostic controls.
+
+Absence of a click trace is not by itself proof of a WebKit bug: failed authentication/network delivery can also hide a trace. Calibrate an accepted worker-check/receipt trace, record actual worker versions, then correlate click stages, HTTP requests and own read state. Do not infer a clicked notification from removal/dismissal or auto-mark unread records on app resume. Further real pushes require the user to confirm the chosen device state. Background delivery remains PASS; closed-app delivery, successful system activation, icon badge, unsubscribe and re-enable remain pending.
+
 ### iPhone notification activation follow-up
 
 The first controlled Production test reached the pilot iPhone while the app was in the background. The user confirmed a lock-screen system notification with the synthetic Ukrainian copy. Opening its Notification Center record reached Dashboard, marked it read and cleared the in-app bell count. Tapping the system notification initially restored the Settings page instead of following the resolver; this activation check remains failed until a real-device repeat passes. Closed-app delivery, Home Screen icon badge, unsubscribe and re-enable remain pending.
