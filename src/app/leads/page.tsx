@@ -1,5 +1,6 @@
 'use client'
 import NotificationBell from '@/components/NotificationBell'
+import { warsawDateTimeLocal } from '@/lib/warsawDateTime'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
 import { freshJson } from '@/lib/screenRefresh'
 
@@ -1018,11 +1019,7 @@ export default function LeadsPage() {
   }
 
   function toDateTimeLocal(value?: string) {
-    if (!value) return ''
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return ''
-    const offset = date.getTimezoneOffset()
-    return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16)
+    return warsawDateTimeLocal(value)
   }
 
   function openReminder(lead: any) {
@@ -1066,7 +1063,7 @@ export default function LeadsPage() {
       deadlineAt: activeReminder.deadlineAt || '',
       assignedToId: activeReminder.assignedToId || '',
       notes: activeReminder.notes || '',
-      lastContactAt: activeReminder.lastContactAt ? toDateTimeLocal(activeReminder.lastContactAt) : '',
+      lastContactAt: activeReminder.lastContactAt || '',
       lastContactNote: activeReminder.lastContactNote || '',
       nextContactAt: reminderForm.nextContactAt,
       nextContactNote: reminderForm.nextContactNote,
@@ -1076,9 +1073,9 @@ export default function LeadsPage() {
       payload.lastContactAt = reminderForm.lastContactAt
       payload.lastContactNote = reminderForm.lastContactNote
     } else {
-      payload.lastContactAt = activeReminder.lastContactAt ? toDateTimeLocal(activeReminder.lastContactAt) : ''
+      payload.lastContactAt = activeReminder.lastContactAt || ''
       payload.lastContactNote = activeReminder.lastContactNote || ''
-      payload.nextContactAt = reminderForm.nextContactAt || toDateTimeLocal(activeReminder.nextContactAt)
+      payload.nextContactAt = reminderForm.nextContactAt || activeReminder.nextContactAt || ''
       payload.nextContactNote = reminderForm.nextContactNote || activeReminder.nextContactNote || ''
     }
 

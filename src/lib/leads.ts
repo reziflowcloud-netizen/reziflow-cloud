@@ -1,3 +1,5 @@
+import { parseWarsawDateTime } from './warsawDateTime.ts'
+
 export const LEAD_STATUSES = [
   'Новый',
   'Первый контакт',
@@ -123,9 +125,9 @@ export function normalizeLeadBody(body: any) {
     assignedToId: body.assignedToId ? Number(body.assignedToId) : null,
     employeeId: body.employeeId ? Number(body.employeeId) : null,
     deadlineAt: body.deadlineAt ? new Date(body.deadlineAt) : null,
-    nextContactAt: body.nextContactAt ? new Date(body.nextContactAt) : null,
+    nextContactAt: body.nextContactAt ? parseWarsawDateTime(body.nextContactAt) : null,
     nextContactNote: body.nextContactNote || null,
-    lastContactAt: body.lastContactAt ? new Date(body.lastContactAt) : null,
+    lastContactAt: body.lastContactAt ? parseWarsawDateTime(body.lastContactAt) : null,
     lastContactNote: body.lastContactNote || null,
   }
 }

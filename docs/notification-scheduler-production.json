@@ -1,0 +1,16 @@
+{
+  "scheduler": "GitHub Actions: Production notification scheduler",
+  "workflow": ".github/workflows/notification-scheduler.yml",
+  "cadence": "7,22,37,52 * * * * (every 15 minutes, UTC schedule)",
+  "businessTimezone": "Europe/Warsaw",
+  "deliveryTiming": "GitHub scheduled jobs can be delayed. Reminders are evaluated at the actual invocation time; no real-time delivery guarantee.",
+  "activation": "Set repository variable NOTIFICATION_SCHEDULER_ENABLED=true only after the Production deployment is READY and its pilot scope is verified.",
+  "secret": "NOTIFICATION_PRODUCTION_CRON_SECRET in GitHub Actions secrets must match Production-only CRON_SECRET. Never put either value in source, logs, cache or Preview.",
+  "scope": "Use the existing Production organization/user pilot allowlists. TestRezidents is the only approved organization. No organization id is hardcoded in the workflow or application source.",
+  "execution": "Only a scheduled event on main runs the accepted paginated runner. No push, pull request or manual business-handler trigger is configured. One workflow at a time, without interrupting an active run.",
+  "checkpoint": "Restore the newest main-branch checkpoint cache and save after failures as well as success. The runner writes atomically after each successful page. GitHub cache eviction may restart a sweep; database occurrence/outbox uniqueness prevents duplication. Cache is an optimization, not a durable database. Reassess persistent storage before a larger rollout.",
+  "permissions": "Read repository contents only; checkout credentials are not persisted. Actions are pinned to verified full commit SHAs. The runner needs only built-in Node modules; no application install or database credentials.",
+  "rollback": "Disable NOTIFICATION_SCHEDULER_ENABLED first, restore Production flags and the recorded prior application deployment. No schema migration or DB rollback.",
+  "pilotQA": "Create disposable synthetic Task, Case/client/date and Lead only in the approved organization, wait for a real scheduled invocation, retain occurrences for second-run dedupe, and request physical iPhone confirmation before exact-id cleanup.",
+  "premergeValidation": { "fullRegression": { "pass": 243, "fail": 0, "skip": 0 }, "typescript": "PASS", "prismaValidate": "PASS", "workflowYaml": "PASS" }
+}

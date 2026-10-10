@@ -9,7 +9,14 @@ export async function GET(request: NextRequest) {
   if (!cronAuthorized(request.headers.get('authorization'))) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   let cursor
   try { cursor = parseEvaluationCursor(request.nextUrl.searchParams.get('cursor')) } catch { return NextResponse.json({ error: 'Invalid cursor' }, { status: 400 }) }
-  const evaluation = request.nextUrl.searchParams.get('delivery') === 'only' ? { evaluated: 0, nextCursor: null } : await evaluateNotificationPage(cursor)
-  const delivery = await deliverNotificationPush()
-  return NextResponse.json({ ...evaluation, push: delivery }, { headers: { 'Cache-Control': 'no-store' } })
+  try {
+    const evaluation = request.nextUrl.searchParams.get('delivery') === 'only' ? { evaluated: 0, nextCursor: null } : await evaluateNotificationPage(cursor)
+    // Transport is outside every entity transaction, using the established leases.
+    const delivery = await deliverNotificationPush()
+    return NextResponse.json({ ...evaluation, push: delivery }, { headers: { 'Cache-Control': 'no-store' } })
+  } catch {
+    // Do not expose DB/provider errors, PII or secrets. Retry the same page;
+    // notifications/outbox already committed are protected by unique constraints.
+    return NextResponse.json({ error: 'Notification job incomplete; retry this cursor' }, { status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '15' } })
+  }
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { parseWarsawDateTime } from '@/lib/warsawDateTime'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { findScopedLead, getDataAccessScope } from '@/lib/apiScope'
@@ -98,8 +99,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const note = String(body.note || '').trim()
   if (!note) return NextResponse.json({ error: 'Запись контакта не может быть пустой' }, { status: 400 })
 
-  const contactAt = body.contactAt ? new Date(body.contactAt) : new Date()
-  const nextContactAt = body.nextContactAt ? new Date(body.nextContactAt) : null
+  const contactAt = body.contactAt ? parseWarsawDateTime(body.contactAt) : new Date()
+  const nextContactAt = body.nextContactAt ? parseWarsawDateTime(body.nextContactAt) : null
+  if (!Number.isFinite(contactAt.getTime()) || (nextContactAt && !Number.isFinite(nextContactAt.getTime()))) return NextResponse.json({ error: 'Invalid contact date' }, { status: 400 })
   const nextContactNote = body.nextContactNote || null
 
   const contact = await (prisma as any).$transaction(async (tx: any) => {

@@ -1,5 +1,6 @@
 'use client'
 import NotificationBell from '@/components/NotificationBell'
+import { warsawDateTimeLocal } from '@/lib/warsawDateTime'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
 import { useEntityAutosave } from '@/hooks/useEntityAutosave'
 import { LEAD_AUTOSAVE_FIELDS, entityFieldPolicy, customFormValues, patchEntity } from '@/lib/entityAutosave'
@@ -144,9 +145,9 @@ export default function LeadDetailPage() {
           deadlineAt: data.deadlineAt?.slice(0, 10) || '',
           employeeId: data.employeeId ? String(data.employeeId) : '',
           assignedToId: data.assignedToId ? String(data.assignedToId) : '',
-          nextContactAt: data.nextContactAt?.slice(0, 16) || '',
+          nextContactAt: warsawDateTimeLocal(data.nextContactAt),
           nextContactNote: data.nextContactNote || '',
-          lastContactAt: data.lastContactAt?.slice(0, 16) || '',
+          lastContactAt: warsawDateTimeLocal(data.lastContactAt),
           lastContactNote: data.lastContactNote || '',
           notes: data.notes || '',
           ...customFormValues(data.customFieldValues),
@@ -256,11 +257,7 @@ export default function LeadDetailPage() {
   }
 
   function toDateTimeLocal(value?: string) {
-    if (!value) return ''
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return ''
-    const offset = date.getTimezoneOffset()
-    return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16)
+    return warsawDateTimeLocal(value)
   }
 
   function formatContactNoteEntry(contactAt: string, note: string) {

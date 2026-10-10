@@ -1,8 +1,9 @@
 import { prisma } from './prisma.ts'
 import { caseOccurrences, leadContactOccurrence, taskOccurrences } from './notificationPolicy.ts'
-import { emitNotification } from './notifications.ts'
-import { notificationEventOrgIds, scheduledEventsEnabled } from './notificationEventGate.ts'
+import { emitScheduledNotifications } from './scheduledNotifications.ts'
+import { notificationEventOrgIds, notificationEventUserIds, scheduledEventsEnabled } from './notificationEventGate.ts'
 
+export const EVALUATION_BATCH_SIZE = 25
 export type EvaluationCursor = { kind: 'task' | 'case' | 'lead'; after: string }
 export function parseEvaluationCursor(value: string | null): EvaluationCursor {
   if (!value) return { kind: 'task', after: '' }
@@ -10,30 +11,46 @@ export function parseEvaluationCursor(value: string | null): EvaluationCursor {
   if (!match) throw new Error('Invalid cursor')
   return { kind: match[1] as EvaluationCursor['kind'], after: match[2] }
 }
-// Each invocation processes one bounded page. Scheduler drains nextCursor until null.
+function occurrences(kind: EvaluationCursor['kind'], record: any, now: Date) {
+  if (kind === 'task') return taskOccurrences(record, now)
+  if (kind === 'case') return caseOccurrences(record, now)
+  const occurrence = leadContactOccurrence(record, now)
+  return occurrence ? [{ type: 'lead_contact' as const, occurrence }] : []
+}
+// One page per invocation; short per-entity transactions, never a batch transaction.
 export async function evaluateNotificationPage(cursor: EvaluationCursor, now = new Date(), db: any = prisma) {
+  const start = Date.now(), orgs = notificationEventOrgIds()
+  let evaluated = 0, notificationsCreated = 0
+  const result = (nextCursor: string | null) => ({ evaluated, notificationsCreated, tenantsScanned: orgs.length, batches: evaluated ? 1 : 0, runtimeMs: Date.now() - start, nextCursor })
   if (!scheduledEventsEnabled()) return { evaluated: 0, nextCursor: null }
+  let after = cursor.after
+  // Fail closed instead of silently handling only part of a pilot allowlist.
+  if (orgs.length > 10 || notificationEventUserIds().length > 100) throw new Error('Scheduled pilot scope exceeds bounds')
+  const include = cursor.kind === 'case' ? {
+    client: { select: { organizationId: true, firstName: true, lastName: true } },
+    customDates: { orderBy: { id: 'asc' }, take: 101 },
+    statusHistory: { where: { changedAt: { gte: new Date(now.getTime() - 3 * 86400000) } }, select: { fromStatus: true, changedAt: true }, take: 101 },
+  } : undefined
   const records = await db[cursor.kind].findMany({
-    where: { organizationId: { in: notificationEventOrgIds() }, id: { gt: cursor.after }, ...(cursor.kind === 'task' ? { status: { notIn: ['done', 'completed', 'cancelled', 'canceled', 'inactive'] } } : {}) },
-    orderBy: { id: 'asc' }, take: 25,
-    ...(cursor.kind === 'case' ? { include: { client: { select: { organizationId: true, firstName: true, lastName: true } }, customDates: true, statusHistory: { select: { fromStatus: true, changedAt: true } } } } : {}),
+    where: { organizationId: { in: orgs }, id: { gt: after } }, orderBy: { id: 'asc' }, take: EVALUATION_BATCH_SIZE,
+    ...(include ? { include } : {}),
   })
   for (const record of records) {
-    const occurrences = cursor.kind === 'task' ? taskOccurrences(record, now) : cursor.kind === 'case' ? caseOccurrences(record, now) : []
-    const leadOccurrence = cursor.kind === 'lead' ? leadContactOccurrence(record, now) : null
-    if (leadOccurrence) occurrences.push({ type: 'lead_contact', occurrence: leadOccurrence } as any)
-    for (const event of occurrences) {
-      // Re-read under a row lock: assignment/date/completion cannot race generation.
-      await db.$transaction(async (tx: any) => {
+    if (evaluated && Date.now() - start >= 15000) return result(`${cursor.kind}:${after}`)
+    if (cursor.kind === 'case' && (record.customDates.length > 100 || record.statusHistory.length > 100)) throw new Error('Case date/history page exceeds scheduled bounds')
+    if (occurrences(cursor.kind, record, now).length) {
+      notificationsCreated += await db.$transaction(async (tx: any) => {
         const table = { task: 'Task', case: 'Case', lead: 'Lead' }[cursor.kind]
-        await tx.$queryRawUnsafe(`SELECT id FROM "${table}" WHERE id = $1 FOR UPDATE`, record.id)
-        const fresh = await tx[cursor.kind].findFirst({ where: { id: record.id, organizationId: record.organizationId }, ...(cursor.kind === 'case' ? { include: { client: { select: { organizationId: true, firstName: true, lastName: true } }, customDates: true, statusHistory: { select: { fromStatus: true, changedAt: true } } } } : {}) })
-        if (!fresh) return
-        const stillDue = cursor.kind === 'task' ? taskOccurrences(fresh, now) : cursor.kind === 'case' ? caseOccurrences(fresh, now) : [{ type: 'lead_contact', occurrence: leadContactOccurrence(fresh, now) }]
-        if (stillDue.some((item: any) => item.type === event.type && item.occurrence === event.occurrence)) await emitNotification(tx, event.type, cursor.kind, fresh, event.occurrence)
-      })
+        await tx.$queryRawUnsafe(`SELECT id FROM "${table}" WHERE id = $1 AND "organizationId" = $2 FOR UPDATE`, record.id, record.organizationId)
+        const fresh = await tx[cursor.kind].findFirst({ where: { id: record.id, organizationId: record.organizationId }, ...(include ? { include } : {}) })
+        if (!fresh) return 0
+        if (cursor.kind === 'case' && (fresh.customDates.length > 100 || fresh.statusHistory.length > 100)) throw new Error('Case date/history page exceeds scheduled bounds')
+        return emitScheduledNotifications(tx, cursor.kind, fresh, occurrences(cursor.kind, fresh, now))
+      }, { maxWait: 10000, timeout: 10000 })
     }
+    after = record.id
+    evaluated++
   }
   const nextKind = { task: 'case', case: 'lead', lead: null }[cursor.kind]
-  return { evaluated: records.length, nextCursor: records.length === 25 ? `${cursor.kind}:${records[24].id}` : nextKind ? `${nextKind}:` : null }
+  return result(records.length === EVALUATION_BATCH_SIZE ? `${cursor.kind}:${after}` : nextKind ? `${nextKind}:` : null)
 }

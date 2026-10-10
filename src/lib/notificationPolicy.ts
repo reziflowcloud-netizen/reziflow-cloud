@@ -1,6 +1,9 @@
+import { warsawTimestamp as reminderTimestamp } from './warsawDateTime.ts'
+export { reminderTimestamp }
 // Pure policy shared by server, UI and tests. Settings never grant entity access.
 import { isClosedCaseStatus } from './caseI18n.ts'
 import { shouldRetirePersonalAppearTask } from './caseImportantDateTasks.ts'
+import { notificationText } from './notificationI18n.ts'
 export const NOTIFICATION_TYPES = ['lead_assigned', 'task_assigned', 'task_due', 'task_overdue', 'case_date', 'lead_contact'] as const
 export type NotificationType = typeof NOTIFICATION_TYPES[number]
 export type NotificationPreferences = {
@@ -40,28 +43,16 @@ export function assignmentOccurrence(current: any, previous?: any) {
   return `${current.assignedToId}:${new Date(current.updatedAt || current.createdAt).toISOString()}`
 }
 export function dateKey(value: Date | string) {
-  return new Date(value).toISOString().slice(0, 10)
+  // Existing input[type=date] fields persist their literal calendar date in UTC.
+  const date = new Date(value)
+  return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : ''
 }
 export function warsawDay(now: Date) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Warsaw', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now)
   return ['year', 'month', 'day'].map(type => parts.find(part => part.type === type)?.value).join('-')
 }
-// Existing datetime-local reminder values are Poland wall time; explicit offsets stay exact.
-export function reminderTimestamp(value: string) {
-  if (/Z$|[+-]\d\d:\d\d$/.test(value)) return new Date(value).getTime()
-  const base = Date.parse(value + 'Z')
-  if (!Number.isFinite(base)) return NaN
-  let candidate = base
-  for (let i = 0; i < 3; i++) {
-    const parts = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Warsaw', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(candidate))
-    const p = (type: string) => parts.find(part => part.type === type)?.value
-    const represented = Date.parse(`${p('year')}-${p('month')}-${p('day')}T${p('hour')}:${p('minute')}:${p('second')}Z`)
-    candidate += base - represented
-  }
-  return candidate
-}
 export function taskOccurrences(task: any, now: Date) {
-  if (['done', 'completed', 'cancelled', 'canceled', 'inactive'].includes(task.status)) return []
+  if (['done', 'completed', 'cancelled', 'canceled', 'inactive'].includes(String(task.status).trim().toLowerCase())) return []
   let meta: any = {}
   try { meta = JSON.parse(task.description || '{}') } catch { /* plain description */ }
   if (meta.leadReminder || meta.caseImportantDate || meta.fingerprintsAppointment || meta.predictedDecision) return []
@@ -80,14 +71,27 @@ export const CASE_NOTIFICATION_DATE_FIELDS = ['fingerprintsDate', 'predictedDeci
 export function caseOccurrences(record: any, now: Date) {
   if (isClosedCaseStatus(record.status)) return []
   const today = Date.parse(warsawDay(now) + 'T00:00:00Z')
+  const normalize = (value: string) => String(value).normalize('NFKC').toLowerCase().replace(new RegExp('[^\\p{L}\\p{N}]', 'gu'), '')
+  const semanticKind = (item: any) => CASE_NOTIFICATION_DATE_FIELDS.find(kind =>
+    normalize(item.label || '') === normalize(kind) || Object.values(notificationText).some(copy => normalize(item.label || '') === normalize(copy.dates[kind])))
+  const custom = [...(record.customDates || [])].sort((a: any, b: any) => a.id - b.id)
+  const seen = new Set<string>()
   const dates = [
     ...CASE_NOTIFICATION_DATE_FIELDS.map(kind => ({ kind, date: record[kind] })),
-    ...(record.customDates || []).map((item: any) => ({ kind: `custom:${item.id}`, date: item.date })),
+    ...custom.filter((item: any) => {
+      const kind = semanticKind(item)
+      if (kind && record[kind] && dateKey(record[kind]) === dateKey(item.date)) return false
+      const key = `${item.label ? normalize(item.label) : item.id}:${dateKey(item.date)}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    }).map((item: any) => ({ kind: `custom:${item.id}`, date: item.date })),
   ]
   return dates.flatMap(item => {
     if (!item.date) return []
     if (item.kind === 'personalAppearDate' && shouldRetirePersonalAppearTask(item.date, record.statusHistory || [], now)) return []
     const day = dateKey(item.date)
+    if (!day) return []
     const days = (Date.parse(day + 'T00:00:00Z') - today) / 86400000
     if (days < 0 || days > 7) return []
     // Catch up a missed scheduled run within the window without repeating each day.
@@ -97,8 +101,9 @@ export function caseOccurrences(record: any, now: Date) {
 }
 export function leadContactOccurrence(lead: any, now: Date) {
   const status = String(lead.status || '').trim().toLowerCase()
-  if (!lead.nextContactAt || lead.convertedAt || lead.convertedClientId || ['не подходит', 'не підходить', 'nie pasuje'].includes(status) || ['клиент', 'клієнт', 'client', 'klient'].some(value => status.includes(value))) return null
+  if (!lead.nextContactAt || lead.convertedAt || lead.convertedClientId || isClosedCaseStatus(status) || ['не подходит', 'не підходить', 'nie pasuje', 'lost', 'cancelled', 'canceled'].includes(status) || ['клиент', 'клієнт', 'client', 'klient'].some(value => status.includes(value))) return null
   const next = new Date(lead.nextContactAt)
+  if (!Number.isFinite(next.getTime())) return null
   if (next > now || (lead.lastContactAt && new Date(lead.lastContactAt) >= next)) return null
   return next.toISOString()
 }
