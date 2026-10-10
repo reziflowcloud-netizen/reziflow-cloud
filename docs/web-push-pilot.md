@@ -92,6 +92,12 @@ Reproduce with `NOTIFICATIONS_TEST_DATABASE_URL` pointing only to a loopback dat
 
 ## Changed files
 
+### Native pilot navigation after real-device diagnostics
+
+On the pilot iPhone running iOS 26.6.2, the fresh `pilot-click-diag-1` worker logged receipt of the background test, but no click/navigation trace arrived and the user reported Settings opening again. With the app fully closed, receipt, `click-start`, `clients-found` and `open-window` were recorded; the user reached Dashboard and the own resolver marked the synthetic record read. The interval between click and openWindow resolution was about 11 seconds, and the user reported slow loading. This confirms the closed-app path, but does not prove the cause of the separate background failure.
+
+Worker `pilot-click-navigate-2` sets the standard `NotificationOptions.navigate` only for marked synthetic pilot pushes, using the validated same-origin notification resolver (or Dashboard for invalid paths). Modern WebKit handles activation through that URL without a worker click event; older browsers ignore the option and retain the existing authenticated click fallback. This does not change the push transport format, subscription or allowlist. Native activation therefore need not produce `click-start`; acceptance requires physical Dashboard navigation and the own resolver/read evidence. [Notification creation and activation semantics](https://notifications.spec.whatwg.org/#activating-a-notification). A fresh worker check and a controlled real background repeat are still required before claiming the fix passes. Icon badge, unsubscribe and re-enable remain pending; automatic events and scheduler remain OFF.
+
 ### Activation diagnostics after the failed repeat
 
 The background repeat after the first activation fix again restored Settings with the new synthetic notification unread. System-click activation remains **FAIL**; no real-device success is inferred from VM tests. Request logs show worker script requests before the repeat but cannot prove which worker executed on iPhone.

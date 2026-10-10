@@ -38,3 +38,15 @@ test('worker reports fixed version, traces synthetic click before client work, w
  assert.equal(order[0],'click-start');assert.ok(order.includes('open'));assert.deepEqual(stages,['click-start','clients-found','open-window-null'])
  stages.length=0;handlers.notificationclick({notification:{data:{url:path,pilotDiagnostics:false},close(){}},waitUntil:p=>pending=p});await pending;assert.deepEqual(stages,[])
 })
+test('synthetic notification delegates only a same-origin resolver to native navigation; other notifications keep click fallback',async()=>{
+ const handlers={},shown=[],self={crypto:{randomUUID},location:{origin:'https://legalhubcrm.com'},addEventListener:(name,handler)=>handlers[name]=handler,registration:{showNotification:async(title,options)=>shown.push({title,options})},navigator:{},clients:{matchAll:async()=>[]}}
+ vm.runInNewContext(fs.readFileSync('public/notification-sw.js','utf8'),{self,URL,MessageChannel,setTimeout,clearTimeout,AbortController,fetch:async()=>({ok:true})})
+ const push=async payload=>{let pending;handlers.push({data:{json:()=>payload},waitUntil:p=>pending=p});await pending;return shown.at(-1)}
+ const own=await push({url:path,body:'Safe test',pilotDiagnostics:true})
+ assert.equal(own.options.navigate,`https://legalhubcrm.com${path}`);assert.equal(own.options.data.url,path);assert.equal(own.options.data.workerVersion,PUSH_PILOT_WORKER_VERSION)
+ for(const url of ['https://foreign.test/','//foreign.test/','/notifications/open/../../settings','javascript:alert(1)']){
+  const invalid=await push({url,pilotDiagnostics:true});assert.equal(invalid.options.navigate,'https://legalhubcrm.com/dashboard');assert.equal(invalid.options.data.url,'/dashboard')
+ }
+ const ordinary=await push({url:path,pilotDiagnostics:false});assert.equal(Object.hasOwn(ordinary.options,'navigate'),false);assert.equal(ordinary.options.data.url,path)
+ assert.equal(typeof handlers.notificationclick,'function')
+})

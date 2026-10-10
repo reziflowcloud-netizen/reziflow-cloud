@@ -1,5 +1,5 @@
 /* Push-only worker. Deliberately no fetch handler, Cache API or offline storage. */
-const PILOT_WORKER_VERSION = 'pilot-click-diag-1';
+const PILOT_WORKER_VERSION = 'pilot-click-navigate-2';
 const pilotInstanceId = self.crypto.randomUUID();
 function pilotTrace(notification, pending) {
   const path = notification?.url;
@@ -28,6 +28,10 @@ self.addEventListener('push', event => {
       body: typeof payload.body === 'string' ? payload.body.slice(0, 250) : 'LegalHub CRM',
       icon: '/favicon.png', badge: '/favicon.png',
       tag: typeof payload.tag === 'string' ? payload.tag.slice(0, 100) : 'legalhub',
+      // Modern WebKit can navigate on activation without starting this worker.
+      // Keep this change on synthetic pilot pushes; older browsers ignore the
+      // option and continue through the authenticated notificationclick fallback.
+      ...(payload.pilotDiagnostics === true ? { navigate: new URL(safeUrl, self.location.origin).href } : {}),
       data: { url: safeUrl, pilotDiagnostics: payload.pilotDiagnostics === true, workerVersion: PILOT_WORKER_VERSION },
     });
     const pending = [];
