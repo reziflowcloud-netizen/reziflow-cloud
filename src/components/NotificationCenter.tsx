@@ -93,9 +93,9 @@ export default function NotificationCenter() {
     const refresh = () => { if (document.visibilityState === 'visible') void sync() }
     const workerMessage = (event: MessageEvent) => { if (event.data?.type === 'notifications-changed') refresh() }
     const timer = window.setInterval(refresh, 45000)
-    window.addEventListener('focus', refresh); document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('focus', refresh); window.addEventListener('notifications-changed', refresh); document.addEventListener('visibilitychange', refresh)
     navigator.serviceWorker?.addEventListener('message', workerMessage)
-    return () => { clearInterval(timer); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh); navigator.serviceWorker?.removeEventListener('message', workerMessage) }
+    return () => { clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('notifications-changed', refresh); document.removeEventListener('visibilitychange', refresh); navigator.serviceWorker?.removeEventListener('message', workerMessage) }
   }, [available, sync])
   useEffect(() => {
     if (!open) return

@@ -31,9 +31,13 @@ export async function GET(request: NextRequest) {
   const user = await authenticatedNotificationUser()
   if (!user) return NextResponse.json({ error: 'Unavailable' }, { status: 401 })
   const hash = request.nextUrl.searchParams.get('endpointHash') || ''
+  if (!hash && pushConfigured() && pushUserAllowed(user.id)) {
+    const devices = await prisma.pushSubscription.findMany({ where: { userId: user.id, organizationId: user.organizationId, disabledAt: null }, select: { id: true, deviceLabel: true, createdAt: true }, orderBy: { createdAt: 'asc' }, take: 10 })
+    return NextResponse.json({ devices }, { headers: { 'Cache-Control': 'private, no-store' } })
+  }
   if (!/^[a-f0-9]{64}$/.test(hash)) return NextResponse.json({ active: false })
   const subscription = await prisma.pushSubscription.findFirst({ where: { userId: user.id, organizationId: user.organizationId, endpointHash: hash, disabledAt: null }, select: { id: true } })
-  return NextResponse.json({ active: !!subscription }, { headers: { 'Cache-Control': 'private, no-store' } })
+  return NextResponse.json({ active: !!subscription, subscriptionId: subscription?.id ?? null }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 export async function DELETE(request: NextRequest) {
   const user = await authenticatedNotificationUser()

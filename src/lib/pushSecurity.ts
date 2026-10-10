@@ -60,7 +60,11 @@ export function pushConfigured() {
     /^(mailto:|https:\/\/)/.test(process.env.VAPID_SUBJECT || '') &&
     /^[a-fA-F0-9]{64}$/.test(process.env.PUSH_SUBSCRIPTION_ENCRYPTION_KEY || '')
 }
-export function pushUserAllowed(userId: number) {
-  const testUser = process.env.PUSH_TEST_USER_ID
-  return !testUser || String(userId) === testUser
+export function pushPilotUserIds(): number[] {
+  const raw = process.env.WEB_PUSH_PILOT_USER_IDS ?? process.env.PUSH_TEST_USER_ID ?? ''
+  if (!raw || raw.length > 1000) return []
+  const values = raw.split(',').map(value => value.trim())
+  if (values.length > 50 || values.some(value => !/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(Number(value)))) return []
+  return Array.from(new Set(values.map(Number)))
 }
+export function pushUserAllowed(userId: number) { return pushPilotUserIds().includes(userId) }

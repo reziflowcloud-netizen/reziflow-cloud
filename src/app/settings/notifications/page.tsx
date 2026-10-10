@@ -6,6 +6,7 @@ import { notificationText } from '@/lib/notificationI18n'
 import { NOTIFICATION_TYPES, type NotificationPreferences } from '@/lib/notificationPolicy'
 import { browserEndpointHash, disconnectPushDevice, pushSupported, vapidBytes } from '@/lib/notificationBrowser'
 import styles from '@/components/Notifications.module.css'
+import { pushPilotText, pushPilotPending } from '@/lib/pushPilotPolicy'
 
 export default function NotificationSettings() {
   const { lang } = useLanguage()
@@ -14,10 +15,20 @@ export default function NotificationSettings() {
   const [config, setConfig] = useState<{ canReceiveTeam: boolean; pushAvailable: boolean; publicKey: string; devices: number } | null>(null)
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('unsupported')
   const [active, setActive] = useState(false)
+  const [devices, setDevices] = useState<{ id: string; deviceLabel: string; createdAt: string }[]>([])
+  const [targetDevice, setTargetDevice] = useState('')
+  const [testStatus, setTestStatus] = useState<'pending' | 'accepted' | null>(null)
+  const [testRequest, setTestRequest] = useState<{ subscriptionId: string; requestId: string; language: typeof lang } | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<'saved' | 'error' | null>(null)
   const [unavailable, setUnavailable] = useState(false)
   const [missingEntity, setMissingEntity] = useState(false)
+  const refreshDevices = useCallback(async () => {
+    const response = await fetch('/api/notifications/subscriptions', { cache: 'no-store' })
+    const data = response.ok ? await response.json() : null
+    setDevices(data?.devices || [])
+    setTargetDevice(current => data?.devices?.some((device: { id: string }) => device.id === current) ? current : data?.devices?.[0]?.id || '')
+  }, [])
   const deviceState = useCallback(async () => {
     if (!pushSupported()) { setPermission('unsupported'); return }
     setPermission(Notification.permission)
@@ -34,11 +45,12 @@ export default function NotificationSettings() {
       if (!response.ok) { setUnavailable(true); return }
       const data = await response.json(); setConfig(data); setPreferences(data.preferences)
       await deviceState()
+      if (data.pushAvailable) await refreshDevices()
     }).catch(() => setMessage('error'))
-    const refresh = () => { void deviceState().catch(() => undefined) }
+    const refresh = () => { void deviceState().catch(() => undefined); void refreshDevices().catch(() => undefined) }
     window.addEventListener('focus', refresh)
     return () => window.removeEventListener('focus', refresh)
-  }, [deviceState])
+  }, [deviceState, refreshDevices])
   async function persist(value: NotificationPreferences) {
     const response = await fetch('/api/notifications/preferences', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...value, language: lang }) })
     if (!response.ok) throw new Error()
@@ -64,11 +76,25 @@ export default function NotificationSettings() {
       if (!response.ok) { await subscription.unsubscribe(); throw new Error() }
       await persist({ ...preferences, pushEnabled: true })
       setActive(true); setConfig(current => current ? { ...current, devices: current.devices + (active ? 0 : 1) } : current)
+      await refreshDevices()
     } catch { setMessage('error') } finally { setBusy(false) }
   }
   async function disable() {
     setBusy(true); setMessage(null)
-    try { await disconnectPushDevice(); setActive(false); setConfig(current => current ? { ...current, devices: Math.max(0, current.devices - 1) } : current) } catch { setMessage('error') } finally { setBusy(false) }
+    try { await disconnectPushDevice(); setActive(false); setConfig(current => current ? { ...current, devices: Math.max(0, current.devices - 1) } : current); await refreshDevices() } catch { setMessage('error') } finally { setBusy(false) }
+  }
+  async function testPush() {
+    if (!targetDevice || !config?.pushAvailable || !preferences?.pushEnabled) return
+    const request = testRequest?.subscriptionId === targetDevice ? testRequest : { subscriptionId: targetDevice, requestId: crypto.randomUUID(), language: lang }
+    setTestRequest(request); setBusy(true); setMessage(null); setTestStatus(null)
+    try {
+      const response = await fetch('/api/notifications/test-push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) })
+      const result = await response.json()
+      if (!response.ok || result.status === 'failed') { if (response.ok || response.status < 500) setTestRequest(null); throw new Error() }
+      if (result.status === 'accepted') { setTestStatus('accepted'); setTestRequest(null) }
+      else { setTestStatus('pending') }
+      window.dispatchEvent(new Event('notifications-changed'))
+    } catch { setMessage('error') } finally { setBusy(false) }
   }
   async function masterOff() {
     if (!preferences) return
@@ -89,10 +115,17 @@ export default function NotificationSettings() {
           {!config.pushAvailable && <p>{copy.unavailable}</p>}
           {active && preferences.pushEnabled && <p role="status">✓ {copy.enabled}</p>}
           <div className={styles.controls}>
-            {(!active || !preferences.pushEnabled) && <button className="btn btn-primary" disabled={busy || !config.pushAvailable || permission === 'denied' || permission === 'unsupported'} onClick={() => void enable()}>{copy.enable}</button>}
+            {config.pushAvailable && (!active || !preferences.pushEnabled) && <button className="btn btn-primary" disabled={busy || permission === 'denied' || permission === 'unsupported'} onClick={() => void enable()}>{copy.enable}</button>}
             {active && <button className="btn btn-secondary" disabled={busy} onClick={() => void disable()}>{copy.disable}</button>}
             {preferences.pushEnabled && <button className="btn btn-secondary" disabled={busy} onClick={() => void masterOff()}>{copy.masterOff}</button>}
           </div>
+          {config.pushAvailable && devices.length > 0 && <div className={`${styles.controls} ${styles.pilotControls}`}>
+            <label>{copy.devices}<select aria-label={copy.devices} value={targetDevice} disabled={busy} onChange={event => { setTargetDevice(event.target.value); setTestRequest(null); setTestStatus(null) }}>
+              {devices.map((device, index) => <option key={device.id} value={device.id}>{device.deviceLabel} · {index + 1}</option>)}
+            </select></label>
+            <button className="btn btn-secondary" disabled={busy || !targetDevice || !preferences.pushEnabled} onClick={() => void testPush()}>{pushPilotText[lang].send}</button>
+          </div>}
+          {testStatus && <p role="status">{testStatus === 'accepted' ? pushPilotText[lang].accepted : pushPilotPending[lang]}</p>}
         </section>
         <section className="card"><table className={styles.settingsTable}><thead><tr><th scope="col">{copy.event}</th><th scope="col">{copy.inApp}</th><th scope="col">{copy.push}</th></tr></thead><tbody>
           {NOTIFICATION_TYPES.map(type => <tr key={type}><td>{copy.events[type]}</td>{(['inApp', 'push'] as const).map(channel => <td key={channel}><label><input type="checkbox" disabled={busy} aria-label={`${copy.events[type]}: ${copy[channel]}`} checked={preferences.events[type][channel]} onChange={event => setPreferences({ ...preferences, events: { ...preferences.events, [type]: { ...preferences.events[type], [channel]: event.target.checked } } })} /></label></td>)}</tr>)}

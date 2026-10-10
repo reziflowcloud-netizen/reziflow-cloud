@@ -19,7 +19,8 @@ export function visibleNotificationSql(user: any, inAppOnly = true) {
     AND (
       (n."entityType" = 'lead' AND EXISTS (SELECT 1 FROM "Lead" e WHERE e.id = n."entityId" AND e."organizationId" = n."organizationId" ${access})) OR
       (n."entityType" = 'case' AND EXISTS (SELECT 1 FROM "Case" e WHERE e.id = n."entityId" AND e."organizationId" = n."organizationId" ${access})) OR
-      (n."entityType" = 'task' AND EXISTS (SELECT 1 FROM "Task" e WHERE e.id = n."entityId" AND e."organizationId" = n."organizationId" ${access}))
+      (n."entityType" = 'task' AND EXISTS (SELECT 1 FROM "Task" e WHERE e.id = n."entityId" AND e."organizationId" = n."organizationId" ${access})) OR
+      (n."type" = 'push_test' AND n."entityType" = 'push_test' AND n."entityId" = n.id AND n."deepLink" = '/dashboard' AND n."dedupeKey" ~ '^push-pilot:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
     )`
 }
 export async function unreadNotificationCount(user: any, db: any = prisma) {
