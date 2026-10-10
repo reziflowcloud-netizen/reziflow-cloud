@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import fs from 'node:fs'
 import vm from 'node:vm'
+import { MessageChannel } from 'node:worker_threads'
 import { createECDH, randomBytes, randomUUID } from 'node:crypto'
 import { PrismaClient } from '@prisma/client'
 import { pushPilotUserIds, pushUserAllowed, encryptSubscription, endpointHash, subscriptionAAD } from '../src/lib/pushSecurity.ts'
@@ -32,14 +33,14 @@ test('synthetic payload never includes identity even with privacy option enabled
 })
 test('existing Service Worker: stable tags, badge, safe click/focus, no data cache',async () => {
   const handlers={},shown=[],badges=[],navigated=[],opened=[]
-  let windows=[{url:'https://legalhubcrm.com/dashboard',postMessage(){},navigate:async url=>navigated.push(url),focus:async()=>navigated.push('focus')}]
+  let windows=[{url:'https://legalhubcrm.com/dashboard',postMessage(message,ports){ports?.[0].postMessage('not-handled')},navigate:async url=>{navigated.push(url);return windows[0]},focus:async()=>navigated.push('focus')}]
   const self={location:{origin:'https://legalhubcrm.com'},addEventListener:(name,handler)=>handlers[name]=handler,registration:{showNotification:async(...args)=>shown.push(args)},navigator:{setAppBadge:async n=>badges.push(n),clearAppBadge:async()=>badges.push(0)},clients:{matchAll:async()=>windows,openWindow:async url=>opened.push(url)}}
-  vm.runInNewContext(fs.readFileSync('public/notification-sw.js','utf8'),{self,URL})
+  vm.runInNewContext(fs.readFileSync('public/notification-sw.js','utf8'),{self,URL,MessageChannel,setTimeout,clearTimeout})
   async function dispatch(type,data){let pending;handlers[type]({...data,waitUntil:p=>pending=p});await pending}
   const payload={body:'Synthetic only',tag:'same-id',url:'/notifications/open/test-id',unread:1}
   await dispatch('push',{data:{json:()=>payload}});await dispatch('push',{data:{json:()=>payload}})
   assert.equal(shown[0][1].tag,shown[1][1].tag);assert.deepEqual(badges,[1,1]);assert.equal(handlers.fetch,undefined)
-  await dispatch('notificationclick',{notification:{close(){},data:{url:payload.url}}});assert.deepEqual(navigated,['https://legalhubcrm.com/notifications/open/test-id','focus'])
+  await dispatch('notificationclick',{notification:{close(){},data:{url:payload.url}}});assert.deepEqual(navigated,['focus','https://legalhubcrm.com/notifications/open/test-id','focus'])
   windows=[];await dispatch('notificationclick',{notification:{close(){},data:{url:'https://evil.test'}}});assert.deepEqual(opened,['https://legalhubcrm.com/dashboard'])
   await dispatch('push',{data:{json:()=>({...payload,unread:0,url:'//evil.test'})}});assert.equal(badges.at(-1),0);assert.equal(shown.at(-1)[1].data.url,'/dashboard')
   delete self.navigator.setAppBadge;delete self.navigator.clearAppBadge

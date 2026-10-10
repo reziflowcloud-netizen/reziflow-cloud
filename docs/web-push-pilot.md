@@ -92,6 +92,14 @@ Reproduce with `NOTIFICATIONS_TEST_DATABASE_URL` pointing only to a loopback dat
 
 ## Changed files
 
+### iPhone notification activation follow-up
+
+The first controlled Production test reached the pilot iPhone while the app was in the background. The user confirmed a lock-screen system notification with the synthetic Ukrainian copy. Opening its Notification Center record reached Dashboard, marked it read and cleared the in-app bell count. Tapping the system notification initially restored the Settings page instead of following the resolver; this activation check remains failed until a real-device repeat passes. Closed-app delivery, Home Screen icon badge, unsubscribe and re-enable remain pending.
+
+Notification activation now first wakes an existing same-origin window and requests a bounded resolver navigation from the page over a one-use MessageChannel. Only the same-origin notification worker and a Dashboard or strict notification resolver path are accepted. Page acknowledgement prevents duplicate native navigation. If the page cannot acknowledge within one second, native navigation uses the returned WindowClient; null/rejection falls through to another window or openWindow. Failed focus cannot abort navigation. Existing registrations check for worker updates on app load without permission prompts or new subscriptions. No notification payload, pending click or CRM data is persisted in the worker.
+
+The fallback addresses unhandled client navigation failures; the exact iPhone failure cause is not proven without device diagnostics. [WebKit reports similar Home Screen notification activation failures](https://bugs.webkit.org/show_bug.cgi?id=263687). Automated regression covers suspended-client handoff, native navigation null/rejection, focus rejection, missing listeners, transport failure, foreign clients and unsafe paths. Automatic events and scheduler stay OFF throughout.
+
 - `src/lib/pushSecurity.ts` — fail-closed pilot allowlist.
 - `src/lib/pushPilotPolicy.ts` — fixed localized text and strict synthetic marker.
 - `src/lib/pushPilot.ts` — scoped/manual/idempotent/rate-limited creation and delivery.
