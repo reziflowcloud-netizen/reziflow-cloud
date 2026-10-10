@@ -287,6 +287,13 @@ test('Phase 3A: real assignment routes, ingestion replay, scoped outbox and secu
     user.current = second
     const leadNotification = await db.notification.findFirst({ where: { entityId: lead.id, userId: second.id } })
     assert.equal((await open(new NextRequest('http://localhost/notifications/open/' + leadNotification.id), { params: { id: leadNotification.id } })).headers.get('Location'), '/leads/' + lead.id)
+    user.current = null
+    const leadLogin = (await open(new NextRequest('http://localhost/notifications/open/' + leadNotification.id), { params: { id: leadNotification.id } })).headers.get('Location')
+    assert.ok(leadLogin.startsWith('/login?next='))
+    const leadReturn = safeNotificationReturn(new URL(leadLogin, 'http://localhost').searchParams.get('next'))
+    assert.equal(leadReturn, '/notifications/open/' + leadNotification.id)
+    user.current = second
+    assert.equal((await open(new NextRequest('http://localhost' + leadReturn), { params: { id: leadNotification.id } })).headers.get('Location'), '/leads/' + lead.id, 'Expired Lead session retains the exact resolver after login')
     user.current = first
     const inaccessible = await db.notification.findFirst({ where: { entityId: lead.id, userId: first.id } })
     assert.equal((await open(new NextRequest('http://localhost/notifications/open/' + inaccessible.id), { params: { id: inaccessible.id } })).headers.get('Location'), '/dashboard', 'Reassigned Lead cannot be opened by its old recipient')
@@ -306,6 +313,11 @@ test('Phase 3A: real assignment routes, ingestion replay, scoped outbox and secu
     assert.equal((await deliverNotificationPush(db, sender, new Date(), undefined, { organizationId: org.id, entityIds: [linkedLead.id] })).delivered, 0, 'Delivery rechecks a disabled Employee link')
     assert.ok((await db.notificationPushDelivery.findFirst({ where: { notification: { entityId: linkedLead.id }, userId: first.id } })).terminalAt)
     await db.employee.update({ where: { id: employees[0].id }, data: { active: true } })
+    const deletedLeadNotification = await db.notification.findFirst({ where: { entityId: linkedLead.id, userId: first.id } })
+    await db.lead.delete({ where: { id: linkedLead.id } })
+    user.current = first
+    assert.equal((await open(new NextRequest('http://localhost/notifications/open/' + deletedLeadNotification.id), { params: { id: deletedLeadNotification.id } })).headers.get('Location'), '/dashboard', 'Missing Lead safely falls back without Settings')
+    user.current = owner
     await db.notificationPreference.update({ where: { userId_organizationId: { userId: first.id, organizationId: org.id } }, data: { events: { task_assigned: { inApp: true, push: true } } } })
     const bulkRecords = await Promise.all(Array.from({ length: 21 }, async () => {
       const record = await db.task.create({ data: { organizationId: org.id, assignedToId: first.id, title: 'Automatic page QA' } })
