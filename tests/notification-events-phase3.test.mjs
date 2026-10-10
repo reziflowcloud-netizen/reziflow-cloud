@@ -12,6 +12,7 @@ import { assignmentEventsEnabled, notificationEventAllowed } from '../src/lib/no
 import { evaluateNotificationPage } from '../src/lib/notificationJobs.ts'
 import { deliverNotificationPush, pushPayload } from '../src/lib/notificationPush.ts'
 import { notificationPreferences } from '../src/lib/notificationPolicy.ts'
+import { safeNotificationReturn } from '../src/lib/notificationPolicy.ts'
 import { encryptSubscription, endpointHash, subscriptionAAD } from '../src/lib/pushSecurity.ts'
 import { createTaskFetch } from '../src/lib/createTaskFetch.ts'
 import { dispatchAssignmentPush } from '../src/lib/assignmentDelivery.ts'
@@ -270,14 +271,27 @@ test('Phase 3A: real assignment routes, ingestion replay, scoped outbox and secu
     user.current = first
     const clicked = await open(new NextRequest('http://localhost/notifications/open/' + hidden.id), { params: { id: hidden.id } })
     assert.equal(clicked.headers.get('Location'), '/tasks?notificationTask=' + record.id)
-    assert.ok((await db.notification.findUnique({ where: { id: hidden.id } })).readAt, 'Push-only click marks read')
+    const readAt = (await db.notification.findUnique({ where: { id: hidden.id } })).readAt
+    assert.ok(readAt, 'Push-only click marks read')
+    await open(new NextRequest('http://localhost/notifications/open/' + hidden.id), { params: { id: hidden.id } })
+    assert.equal((await db.notification.findUnique({ where: { id: hidden.id } })).readAt.getTime(), readAt.getTime(), 'Duplicate click does not rewrite read state')
     user.current = outsider
-    assert.equal((await open(new NextRequest('http://localhost/notifications/open/' + hidden.id), { params: { id: hidden.id } })).headers.get('Location'), '/settings/notifications?unavailable=1')
+    assert.equal((await open(new NextRequest('http://localhost/notifications/open/' + hidden.id), { params: { id: hidden.id } })).headers.get('Location'), '/dashboard')
     user.current = null
-    assert.ok((await open(new NextRequest('http://localhost/notifications/open/' + hidden.id), { params: { id: hidden.id } })).headers.get('Location').startsWith('/login?next='))
+    const loginLocation = (await open(new NextRequest('http://localhost/notifications/open/' + hidden.id), { params: { id: hidden.id } })).headers.get('Location')
+    assert.ok(loginLocation.startsWith('/login?next='))
+    const returnPath = safeNotificationReturn(new URL(loginLocation, 'http://localhost').searchParams.get('next'))
+    assert.equal(returnPath, '/notifications/open/' + hidden.id)
+    user.current = first
+    assert.equal((await open(new NextRequest('http://localhost' + returnPath), { params: { id: hidden.id } })).headers.get('Location'), '/tasks?notificationTask=' + record.id)
     user.current = second
     const leadNotification = await db.notification.findFirst({ where: { entityId: lead.id, userId: second.id } })
     assert.equal((await open(new NextRequest('http://localhost/notifications/open/' + leadNotification.id), { params: { id: leadNotification.id } })).headers.get('Location'), '/leads/' + lead.id)
+    user.current = first
+    const inaccessible = await db.notification.findFirst({ where: { entityId: lead.id, userId: first.id } })
+    assert.equal((await open(new NextRequest('http://localhost/notifications/open/' + inaccessible.id), { params: { id: inaccessible.id } })).headers.get('Location'), '/dashboard', 'Reassigned Lead cannot be opened by its old recipient')
+    await db.task.delete({ where: { id: record.id } })
+    assert.equal((await open(new NextRequest('http://localhost/notifications/open/' + hidden.id), { params: { id: hidden.id } })).headers.get('Location'), '/dashboard', 'Deleted Task has no stale deep link')
     user.current = owner
     await db.notificationPreference.update({ where: { userId_organizationId: { userId: first.id, organizationId: org.id } }, data: { events: { task_assigned: { inApp: true, push: false } } } })
     const visible = await db.task.create({ data: { organizationId: org.id, assignedToId: first.id, title: 'In-app only' } }); await notifyAssignment(db, 'task', visible)

@@ -63,7 +63,7 @@ test('notification resolver rechecks auth/access, marks own pilot read and retur
  const route=load('src/app/notifications/open/[id]/route.ts',{'@/lib/notificationRequest':{authenticatedNotificationUser:async()=>user},'@/lib/notifications':{authorizedNotification:async()=>notification,markNotificationsRead:async()=>read++},'@/lib/notificationPolicy':{entityLink},'@/lib/pushPilotPolicy':{isPushPilotNotification},'@/lib/prisma':{prisma:{notification:{updateMany:async({where})=>{assert.equal(where.userId,1);assert.equal(where.organizationId,'own')}}}}})
  const id=randomUUID(),request=new NextRequest(`https://legalhubcrm.com/notifications/open/${id}`),params={params:{id}}
  assert.equal((await route.GET(request,params)).headers.get('location'),'/login?'+new URLSearchParams({next:`/notifications/open/${id}`}))
- user={id:1,organizationId:'own'};assert.equal((await route.GET(request,params)).headers.get('location'),'/settings/notifications?unavailable=1');assert.equal(read,0)
+ user={id:1,organizationId:'own'};assert.equal((await route.GET(request,params)).headers.get('location'),'/dashboard');assert.equal(read,0)
  notification={id,entityId:id,type:'push_test',entityType:'push_test',deepLink:'/dashboard',dedupeKey:`push-pilot:${randomUUID()}`}
  assert.equal((await route.GET(request,params)).headers.get('location'),'/dashboard');assert.equal(read,1)
 })

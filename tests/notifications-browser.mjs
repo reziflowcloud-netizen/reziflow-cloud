@@ -139,7 +139,7 @@ const employeePrefs = (await (await employeeContext.request.get(url + '/api/noti
 assert.equal((await employeeContext.request.put(url + '/api/notifications/preferences', { data: { ...employeePrefs, scope: 'team' } })).status(), 403)
 assert.equal((await employeeContext.request.post(url + '/api/notifications/subscriptions', { data: first })).status(), 409)
 const foreignLink = await employeeContext.request.get(url + '/notifications/open/' + notificationIds[0], { maxRedirects: 0 })
-assert.ok(foreignLink.headers().location.includes('unavailable=1'))
+assert.equal(foreignLink.headers().location, '/dashboard')
 assert.equal((await ownerRequest.delete(url + '/api/notifications/subscriptions', { data: first })).status(), 200)
 assert.equal(await db.pushSubscription.count({ where: { userId: owner.id } }), 1)
 // Expired devices cannot be reactivated past the active-device limit.
