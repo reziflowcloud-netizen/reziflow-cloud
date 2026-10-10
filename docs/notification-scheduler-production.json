@@ -1,7 +1,7 @@
 {
   "scheduler": "GitHub Actions: Production notification scheduler",
   "workflow": ".github/workflows/notification-scheduler.yml",
-  "cadence": "7,22,37,52 * * * * (every 15 minutes, UTC schedule)",
+  "cadence": "12,27,42,57 * * * * (every 15 minutes, UTC schedule)",
   "businessTimezone": "Europe/Warsaw",
   "deliveryTiming": "GitHub scheduled jobs can be delayed. Reminders are evaluated at the actual invocation time; no real-time delivery guarantee.",
   "activation": "Set repository variable NOTIFICATION_SCHEDULER_ENABLED=true only after the Production deployment is READY and its pilot scope is verified.",
