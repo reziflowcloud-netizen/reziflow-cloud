@@ -17,6 +17,20 @@ export async function updateAppBadge(count: number) {
   const api = navigator as Navigator & { setAppBadge?: (value: number) => Promise<void>; clearAppBadge?: () => Promise<void> }
   try { if (count && api.setAppBadge) await api.setAppBadge(count); else if (api.clearAppBadge) await api.clearAppBadge() } catch { /* graceful fallback */ }
 }
+export function handleNotificationOpen(event: MessageEvent) {
+  const source = event.source as ServiceWorker | null
+  if (!source || typeof source.scriptURL !== 'string' || event.data?.type !== 'legalhub:notification-open') return
+  try {
+    const worker = new URL(source.scriptURL)
+    if (worker.origin !== window.location.origin || worker.pathname !== '/notification-sw.js') return
+  } catch { return }
+  const path = event.data.path
+  if (typeof path !== 'string' || (path !== '/dashboard' && !/^\/notifications\/open\/[\w-]{1,100}$/.test(path))) return
+  // Only an actual worker click opens the resolver. Receiving a push merely
+  // refreshes the unread count, and never marks the notification read.
+  event.ports[0]?.postMessage('notification-open-accepted')
+  window.location.assign(path)
+}
 export async function disconnectPushDevice() {
   if (!('serviceWorker' in navigator)) return
   const registration = await navigator.serviceWorker.getRegistration('/notification-sw.js')

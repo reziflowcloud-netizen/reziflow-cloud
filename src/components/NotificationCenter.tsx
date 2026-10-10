@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import { useLanguage } from '@/context/LanguageContext'
 import { notificationText } from '@/lib/notificationI18n'
 import type { NotificationType } from '@/lib/notificationPolicy'
-import { publishNotificationStatus, updateAppBadge } from '@/lib/notificationBrowser'
+import { handleNotificationOpen, publishNotificationStatus, updateAppBadge } from '@/lib/notificationBrowser'
 import { prepareScreenLeave } from '@/lib/screenLeave'
 import styles from './Notifications.module.css'
 type Item = { id: string; type: NotificationType; title: string; body: string; createdAt: string; readAt: string | null }
@@ -91,10 +91,13 @@ export default function NotificationCenter() {
     if (!available) return
     void sync()
     const refresh = () => { if (document.visibilityState === 'visible') void sync() }
-    const workerMessage = (event: MessageEvent) => { if (event.data?.type === 'notifications-changed') refresh() }
+    const workerMessage = (event: MessageEvent) => { handleNotificationOpen(event); if (event.data?.type === 'notifications-changed') refresh() }
     const timer = window.setInterval(refresh, 45000)
     window.addEventListener('focus', refresh); window.addEventListener('notifications-changed', refresh); document.addEventListener('visibilitychange', refresh)
     navigator.serviceWorker?.addEventListener('message', workerMessage)
+    // Refresh an existing worker after a release without requesting permission
+    // or creating a subscription on page load.
+    navigator.serviceWorker?.getRegistration('/notification-sw.js').then(registration => registration?.update()).catch(() => undefined)
     return () => { clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('notifications-changed', refresh); document.removeEventListener('visibilitychange', refresh); navigator.serviceWorker?.removeEventListener('message', workerMessage) }
   }, [available, sync])
   useEffect(() => {

@@ -18,6 +18,28 @@ self.addEventListener('push', event => {
     for (const client of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) client.postMessage({ type: 'notifications-changed' });
   })());
 });
+async function openInNotificationClient(client, path, url) {
+  // Wake suspended Home Screen windows before requesting navigation. A failed
+  // focus must not abort the authenticated resolver or its fallback.
+  try { await client.focus(); } catch { /* navigation may still succeed */ }
+  const handled = await new Promise(resolve => {
+    const channel = new MessageChannel();
+    const finish = value => {
+      clearTimeout(timer); channel.port1.close(); channel.port2.close(); resolve(value);
+    };
+    const timer = setTimeout(() => finish(false), 1000);
+    channel.port1.onmessage = event => finish(event.data === 'notification-open-accepted');
+    try { client.postMessage({ type: 'legalhub:notification-open', path }, [channel.port2]); }
+    catch { finish(false); }
+  });
+  if (handled) return true;
+  try {
+    const navigated = await client.navigate(url);
+    if (!navigated) return false;
+    try { await navigated.focus(); } catch { /* already opened by the OS */ }
+    return true;
+  } catch { return false; }
+}
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   event.waitUntil((async () => {
@@ -28,7 +50,7 @@ self.addEventListener('notificationclick', event => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of windows) {
       if (new URL(client.url).origin === self.location.origin && 'navigate' in client) {
-        await client.navigate(url); await client.focus(); return;
+        if (await openInNotificationClient(client, safePath, url)) return;
       }
     }
     await self.clients.openWindow(url);
