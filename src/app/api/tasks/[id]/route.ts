@@ -1,3 +1,4 @@
+import { dispatchAssignmentPush } from '@/lib/assignmentDelivery'
 // src/app/api/tasks/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -21,6 +22,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   try {
     const body = await request.json()
     const scope = await getDataAccessScope(user, organizationId)
+    let assignmentIds: string[] = []
     return await entityWrite(request, 'task', body, taskWhereForScope(scope, organizationId, { id: params.id }), async (tx, existing, claim) => {
       const data: any = {}
       for (const key of ['title', 'description', 'priority', 'status', 'clientName']) if (key in body) { if (body[key] != null && typeof body[key] !== 'string') throw new EntityWriteError(400, 'Invalid field'); data[key] = body[key] }
@@ -39,9 +41,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         if (meta?.clientId && !await tx.client.findFirst({ where: clientWhereForScope(scope, organizationId, { id: meta.clientId }), select: { id: true } })) throw new EntityWriteError(400, 'Client not found')
       }
       const updated = await claim(data)
-      await notifyAssignment(tx, 'task', updated, existing)
+      assignmentIds = await notifyAssignment(tx, 'task', updated, existing)
       return updated
-    })
+    }, async result => { if (assignmentIds.length) await dispatchAssignmentPush(organizationId, [result.id]) })
   } catch (error) { return entityWriteError(error) }
 }
 

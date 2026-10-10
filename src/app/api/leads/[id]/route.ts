@@ -1,3 +1,4 @@
+import { dispatchAssignmentPush } from '@/lib/assignmentDelivery'
 import { NextRequest, NextResponse } from 'next/server'
 import { notifyAssignment } from '@/lib/notifications'
 import { entityWrite, entityWriteError, EntityWriteError, writeEntityCustomFields, readEntityCustomFields } from '@/lib/entityWrite'
@@ -85,6 +86,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const scope = await getDataAccessScope(user, organizationId)
   try {
   const body = await request.json()
+  let assignmentIds: string[] = []
   return await entityWrite(request, 'lead', body, leadWhereForScope(scope, organizationId, { id: params.id }), async (tx, existing, claim) => {
   const normalized = normalizeLeadBody({ ...existing, ...body })
   const data: any = Object.fromEntries(Object.entries(normalized).filter(([key]) => Object.prototype.hasOwnProperty.call(body, key)))
@@ -130,7 +132,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
     if (data.assignedToId && !await tx.user.findFirst({ where: { organizationId, id: data.assignedToId }, select: { id: true } })) throw new EntityWriteError(400, 'User not found')
     const updated = await claim(data)
-    await notifyAssignment(tx, 'lead', updated, existing)
+    assignmentIds = await notifyAssignment(tx, 'lead', updated, existing)
     await writeEntityCustomFields(tx, organizationId, 'lead', params.id, body.customFieldValues)
     if (shouldUpdatePhones) {
       await tx.leadPhone.deleteMany({ where: { leadId: params.id, organizationId } })
@@ -202,7 +204,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
     const lead = await tx.lead.findFirst({ where: { id: params.id, organizationId }, include: { assignedTo: { select: { id: true, name: true } }, employee: { select: { id: true, name: true } }, phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } })
     return { ...lead, phones: phonesWithLegacy(lead) }
-  })
+  }, async result => { if (assignmentIds.length) await dispatchAssignmentPush(organizationId, [result.id]) })
   } catch (error) { return entityWriteError(error) }
 }
 

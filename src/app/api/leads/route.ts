@@ -1,3 +1,4 @@
+import { dispatchAssignmentPush } from '@/lib/assignmentDelivery'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
@@ -219,6 +220,7 @@ export async function POST(request: NextRequest) {
     throw error
   }
 
+  let assignmentIds: string[] = []
   const lead = await prisma.$transaction(async tx => {
   const created = await tx.lead.create({
     data: {
@@ -232,10 +234,11 @@ export async function POST(request: NextRequest) {
       phones: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
     },
   })
-  await notifyAssignment(tx, 'lead', created)
+  assignmentIds = await notifyAssignment(tx, 'lead', created)
   return created
   })
   await createNextContactTask(lead, organizationId, scope.restricted && scope.userId ? scope.userId : Number(user.id))
 
+  if (assignmentIds.length) await dispatchAssignmentPush(organizationId, [lead.id])
   return NextResponse.json(lead)
 }

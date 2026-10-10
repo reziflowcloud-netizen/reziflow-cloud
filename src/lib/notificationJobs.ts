@@ -1,6 +1,7 @@
 import { prisma } from './prisma.ts'
 import { caseOccurrences, leadContactOccurrence, taskOccurrences } from './notificationPolicy.ts'
-import { emitNotification, notificationEventsEnabled } from './notifications.ts'
+import { emitNotification } from './notifications.ts'
+import { notificationEventOrgIds, scheduledEventsEnabled } from './notificationEventGate.ts'
 
 export type EvaluationCursor = { kind: 'task' | 'case' | 'lead'; after: string }
 export function parseEvaluationCursor(value: string | null): EvaluationCursor {
@@ -11,9 +12,9 @@ export function parseEvaluationCursor(value: string | null): EvaluationCursor {
 }
 // Each invocation processes one bounded page. Scheduler drains nextCursor until null.
 export async function evaluateNotificationPage(cursor: EvaluationCursor, now = new Date(), db: any = prisma) {
-  if (!notificationEventsEnabled()) return { evaluated: 0, nextCursor: null }
+  if (!scheduledEventsEnabled()) return { evaluated: 0, nextCursor: null }
   const records = await db[cursor.kind].findMany({
-    where: { organizationId: { not: null }, id: { gt: cursor.after }, ...(cursor.kind === 'task' ? { status: { notIn: ['done', 'completed', 'cancelled', 'canceled', 'inactive'] } } : {}) },
+    where: { organizationId: { in: notificationEventOrgIds() }, id: { gt: cursor.after }, ...(cursor.kind === 'task' ? { status: { notIn: ['done', 'completed', 'cancelled', 'canceled', 'inactive'] } } : {}) },
     orderBy: { id: 'asc' }, take: 25,
     ...(cursor.kind === 'case' ? { include: { client: { select: { organizationId: true, firstName: true, lastName: true } }, customDates: true, statusHistory: { select: { fromStatus: true, changedAt: true } } } } : {}),
   })

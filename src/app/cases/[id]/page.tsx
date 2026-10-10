@@ -1,4 +1,5 @@
 'use client'
+import { createTaskFetch } from '@/lib/createTaskFetch'
 import NotificationBell from '@/components/NotificationBell'
 import { useCaseAutosave } from '@/hooks/useCaseAutosave'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
@@ -396,7 +397,7 @@ export default function CaseDetailPage() {
 
   async function createTaskWithMeta(title: string, dueDate: string, reminderNote: string, extraMeta: any) {
     const clientName = `${c?.client?.firstName || ''} ${c?.client?.lastName || ''}`.trim()
-    return fetch('/api/tasks', {
+    return createTaskFetch({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -673,7 +674,7 @@ export default function CaseDetailPage() {
     const caseLabel = c.caseNumber || t('no_number')
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]
-      await fetch('/api/tasks', {
+      await createTaskFetch({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -745,7 +746,7 @@ export default function CaseDetailPage() {
     setTaskSaving(true)
     const clientName = `${c.client?.firstName || ''} ${c.client?.lastName || ''}`.trim()
     const caseLabel = c.caseNumber || t('no_number')
-    await fetch('/api/tasks', {
+    await createTaskFetch({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

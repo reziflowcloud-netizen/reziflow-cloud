@@ -1,4 +1,5 @@
 'use client'
+import { createTaskFetch } from '@/lib/createTaskFetch'
 import NotificationBell from '@/components/NotificationBell'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
 import { freshJson } from '@/lib/screenRefresh'
@@ -319,7 +320,7 @@ export default function CalendarPage() {
   async function createTask() {
     if (!newForm.title.trim()) return alert('Введите название задачи')
     const client = clients.find((c: any) => c.id === newForm.clientId)
-    const res = await fetch('/api/tasks', {
+    const res = await createTaskFetch({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -330,6 +331,7 @@ export default function CalendarPage() {
         description: JSON.stringify({ reminderAt: newForm.reminderAt || null, reminderNote: newForm.reminderNote || '' }),
       }),
     })
+    if (!res.ok) return alert('Не удалось создать задачу. Попробуйте ещё раз.')
     const task = await res.json()
     setTasks(p => [task, ...p])
     setShowNewTask(false)

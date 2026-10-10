@@ -1,3 +1,4 @@
+import { dispatchAssignmentPush } from '@/lib/assignmentDelivery'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { notificationEventsEnabled, notifyLeadAssignmentBatch } from '@/lib/notifications'
@@ -69,20 +70,24 @@ export async function executeLeadBulkAction(args: {
     const assignedToId = employee
       ? await resolveUserIdForEmployee(organizationId, employee.id)
       : null
-    const result = notificationEventsEnabled() ? await prisma.$transaction(async tx => {
+    let pushEntities: string[] = []
+    const result = notificationEventsEnabled(organizationId) ? await prisma.$transaction(async tx => {
       const selected = await tx.lead.findMany({ where, select: { id: true } })
       if (!selected.length) return { count: 0 }
       await tx.$queryRaw(Prisma.sql`SELECT id FROM "Lead" WHERE id IN (${Prisma.join(selected.map(record => record.id))}) ORDER BY id FOR UPDATE`)
       const previous = await tx.lead.findMany({ where: { AND: [where, { id: { in: selected.map(record => record.id) } }] } })
       const changedWhere = { organizationId, id: { in: previous.map(record => record.id) } }
-      const result = await tx.lead.updateMany({ where: changedWhere, data: leadAssignmentData(employee?.id, assignedToId) })
+      const updatedAt = new Date(previous.reduce((max, row) => Math.max(max, row.updatedAt.getTime() + 1), Date.now()))
+      const result = await tx.lead.updateMany({ where: changedWhere, data: { ...leadAssignmentData(employee?.id, assignedToId), updatedAt } })
       const updated = await tx.lead.findMany({ where: changedWhere })
-      await notifyLeadAssignmentBatch(tx, organizationId, updated, previous)
+      const ids = await notifyLeadAssignmentBatch(tx, organizationId, updated, previous)
+      if (ids.length) pushEntities = updated.map(row => row.id)
       return result
     }, { timeout: 15000 }) : await (prisma as any).lead.updateMany({
       where,
       data: leadAssignmentData(employee?.id, assignedToId),
     })
+    await dispatchAssignmentPush(organizationId, pushEntities)
     return { matched, updated: result.count, employee }
   }
 

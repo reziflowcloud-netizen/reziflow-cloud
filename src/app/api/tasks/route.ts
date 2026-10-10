@@ -1,3 +1,6 @@
+import { dispatchAssignmentPush } from '@/lib/assignmentDelivery'
+import { createTaskOnce, TaskCreateConflict } from '@/lib/taskCreate'
+import { assignmentEventsEnabled } from '@/lib/notificationEventGate'
 // src/app/api/tasks/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -74,20 +77,31 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const assignedToId = scope.restricted && scope.userId ? scope.userId : body.assignedToId ? parseInt(body.assignedToId) : null
   if (assignedToId && !await prisma.user.findFirst({ where: { id: assignedToId, organizationId }, select: { id: true } })) return NextResponse.json({ error: 'User not found' }, { status: 400 })
-  const task = await prisma.$transaction(async tx => {
-  const created = await tx.task.create({
-    data: {
-      organizationId,
-      title: body.title,
-      description: body.description || null,
-      priority: body.priority || 'Нормально',
-      dueDate: body.dueDate ? new Date(body.dueDate) : null,
-      clientName: body.clientName || null,
-      assignedToId,
-    }
-  })
-  await notifyAssignment(tx, 'task', created)
-  return created
-  })
-  return NextResponse.json(task)
+  const key = request.headers.get('X-LegalHub-Create-Request')
+  if (assignedToId && assignmentEventsEnabled(organizationId) && !key) return NextResponse.json({ error: 'Create request identity required; reload CRM' }, { status: 428 })
+  if (key !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key)) return NextResponse.json({ error: 'Invalid create key' }, { status: 400 })
+  let assignmentIds: string[] = []
+  let replay = false
+  try {
+    const task = await prisma.$transaction(async tx => {
+      const created = await createTaskOnce(tx, organizationId, Number(user.id), key, {
+        organizationId,
+        title: body.title,
+        description: body.description || null,
+        priority: body.priority || 'Нормально',
+        dueDate: body.dueDate ? new Date(body.dueDate) : null,
+        clientName: body.clientName || null,
+        assignedToId,
+      })
+      replay = created.replay === true
+      if (!replay) assignmentIds = await notifyAssignment(tx, 'task', created)
+      delete created.replay
+      return created
+    })
+    if (assignmentIds.length || replay) await dispatchAssignmentPush(organizationId, [task.id])
+    return NextResponse.json(task)
+  } catch (error) {
+    if (error instanceof TaskCreateConflict) return NextResponse.json({ error: error.message }, { status: 409 })
+    throw error
+  }
 }

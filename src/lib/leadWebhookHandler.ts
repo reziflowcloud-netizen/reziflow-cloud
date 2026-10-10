@@ -1,3 +1,4 @@
+import { inboundEventKey, inboundLeadOnce } from '@/lib/inboundLeadEvent'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeLeadBody } from '@/lib/leads'
@@ -142,17 +143,8 @@ export async function handleLeadWebhookPost(request: NextRequest, slug: string, 
 
   const mappedBody = applyLeadWebhookMapping(body, settings.leadWebhookFieldMap || [])
   const sourceKey = mappedBody.source || body.source || 'website'
-  const routedAssignment = await resolveInboundLeadAssignment({
-    organizationId: organization.id,
-    sourceKey,
-    explicitAssignedToId: mappedBody.assignedToId || body.assignedToId,
-    organizationSettings: organization.settings,
-    settings,
-  })
-  const { origin: _assignmentOrigin, ...assignment } = routedAssignment
   const data = normalizeLeadBody({
     ...mappedBody,
-    ...assignment,
     source: sourceKey,
     nextContactAt: mappedBody.nextContactAt || body.nextContactAt || inferNextContactAtFromPreferredHours({ ...body, ...mappedBody }),
   })
@@ -180,67 +172,28 @@ export async function handleLeadWebhookPost(request: NextRequest, slug: string, 
 
   let lead: any
   try {
-    const duplicateWhere: any[] = []
-    if (data.phone) duplicateWhere.push({ phone: data.phone })
-    if (data.email) duplicateWhere.push({ email: data.email })
-    if (data.instagram) duplicateWhere.push({ instagram: data.instagram })
-    if (data.facebook) duplicateWhere.push({ facebook: data.facebook })
-
-    if (duplicateWhere.length) {
-      const duplicate = await (prisma as any).lead.findFirst({
-        where: {
-          organizationId: organization.id,
-          source: data.source || undefined,
-          createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) },
-          OR: duplicateWhere,
-        },
-        include: {
-          assignedTo: { select: { id: true, name: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-      })
-
-      if (duplicate) {
-        await (prisma as any).leadWebhookLog.create({
-          data: {
-            organizationId: organization.id,
-            leadId: duplicate.id,
-            status: 'duplicate',
-            source: data.source || null,
-            payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
-          },
-        }).catch(() => null)
-        lead = duplicate
+    const eventKey = inboundEventKey(String(sourceKey), safePayload, request.headers.get('Idempotency-Key') || body.eventId || body.externalId)
+    lead = await inboundLeadOnce(prisma, organization.id, eventKey, { source: data.source || null, payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) } }, async tx => {
+      const duplicateWhere: any[] = []
+      for (const field of ['phone', 'email', 'instagram', 'facebook'] as const) if (data[field]) duplicateWhere.push({ [field]: data[field] })
+      if (duplicateWhere.length) {
+        const duplicate = await tx.lead.findFirst({ where: { organizationId: organization.id, source: data.source || undefined, createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) }, OR: duplicateWhere }, include: { assignedTo: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } })
+        if (duplicate) return duplicate
       }
-    }
-
-    if (!lead) {
       await assertBillingLimit(organization.id, 'leads')
-
-      lead = await prisma.$transaction(async tx => {
-      const created = await tx.lead.create({
-        data: {
-          organizationId: organization.id,
-          ...data,
-          notes: appendPayloadNote(data.notes, body),
-        },
-        include: {
-          assignedTo: { select: { id: true, name: true } },
-        },
+      const routedAssignment = await resolveInboundLeadAssignment({
+        organizationId: organization.id,
+        sourceKey,
+        explicitAssignedToId: mappedBody.assignedToId || body.assignedToId,
+        organizationSettings: organization.settings,
+        settings,
+        client: tx,
       })
+      const { origin: _assignmentOrigin, ...assignment } = routedAssignment
+      const created = await tx.lead.create({ data: { organizationId: organization.id, ...data, ...assignment, notes: appendPayloadNote(data.notes, body) }, include: { assignedTo: { select: { id: true, name: true } } } })
       await notifyAssignment(tx, 'lead', created)
       return created
-      })
-      await (prisma as any).leadWebhookLog.create({
-        data: {
-          organizationId: organization.id,
-          leadId: lead.id,
-          status: 'created',
-          source: data.source || null,
-          payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
-        },
-      }).catch(() => null)
-    }
+    })
   } catch (error: any) {
     if (isBillingLimitError(error)) {
       await (prisma as any).leadWebhookLog.create({
@@ -267,5 +220,5 @@ export async function handleLeadWebhookPost(request: NextRequest, slug: string, 
     return NextResponse.json({ error: 'Lead webhook failed', detail: message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, leadId: lead.id, lead }, { status: 201 })
+  return NextResponse.json({ ok: true, leadId: lead?.id || null, lead, skipped: !lead }, { status: 201 })
 }
