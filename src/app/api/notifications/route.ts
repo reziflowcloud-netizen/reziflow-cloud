@@ -5,7 +5,8 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   const user = await authenticatedNotificationUser()
   if (!user) return NextResponse.json({ error: 'Unavailable' }, { status: 401 })
-  try { return NextResponse.json(await listNotifications(user, request.nextUrl.searchParams.get('cursor')), { headers: { 'Cache-Control': 'private, no-store' } }) }
+  const params = request.nextUrl.searchParams
+  try { return NextResponse.json(await listNotifications(user, params.get('cursor'), undefined, params.get('resume') === '1' ? params.get('unreadSince') : undefined), { headers: { 'Cache-Control': 'private, no-store' } }) }
   catch { return NextResponse.json({ error: 'Invalid cursor' }, { status: 400 }) }
 }
 export async function PATCH(request: NextRequest) {
