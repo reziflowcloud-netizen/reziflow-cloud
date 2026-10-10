@@ -249,7 +249,7 @@ async function syncMetaConversationMessages(args: {
       })
       const { origin: _assignmentOrigin, ...assignment } = routedAssignment
 
-      await assertBillingLimit(args.organizationId, 'leads')
+      await assertBillingLimit(args.organizationId, 'leads', 1, tx)
       lead = await tx.lead.create({
           data: {
             organizationId: args.organizationId,

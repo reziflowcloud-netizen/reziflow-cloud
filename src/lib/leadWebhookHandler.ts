@@ -180,7 +180,7 @@ export async function handleLeadWebhookPost(request: NextRequest, slug: string, 
         const duplicate = await tx.lead.findFirst({ where: { organizationId: organization.id, source: data.source || undefined, createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) }, OR: duplicateWhere }, include: { assignedTo: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } })
         if (duplicate) return duplicate
       }
-      await assertBillingLimit(organization.id, 'leads')
+      await assertBillingLimit(organization.id, 'leads', 1, tx)
       const routedAssignment = await resolveInboundLeadAssignment({
         organizationId: organization.id,
         sourceKey,

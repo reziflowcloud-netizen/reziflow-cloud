@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 
 export type BillingMetricKey = 'users' | 'clients' | 'cases' | 'leads'
 
@@ -32,6 +33,7 @@ export type BillingSnapshot = {
 }
 
 const BILLING_METRIC_KEYS: BillingMetricKey[] = ['users', 'clients', 'cases', 'leads']
+type BillingDbClient = Pick<Prisma.TransactionClient, 'organization' | 'user' | 'client' | 'case' | 'lead'>
 const INACTIVE_CASE_STATUS_TERMS = [
   'архив',
   'архів',
@@ -273,11 +275,11 @@ export function billingLimitResponsePayload(error: BillingLimitError) {
   }
 }
 
-export async function assertBillingLimit(organizationId: string, metric: BillingMetricKey, requested = 1) {
+export async function assertBillingLimit(organizationId: string, metric: BillingMetricKey, requested = 1, db: BillingDbClient = prisma) {
   const amount = Math.max(0, Math.floor(Number(requested) || 0))
   if (amount === 0) return
 
-  const snapshot = await getBillingSnapshot(organizationId)
+  const snapshot = await getBillingSnapshot(organizationId, db)
   const limit = snapshot.plan.limits[metric]
   if (!limit) return
 
@@ -293,8 +295,8 @@ export async function assertBillingLimit(organizationId: string, metric: Billing
   })
 }
 
-export async function getBillingSnapshot(organizationId: string): Promise<BillingSnapshot> {
-  const organization = await prisma.organization.findUnique({
+export async function getBillingSnapshot(organizationId: string, db: BillingDbClient = prisma): Promise<BillingSnapshot> {
+  const organization = await db.organization.findUnique({
     where: { id: organizationId },
     select: {
       id: true,
@@ -314,10 +316,10 @@ export async function getBillingSnapshot(organizationId: string): Promise<Billin
   }
 
   const [users, clients, cases, leads] = await Promise.all([
-    prisma.user.count({ where: { organizationId } }),
-    prisma.client.count({ where: { organizationId } }),
-    prisma.case.count({ where: activeCasesWhere(organizationId) }),
-    prisma.lead.count({ where: { organizationId } }),
+    db.user.count({ where: { organizationId } }),
+    db.client.count({ where: { organizationId } }),
+    db.case.count({ where: activeCasesWhere(organizationId) }),
+    db.lead.count({ where: { organizationId } }),
   ])
 
   const plan = applyBillingLimitOverrides(getPlanDefinition(organization.plan), organization.settings)
