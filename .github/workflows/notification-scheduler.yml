@@ -3,7 +3,6 @@ name: Production notification scheduler
 on:
   schedule:
     - cron: '12,27,42,57 * * * *'
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,36 +24,19 @@ jobs:
         with:
           node-version: '24'
       - name: Restore continuation
-        if: github.event_name == 'schedule'
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .scheduler/notification-checkpoint.json
           key: notification-production-v1-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: notification-production-v1-
       - name: Run production sweep
-        if: github.event_name == 'schedule'
         env:
           NOTIFICATION_JOB_ORIGIN: https://legalhubcrm.com
           NOTIFICATION_JOB_CHECKPOINT: .scheduler/notification-checkpoint.json
           CRON_SECRET: ${{ secrets.NOTIFICATION_PRODUCTION_CRON_SECRET }}
         run: node scripts/run-notification-job.mjs
-      - name: Verify scheduler authentication without generation
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          CRON_SECRET: ${{ secrets.NOTIFICATION_PRODUCTION_CRON_SECRET }}
-        run: |
-          node --input-type=module <<'NODE'
-          const response = await fetch('https://legalhubcrm.com/api/internal/notifications?delivery=only', {
-            headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
-            redirect: 'error', signal: AbortSignal.timeout(65000),
-          });
-          if (!response.ok) throw new Error(`Scheduler authentication failed (HTTP ${response.status})`);
-          const result = await response.json();
-          if (result.evaluated !== 0 || (result.notificationsCreated || 0) !== 0) throw new Error('Generation was not skipped');
-          console.log(JSON.stringify({ authentication: 'PASS', httpStatus: response.status, generationSkipped: true, pushProcessed: result.push.processed, pushDelivered: result.push.delivered }));
-          NODE
       - name: Save continuation even after interruption
-        if: always() && github.event_name == 'schedule'
+        if: always()
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .scheduler/notification-checkpoint.json
