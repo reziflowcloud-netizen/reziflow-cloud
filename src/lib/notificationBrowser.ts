@@ -28,8 +28,10 @@ export function handleNotificationOpen(event: MessageEvent) {
   if (typeof path !== 'string' || (path !== '/dashboard' && !/^\/notifications\/open\/[\w-]{1,100}$/.test(path))) return
   // Only an actual worker click opens the resolver. Receiving a push merely
   // refreshes the unread count, and never marks the notification read.
+  try { window.location.assign(path) } catch { return }
+  // ACK means the navigation request was issued, not that a message arrived.
+  // A refused assignment must leave the worker's openWindow fallback usable.
   event.ports[0]?.postMessage('notification-open-accepted')
-  window.location.assign(path)
 }
 export async function disconnectPushDevice() {
   if (!('serviceWorker' in navigator)) return

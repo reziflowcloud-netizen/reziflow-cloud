@@ -41,7 +41,7 @@ test('existing Service Worker: stable tags, badge, safe click/focus, no data cac
   const payload={body:'Synthetic only',tag:'same-id',url:'/notifications/open/test-id',unread:1}
   await dispatch('push',{data:{json:()=>payload}});await dispatch('push',{data:{json:()=>payload}})
   assert.equal(shown[0][1].tag,shown[1][1].tag);assert.deepEqual(badges,[1,1]);assert.equal(handlers.fetch,undefined)
-  await dispatch('notificationclick',{notification:{close(){},data:{url:payload.url}}});assert.deepEqual(navigated,['focus','https://legalhubcrm.com/notifications/open/test-id','focus'])
+  await dispatch('notificationclick',{notification:{close(){},data:{url:payload.url}}});assert.deepEqual(navigated,['https://legalhubcrm.com/notifications/open/test-id','focus'])
   windows=[];await dispatch('notificationclick',{notification:{close(){},data:{url:'https://evil.test'}}});assert.deepEqual(opened,['https://legalhubcrm.com/dashboard'])
   await dispatch('push',{data:{json:()=>({...payload,unread:0,url:'//evil.test'})}});assert.equal(badges.at(-1),0);assert.equal(shown.at(-1)[1].data.url,'/dashboard')
   delete self.navigator.setAppBadge;delete self.navigator.clearAppBadge
