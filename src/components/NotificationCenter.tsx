@@ -8,6 +8,7 @@ import { notificationText } from '@/lib/notificationI18n'
 import type { NotificationType } from '@/lib/notificationPolicy'
 import { handleNotificationOpen, publishNotificationStatus, updateAppBadge } from '@/lib/notificationBrowser'
 import { prepareScreenLeave } from '@/lib/screenLeave'
+import { mobileStandalone, NotificationResumeTracker } from '@/lib/notificationResume'
 import styles from './Notifications.module.css'
 type Item = { id: string; type: NotificationType; title: string; body: string; createdAt: string; readAt: string | null }
 export default function NotificationCenter() {
@@ -24,34 +25,87 @@ export default function NotificationCenter() {
   const bell = useRef<HTMLElement | null>(null)
   const overlay = useRef<HTMLDivElement>(null)
   const panel = useRef<HTMLDivElement>(null)
-  const inFlight = useRef(false)
+  const [resumeBanner, setResumeBanner] = useState(false)
+  const [bannerHost, setBannerHost] = useState<HTMLElement | null>(null)
+  const resume = useRef(new NotificationResumeTracker())
+  const eligible = useRef(false)
+  const centerOpen = useRef(false)
+  const inFlight = useRef<Promise<void> | null>(null)
+  const syncAgain = useRef(false)
+  const acknowledgeResume = useCallback(() => { resume.current.acknowledge(); setResumeBanner(false) }, [])
   const sync = useCallback(async (next?: string) => {
-    if (inFlight.current) return
-    inFlight.current = true; setLoading(true)
-    try {
-      const response = await fetch('/api/notifications' + (next ? `?cursor=${encodeURIComponent(next)}` : ''), { cache: 'no-store' })
-      if (!response.ok) throw new Error()
-      const data = await response.json()
-      setItems(current => next ? [...current, ...data.items.filter((item: Item) => !current.some(old => old.id === item.id))] : data.items)
-      setUnread(data.unread); setCursor(data.nextCursor); setError(false)
-      await updateAppBadge(data.unread)
-    } catch { setError(true) } finally { inFlight.current = false; setLoading(false) }
+    if (inFlight.current) { if (!next) syncAgain.current = true; await inFlight.current; return }
+    const work = async () => {
+      setLoading(true)
+      do {
+        syncAgain.current = false
+        const page = next
+        const since = eligible.current ? resume.current.since() : null
+        const params = new URLSearchParams()
+        if (page) params.set('cursor', page)
+        if (eligible.current) { params.set('resume', '1'); if (since) params.set('unreadSince', since) }
+        try {
+          const response = await fetch('/api/notifications' + (params.size ? `?${params}` : ''), { cache: 'no-store' })
+          if (response.status === 401) {
+            resume.current.reset(); setResumeBanner(false); setOpen(false)
+            setAvailable(false); setItems([]); setUnread(0); setCursor(null)
+            syncAgain.current = false; await updateAppBadge(0); break
+          }
+          if (!response.ok) throw new Error()
+          const data = await response.json()
+          setItems(current => page ? [...current, ...data.items.filter((item: Item) => !current.some(old => old.id === item.id))] : data.items)
+          setUnread(data.unread); setCursor(data.nextCursor); setError(false)
+          if (eligible.current && data.resume) {
+            resume.current.observe(data.resume, performance.now(), since, document.visibilityState === 'visible')
+            if (centerOpen.current || (since && !data.unread)) resume.current.acknowledge()
+            if (document.visibilityState === 'visible' && resume.current.since() && resume.current.since() !== since) syncAgain.current = true
+            setResumeBanner(resume.current.showing)
+          }
+          await updateAppBadge(data.unread)
+        } catch { setError(true) }
+        next = undefined
+      } while (syncAgain.current)
+      setLoading(false)
+    }
+    inFlight.current = work()
+    try { await inFlight.current } finally { inFlight.current = null }
   }, [])
+  useEffect(() => {
+    const mobile = matchMedia('(max-width: 768px)')
+    const standalone = matchMedia('(display-mode: standalone)')
+    const check = () => {
+      eligible.current = mobileStandalone(mobile.matches, standalone.matches, (navigator as Navigator & { standalone?: boolean }).standalone)
+      if (!eligible.current) { resume.current.reset(); setResumeBanner(false) }
+      else if (available) void sync()
+    }
+    check(); mobile.addEventListener('change', check); standalone.addEventListener('change', check)
+    return () => { mobile.removeEventListener('change', check); standalone.removeEventListener('change', check) }
+  }, [available, sync])
+  useLayoutEffect(() => {
+    // A compact in-flow header remains reachable when a scrolled page resumes.
+    const content = document.querySelector('.main-content')
+    if (!available || !content) return
+    const host = document.createElement('div')
+    host.className = styles.resumeHost
+    content.prepend(host); setBannerHost(host)
+    return () => { host.remove() }
+  }, [available, pathname])
   useEffect(() => {
     let alive = true
     fetch('/api/notifications/preferences', { cache: 'no-store' }).then(response => { if (alive) setAvailable(response.ok) }).catch(() => undefined)
     return () => { alive = false }
   }, [])
-  useEffect(() => { setOpen(false) }, [pathname])
+  useEffect(() => { setOpen(false); acknowledgeResume() }, [pathname, acknowledgeResume])
+  useEffect(() => { centerOpen.current = open; if (open) acknowledgeResume() }, [open, acknowledgeResume])
   useEffect(() => {
     if (!available) return
     const show = (event: Event) => {
       if (open) { setOpen(false); bell.current?.focus() }
-      else { bell.current = (event as CustomEvent<HTMLElement>).detail || document.activeElement as HTMLElement; setOpen(true) }
+      else { acknowledgeResume(); centerOpen.current = true; bell.current = (event as CustomEvent<HTMLElement>).detail || document.activeElement as HTMLElement; setOpen(true) }
     }
     window.addEventListener('legalhub:open-notifications', show)
     return () => { window.removeEventListener('legalhub:open-notifications', show) }
-  }, [available, open])
+  }, [available, open, acknowledgeResume])
   useLayoutEffect(() => {
     if (!open) return
     const position = () => {
@@ -88,17 +142,22 @@ export default function NotificationCenter() {
   useEffect(() => { publishNotificationStatus({ available, unread }) }, [available, unread])
   useEffect(() => () => { publishNotificationStatus({ available: false, unread: 0 }) }, [])
   useEffect(() => {
-    if (!available) return
-    void sync()
-    const refresh = () => { if (document.visibilityState === 'visible') void sync() }
+    if (available) void sync()
+    const refresh = () => { if (available && document.visibilityState === 'visible') void sync() }
+    const returned = () => { if (eligible.current && document.visibilityState === 'visible') resume.current.resume(); refresh() }
+    const visibility = () => {
+      if (document.visibilityState === 'hidden') { if (eligible.current) resume.current.background(performance.now()) }
+      else returned()
+    }
+    if (document.visibilityState === 'hidden') visibility()
     const workerMessage = (event: MessageEvent) => { handleNotificationOpen(event); if (event.data?.type === 'notifications-changed') refresh() }
     const timer = window.setInterval(refresh, 45000)
-    window.addEventListener('focus', refresh); window.addEventListener('notifications-changed', refresh); document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('focus', returned); window.addEventListener('pageshow', returned); window.addEventListener('notifications-changed', refresh); document.addEventListener('visibilitychange', visibility)
     navigator.serviceWorker?.addEventListener('message', workerMessage)
     // Refresh an existing worker after a release without requesting permission
     // or creating a subscription on page load.
-    navigator.serviceWorker?.getRegistration('/notification-sw.js').then(registration => registration?.update()).catch(() => undefined)
-    return () => { clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('notifications-changed', refresh); document.removeEventListener('visibilitychange', refresh); navigator.serviceWorker?.removeEventListener('message', workerMessage) }
+    if (available) navigator.serviceWorker?.getRegistration('/notification-sw.js').then(registration => registration?.update()).catch(() => undefined)
+    return () => { clearInterval(timer); window.removeEventListener('focus', returned); window.removeEventListener('pageshow', returned); window.removeEventListener('notifications-changed', refresh); document.removeEventListener('visibilitychange', visibility); navigator.serviceWorker?.removeEventListener('message', workerMessage) }
   }, [available, sync])
   useEffect(() => {
     if (!open) return
@@ -130,6 +189,7 @@ export default function NotificationCenter() {
     try {
       const response = await fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(id ? { id } : { all: true }) })
       if (!response.ok) throw new Error()
+      if (!id) acknowledgeResume()
       await sync()
     } catch { setError(true) }
   }
@@ -140,6 +200,14 @@ export default function NotificationCenter() {
   }
   if (!available) return null
   return <>
+    {resumeBanner && !open && bannerHost && createPortal(<aside className={styles.resumeBanner} aria-label={copy.resumeTitle}>
+      <div className={styles.resumeCopy}><p role="status">🔔 {copy.resumeTitle}</p><button type="button" onClick={() => {
+        acknowledgeResume(); centerOpen.current = true
+        bell.current = Array.from(document.querySelectorAll<HTMLElement>('[data-notification-bell]')).find(button => button.getBoundingClientRect().width > 0) || null
+        setOpen(true)
+      }}>{copy.resumeOpen}</button></div>
+      <button type="button" className={styles.iconButton} aria-label={copy.close} onClick={acknowledgeResume}>×</button>
+    </aside>, bannerHost)}
     {open && createPortal(<div ref={overlay} className={styles.overlay} onClick={event => { if (event.target === event.currentTarget) { setOpen(false); bell.current?.focus() } }}>
       <div ref={panel} className={styles.panel} role="dialog" aria-modal="true" aria-labelledby="notification-center-title">
         <div className={styles.panelHeader}><h2 id="notification-center-title">{copy.center}</h2><button className={styles.iconButton} aria-label={copy.close} onClick={() => { setOpen(false); bell.current?.focus() }}>×</button></div>

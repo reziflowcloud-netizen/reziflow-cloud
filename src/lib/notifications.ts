@@ -28,7 +28,8 @@ export async function unreadNotificationCount(user: any, db: any = prisma) {
   const rows = await db.$queryRaw(Prisma.sql`SELECT COUNT(*)::int AS count FROM "Notification" n WHERE ${visibleNotificationSql(user)} AND n."readAt" IS NULL`)
   return rows[0].count as number
 }
-export async function listNotifications(user: any, cursor?: string | null, db: any = prisma) {
+export async function listNotifications(user: any, cursor?: string | null, db: any = prisma, resumeSince?: string | null) {
+  if (resumeSince && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(resumeSince) || !Number.isFinite(Date.parse(resumeSince)) || new Date(resumeSince).toISOString() !== resumeSince)) throw new Error('Invalid resume boundary')
   let boundary = Prisma.empty
   if (cursor) {
     const row = await db.notification.findFirst({ where: { id: cursor, organizationId: user.organizationId, userId: user.id }, select: { createdAt: true, id: true } })
@@ -37,7 +38,11 @@ export async function listNotifications(user: any, cursor?: string | null, db: a
   }
   const ids = await db.$queryRaw(Prisma.sql`SELECT n.id FROM "Notification" n WHERE ${visibleNotificationSql(user)} ${boundary} ORDER BY n."createdAt" DESC, n.id DESC LIMIT 31`)
   const items = await db.notification.findMany({ where: { id: { in: ids.slice(0, 30).map((row: any) => row.id) }, organizationId: user.organizationId, userId: user.id }, select: { id: true, type: true, title: true, body: true, readAt: true, createdAt: true }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] })
-  return { items, nextCursor: ids.length > 30 ? items[items.length - 1].id : null, unread: await unreadNotificationCount(user, db) }
+  // Reuse the Center's access policy, independently of its 30-row pagination.
+  // Only mobile resume clients request this read-only metadata.
+  const resume = resumeSince !== undefined ? (await db.$queryRaw(Prisma.sql`SELECT statement_timestamp() AS "serverTime",
+    ${resumeSince ? Prisma.sql`(SELECT n.id FROM "Notification" n WHERE ${visibleNotificationSql(user)} AND n."readAt" IS NULL AND n."createdAt" > ${new Date(resumeSince)} ORDER BY n."createdAt" DESC, n.id DESC LIMIT 1)` : Prisma.sql`NULL::text`} AS "newUnreadId"`))[0] : undefined
+  return { items, nextCursor: ids.length > 30 ? items[items.length - 1].id : null, unread: await unreadNotificationCount(user, db), ...(resume ? { resume: { ...resume, scope: `${user.organizationId}:${user.id}` } } : {}) }
 }
 export async function markNotificationsRead(user: any, id?: string, db: any = prisma) {
   return db.$executeRaw(Prisma.sql`UPDATE "Notification" n SET "readAt" = NOW() WHERE ${visibleNotificationSql(user)} AND n."readAt" IS NULL ${id ? Prisma.sql`AND n.id = ${id}` : Prisma.empty}`)

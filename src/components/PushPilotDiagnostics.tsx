@@ -32,7 +32,7 @@ export default function PushPilotDiagnostics({ initiallyOpen = false }: { initia
         const trace = await fetch('/api/notifications/pilot-diagnostics', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notificationId: config.notificationId, workerVersion: info.workerVersion, instanceId: info.instanceId, stage: 'worker-check' }) })
         if (!trace.ok) throw new Error()
       }
-      setResult(`${copy.ready}: ${info.workerVersion}`)
+      setResult(`${copy.ready}: resume-fallback-1 / ${info.workerVersion}`)
     } catch { setResult(copy.failed) } finally { setBusy(false) }
   }
   return <details className="card" open={initiallyOpen || undefined}><summary>{copy.title}</summary><button className="btn btn-secondary" style={{ marginTop: 12, maxWidth: '100%', whiteSpace: 'normal' }} disabled={busy} onClick={() => void check()}>{copy.check}</button>{result && <p role="status" style={{ overflowWrap: 'anywhere' }}>{result}</p>}</details>
