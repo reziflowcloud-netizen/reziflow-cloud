@@ -1,3 +1,5 @@
+import { lockInboundLead } from '@/lib/inboundLeadEvent'
+import { dispatchAssignmentPush } from '@/lib/assignmentDelivery'
 import { NextRequest, NextResponse } from 'next/server'
 import { notifyAssignment } from '@/lib/notifications'
 import { prisma } from '@/lib/prisma'
@@ -230,20 +232,23 @@ async function syncMetaConversationMessages(args: {
     orderBy: [{ order: 'asc' }, { id: 'asc' }],
     select: { name: true },
   })
-  const routedAssignment = await resolveInboundLeadAssignment({
-    organizationId: args.organizationId,
-    sourceKey: args.channel,
-    settings: args.settings,
-  })
-  const { origin: _assignmentOrigin, ...assignment } = routedAssignment
 
   const result = await (prisma as any).$transaction(async (tx: any) => {
-    let lead = existingLead || await tx.lead.findFirst({
+    await lockInboundLead(tx, args.organizationId)
+    let lead = await tx.lead.findFirst({
       where: { organizationId: args.organizationId, messengerId },
       select: { id: true, fullName: true, instagram: true },
     })
 
     if (!lead) {
+      const routedAssignment = await resolveInboundLeadAssignment({
+        organizationId: args.organizationId,
+        sourceKey: args.channel,
+        settings: args.settings,
+        client: tx,
+      })
+      const { origin: _assignmentOrigin, ...assignment } = routedAssignment
+
       await assertBillingLimit(args.organizationId, 'leads')
       lead = await tx.lead.create({
           data: {
@@ -317,6 +322,7 @@ async function syncMetaConversationMessages(args: {
     return { created, leadId: lead.id as string }
   })
 
+  await dispatchAssignmentPush(args.organizationId, [result.leadId])
   return result
 }
 
@@ -574,23 +580,25 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       orderBy: [{ order: 'asc' }, { id: 'asc' }],
       select: { name: true },
     })
-    const routedAssignment = await resolveInboundLeadAssignment({
-      organizationId: organization.id,
-      sourceKey: channel,
-      organizationSettings: organization.settings,
-      settings,
-    })
-    const { origin: _assignmentOrigin, ...assignment } = routedAssignment
 
     const result = await (prisma as any).$transaction(async (tx: any) => {
-      let lead = existingLead
-        ? existingLead
-        : await tx.lead.findFirst({
+      await lockInboundLead(tx, organization.id)
+      if (await tx.leadMessage.findFirst({ where: { organizationId: organization.id, externalMessageId }, select: { id: true } })) return null
+      let lead = await tx.lead.findFirst({
           where: { organizationId: organization.id, messengerId: { in: messengerIds } },
           select: { id: true, fullName: true, instagram: true },
         })
 
       if (!lead) {
+        const routedAssignment = await resolveInboundLeadAssignment({
+          organizationId: organization.id,
+          sourceKey: channel,
+          organizationSettings: organization.settings,
+          settings,
+          client: tx,
+        })
+        const { origin: _assignmentOrigin, ...assignment } = routedAssignment
+
         lead = await tx.lead.create({
           data: {
             organizationId: organization.id,
@@ -636,6 +644,8 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       return lead
     })
 
+    if (!result) continue
+    await dispatchAssignmentPush(organization.id, [result.id])
     processed++
     if (!leadIds.includes(result.id)) leadIds.push(result.id)
   }

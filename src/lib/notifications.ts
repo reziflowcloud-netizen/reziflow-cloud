@@ -2,9 +2,10 @@ import { Prisma } from '@prisma/client'
 import { prisma } from './prisma.ts'
 import { assignmentOccurrence, canReceiveTeam, entityLink, notificationPreferences, type NotificationType } from './notificationPolicy.ts'
 import { notificationText } from './notificationI18n.ts'
+import { assignmentEventsEnabled, notificationEventAllowed } from './notificationEventGate.ts'
 
 export function notificationsEnabled() { return process.env.NOTIFICATIONS_ENABLED === 'true' }
-export function notificationEventsEnabled() { return notificationsEnabled() && process.env.NOTIFICATION_EVENTS_ENABLED === 'true' }
+export const notificationEventsEnabled = assignmentEventsEnabled
 
 export async function notificationUser(userId: number, organizationId: string, db: any = prisma) {
   return db.user.findFirst({ where: { id: userId, organizationId }, select: { id: true, role: true, restrictedAccess: true, organizationId: true, notificationPreference: true } })
@@ -55,15 +56,18 @@ export function entityContext(entityType: string, record: any) {
   return String(record.title || '').slice(0, 120)
 }
 export async function emitNotification(db: any, type: NotificationType, entityType: string, record: any, occurrence: string) {
-  if (!notificationEventsEnabled() || !record.organizationId) return
+  if (!record.organizationId || !notificationEventAllowed(type, record.organizationId)) return []
   const organizationId = record.organizationId
-  const linked = record.employeeId ? await db.employee.findFirst({ where: { id: record.employeeId, organizationId, active: true }, select: { userId: true } }) : null
+  const linked = record.employeeId || type === 'lead_assigned' ? await db.employee.findFirst({ where: { ...(record.employeeId ? { id: record.employeeId } : { userId: record.assignedToId }), organizationId, active: true }, select: { userId: true } }) : null
+  if (type === 'lead_assigned' && (!linked?.userId || linked.userId !== record.assignedToId)) return []
+  const notificationIds: string[] = []
   const ownIds = Array.from(new Set([record.assignedToId, linked?.userId].filter(Boolean)))
   const recipients = await db.user.findMany({
     where: { organizationId, OR: [{ id: { in: ownIds } }, { role: { in: ['owner', 'admin'] }, notificationPreference: { scope: 'team' } }] },
     select: { id: true, role: true, restrictedAccess: true, notificationPreference: true },
   })
   for (const user of recipients) {
+    if (!notificationEventAllowed(type, organizationId, user.id)) continue
     const preference = notificationPreferences(user.notificationPreference, canReceiveTeam(user))
     const own = ownIds.includes(user.id)
     if (!own && preference.scope !== 'team') continue
@@ -78,24 +82,31 @@ export async function emitNotification(db: any, type: NotificationType, entityTy
     await db.notification.createMany({ data: [{ organizationId, userId: user.id, type, title: copy.events[type], body: context, entityType, entityId: record.id, deepLink: entityLink(entityType, record.id), dedupeKey, inApp: event.inApp, pushRequested: event.push && preference.pushEnabled }], skipDuplicates: true })
     const notification = await db.notification.findUnique({ where: { organizationId_userId_dedupeKey: { organizationId, userId: user.id, dedupeKey } }, select: { id: true, pushRequested: true, createdAt: true } })
     if (!notification?.pushRequested || Date.now() - notification.createdAt.getTime() > 86400000) continue
+    notificationIds.push(notification.id)
     const subscriptions = await db.pushSubscription.findMany({ where: { organizationId, userId: user.id, disabledAt: null, createdAt: { lte: notification.createdAt } }, select: { id: true } })
     if (subscriptions.length) await db.notificationPushDelivery.createMany({ data: subscriptions.map((sub: any) => ({ organizationId, userId: user.id, notificationId: notification.id, subscriptionId: sub.id })), skipDuplicates: true })
   }
+  return notificationIds
 }
 export async function notifyAssignment(db: any, entityType: 'lead' | 'task', current: any, previous?: any) {
   const occurrence = assignmentOccurrence(current, previous)
-  if (occurrence) await emitNotification(db, entityType === 'lead' ? 'lead_assigned' : 'task_assigned', entityType, current, occurrence)
+  return occurrence ? await emitNotification(db, entityType === 'lead' ? 'lead_assigned' : 'task_assigned', entityType, current, occurrence) : []
 }
 
 // Bulk assignments share recipient/preferences reads and write records in bounded chunks.
 export async function notifyLeadAssignmentBatch(db: any, organizationId: string, updated: any[], previous: any[]) {
-  if (!notificationEventsEnabled()) return
+  if (!notificationEventsEnabled(organizationId)) return []
   const old = new Map(previous.map(record => [record.id, record]))
-  const changed = updated.filter(record => assignmentOccurrence(record, old.get(record.id)))
-  if (!changed.length) return
+  const employees = await db.employee.findMany({ where: { organizationId, active: true, OR: [{ id: { in: updated.map(record => record.employeeId).filter(Boolean) } }, { userId: { in: updated.map(record => record.assignedToId).filter(Boolean) } }] }, select: { id: true, userId: true } })
+  const links = new Map(employees.map((employee: any) => [employee.id, employee.userId]))
+  const linkedUsers = new Set(employees.map((employee: any) => employee.userId))
+  const changed = updated.filter(record => record.organizationId === organizationId && (record.employeeId ? links.get(record.employeeId) === record.assignedToId : linkedUsers.has(record.assignedToId)) && assignmentOccurrence(record, old.get(record.id)))
+  if (!changed.length) return []
+  const notificationIds: string[] = []
   const recipients = await db.user.findMany({ where: { organizationId, OR: [{ id: { in: Array.from(new Set(changed.map(record => record.assignedToId))) } }, { role: { in: ['owner', 'admin'] }, notificationPreference: { scope: 'team' } }] }, select: { id: true, role: true, restrictedAccess: true, notificationPreference: true } })
   const rows: any[] = []
   for (const record of changed) for (const user of recipients) {
+    if (!notificationEventAllowed('lead_assigned', organizationId, user.id)) continue
     const preference = notificationPreferences(user.notificationPreference, canReceiveTeam(user))
     if (record.assignedToId !== user.id && preference.scope !== 'team') continue
     if (!canReceiveTeam(user) && user.restrictedAccess && record.assignedToId !== user.id) continue
@@ -107,8 +118,10 @@ export async function notifyLeadAssignmentBatch(db: any, organizationId: string,
     const chunk = rows.slice(offset, offset + 500)
     await db.notification.createMany({ data: chunk, skipDuplicates: true })
     const notifications = await db.notification.findMany({ where: { organizationId, dedupeKey: { in: chunk.map(row => row.dedupeKey) }, userId: { in: recipients.map((user: any) => user.id) }, pushRequested: true, createdAt: { gte: new Date(Date.now() - 86400000) } }, select: { id: true, userId: true, createdAt: true } })
+    notificationIds.push(...notifications.map((notification: any) => notification.id))
     const subscriptions = notifications.length ? await db.pushSubscription.findMany({ where: { organizationId, userId: { in: notifications.map((notification: any) => notification.userId) }, disabledAt: null }, select: { id: true, userId: true, createdAt: true } }) : []
     const deliveries = notifications.flatMap((notification: any) => subscriptions.filter((sub: any) => sub.userId === notification.userId && sub.createdAt <= notification.createdAt).map((sub: any) => ({ organizationId, userId: notification.userId, notificationId: notification.id, subscriptionId: sub.id })))
     for (let index = 0; index < deliveries.length; index += 500) await db.notificationPushDelivery.createMany({ data: deliveries.slice(index, index + 500), skipDuplicates: true })
   }
+  return Array.from(new Set(notificationIds))
 }

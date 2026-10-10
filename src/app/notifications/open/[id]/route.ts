@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     return redirectInsideApp('/login?' + new URLSearchParams({ next: `/notifications/open/${params.id}` }))
   }
   const notification = await authorizedNotification(user, params.id)
-  if (!notification) return redirectInsideApp('/settings/notifications?unavailable=1')
+  if (!notification) return redirectInsideApp('/dashboard')
   await markNotificationsRead(user, notification.id)
   // Push-only records also become read after opening.
   const { prisma } = await import('@/lib/prisma')

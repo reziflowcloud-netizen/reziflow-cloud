@@ -13,7 +13,7 @@ export function entityWriteError(error: unknown) {
 // Temporary compatibility for already-open bundles. Remove in a separate maintenance rollout.
 // New clients advertise versioned writes: missing versions never silently fall back.
 export async function entityWrite(request: NextRequest, entity: 'lead' | 'client' | 'task', body: any,
-  where: any, work: (tx: any, existing: any, claim: (data: any) => Promise<any>) => Promise<any>) {
+  where: any, work: (tx: any, existing: any, claim: (data: any) => Promise<any>) => Promise<any>, afterCommit?: (result: any) => Promise<void>) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new EntityWriteError(400, 'Invalid body')
   const legacy = !Object.prototype.hasOwnProperty.call(body, 'expectedUpdatedAt')
   const table = { lead: 'Lead', client: 'Client', task: 'Task' }[entity]
@@ -40,6 +40,7 @@ export async function entityWrite(request: NextRequest, entity: 'lead' | 'client
     }
     return work(tx, existing, claim)
   }, { timeout: 15000 })
+  if (afterCommit) await afterCommit(result)
   const response = NextResponse.json(result)
   if (legacy) {
     console.info('legacy-entity-patch', { entity, organizationId: result.organizationId, recordId: result.id })

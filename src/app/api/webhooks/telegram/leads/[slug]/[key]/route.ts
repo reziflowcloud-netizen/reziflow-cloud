@@ -1,3 +1,4 @@
+import { inboundEventKey, inboundLeadOnce } from '@/lib/inboundLeadEvent'
 import { NextRequest, NextResponse } from 'next/server'
 import { notifyAssignment } from '@/lib/notifications'
 import { prisma } from '@/lib/prisma'
@@ -108,14 +109,6 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     source: 'telegram',
     messengerId: messengerId || undefined,
   })
-  const routedAssignment = await resolveInboundLeadAssignment({
-    organizationId: organization.id,
-    sourceKey: 'telegram',
-    explicitAssignedToId: mappedBody.assignedToId,
-    organizationSettings: organization.settings,
-    settings,
-  })
-  const { origin: _assignmentOrigin, ...assignment } = routedAssignment
 
   if (!data.fullName && !data.phone && !data.email && !data.instagram && !data.facebook) {
     await (prisma as any).leadWebhookLog.create({
@@ -148,7 +141,19 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     throw error
   }
 
-  const lead = await (prisma as any).$transaction(async (tx: any) => {
+  const lead = await inboundLeadOnce(prisma, organization.id, inboundEventKey('telegram', {}, messengerId || inboundEventKey("telegram", safePayload)), { source: 'telegram', payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) } }, async (tx: any) => {
+    const replay = await tx.lead.findFirst({ where: { organizationId: organization.id, messengerId: messengerId || inboundEventKey("telegram", safePayload) } })
+    if (replay) return replay
+    const routedAssignment = await resolveInboundLeadAssignment({
+      organizationId: organization.id,
+      sourceKey: 'telegram',
+      explicitAssignedToId: mappedBody.assignedToId,
+      organizationSettings: organization.settings,
+      settings,
+      client: tx,
+    })
+    const { origin: _assignmentOrigin, ...assignment } = routedAssignment
+
     const created = await tx.lead.create({
       data: {
         organizationId: organization.id,
@@ -156,18 +161,9 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         ...assignment,
       },
     })
-    await tx.leadWebhookLog.create({
-      data: {
-        organizationId: organization.id,
-        leadId: created.id,
-        status: 'created',
-        source: 'telegram',
-        payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) },
-      },
-    })
     await notifyAssignment(tx, 'lead', created)
     return created
   })
 
-  return NextResponse.json({ ok: true, leadId: lead.id, lead }, { status: 201 })
+  return NextResponse.json({ ok: true, leadId: lead?.id || null, lead, skipped: !lead }, { status: 201 })
 }

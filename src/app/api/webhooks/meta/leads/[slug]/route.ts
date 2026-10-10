@@ -1,3 +1,4 @@
+import { inboundEventKey, inboundLeadOnce } from '@/lib/inboundLeadEvent'
 import { NextRequest, NextResponse } from 'next/server'
 import { notifyAssignment } from '@/lib/notifications'
 import { prisma } from '@/lib/prisma'
@@ -189,17 +190,21 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
       const webhookPayload = metaLeadToWebhookPayload(metaLead, change)
       const mappedBody = applyLeadWebhookMapping(webhookPayload, settings.leadWebhookFieldMap || [])
       const data = normalizeLeadBody(mappedBody)
-      const routedAssignment = await resolveInboundLeadAssignment({
-        organizationId: organization.id,
-        sourceKey: 'target',
-        explicitAssignedToId: mappedBody.assignedToId,
-        organizationSettings: organization.settings,
-        settings,
-      })
-      const { origin: _assignmentOrigin, ...assignment } = routedAssignment
       await assertBillingLimit(organization.id, 'leads')
 
-      const lead = await (prisma as any).$transaction(async (tx: any) => {
+      const lead = await inboundLeadOnce(prisma, organization.id, inboundEventKey('meta', {}, `meta:${leadgenId}`), { source: 'target', payload: { raw: safePayload, mapped: sanitizeLeadWebhookPayload(mappedBody) } }, async (tx: any) => {
+        const replay = await tx.lead.findFirst({ where: { organizationId: organization.id, messengerId: `meta:${leadgenId}` } })
+        if (replay) return replay
+        const routedAssignment = await resolveInboundLeadAssignment({
+          organizationId: organization.id,
+          sourceKey: 'target',
+          explicitAssignedToId: mappedBody.assignedToId,
+          organizationSettings: organization.settings,
+          settings,
+          client: tx,
+        })
+        const { origin: _assignmentOrigin, ...assignment } = routedAssignment
+
         const created = await tx.lead.create({
           data: {
             organizationId: organization.id,
@@ -209,23 +214,10 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
             messengerId: `meta:${leadgenId}`,
           },
         })
-        await tx.leadWebhookLog.create({
-          data: {
-            organizationId: organization.id,
-            leadId: created.id,
-            status: 'created',
-            source: 'target',
-            payload: {
-              raw: safePayload,
-              metaLead: sanitizeLeadWebhookPayload(metaLead),
-              mapped: sanitizeLeadWebhookPayload(mappedBody),
-            },
-          },
-        })
         await notifyAssignment(tx, 'lead', created)
         return created
       })
-      createdLeadIds.push(lead.id)
+      if (lead) createdLeadIds.push(lead.id)
     } catch (error: any) {
       const message = error?.message || 'Failed to process Meta lead'
       errors.push(message)

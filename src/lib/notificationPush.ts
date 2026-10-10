@@ -6,13 +6,20 @@ import { CASE_NOTIFICATION_DATE_FIELDS, canReceiveTeam, notificationPreferences,
 import { notificationText } from './notificationI18n.ts'
 import { decryptSubscription, pushConfigured, pushPilotUserIds, pushUserAllowed, subscriptionAAD } from './pushSecurity.ts'
 import { isPushPilotNotification, pushPilotText } from './pushPilotPolicy.ts'
+import { enabledAutomaticEventTypes, notificationEventAllowed, notificationEventOrgIds, notificationEventUserIds } from './notificationEventGate.ts'
 
 export function pushPayload(notification: any, preferences: ReturnType<typeof notificationPreferences>, clientName: string, unread: number) {
   const copy = notificationText[preferences.language]
   const pilotCopy = Object.values(pushPilotText).find(value => value.title === notification.title && value.body === notification.body) || pushPilotText[preferences.language]
+  const assignmentCopy = preferences.language === 'uk'
+    ? { lead_assigned: 'Новий лід призначено вам', task_assigned: 'Нове завдання призначено вам' }
+    : preferences.language === 'pl'
+      ? { lead_assigned: 'Przydzielono Ci nowy lead', task_assigned: 'Przydzielono Ci nowe zadanie' }
+      : { lead_assigned: 'Вам назначен новый лид', task_assigned: 'Вам назначена новая задача' }
+  const eventTitle = assignmentCopy[notification.type as keyof typeof assignmentCopy] || copy.events[notification.type as NotificationType]
   return {
     title: 'LegalHub CRM',
-    body: isPushPilotNotification(notification) ? `${pilotCopy.title}\n${pilotCopy.body}` : `${copy.events[notification.type as NotificationType]}\n${preferences.showClientName && clientName ? clientName.slice(0, 100) : copy.open}`,
+    body: isPushPilotNotification(notification) ? `${pilotCopy.title}\n${pilotCopy.body}` : `${eventTitle}\n${preferences.showClientName && clientName ? clientName.slice(0, 100) : copy.open}`,
     tag: notification.id,
     url: `/notifications/open/${notification.id}`,
     unread,
@@ -20,11 +27,11 @@ export function pushPayload(notification: any, preferences: ReturnType<typeof no
   }
 }
 type PushSender = (subscription: any, payload: string, options: any) => Promise<unknown>
-export async function deliverNotificationPush(db: any = prisma, sender: PushSender = webPush.sendNotification, now = new Date(), scope?: { deliveryId: string; userId: number; organizationId: string }) {
+export async function deliverNotificationPush(db: any = prisma, sender: PushSender = webPush.sendNotification, now = new Date(), scope?: { deliveryId: string; userId: number; organizationId: string }, assignment?: { organizationId: string; entityIds: string[] }) {
   if (!notificationsEnabled() || !pushConfigured()) return { processed: 0, delivered: 0 }
   if (!scope && !notificationEventsEnabled()) return { processed: 0, delivered: 0 }
   const rows = await db.notificationPushDelivery.findMany({
-    where: { deliveredAt: null, terminalAt: null, nextAttemptAt: { lte: now }, OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }], ...(scope ? { id: scope.deliveryId, userId: scope.userId, organizationId: scope.organizationId, attempts: 0 } : { userId: { in: pushPilotUserIds() }, notification: { entityType: { not: 'push_test' } } }) },
+    where: { deliveredAt: null, terminalAt: null, nextAttemptAt: { lte: now }, OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }], ...(scope ? { id: scope.deliveryId, userId: scope.userId, organizationId: scope.organizationId, attempts: 0 } : { organizationId: { in: notificationEventOrgIds().filter(id => !assignment || id === assignment.organizationId) }, userId: { in: notificationEventUserIds().filter(id => pushPilotUserIds().includes(id)) }, notification: { type: { in: assignment ? ['lead_assigned', 'task_assigned'] : enabledAutomaticEventTypes() }, ...(assignment ? { entityId: { in: assignment.entityIds } } : {}), entityType: { not: 'push_test' } } }) },
     orderBy: [{ nextAttemptAt: 'asc' }, { id: 'asc' }], take: 20,
   })
   let delivered = 0
@@ -41,18 +48,19 @@ export async function deliverNotificationPush(db: any = prisma, sender: PushSend
       const subscription = await db.pushSubscription.findFirst({ where: { id: row.subscriptionId, userId: row.userId, organizationId: row.organizationId, disabledAt: null } })
       const preferences = notificationPreferences(user?.notificationPreference, user && canReceiveTeam(user))
       const pilot = isPushPilotNotification(notification)
-      if (!notification || !subscription || !pushUserAllowed(row.userId) || notification.readAt || !notification.pushRequested || !preferences.pushEnabled || (!pilot && !preferences.events[notification.type as NotificationType]?.push) || now.getTime() - notification.createdAt.getTime() > 86400000) {
+      if (!notification || !subscription || !pushUserAllowed(row.userId) || (!scope && !notificationEventAllowed(notification.type, row.organizationId, row.userId)) || notification.readAt || !notification.pushRequested || !preferences.pushEnabled || (!pilot && !preferences.events[notification.type as NotificationType]?.push) || now.getTime() - notification.createdAt.getTime() > 86400000) {
         await db.notificationPushDelivery.updateMany({ where: lease, data: { terminalAt: now, leaseUntil: null, leaseToken: null } }); continue
       }
       const raw = decryptSubscription(subscription.encryptedSubscription, subscriptionAAD(subscription))
       const where = { id: notification.entityId, organizationId: row.organizationId, ...(!canReceiveTeam(user) && user.restrictedAccess ? { assignedToId: user.id } : {}) }
       const selections = {
         case: { id: true, assignedToId: true, status: true, ...Object.fromEntries(CASE_NOTIFICATION_DATE_FIELDS.map(field => [field, true])), customDates: { select: { id: true, date: true } }, statusHistory: { select: { fromStatus: true, changedAt: true } }, client: { select: { organizationId: true, firstName: true, lastName: true } } },
-        lead: { id: true, assignedToId: true, fullName: true, firstName: true, lastName: true, nextContactAt: true, lastContactAt: true, convertedAt: true, convertedClientId: true, status: true },
+        lead: { id: true, employeeId: true, assignedToId: true, fullName: true, firstName: true, lastName: true, nextContactAt: true, lastContactAt: true, convertedAt: true, convertedClientId: true, status: true },
         task: { id: true, assignedToId: true, clientName: true, status: true, dueDate: true, description: true },
       }
       const record = pilot ? null : await db[notification.entityType].findFirst({ where, select: selections[notification.entityType as keyof typeof selections] })
-      if (!pilot && !notificationStillActionable(notification, record, now)) {
+      const linked = notification?.type === 'lead_assigned' && record ? await db.employee.findFirst({ where: { organizationId: row.organizationId, active: true, userId: record.assignedToId, ...(record.employeeId ? { id: record.employeeId } : {}) }, select: { id: true } }) : null
+      if (!pilot && (!notificationStillActionable(notification, record, now) || (notification.type === 'lead_assigned' && !linked))) {
         await db.notificationPushDelivery.updateMany({ where: lease, data: { terminalAt: now, leaseUntil: null, leaseToken: null } }); continue
       }
       let clientName = ''

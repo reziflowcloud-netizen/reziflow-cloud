@@ -24,6 +24,9 @@ test('notification DB isolation, assignment, dedupe, scheduling and delivery', {
   const b = await db.organization.create({ data: { name: 'Notification QA B', slug: `notification-qa-b-${suffix}` } })
   const makeUser = (organizationId, role = 'employee', restrictedAccess = true) => db.user.create({ data: { organizationId, email: `${role}-${randomBytes(6).toString('hex')}@example.test`, password: 'not-a-login-hash', name: 'QA User', role, restrictedAccess } })
   const employee = await makeUser(a.id), next = await makeUser(a.id), owner = await makeUser(a.id, 'owner', false), outsider = await makeUser(b.id)
+  process.env.NOTIFICATION_EVENTS_PILOT_ORG_IDS = a.id
+  process.env.NOTIFICATION_EVENTS_PILOT_USER_IDS = [employee.id, next.id, owner.id].join(',')
+  process.env.NOTIFICATION_SCHEDULED_EVENTS_ENABLED = 'true' // Existing evaluator regression only; Phase 3A tests leave this OFF.
   process.env.PUSH_TEST_USER_ID = String(employee.id)
   const linked = await db.employee.create({ data: { organizationId: a.id, userId: employee.id, name: 'QA Employee' } })
   const user = await notificationUser(employee.id, a.id, db)

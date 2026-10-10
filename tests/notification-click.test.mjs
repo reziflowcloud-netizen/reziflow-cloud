@@ -5,6 +5,8 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import { MessageChannel } from 'node:worker_threads'
 import { randomUUID } from 'node:crypto'
+import { pushPayload } from '../src/lib/notificationPush.ts'
+import { notificationPreferences, safeNotificationReturn } from '../src/lib/notificationPolicy.ts'
 
 const path='/notifications/open/synthetic-id',origin='https://legalhubcrm.com'
 async function click(windows,rawPath=path) {
@@ -53,4 +55,83 @@ test('page handoff only accepts own worker and bounded resolver paths; push alon
  dispatch(path,'notifications-changed');dispatch(path,'legalhub:notification-open','https://foreign.test/notification-sw.js');dispatch(path,'legalhub:notification-open',origin+'/other-worker.js');dispatch(path,'legalhub:notification-open',null)
  assert.deepEqual(assigned,[]);assert.deepEqual(acks,[])
  dispatch(path);dispatch('/dashboard');assert.deepEqual(assigned,[path,'/dashboard']);assert.deepEqual(acks,['notification-open-accepted','notification-open-accepted'])
+})
+
+function navigationWorker(windows = [], options = {}) {
+ const handlers = {}, shown = [], opened = [], badges = []
+ let now = 1000
+ const self = {
+  crypto: { randomUUID }, location: { origin }, addEventListener: (type, handler) => handlers[type] = handler,
+  registration: { showNotification: async (_title, notification) => shown.push(notification) },
+  navigator: { setAppBadge: async n => badges.push(n), clearAppBadge: async () => badges.push(0) },
+  clients: { matchAll: options.matchAll || (async () => windows), openWindow: options.openWindow || (async url => { opened.push(url); return { focus: async () => {} } }) },
+ }
+ const Clock = class extends Date { static now() { return now } }
+ vm.runInNewContext(fs.readFileSync('public/notification-sw.js', 'utf8'), { self, URL, Date: Clock, MessageChannel, setTimeout, clearTimeout, AbortController, fetch: async () => ({ ok: true }) })
+ const click = async data => { let pending; handlers.notificationclick({ notification: { data, close() {} }, waitUntil: p => pending = p }); await pending }
+ const push = async payload => { let pending; handlers.push({ data: { json: () => payload }, waitUntil: p => pending = p }); await pending; return shown.at(-1) }
+ return { click, push, opened, shown, badges, advance: ms => now += ms }
+}
+function allPayloads() {
+ const id = randomUUID()
+ const records = [
+  { id, type: 'push_test', entityType: 'push_test', entityId: id, deepLink: '/dashboard', dedupeKey: 'push-pilot:' + randomUUID() },
+  { id: 'synthetic-lead-notification', type: 'lead_assigned', entityType: 'lead', entityId: 'synthetic-lead', deepLink: '/leads/synthetic-lead' },
+  { id: 'synthetic-task-notification', type: 'task_assigned', entityType: 'task', entityId: 'synthetic-task', deepLink: '/tasks?notificationTask=synthetic-task' },
+ ]
+ return records.map(record => pushPayload(record, notificationPreferences(), '', 1))
+}
+test('push_test, Lead and Task use identical native navigation and foreground fallback; push alone does not navigate', async () => {
+ for (const payload of allPayloads()) {
+  const calls = []
+  const window = client({ focus: async () => calls.push('focus'), postMessage: (message, ports) => { if (message.type === 'legalhub:notification-open') { calls.push(message.path); ports[0].postMessage('notification-open-accepted') } } })
+  const worker = navigationWorker([window]), displayed = await worker.push(payload)
+  assert.equal(displayed.navigate, origin + payload.url)
+  assert.equal(displayed.data.url, payload.url); assert.deepEqual(calls, []); assert.deepEqual(worker.opened, [])
+  await worker.click(displayed.data)
+  assert.deepEqual(calls, ['focus', payload.url]); assert.deepEqual(worker.opened, [])
+  assert.deepEqual(worker.badges, [1], 'Read/badge changes belong to the authorized page after opening')
+ }
+})
+test('all types preserve the resolver with a suspended/inert client and with no client window', async () => {
+ for (const payload of allPayloads()) {
+  const suspended = client({ focus: async () => { throw Error('suspended') }, postMessage: () => { throw Error('not awake') }, navigate: async () => null })
+  const worker = navigationWorker([suspended])
+  await worker.click({ url: payload.url, pilotDiagnostics: payload.pilotDiagnostics })
+  assert.deepEqual(worker.opened, [origin + payload.url])
+  let focused = 0, opened = 0
+  const closed = navigationWorker([], { openWindow: async url => { opened++; assert.equal(url, origin + payload.url); return { focus: async () => focused++ } } })
+  await closed.click({ url: payload.url, pilotDiagnostics: payload.pilotDiagnostics })
+  assert.equal(opened, 1); assert.equal(focused, 1)
+ }
+})
+test('reuse exact resolver window, skip malformed/foreign/nested clients and survive enumeration failure', async () => {
+ let focused = 0
+ const target = client({ url: origin + path, focus: async () => focused++, postMessage: () => { throw Error('should already be at resolver') }, navigate: async () => { throw Error('do not reload resolver') } })
+ const worker = navigationWorker([client({ url: 'not a URL' }), client({ url: 'https://foreign.test/' }), client({ frameType: 'nested' }), target])
+ await worker.click({ url: path }); assert.equal(focused, 1); assert.deepEqual(worker.opened, [])
+ const failed = navigationWorker([], { matchAll: async () => { throw Error('no enumeration') } })
+ await failed.click({ url: path }); assert.deepEqual(failed.opened, [origin + path])
+ const inertExact = navigationWorker([client({ url: origin + path, focus: async () => { throw Error('inert') }, postMessage: () => { throw Error('inert') } })])
+ await inertExact.click({ url: path }); assert.deepEqual(inertExact.opened, [origin + path])
+})
+test('duplicate activations share one navigation; later intentional clicks and other notifications still work', async () => {
+ const worker = navigationWorker([])
+ await Promise.all([worker.click({ url: path }), worker.click({ url: path })])
+ await worker.click({ url: path }); assert.deepEqual(worker.opened, [origin + path])
+ await worker.click({ url: '/notifications/open/another-id' }); assert.equal(worker.opened.length, 2)
+ worker.advance(2001); await worker.click({ url: path }); assert.equal(worker.opened.length, 3)
+ let attempts = 0
+ const retry = navigationWorker([], { openWindow: async () => { attempts++; return null } })
+ await retry.click({ url: path }); await retry.click({ url: path }); assert.equal(attempts, 2, 'An unsuccessful open must remain retryable')
+})
+test('native, fallback and login return all reject external, encoded and malformed paths; badge clears at zero', async () => {
+ const invalid = ['https://foreign.test/', '//foreign.test/', origin + path, '/notifications/open/../dashboard', '/notifications/open/%2e%2e', '/notifications/open/id?next=https://foreign.test', '/notifications/open/id#fragment', '/notifications/open/a\n', '/notifications/open/' + 'a'.repeat(101), 'javascript:alert(1)']
+ for (const url of invalid) {
+  const worker = navigationWorker([]), displayed = await worker.push({ url, unread: 0 })
+  assert.equal(displayed.navigate, origin + '/dashboard'); assert.equal(displayed.data.url, '/dashboard')
+  await worker.click({ url }); assert.deepEqual(worker.opened, [origin + '/dashboard']); assert.deepEqual(worker.badges, [0])
+  assert.equal(safeNotificationReturn(url), '/dashboard')
+ }
+ for (const payload of allPayloads()) assert.equal(safeNotificationReturn(payload.url), payload.url)
 })

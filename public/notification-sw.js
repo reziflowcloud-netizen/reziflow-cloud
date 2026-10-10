@@ -1,6 +1,10 @@
 /* Push-only worker. Deliberately no fetch handler, Cache API or offline storage. */
-const PILOT_WORKER_VERSION = 'pilot-click-navigate-2';
+const PILOT_WORKER_VERSION = 'notification-click-unified-1';
 const pilotInstanceId = self.crypto.randomUUID();
+function notificationNavigationTarget(rawPath) {
+  const path = typeof rawPath === 'string' && /^\/notifications\/open\/[\w-]{1,100}$/.test(rawPath) ? rawPath : '/dashboard';
+  return { path, url: new URL(path, self.location.origin).href };
+}
 function pilotTrace(notification, pending) {
   const path = notification?.url;
   if (notification?.pilotDiagnostics !== true || typeof path !== 'string' || !/^\/notifications\/open\/[0-9a-f-]{36}$/.test(path)) return () => {};
@@ -22,20 +26,20 @@ self.addEventListener('activate', event => event.waitUntil(self.clients.claim())
 self.addEventListener('push', event => {
   let payload = {};
   try { payload = event.data ? event.data.json() : {}; } catch { /* safe generic push */ }
-  const safeUrl = typeof payload.url === 'string' && /^\/notifications\/open\/[\w-]{1,100}$/.test(payload.url) ? payload.url : '/dashboard';
+  const target = notificationNavigationTarget(payload.url);
   event.waitUntil((async () => {
     await self.registration.showNotification('LegalHub CRM', {
       body: typeof payload.body === 'string' ? payload.body.slice(0, 250) : 'LegalHub CRM',
       icon: '/favicon.png', badge: '/favicon.png',
       tag: typeof payload.tag === 'string' ? payload.tag.slice(0, 100) : 'legalhub',
-      // Modern WebKit can navigate on activation without starting this worker.
-      // Keep this change on synthetic pilot pushes; older browsers ignore the
-      // option and continue through the authenticated notificationclick fallback.
-      ...(payload.pilotDiagnostics === true ? { navigate: new URL(safeUrl, self.location.origin).href } : {}),
-      data: { url: safeUrl, pilotDiagnostics: payload.pilotDiagnostics === true, workerVersion: PILOT_WORKER_VERSION },
+      // Use the physically verified WebKit navigation option for every type.
+      // Older browsers ignore it and use the shared notificationclick strategy.
+      // Diagnostics only controls telemetry; it never selects navigation.
+      navigate: target.url,
+      data: { url: target.path, pilotDiagnostics: payload.pilotDiagnostics === true, workerVersion: PILOT_WORKER_VERSION },
     });
     const pending = [];
-    pilotTrace({ url: safeUrl, pilotDiagnostics: payload.pilotDiagnostics }, pending)('push-received');
+    pilotTrace({ url: target.path, pilotDiagnostics: payload.pilotDiagnostics }, pending)('push-received');
     if (Number.isSafeInteger(payload.unread) && payload.unread >= 0) {
       try { if (payload.unread && self.navigator.setAppBadge) await self.navigator.setAppBadge(payload.unread); else if (self.navigator.clearAppBadge) await self.navigator.clearAppBadge(); } catch { /* optional */ }
     }
@@ -46,7 +50,10 @@ self.addEventListener('push', event => {
 async function openInNotificationClient(client, path, url, trace) {
   // Wake suspended Home Screen windows before requesting navigation. A failed
   // focus must not abort the authenticated resolver or its fallback.
-  try { await client.focus(); trace('focus-ok'); } catch { trace('focus-failed'); }
+  let focused = false;
+  try { await client.focus(); focused = true; trace('focus-ok'); } catch { trace('focus-failed'); }
+  // A native activation or a repeated click may already have opened the resolver.
+  if (focused && client.url === url) return true;
   const handled = await new Promise(resolve => {
     const channel = new MessageChannel();
     const finish = value => {
@@ -67,6 +74,43 @@ async function openInNotificationClient(client, path, url, trace) {
     return true;
   } catch { trace('navigate-failed'); return false; }
 }
+async function navigateNotification(target, trace) {
+  let windows = [];
+  try { windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true }); } catch { /* openWindow still has the intended URL */ }
+  trace('clients-found');
+  const candidates = windows.filter(client => {
+    try { return new URL(client.url).origin === self.location.origin && client.frameType !== 'nested' && 'navigate' in client; }
+    catch { return false; }
+  });
+  candidates.sort((a, b) => Number(b.url === target.url) - Number(a.url === target.url));
+  for (const client of candidates) {
+    if (await openInNotificationClient(client, target.path, target.url, trace)) return true;
+  }
+  try {
+    const opened = await self.clients.openWindow(target.url);
+    trace(opened ? 'open-window' : 'open-window-null');
+    try { await opened?.focus(); } catch { /* an opened window must not trigger a second open */ }
+    return !!opened;
+  } catch { trace('open-window-failed'); return false; }
+}
+// Coalesce concurrent/rapid duplicate activations of the same notification.
+// The cache is bounded, ephemeral and only covers navigation (not event dedupe).
+const notificationClicks = new Map();
+function openNotification(target, trace) {
+  const now = Date.now();
+  for (const [path, click] of notificationClicks) if (click.expiresAt <= now) notificationClicks.delete(path);
+  const existing = notificationClicks.get(target.path);
+  if (existing) return existing.pending;
+  if (notificationClicks.size >= 50) return navigateNotification(target, trace);
+  const click = { expiresAt: Infinity, pending: null };
+  click.pending = navigateNotification(target, trace).then(opened => {
+    if (opened) click.expiresAt = Date.now() + 2000;
+    else notificationClicks.delete(target.path);
+    return opened;
+  }, () => { notificationClicks.delete(target.path); });
+  notificationClicks.set(target.path, click);
+  return click.pending;
+}
 self.addEventListener('notificationclick', event => {
   const pending = [];
   const trace = pilotTrace(event.notification.data, pending);
@@ -74,19 +118,8 @@ self.addEventListener('notificationclick', event => {
   event.notification.close();
   event.waitUntil((async () => {
     try {
-      const path = event.notification.data?.url;
-      const safePath = typeof path === 'string' && /^\/notifications\/open\/[\w-]{1,100}$/.test(path) ? path : '/dashboard';
       // Navigation passes through auth and current entity authorization on the server.
-      const url = new URL(safePath, self.location.origin).href;
-      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      trace('clients-found');
-      for (const client of windows) {
-        if (new URL(client.url).origin === self.location.origin && 'navigate' in client) {
-          if (await openInNotificationClient(client, safePath, url, trace)) return;
-        }
-      }
-      try { trace((await self.clients.openWindow(url)) ? 'open-window' : 'open-window-null'); }
-      catch { trace('open-window-failed'); }
+      await openNotification(notificationNavigationTarget(event.notification.data?.url), trace);
     } finally { await Promise.allSettled(pending); }
   })());
 });

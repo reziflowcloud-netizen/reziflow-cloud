@@ -49,7 +49,10 @@ export async function resolveInboundLeadAssignment({
     if (channelAssignment) return chooseLeadAssignment({ channel: channelAssignment })
   }
 
-  const settings = inputSettings || getLeadWebhookSettings(organizationSettings)
+  // Ingestion holds the Organization row lock. Read its latest fallback cursor,
+  // rather than the settings snapshot obtained before waiting for that lock.
+  const rawSettings = client.$transaction ? organizationSettings : (await client.organization.findUnique({ where: { id: organizationId }, select: { settings: true } }))?.settings
+  const settings = client.$transaction ? inputSettings || getLeadWebhookSettings(rawSettings) : getLeadWebhookSettings(rawSettings)
   if (settings.leadWebhookAssignmentMode === 'single' && settings.leadWebhookAssignmentUserId) {
     const fallback = await assignmentForUser(client, organizationId, settings.leadWebhookAssignmentUserId)
     if (fallback) return chooseLeadAssignment({ fallback })
@@ -74,7 +77,7 @@ export async function resolveInboundLeadAssignment({
         where: { id: organizationId },
         data: {
           settings: {
-            ...settingsObject(rawOrganizationSettings),
+            ...settingsObject(client.$transaction ? rawOrganizationSettings : rawSettings),
             leadWebhookAssignmentCursor: cursor + 1,
           },
         },
