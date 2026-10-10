@@ -36,6 +36,10 @@
 .settings :global(.btn-primary) { color: var(--notification-on-accent); }
 .settings p { color: var(--muted); line-height: 1.5; margin: 8px 0; }
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
+.pilotControls { align-items: flex-start; }
+.pilotControls label { flex-wrap: wrap; max-width: 100%; }
+.pilotControls select { min-height: 44px; max-width: 100%; padding: 8px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.pilotControls button { max-width: 100%; white-space: normal; text-align: left; }
 .settingsTable { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .settingsTable th, .settingsTable td { padding: 12px 6px; border-bottom: 1px solid var(--border); text-align: left; overflow-wrap: anywhere; }
 .settingsTable th:not(:first-child), .settingsTable td:not(:first-child) { text-align: center; width: 66px; }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticatedNotificationUser } from '@/lib/notificationRequest'
 import { authorizedNotification, markNotificationsRead } from '@/lib/notifications'
 import { entityLink } from '@/lib/notificationPolicy'
+import { isPushPilotNotification } from '@/lib/pushPilotPolicy'
 export const dynamic = 'force-dynamic'
 function redirectInsideApp(path: string) {
   return new NextResponse(null, { status: 307, headers: { Location: path, 'Cache-Control': 'private, no-store' } })
@@ -17,5 +18,5 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   // Push-only records also become read after opening.
   const { prisma } = await import('@/lib/prisma')
   await prisma.notification.updateMany({ where: { id: notification.id, userId: user.id, organizationId: user.organizationId, readAt: null }, data: { readAt: new Date() } })
-  return redirectInsideApp(entityLink(notification.entityType, notification.entityId))
+  return redirectInsideApp(isPushPilotNotification(notification) ? '/dashboard' : entityLink(notification.entityType, notification.entityId))
 }
