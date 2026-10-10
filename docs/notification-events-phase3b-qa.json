@@ -1,0 +1,167 @@
+{
+  "phase": "Development 12 / Phase 3B scheduled notifications",
+  "baseMain": "c17e3b920728c22770cd1310ca74acff594418d8",
+  "branch": "feature/notification-events-phase3b",
+  "production": {
+    "changed": false,
+    "deployed": false,
+    "schedulerActivated": false,
+    "phase3bActivated": false
+  },
+  "cadence": {
+    "expression": "*/15 * * * *",
+    "timezone": "Europe/Warsaw",
+    "reason": "Calendar reminders do not require frequent polling. Exact Task reminders and Lead contact timestamps are evaluated on the next successful 15-minute sweep. A large continuation or outage can delay delivery further."
+  },
+  "audit": {
+    "task": {
+      "source": "Task.dueDate and description JSON reminderAt",
+      "dateOnly": "Existing date inputs persist literal YYYY-MM-DD in UTC; preserve that calendar date and compare with the Warsaw calendar day.",
+      "preciseReminder": "An explicit ISO/offset is an exact instant. A datetime-local reminder is Warsaw wall time and replaces the default due-soon rule.",
+      "dueSoon": "One day before the deadline, with same-day catch-up. A date-only deadline becomes overdue on the next Warsaw calendar day.",
+      "overdue": "One occurrence per due date. A different due date is a new occurrence; returning to an already notified date does not recreate it.",
+      "inactive": [
+        "done",
+        "completed",
+        "cancelled",
+        "canceled",
+        "inactive"
+      ],
+      "generatedDuplicatesExcluded": [
+        "leadReminder",
+        "caseImportantDate",
+        "fingerprintsAppointment",
+        "predictedDecision"
+      ]
+    },
+    "case": {
+      "source": [
+        "fingerprintsDate",
+        "predictedDecisionDate",
+        "personalAppearDate",
+        "cardPickupDate",
+        "legalStayDeadline",
+        "workContractEndDate",
+        "CaseCustomDate.date"
+      ],
+      "windows": "7d (including missed runs at 6..2 days), then 1d (including date-day catch-up); fixed occurrence keys prevent daily repeats.",
+      "historicalFieldsExcluded": [
+        "filingDate",
+        "mosSentAt"
+      ],
+      "closed": "Existing isClosedCaseStatus rule; personal appearance retirement uses existing status history rule.",
+      "customDisabled": "The existing model has no enabled/retired flag: deleted rows and null dates are disabled. No second date model was added.",
+      "semanticDedupe": "Generated Task representations are excluded. Standard/custom dates with matching translated semantic label and day are collapsed. Duplicate custom label/day rows use the lowest existing custom id. Distinct event labels on the same day remain distinct."
+    },
+    "lead": {
+      "source": "Lead.nextContactAt / lastContactAt / convertedAt / convertedClientId / status / assignedToId / employeeId",
+      "rule": "Exact persisted nextContactAt is reached, with no contact at or after it. Converted, terminal, unassigned, foreign, inactive/unlinked/mismatched Employee-User records are excluded, including team copies.",
+      "timezoneFix": "Existing naive Lead datetime-local writes were parsed in the server timezone. normalizeLeadBody and contact API now parse Warsaw wall time. The existing detail/list controls display Warsaw time and preserve existing ISO values during unchanged saves.",
+      "legacyRows": "Already persisted ISO instants are preserved. Historical input provenance is unavailable, so existing rows are never silently shifted.",
+      "dst": "Spring nonexistent 02:30 moves to 03:30; autumn ambiguous 02:30 chooses the first occurrence. Explicit offsets remain exact. UTC, Los Angeles and Tokyo host timezone tests pass."
+    }
+  },
+  "architecture": {
+    "endpoint": "GET /api/internal/notifications; exact timing-safe Bearer CRON_SECRET of at least 32 characters; unauthorized=401, invalid cursor=400, incomplete/retry=503 with Retry-After 15 and no private diagnostics.",
+    "entityPage": 25,
+    "cursor": "task|case|lead plus last completed id; id > cursor and orderBy id asc. One bounded page per endpoint call.",
+    "transaction": "Each actionable entity has its own transaction: tenant-scoped row lock, fresh read, responsible/access/preferences check, bulk Notification insert and durable outbox insert. No batch/global/nested transaction calls; provider delivery is outside the transaction.",
+    "transactionLimitsMs": {
+      "maxWait": 10000,
+      "timeout": 10000
+    },
+    "evaluationSoftBudgetMs": 15000,
+    "insertChunk": 500,
+    "pilotBounds": {
+      "organizations": 10,
+      "users": 100,
+      "activeRecipientDevicesPerEntity": 100,
+      "customDatesPerCase": 100,
+      "recentStatusChangesPerCase": 100,
+      "excess": "Fail explicitly/atomically with retryable endpoint failure; never silently truncate events, recipients or devices."
+    },
+    "provider": "Existing Phase 2/3A transport: pages of 20 durable leases, ownership/access/actionability/preferences rechecks and existing provider retry policy.",
+    "runner": "scripts/run-notification-job.mjs; at most 200 pages or 12-minute soft budget per run, 3 attempts on network/5xx/429 errors, same-cursor retries and atomic checkpoint persistence after successful pages. Interrupted pages are safely replayed. A bounded continuation resumes at the next cadence.",
+    "checkpoint": "Configure NOTIFICATION_JOB_CHECKPOINT on a persistent runner volume, tied to the target origin. Keep secrets only in the approved scheduler environment.",
+    "uniqueness": "Notification unique(organizationId,userId,dedupeKey), delivery unique(notificationId,subscriptionId); user id is the recipient component. Per-entity row locks serialize competing snapshots; uniqueness is final protection.",
+    "ownership": "Scheduled mine/team SQL visibility guards only the four scheduled types. Reassignment, unrestricted Employee downgrade, missing responsible and unlinked Employee cancel access consistently for Center, resolver and existing transport. Phase 3A assignment behavior is unchanged.",
+    "migrationNeeded": false,
+    "indexes": {
+      "available": [
+        "Task/Case/Lead primary-key id for keyset order",
+        "Case and Lead organizationId/assignedToId indexes",
+        "Employee organizationId/userId index and User primary key",
+        "Notification organizationId/userId/dedupeKey unique",
+        "PushSubscription organizationId/userId/disabledAt index",
+        "NotificationPushDelivery notificationId/subscriptionId unique and existing delivery lease index"
+      ],
+      "rationale": "No additional schema/index migration is required for the bounded TestRezidents pilot; the measured isolated dataset completed in 27 pages. This is not a benchmark for unrestricted rollout. At larger tenant cardinalities, profile Task(organizationId,id) and Case child relation indexes before widening the pilot."
+    }
+  },
+  "qa": {
+    "fullRegression": {
+      "passed": 243,
+      "failed": 0,
+      "skipped": 0
+    },
+    "dedicatedPhase3b": {
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0
+    },
+    "performance": {
+      "runtimeMs": 12361,
+      "tenantsScanned": 2,
+      "entitiesScanned": 600,
+      "notificationsCreated": 600,
+      "queries": 5252,
+      "batches": 27,
+      "connectionLimit": 1,
+      "excludedEntities": 300
+    },
+    "latency": "40ms real PostgreSQL pg_sleep before each transaction model query; pool=1, transaction-client-only guard; final dedicated latency scenario 205ms.",
+    "concurrency": "Four invocations across two separate Prisma clients, each connection_limit=1, one notification/outbox per recipient.",
+    "failures": [
+      "Real PostgreSQL SQLSTATE 40001 after writes: notification and outbox rollback together, retry fills once",
+      "Interrupted page after two committed entities: same page replay completes five entities without duplicates",
+      "Scheduled provider 503: existing outbox retry succeeds once; privacy OFF excludes synthetic private names/titles",
+      "Real internal endpoint auth and sanitized 503 behavior; persisted runner continuation and same-page HTTP retry"
+    ],
+    "regressionCoverage": [
+      "Phase 1 notification list/read/badge/tenant DB tests",
+      "Phase 2 push and pilot",
+      "Phase 3A assignments/events/dedupe",
+      "Shared notification click and iPhone resume fallback simulations",
+      "Staff identity, routing and Lead visibility",
+      "Entity autosave and write compatibility",
+      "Lead webhook pool=1 regression",
+      "Security/tenant isolation",
+      "TypeScript, Prisma validate, isolated safe build, git diff --check"
+    ],
+    "webhookFixtureCorrection": "The existing pool test created a V2 route with only position 1. Position 0 is now explicitly included in the test fixture, matching real V2 route creation. No routing/webhook implementation change.",
+    "safeBuild": "Sanitized child environment, local loopback QA database, flags disabled, no migrations or seed. Windows DLL lock on a concurrent generate attempt was resolved by running build after DB tests exited."
+  },
+  "preserved": [
+    "No Production write/deploy or cron activation",
+    "No extra event types",
+    "Phase 3A assignment generation, routing/round-robin/dedupe unchanged",
+    "No Prisma/schema/migration changes",
+    "VAPID/AES/subscription model unchanged",
+    "notificationPush.ts and Service Worker unchanged",
+    "iPhone fallback, canonical resolver and badge UI unchanged"
+  ],
+  "futureControlledPilot": {
+    "ready": true,
+    "activated": false,
+    "allowedOrganization": "TestRezidents ONLY; resolve and review its actual id before setting the existing organization allowlist. Empty/invalid lists deny all.",
+    "preparations": [
+      "Separate explicit deployment/pilot authorization is still required.",
+      "Preflight existing eligible dates/assignees/preferences to prevent unexpected historical overdue backlog.",
+      "Use synthetic Task due/overdue, Case +7/+1/custom and Lead next-contact fixtures; no real client data.",
+      "Verify both in-app and push toggles, mine/team copies, read/badge and exact-entity links.",
+      "Manually check real iPhone foreground/background/closed-app: exact navigation OR previously accepted restore -> banner -> Center -> exact entity.",
+      "Do not activate a recurring Production cron until the controlled pilot is accepted."
+    ],
+    "physicalIphoneQaInThisPhase": false
+  }
+}
