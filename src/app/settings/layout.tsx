@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { getUser } from '@/lib/auth'
 import Sidebar from '@/components/layout/Sidebar'
 import MobileNav from '@/components/layout/MobileNav'
-import { LanguageProvider } from '@/context/LanguageContext'
+import LanguageProvider from '@/components/AuthenticatedUIProvider'
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   const user = await getUser()

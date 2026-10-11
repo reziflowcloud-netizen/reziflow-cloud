@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getUser } from '@/lib/auth'
 import Sidebar from '@/components/layout/Sidebar'
 import MobileNav from '@/components/layout/MobileNav'
-import { LanguageProvider } from '@/context/LanguageContext'
+import LanguageProvider from '@/components/AuthenticatedUIProvider'
 import ConferenceDemoBar from '@/components/ConferenceDemoBar'
 import { isConferenceDemoSession } from '@/lib/conferenceDemo'
 
