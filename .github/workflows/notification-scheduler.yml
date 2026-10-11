@@ -72,6 +72,24 @@ jobs:
           QSTASH_NOTIFICATION_SETUP_TOKEN: ${{ secrets.QSTASH_NOTIFICATION_SETUP_TOKEN }}
         run: node scripts/setup-notification-qstash.mjs
 
+  configure-organization-schedules:
+    if: inputs.confirmation == 'PREPARE_ORG_SCHEDULES_PAUSED' || inputs.confirmation == 'ACTIVATE_ORG_SCHEDULES'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Configure approved organization schedules only
+        env:
+          QSTASH_ORG_ROLLOUT_CONFIRMATION: ${{ inputs.confirmation }}
+          NOTIFICATION_PRODUCTION_CRON_SECRET: ${{ secrets.NOTIFICATION_PRODUCTION_CRON_SECRET }}
+          QSTASH_NOTIFICATION_SETUP_TOKEN: ${{ secrets.QSTASH_NOTIFICATION_SETUP_TOKEN }}
+        run: node scripts/rollout-org-notification-schedules.mjs
+
   verify-transport:
     if: inputs.confirmation == 'VERIFY_TRANSPORT_DIAGNOSTIC'
     runs-on: ubuntu-latest

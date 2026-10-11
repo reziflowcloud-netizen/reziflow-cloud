@@ -6,7 +6,7 @@ export const notificationQueue = notificationScheduleId
 export const qstashOrigin = 'https://qstash-eu-central-1.upstash.io'
 export const notificationDestination = 'https://legalhubcrm.com/api/internal/notifications'
 export const notificationSchedules = [
-  { scheduleId: notificationScheduleId, cron: '*/15 * * * *', body: {}, mode: 'frequent' },
+  { scheduleId: notificationScheduleId + '-frequent', cron: '*/15 * * * *', body: {}, mode: 'frequent' },
   { scheduleId: notificationScheduleId + '-cases', cron: '0 6 * * *', body: { mode: 'daily' }, mode: 'daily' },
 ]
 const cursorPattern = /^(?:(task|case|lead):[a-zA-Z0-9_-]{0,100}|n\.[a-zA-Z0-9_-]{1,700})$/
