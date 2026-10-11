@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { createCaseWithChecklist } from '@/lib/documentChecklist'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { leadDisplayName } from '@/lib/leads'
 import { normalizePhones, primaryPhone } from '@/lib/phones'
@@ -95,8 +96,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     let createdCase: any = null
     if (body.createCase) {
-      createdCase = await tx.case.create({
-        data: {
+      createdCase = await createCaseWithChecklist(tx, {
           organizationId,
           clientId: client.id,
           status: caseStatus,
@@ -105,7 +105,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
           employeeId: lead.employeeId || null,
           serviceId: body.serviceId ? parseInt(body.serviceId) : null,
           notes: body.caseNotes || `Создано при переводе лида: ${leadDisplayName(lead)}`,
-        },
       })
       await tx.statusHistory.create({
         data: { caseId: createdCase.id, toStatus: createdCase.status, changedBy: user.name || 'System' },

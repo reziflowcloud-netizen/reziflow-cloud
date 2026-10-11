@@ -94,12 +94,12 @@ test('Lead webhook remains idempotent under a constrained connection pool', { sk
   const firstEmployee = await db.employee.create({ data: { organizationId: org.id, userId: firstUser.id, name: 'Synthetic employee A' } })
   const secondEmployee = await db.employee.create({ data: { organizationId: org.id, userId: secondUser.id, name: 'Synthetic employee B' } })
   const route = await db.leadChannelRoute.create({ data: { organizationId: org.id, sourceKey: 'website', employeeId: firstEmployee.id } })
-  // New V2 routes explicitly include position zero; the expand migration only
-  // backfills existing V1 routes. Exercise a real two-member round-robin fixture.
+  // The compatibility trigger already inserts position zero for new V1 routes.
+  // Keep it and explicitly add the second V2 member.
   await db.leadChannelRouteMember.createMany({ data: [
     { organizationId: org.id, routeId: route.id, employeeId: firstEmployee.id, position: 0 },
     { organizationId: org.id, routeId: route.id, employeeId: secondEmployee.id, position: 1 },
-  ] })
+  ], skipDuplicates: true })
 
   process.env.NOTIFICATIONS_ENABLED = 'true'
   process.env.NOTIFICATION_EVENTS_ENABLED = 'true'

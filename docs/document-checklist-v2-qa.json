@@ -1,0 +1,477 @@
+{
+  "environment": "disposable loopback PostgreSQL + production Next build",
+  "checks": {
+    "legacy general/service fallback and no mutation on reads": "PASS",
+    "template create/toggles/reorder/name/archive CAS and duplicate rejection": "PASS",
+    "atomic new Case snapshot; existing Case unchanged; later template edits isolated": "PASS",
+    "Lead conversion and CSV import both create Case snapshots": "PASS",
+    "optional-only snapshot has no blockers and emits no readiness event": "PASS",
+    "simultaneous final required statuses serialize and emit exactly one readiness occurrence": "PASS",
+    "readiness notification responsible only; optional missing; repeat save dedupe; second occurrence": "PASS",
+    "concurrent CAS one commit/one conflict; no partial writes; independent Case autosave version": "PASS",
+    "MOS same source, status/date validation, historical date persists, no task duplication": "PASS",
+    "file relation, cross-case rejection, note and reload persistence": "PASS",
+    "manual Case-only document; service change Keep; merge preserves statuses/files/notes and obsolete items": "PASS",
+    "explicit legacy conversion retains submitted names/dates and existing MOS credentials; no initial notification": "PASS",
+    "restricted access, cross-tenant, template permission and revoked session": "PASS",
+    "readiness respects organization OFF and recipient in-app opt-out": "PASS",
+    "explicit archive preserves linked files": "PASS",
+    "RU/UA/PL × Light/Dark/Slate × 390/414/430/1024/1440 documents/summary/MOS/templates no horizontal overflow": "PASS",
+    "service-change prompt and add-document editor on all five widths; explicit Keep persists": "PASS",
+    "actual UI autosave note/status and immediate close persists; date downgrade safe": "PASS"
+  },
+  "viewports": [
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "light",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "dark",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "slate",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 390,
+      "lang": "uk",
+      "theme": "light",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 390,
+      "lang": "uk",
+      "theme": "dark",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 390,
+      "lang": "uk",
+      "theme": "slate",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 390,
+      "lang": "pl",
+      "theme": "light",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 390,
+      "lang": "pl",
+      "theme": "dark",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 390,
+      "lang": "pl",
+      "theme": "slate",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 414,
+      "lang": "ru",
+      "theme": "light",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 414,
+      "lang": "ru",
+      "theme": "dark",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 414,
+      "lang": "ru",
+      "theme": "slate",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 414,
+      "lang": "uk",
+      "theme": "light",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 414,
+      "lang": "uk",
+      "theme": "dark",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 414,
+      "lang": "uk",
+      "theme": "slate",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 414,
+      "lang": "pl",
+      "theme": "light",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 414,
+      "lang": "pl",
+      "theme": "dark",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 414,
+      "lang": "pl",
+      "theme": "slate",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 430,
+      "lang": "ru",
+      "theme": "light",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 430,
+      "lang": "ru",
+      "theme": "dark",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 430,
+      "lang": "ru",
+      "theme": "slate",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 430,
+      "lang": "uk",
+      "theme": "light",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 430,
+      "lang": "uk",
+      "theme": "dark",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 430,
+      "lang": "uk",
+      "theme": "slate",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 430,
+      "lang": "pl",
+      "theme": "light",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 430,
+      "lang": "pl",
+      "theme": "dark",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 430,
+      "lang": "pl",
+      "theme": "slate",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1024,
+      "lang": "ru",
+      "theme": "light",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1024,
+      "lang": "ru",
+      "theme": "dark",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1024,
+      "lang": "ru",
+      "theme": "slate",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1024,
+      "lang": "uk",
+      "theme": "light",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1024,
+      "lang": "uk",
+      "theme": "dark",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1024,
+      "lang": "uk",
+      "theme": "slate",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1024,
+      "lang": "pl",
+      "theme": "light",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1024,
+      "lang": "pl",
+      "theme": "dark",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1024,
+      "lang": "pl",
+      "theme": "slate",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1440,
+      "lang": "ru",
+      "theme": "light",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1440,
+      "lang": "ru",
+      "theme": "dark",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1440,
+      "lang": "ru",
+      "theme": "slate",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1440,
+      "lang": "uk",
+      "theme": "light",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1440,
+      "lang": "uk",
+      "theme": "dark",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1440,
+      "lang": "uk",
+      "theme": "slate",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1440,
+      "lang": "pl",
+      "theme": "light",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1440,
+      "lang": "pl",
+      "theme": "dark",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    },
+    {
+      "width": 1440,
+      "lang": "pl",
+      "theme": "slate",
+      "documents": "PASS",
+      "editor": "PASS",
+      "summary": "PASS",
+      "mos": "PASS",
+      "template": "PASS"
+    }
+  ],
+  "errors": [],
+  "screenshotDir": "C:\\Users\\verbe\\AppData\\Local\\Temp\\legalhub-document-checklist-v2-screenshots"
+}

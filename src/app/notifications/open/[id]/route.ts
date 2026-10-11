@@ -18,5 +18,5 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   // Push-only records also become read after opening.
   const { prisma } = await import('@/lib/prisma')
   await prisma.notification.updateMany({ where: { id: notification.id, userId: user.id, organizationId: user.organizationId, readAt: null }, data: { readAt: new Date() } })
-  return redirectInsideApp(isPushPilotNotification(notification) ? '/dashboard' : entityLink(notification.entityType, notification.entityId))
+  return redirectInsideApp(isPushPilotNotification(notification) ? '/dashboard' : entityLink(notification.entityType, notification.entityId) + (notification.type === 'documents_ready' && notification.entityType === 'case' ? '?tab=docs' : ''))
 }

@@ -3,6 +3,8 @@ import NotificationBell from '@/components/NotificationBell'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
+import ServiceDocumentTemplate from '@/components/ServiceDocumentTemplate'
+import { documentChecklistText } from '@/lib/documentChecklistI18n'
 
 interface Service {
   id: number
@@ -101,6 +103,7 @@ export default function ServicesPage() {
   const [editForm, setEditForm] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [documentServiceId, setDocumentServiceId] = useState<number | null>(null)
 
   useEffect(() => {
     fetch('/api/services').then(r => r.json()).then(d => setServices(Array.isArray(d) ? d : []))
@@ -202,7 +205,7 @@ export default function ServicesPage() {
         {/* Add form */}
         <div className="card" style={{ marginBottom: 20 }}>
           <div className="section-title"><span>➕</span>{text.addTitle}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr auto auto', gap: 12, alignItems: 'flex-end' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, alignItems: 'flex-end' }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="label">{text.serviceName}</label>
               <input className="input" value={form.name}
@@ -254,7 +257,7 @@ export default function ServicesPage() {
 
           {active.map((s, i) => (
             <div key={s.id} style={{
-              display: 'flex', alignItems: 'center', gap: 12,
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12,
               padding: '12px 0',
               borderBottom: i < active.length - 1 ? '1px solid var(--border)' : 'none',
             }}>
@@ -275,7 +278,7 @@ export default function ServicesPage() {
               ) : (
                 <>
                   <div style={{ width: 14, height: 14, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
-                  <div style={{ flex: 2 }}>
+                  <div style={{ flex: '1 1 160px', minWidth: 0, overflowWrap: 'anywhere' }}>
                     <div style={{ fontWeight: 500 }}>{s.name}</div>
                     {s.description && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{s.description}</div>}
                   </div>
@@ -287,6 +290,7 @@ export default function ServicesPage() {
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <button className="btn btn-secondary" onClick={() => setDocumentServiceId(documentServiceId === s.id ? null : s.id)}>{documentChecklistText[lang].documents}</button>
                     <button onClick={() => startEdit(s)}
                       style={{ background: '#f3f4f6', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 13 }}>✏️</button>
                     <button onClick={() => toggleActive(s, false)}
@@ -302,11 +306,12 @@ export default function ServicesPage() {
         </div>
 
         {/* Inactive */}
+        {documentServiceId && <div className="card" style={{ marginBottom: 16 }}><div className="section-title">{services.find(service => service.id === documentServiceId)?.name}</div><ServiceDocumentTemplate key={documentServiceId} serviceId={documentServiceId} /></div>}
         {inactive.length > 0 && (
           <div className="card">
             <div className="section-title" style={{ color: 'var(--muted)' }}>{text.inactiveTitle.replace('{count}', String(inactive.length))}</div>
             {inactive.map(s => (
-              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', opacity: 0.6 }}>
+              <div key={s.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: '10px 0', opacity: 0.6 }}>
                 <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#d1d5db' }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 500, textDecoration: 'line-through' }}>{s.name}</div>

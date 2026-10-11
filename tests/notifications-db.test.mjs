@@ -3,12 +3,18 @@ import test from 'node:test'
 import { createECDH, randomBytes } from 'node:crypto'
 import { PrismaClient } from '@prisma/client'
 import { authorizedNotification, emitNotification, entityContext, listNotifications, markNotificationsRead, notificationUser, notifyAssignment, unreadNotificationCount } from '../src/lib/notifications.ts'
-import { deliverNotificationPush } from '../src/lib/notificationPush.ts'
+import { deliverNotificationPush as deliverPush } from '../src/lib/notificationPush.ts'
 import { notificationPreferences } from '../src/lib/notificationPolicy.ts'
 import { encryptSubscription, endpointHash, subscriptionAAD } from '../src/lib/pushSecurity.ts'
 import { evaluateNotificationPage } from '../src/lib/notificationJobs.ts'
 
 const databaseUrl = process.env.NOTIFICATIONS_TEST_DATABASE_URL
+// PostgreSQL TIMESTAMP(3) can round a new default nextAttemptAt into the next
+// millisecond. Cross that boundary before testing immediate delivery eligibility.
+async function deliverNotificationPush(...args) {
+  await new Promise(resolve => setTimeout(resolve, 5))
+  return deliverPush(...args)
+}
 test('notification DB isolation, assignment, dedupe, scheduling and delivery', { skip: !databaseUrl }, async t => {
   const target = new URL(databaseUrl)
   assert.ok(['localhost', '127.0.0.1'].includes(target.hostname) && target.pathname.includes('notifications_qa'), 'Only isolated local notification QA DB is allowed')

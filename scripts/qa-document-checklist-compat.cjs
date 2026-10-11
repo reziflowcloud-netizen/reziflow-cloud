@@ -1,0 +1,22 @@
+// Generate the client from origin/main into node_modules/.cache before running.
+const assert = require('node:assert/strict')
+const { PrismaClient: OldClient } = require('../node_modules/.cache/checklist-old-client')
+const { PrismaClient } = require('@prisma/client')
+const url = new URL(process.env.DATABASE_URL || '')
+assert.equal(url.hostname, '127.0.0.1'); assert.equal(url.port, '55432'); assert.equal(url.pathname, '/legalhub_case_qa')
+const old = new OldClient(), current = new PrismaClient()
+async function main() {
+  const org = await old.organization.create({ data: { name: 'Old app compatibility', slug: `checklist-compat-${Date.now()}` } })
+  const client = await old.client.create({ data: { organizationId: org.id, firstName: 'Old client', lastName: 'QA' } })
+  const service = await old.service.create({ data: { organizationId: org.id, name: 'Old service' } })
+  const record = await old.case.create({ data: { organizationId: org.id, clientId: client.id, serviceId: service.id, mosNumber: 'LEGACY-MOS' } })
+  await old.caseOption.create({ data: { organizationId: org.id, type: `mosDocument:${service.id}`, value: 'Passport' } })
+  await old.task.create({ data: { organizationId: org.id, title: 'MOS: Passport', status: 'done', description: JSON.stringify({ mosDocument: { caseId: record.id, sentAt: '2026-10-09' } }) } })
+  await old.caseDocument.create({ data: { caseId: record.id, name: 'Legacy upload.pdf', fileType: 'pdf' } })
+  const saved = await old.case.update({ where: { id: record.id }, data: { notes: 'Old application writes after expand' }, include: { service: true, caseDocuments: true } })
+  assert.equal(saved.caseDocuments.length, 1); assert.equal(saved.mosNumber, 'LEGACY-MOS')
+  const expanded = await current.case.findUniqueOrThrow({ where: { id: record.id }, include: { checklistItems: true } })
+  assert.equal(expanded.checklistInitializedAt, null); assert.equal(expanded.checklistItems.length, 0); assert.equal(expanded.checklistVersion, 0)
+  console.log('PASS OLD APP Prisma client from origin/main + NEW DB: Case/Service/MOS settings/history/uploads read/write; no checklist backfill')
+}
+main().catch(error => { console.error(error); process.exitCode = 1 }).finally(async () => { await old.$disconnect(); await current.$disconnect() })

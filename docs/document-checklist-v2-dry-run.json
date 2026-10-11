@@ -1,0 +1,13 @@
+{
+  "source": "isolated-local-qa",
+  "mode": "READ ONLY",
+  "templateRecords": 17,
+  "generalTemplateRecords": 10,
+  "serviceTemplateRecords": 7,
+  "mosTaskRecords": 16,
+  "submittedRecords": 14,
+  "validCaseReferences": 15,
+  "invalidOrCrossTenantReferences": 1,
+  "missingSubmittedDate": 1,
+  "uninitializedCases": 14
+}

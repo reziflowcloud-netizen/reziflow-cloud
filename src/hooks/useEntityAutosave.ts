@@ -2,13 +2,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { EntityAutosave } from '@/lib/caseAutosave'
-import { registerScreenLeave } from '@/lib/screenLeave'
+import { registerScreenLeave, prepareScreenLeave, screenLeavePending } from '@/lib/screenLeave'
 
 export function useEntityAutosave(
   write: (patch: Record<string, unknown>, version: string) => Promise<string>,
   leaveMessage: string,
   hasOtherDrafts: () => boolean,
   allowed?: (key: string) => boolean,
+  navigation = true,
 ) {
   const [, render] = useState(0)
   const router = useRouter()
@@ -24,22 +25,25 @@ export function useEntityAutosave(
       const ok = await engine.flush()
       return (ok && !current.current.hasOtherDrafts()) || !window.confirm(current.current.leaveMessage)
     }
-    const unregister = registerScreenLeave(leave)
+    const unregister = registerScreenLeave(leave, () => engine.dirty || engine.busy || current.current.hasOtherDrafts())
+    const hidden = () => { if (document.visibilityState === 'hidden') void engine.flush() }
+    document.addEventListener('visibilitychange', hidden)
+    if (!navigation) return () => { engine.dispose(); unregister(); document.removeEventListener('visibilitychange', hidden) }
     const beforeUnload = (event: BeforeUnloadEvent) => {
-      if (engine.dirty || engine.busy || current.current.hasOtherDrafts()) { event.preventDefault(); event.returnValue = '' }
+      if (screenLeavePending()) { event.preventDefault(); event.returnValue = '' }
     }
     // Next links, bottom navigation and Back share a save barrier. Unsafe actions remain explicit.
     const click = async (event: MouseEvent) => {
       const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null
       if (!link || link.target === '_blank' || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey
-        || (!engine.dirty && !engine.busy && !current.current.hasOtherDrafts())) return
+        || !screenLeavePending()) return
       const url = new URL(link.href, location.href)
       if (url.href === location.href || url.protocol !== 'http:' && url.protocol !== 'https:') return
       event.preventDefault(); event.stopPropagation()
       if (navigating) return
       navigating = true
       try {
-        if (!await leave()) return
+        if (!await prepareScreenLeave()) return
         if (url.origin === location.origin) router.push(url.pathname + url.search + url.hash)
         else location.assign(url.href)
       } finally { navigating = false }
@@ -49,17 +53,15 @@ export function useEntityAutosave(
     if (!barrier.current && !history.state?.legalhubSaveBarrier) { history.pushState({ ...history.state, legalhubSaveBarrier: true }, '', href); barrier.current = true }
     const back = async () => {
       if (navigating) return
-      if (!engine.dirty && !engine.busy && !current.current.hasOtherDrafts()) { navigating = true; history.back(); return }
+      if (!screenLeavePending()) { navigating = true; history.back(); return }
       history.pushState({ ...history.state, legalhubSaveBarrier: true }, '', href)
       navigating = true
-      if (!await leave()) { navigating = false; return }
+      if (!await prepareScreenLeave()) { navigating = false; return }
       history.go(-2)
     }
-    const hidden = () => { if (document.visibilityState === 'hidden') void engine.flush() }
     window.addEventListener('beforeunload', beforeUnload)
     window.addEventListener('popstate', back)
     document.addEventListener('click', click, true)
-    document.addEventListener('visibilitychange', hidden)
     return () => {
       engine.dispose()
       unregister()
@@ -68,6 +70,6 @@ export function useEntityAutosave(
       document.removeEventListener('click', click, true)
       document.removeEventListener('visibilitychange', hidden)
     }
-  }, [engine, router])
+  }, [engine, router, navigation])
   return engine
 }

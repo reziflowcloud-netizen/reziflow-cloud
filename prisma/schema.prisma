@@ -577,6 +577,12 @@ model Case {
   statusHistory         StatusHistory[]
   customDates           CaseCustomDate[]
   docUpdates            DocUpdate[]
+  checklistItems        CaseChecklistItem[]
+  checklistInitializedAt DateTime?
+  checklistServiceId    Int?
+  checklistVersion      Int              @default(0)
+  documentsReady        Boolean          @default(false)
+  documentsReadyOccurrence Int           @default(0)
 
   @@unique([organizationId, caseNumber])
   @@index([organizationId, assignedToId])
@@ -674,6 +680,9 @@ model Service {
   active         Boolean       @default(true)
   createdAt      DateTime      @default(now())
   cases          Case[]
+  documentRequirements ServiceDocumentRequirement[]
+  documentTemplateInitializedAt DateTime?
+  documentTemplateVersion Int @default(0)
 
   @@unique([organizationId, name])
 }
@@ -686,6 +695,46 @@ model CaseOption {
   value          String
   order          Int           @default(0)
   createdAt      DateTime      @default(now())
+}
+
+// DocumentTemplate already describes generated DOCX files; requirements are distinct.
+model ServiceDocumentRequirement {
+  id        String @id @default(cuid())
+  serviceId Int
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  name      String
+  nameKey   String
+  required  Boolean @default(true)
+  forMos    Boolean @default(true)
+  sortOrder Int @default(0)
+  active    Boolean @default(true)
+  items     CaseChecklistItem[]
+
+  @@unique([serviceId, nameKey])
+}
+
+model CaseChecklistItem {
+  id          String @id @default(cuid())
+  caseId      String
+  case        Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  templateId  String?
+  template    ServiceDocumentRequirement? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  name        String
+  nameKey     String
+  required    Boolean @default(true)
+  forMos      Boolean @default(false)
+  status      String @default("NEEDED")
+  receivedAt  DateTime?
+  mosSubmittedAt DateTime?
+  sortOrder   Int @default(0)
+  note        String?
+  active      Boolean @default(true)
+  outsideTemplate Boolean @default(false)
+  version     Int @default(0)
+  files       CaseDocument[]
+
+  @@unique([caseId, nameKey])
+  @@index([caseId, active, sortOrder])
 }
 
 model Employee {
@@ -776,6 +825,10 @@ model CaseDocument {
   size              Int?
   createdAt         DateTime  @default(now())
   case              Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  checklistItemId   String?
+  checklistItem     CaseChecklistItem? @relation(fields: [checklistItemId], references: [id], onDelete: SetNull)
+
+  @@index([checklistItemId])
 }
 
 model TravelHistory {
