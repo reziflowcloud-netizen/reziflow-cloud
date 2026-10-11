@@ -1,4 +1,5 @@
 import type { NotificationType } from './notificationPolicy.ts'
+import { notificationGlobalEnabled, notificationGlobalRequested } from './notificationRollout.ts'
 
 // Every malformed/empty gate denies all. Assignment and scheduled events have
 // separate switches; enabling Phase 3A must never enable a scheduled evaluator.
@@ -15,8 +16,8 @@ export function notificationEventUserIds() {
 }
 export function assignmentEventsEnabled(organizationId?: string) {
   return process.env.NOTIFICATIONS_ENABLED === 'true' && process.env.NOTIFICATION_EVENTS_ENABLED === 'true'
-    && notificationEventOrgIds().length > 0 && notificationEventUserIds().length > 0
-    && (!organizationId || notificationEventOrgIds().includes(organizationId))
+    && (notificationGlobalRequested() ? notificationGlobalEnabled() : notificationEventOrgIds().length > 0 && notificationEventUserIds().length > 0
+    && (!organizationId || notificationEventOrgIds().includes(organizationId)))
 }
 export function scheduledEventsEnabled() {
   return assignmentEventsEnabled() && process.env.NOTIFICATION_SCHEDULED_EVENTS_ENABLED === 'true'
@@ -24,7 +25,7 @@ export function scheduledEventsEnabled() {
 export function notificationEventAllowed(type: NotificationType, organizationId: string, userId?: number) {
   return assignmentEventsEnabled(organizationId)
     && enabledAutomaticEventTypes().includes(type)
-    && (userId === undefined || notificationEventUserIds().includes(userId))
+    && (notificationGlobalEnabled() || userId === undefined || notificationEventUserIds().includes(userId))
 }
 export function enabledAutomaticEventTypes() {
   return scheduledEventsEnabled()

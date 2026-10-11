@@ -70,6 +70,7 @@ export async function emitNotification(db: any, type: NotificationType, entityTy
   if (!record.organizationId || !notificationEventAllowed(type, record.organizationId)) return []
   const organizationId = record.organizationId
   const linked = record.employeeId || type === 'lead_assigned' ? await db.employee.findFirst({ where: { ...(record.employeeId ? { id: record.employeeId } : { userId: record.assignedToId }), organizationId, active: true }, select: { userId: true } }) : null
+  if (record.employeeId && linked?.userId !== record.assignedToId) return []
   if (type === 'lead_assigned' && (!linked?.userId || linked.userId !== record.assignedToId)) return []
   const notificationIds: string[] = []
   const ownIds = Array.from(new Set([record.assignedToId, linked?.userId].filter(Boolean)))

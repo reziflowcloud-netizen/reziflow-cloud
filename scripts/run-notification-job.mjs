@@ -21,7 +21,7 @@ export async function runNotificationJob({ origin, secret, checkpoint, checkpoin
     await rename(temporary, checkpoint)
   }
   const started = Date.now()
-  const metrics = { pages: 0, entitiesScanned: 0, notificationsCreated: 0, pushProcessed: 0, pushDelivered: 0, complete: false }
+  const metrics = { pages: 0, entitiesScanned: 0, notificationsCreated: 0, deliveriesCreated: 0, recipientsEvaluated: 0, skippedUnlinkedEmployees: 0, duplicatesPrevented: 0, pushProcessed: 0, pushDelivered: 0, complete: false }
   while (metrics.pages < maxPages && Date.now() - started < maxRuntimeMs) {
     const url = new URL('/api/internal/notifications', target)
     if (state.cursor) url.searchParams.set('cursor', state.cursor)
@@ -38,6 +38,7 @@ export async function runNotificationJob({ origin, secret, checkpoint, checkpoin
     const result = await response.json()
     if (result.nextCursor !== null && !/^(task|case|lead):[a-zA-Z0-9_-]{0,100}$/.test(result.nextCursor || '')) throw new Error('Invalid scheduler response')
     metrics.pages++; metrics.entitiesScanned += result.evaluated || 0; metrics.notificationsCreated += result.notificationsCreated || 0
+    for (const key of ['deliveriesCreated', 'recipientsEvaluated', 'skippedUnlinkedEmployees', 'duplicatesPrevented']) metrics[key] += result[key] || 0
     metrics.pushProcessed += result.push.processed; metrics.pushDelivered += result.push.delivered
     state.cursor = result.nextCursor
     if (!state.cursor) {

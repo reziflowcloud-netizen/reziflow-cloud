@@ -7,6 +7,7 @@ import { notificationText } from './notificationI18n.ts'
 import { decryptSubscription, pushConfigured, pushPilotUserIds, pushUserAllowed, subscriptionAAD } from './pushSecurity.ts'
 import { isPushPilotNotification, pushPilotText } from './pushPilotPolicy.ts'
 import { enabledAutomaticEventTypes, notificationEventAllowed, notificationEventOrgIds, notificationEventUserIds } from './notificationEventGate.ts'
+import { notificationGlobalEnabled } from './notificationRollout.ts'
 
 export function pushPayload(notification: any, preferences: ReturnType<typeof notificationPreferences>, clientName: string, unread: number) {
   const copy = notificationText[preferences.language]
@@ -31,7 +32,7 @@ export async function deliverNotificationPush(db: any = prisma, sender: PushSend
   if (!notificationsEnabled() || !pushConfigured()) return { processed: 0, delivered: 0 }
   if (!scope && !notificationEventsEnabled()) return { processed: 0, delivered: 0 }
   const rows = await db.notificationPushDelivery.findMany({
-    where: { deliveredAt: null, terminalAt: null, nextAttemptAt: { lte: now }, OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }], ...(scope ? { id: scope.deliveryId, userId: scope.userId, organizationId: scope.organizationId, attempts: 0 } : { organizationId: { in: notificationEventOrgIds().filter(id => !assignment || id === assignment.organizationId) }, userId: { in: notificationEventUserIds().filter(id => pushPilotUserIds().includes(id)) }, notification: { type: { in: assignment ? ['lead_assigned', 'task_assigned'] : enabledAutomaticEventTypes() }, ...(assignment ? { entityId: { in: assignment.entityIds } } : {}), entityType: { not: 'push_test' } } }) },
+    where: { deliveredAt: null, terminalAt: null, nextAttemptAt: { lte: now }, OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }], ...(scope ? { id: scope.deliveryId, userId: scope.userId, organizationId: scope.organizationId, attempts: 0 } : { organizationId: notificationGlobalEnabled() ? assignment ? assignment.organizationId : { not: null } : { in: notificationEventOrgIds().filter(id => !assignment || id === assignment.organizationId) }, ...(notificationGlobalEnabled() ? {} : { userId: { in: notificationEventUserIds().filter(id => pushPilotUserIds().includes(id)) } }), notification: { type: { in: assignment ? ['lead_assigned', 'task_assigned'] : enabledAutomaticEventTypes() }, ...(assignment ? { entityId: { in: assignment.entityIds } } : {}), entityType: { not: 'push_test' } } }) },
     orderBy: [{ nextAttemptAt: 'asc' }, { id: 'asc' }], take: 20,
   })
   let delivered = 0
