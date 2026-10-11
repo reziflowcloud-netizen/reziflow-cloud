@@ -6,6 +6,15 @@ import { runQstashNotificationChunk, continuationInput, diagnoseQstashNotificati
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 60
+async function drainPush() {
+  const start = Date.now(), total = { processed: 0, delivered: 0, more: false }
+  do {
+    const page = await deliverNotificationPush(undefined, undefined, new Date(), undefined, undefined, Math.max(1,25000-(Date.now()-start)))
+    total.processed += page.processed; total.delivered += page.delivered
+    total.more = page.more ?? page.processed >= 20
+  } while (total.more && Date.now()-start < 25000)
+  return total
+}
 export async function GET(request: NextRequest) {
   if (!cronAuthorized(request.headers.get('authorization'))) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   let cursor
@@ -13,7 +22,7 @@ export async function GET(request: NextRequest) {
   try {
     const evaluation = request.nextUrl.searchParams.get('delivery') === 'only' ? { evaluated: 0, nextCursor: null } : await evaluateNotificationPage(cursor)
     // Transport is outside every entity transaction, using the established leases.
-    const delivery = await deliverNotificationPush()
+    const delivery = await drainPush()
     return NextResponse.json({ ...evaluation, push: delivery }, { headers: { 'Cache-Control': 'no-store' } })
   } catch {
     // Do not expose DB/provider errors, PII or secrets. Retry the same page;

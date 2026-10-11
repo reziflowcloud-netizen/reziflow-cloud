@@ -54,7 +54,7 @@ export function warsawDay(now: Date) {
 export function taskOccurrences(task: any, now: Date) {
   if (['done', 'completed', 'cancelled', 'canceled', 'inactive'].includes(String(task.status).trim().toLowerCase())) return []
   let meta: any = {}
-  try { meta = JSON.parse(task.description || '{}') } catch { /* plain description */ }
+  try { const parsed = JSON.parse(task.description || '{}'); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) meta = parsed } catch { /* plain description */ }
   if (meta.leadReminder || meta.caseImportantDate || meta.fingerprintsAppointment || meta.predictedDecision) return []
   const due = task.dueDate ? dateKey(task.dueDate) : null
   const today = warsawDay(now)

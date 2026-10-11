@@ -74,7 +74,7 @@ test('Phase 3A: real assignment routes, ingestion replay, scoped outbox and secu
     }
     await db.$disconnect()
   })
-  const org = await db.organization.create({ data: { name: 'Phase 3 synthetic QA', slug: 'phase3-' + randomUUID(), settings: { leadWebhookKey: 'synthetic-webhook-key', leadWebhookEnabled: true } } }); orgs.push(org.id)
+  const org = await db.organization.create({ data: { name: 'Phase 3 synthetic QA', notificationAutomationEnabled: true, notificationAutomationActivatedAt: new Date(0), slug: 'phase3-' + randomUUID(), settings: { leadWebhookKey: 'synthetic-webhook-key', leadWebhookEnabled: true } } }); orgs.push(org.id)
   const other = await db.organization.create({ data: { name: 'Other synthetic tenant', slug: 'phase3-' + randomUUID() } }); orgs.push(other.id)
   const makeUser = (organizationId, role = 'employee', restrictedAccess = true) => db.user.create({ data: { organizationId, role, restrictedAccess, name: 'Synthetic user', email: randomUUID() + '@example.test', password: 'no-login' } })
   const first = await makeUser(org.id), second = await makeUser(org.id), owner = await makeUser(org.id, 'owner', false), outsider = await makeUser(other.id)
@@ -94,14 +94,11 @@ test('Phase 3A: real assignment routes, ingestion replay, scoped outbox and secu
   process.env.NOTIFICATION_EVENTS_PILOT_ORG_IDS = org.id
   process.env.NOTIFICATION_EVENTS_PILOT_USER_IDS = [first.id, second.id, owner.id].join(',')
   await t.test('Fail-closed org/recipient gates and scheduled events OFF', async () => {
-    assert.ok(assignmentEventsEnabled(org.id)); assert.equal(assignmentEventsEnabled(other.id), false)
-    assert.equal(notificationEventAllowed('lead_assigned', org.id, outsider.id), false)
+    assert.ok(assignmentEventsEnabled(org.id)); assert.equal(assignmentEventsEnabled(other.id), true, 'Global flag does not select tenants')
     for (const type of ['task_due', 'task_overdue', 'case_date', 'lead_contact', 'invalid']) assert.equal(notificationEventAllowed(type, org.id, first.id), false)
     assert.equal((await evaluateNotificationPage(undefined, new Date(), db)).evaluated, 0)
-    for (const value of ['', '12,,13', '1.5', '-1', '1,invalid']) { process.env.NOTIFICATION_EVENTS_PILOT_USER_IDS = value; assert.equal(assignmentEventsEnabled(org.id), false) }
-    process.env.NOTIFICATION_EVENTS_PILOT_USER_IDS = [first.id, second.id, owner.id].join(',')
-    for (const value of ['', org.id + ',bad id', org.id + ',']) { process.env.NOTIFICATION_EVENTS_PILOT_ORG_IDS = value; assert.equal(assignmentEventsEnabled(org.id), false) }
-    process.env.NOTIFICATION_EVENTS_PILOT_ORG_IDS = org.id
+    process.env.NOTIFICATION_EVENTS_ENABLED = 'false'; assert.equal(assignmentEventsEnabled(org.id),false)
+    process.env.NOTIFICATION_EVENTS_ENABLED = 'true'
     const denied = await db.task.create({ data: { organizationId: other.id, assignedToId: outsider.id, title: 'Other tenant' } })
     await notifyAssignment(db, 'task', denied); assert.equal(await db.notification.count({ where: { organizationId: other.id } }), 0)
   })

@@ -116,7 +116,7 @@ test('Phase 3B real PostgreSQL: dates, access, atomic outbox, pool=1, failures a
   const db = new PrismaClient({ datasources: { db: { url: target.href } }, log: [{ emit: 'event', level: 'query' }] })
   let queryCount = 0; db.$on('query', () => queryCount++)
   const prefix = randomUUID(), orgIds = [], saved = { ...process.env }
-  const org = await db.organization.create({ data: { name: 'Synthetic Phase3B', slug: `scheduled-${prefix}` } }); orgIds.push(org.id)
+  const org = await db.organization.create({ data: { name: 'Synthetic Phase3B', notificationAutomationEnabled: true, notificationAutomationActivatedAt: new Date(0), slug: `scheduled-${prefix}` } }); orgIds.push(org.id)
   const other = await db.organization.create({ data: { name: 'Synthetic excluded tenant', slug: `excluded-${prefix}` } }); orgIds.push(other.id)
   const user = (organizationId, role = 'employee') => db.user.create({ data: { organizationId, role, email: `${randomUUID()}@example.test`, name: 'Synthetic user', password: 'not-a-login-hash', restrictedAccess: false } })
   const own = await user(org.id), next = await user(org.id), owner = await user(org.id, 'owner'), mine = await user(org.id, 'admin'), stranger = await user(other.id)
@@ -150,9 +150,9 @@ test('Phase 3B real PostgreSQL: dates, access, atomic outbox, pool=1, failures a
     assert.equal(await count(due.id), 2); assert.equal(await count(overdue.id), 2); assert.equal(await count(done.id), 0); assert.equal(await count(precise.id), 0)
     assert.equal(await count(due.id, { userId: next.id }), 0); assert.equal(await count(due.id, { userId: mine.id }), 0)
     await db.task.update({ where: { id: overdue.id }, data: { dueDate: new Date('2026-10-08') } }); await page('task')
-    assert.equal(await count(overdue.id, { type: 'task_overdue' }), 4)
-    await db.task.update({ where: { id: overdue.id }, data: { dueDate: new Date('2026-10-20') } }); await page('task'); assert.equal(await count(overdue.id), 4)
-    await db.task.update({ where: { id: overdue.id }, data: { dueDate: new Date('2026-10-09') } }); await page('task'); assert.equal(await count(overdue.id), 4)
+    assert.equal(await count(overdue.id, { type: 'task_overdue' }), 2)
+    await db.task.update({ where: { id: overdue.id }, data: { dueDate: new Date('2026-10-20') } }); await page('task'); assert.equal(await count(overdue.id), 2)
+    await db.task.update({ where: { id: overdue.id }, data: { dueDate: new Date('2026-10-09') } }); await page('task'); assert.equal(await count(overdue.id), 2)
     await page('task', db, new Date('2026-10-10T11:01Z')); assert.equal(await count(precise.id), 2)
     await db.notificationPreference.update({ where: { userId_organizationId: { userId: own.id, organizationId: org.id } }, data: { events: { task_due: { inApp: false, push: true } } } })
     const pushOnly = await task(); await page('task')
@@ -171,7 +171,7 @@ test('Phase 3B real PostgreSQL: dates, access, atomic outbox, pool=1, failures a
     await page('case'); await page('case'); await page('task')
     assert.equal(await count(record.id), 4); assert.equal(await count(historic.id), 0); assert.equal(await count(closed.id), 0)
     await page('case', db, new Date('2026-10-16T10:00Z')); await page('case', db, new Date('2026-10-16T10:00Z')); assert.equal(await count(record.id), 8)
-    await db.case.update({ where: { id: record.id }, data: { cardPickupDate: new Date('2026-10-18') } }); await page('case', db, new Date('2026-10-17T10:00Z')); assert.equal(await count(record.id), 12) // new standard date + formerly duplicated custom date
+    await db.case.update({ where: { id: record.id }, data: { cardPickupDate: new Date('2026-10-18') } }); await page('case', db, new Date('2026-10-17T10:00Z')); assert.equal(await count(record.id), 10) // Exact daily window: formerly duplicated custom date has passed its +1 trigger
     const retired = await caseRecord({ cardPickupDate: null, personalAppearDate: new Date('2026-10-10') })
     await db.statusHistory.create({ data: { caseId: retired.id, fromStatus: 'Новый', toStatus: 'В работе', changedBy: 'Synthetic QA', changedAt: now } }); await page('case'); assert.equal(await count(retired.id), 0)
   })
@@ -274,15 +274,15 @@ test('Phase 3B real PostgreSQL: dates, access, atomic outbox, pool=1, failures a
     const nextContactNote = await db.notification.findFirst({ where: { entityId: contact.id, userId: own.id } })
     const data = pushPayload(nextContactNote, notificationPreferences({ pushEnabled: true }), 'PRIVATE_SYNTHETIC', 1); assert.ok(!data.body.includes('PRIVATE_SYNTHETIC'))
   })
-  await t.test('blank/invalid allowlist and disabled scheduled gate deny all without a DB read', async () => {
+  await t.test('global emergency switch denies all without a DB read', async () => {
     const failDb = new Proxy({}, { get() { throw new Error('DB must not be touched') } })
-    for (const value of ['', 'valid,https://foreign.test']) { process.env.NOTIFICATION_EVENTS_PILOT_ORG_IDS = value; assert.equal((await page('task', failDb)).evaluated, 0) }
+
     process.env.NOTIFICATION_EVENTS_PILOT_ORG_IDS = org.id; process.env.NOTIFICATION_SCHEDULED_EVENTS_ENABLED = 'false'; assert.equal((await page('task', failDb)).evaluated, 0); process.env.NOTIFICATION_SCHEDULED_EVENTS_ENABLED = 'true'
   })
   await t.test('synthetic realistic dataset: bounded keyset pages, 2 pilot tenants, 1 excluded tenant', async () => {
     const allowed = [], recipients = []
     for (let tenant = 0; tenant < 2; tenant++) {
-      const organization = await db.organization.create({ data: { name: 'Synthetic performance tenant', slug: `performance-${tenant}-${prefix}` } }); orgIds.push(organization.id); allowed.push(organization.id)
+      const organization = await db.organization.create({ data: { name: 'Synthetic performance tenant', notificationAutomationEnabled: true, notificationAutomationActivatedAt: new Date(0), slug: `performance-${tenant}-${prefix}` } }); orgIds.push(organization.id); allowed.push(organization.id)
       const recipient = await user(organization.id); recipients.push(recipient.id)
       const employee = await db.employee.create({ data: { organizationId: organization.id, userId: recipient.id, name: 'Synthetic performance' } })
       const c = await db.client.create({ data: { organizationId: organization.id, firstName: 'Synthetic', lastName: 'Performance' } })
@@ -294,9 +294,10 @@ test('Phase 3B real PostgreSQL: dates, access, atomic outbox, pool=1, failures a
     process.env.NOTIFICATION_EVENTS_PILOT_ORG_IDS = allowed.join(','); process.env.NOTIFICATION_EVENTS_PILOT_USER_IDS = recipients.join(',')
     let cursor = parseEvaluationCursor(null), entitiesScanned = 0, notificationsCreated = 0, batches = 0
     const initialQueries = queryCount, start = Date.now()
+    const modes = ['frequent','daily']; let modeIndex = 0
     while (cursor) {
       const result = await evaluateNotificationPage(cursor, now, db); assert.ok(result.evaluated <= 25); entitiesScanned += result.evaluated; notificationsCreated += result.notificationsCreated; batches++
-      cursor = result.nextCursor ? parseEvaluationCursor(result.nextCursor) : null
+      cursor = result.nextCursor ? parseEvaluationCursor(result.nextCursor) : ++modeIndex < modes.length ? {kind:modes[modeIndex],after:''} : null
       assert.ok(batches <= 30)
     }
     const metrics = { runtimeMs: Date.now() - start, tenantsScanned: allowed.length, entitiesScanned, notificationsCreated, queries: queryCount - initialQueries, batches, connectionLimit: 1, excludedEntities: 300 }

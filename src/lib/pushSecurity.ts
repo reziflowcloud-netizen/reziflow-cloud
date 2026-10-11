@@ -67,4 +67,6 @@ export function pushPilotUserIds(): number[] {
   if (values.length > 50 || values.some(value => !/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(Number(value)))) return []
   return Array.from(new Set(values.map(Number)))
 }
-export function pushUserAllowed(userId: number) { return pushPilotUserIds().includes(userId) }
+export function pushUserAllowed(userId: number) {
+  return Number.isSafeInteger(userId) && userId > 0
+}

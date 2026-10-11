@@ -1,5 +1,14 @@
 # Project State
 
+Development 12 update, 2026-10-11: organization opt-in/candidate-first
+notifications prepared on a feature branch; **not deployed**. Dedicated master
+default OFF, tenant activation watermark, two shared Task/Lead + daily Case
+schedules prepared. Current read-only initial-scope cost projection: 97/day,
+291/day with two retries on every request. Existing Production remains the
+TestRezidents/User16 pilot. Canonical review:
+[notifications-organization-opt-in-review.md](docs/notifications-organization-opt-in-review.md).
+Do not activate customer organizations or change Production before model review.
+
 Last updated against the production repository state by Codex: 2026-09-24.
 
 ## Project

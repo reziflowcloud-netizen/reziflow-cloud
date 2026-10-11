@@ -79,6 +79,8 @@ model Organization {
   cancelAtPeriodEnd     Boolean              @default(false)
   graceEndsAt           DateTime?
   settings              Json?
+  notificationAutomationEnabled Boolean @default(false)
+  notificationAutomationActivatedAt DateTime?
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @default(now()) @updatedAt
   users                 User[]
@@ -633,6 +635,8 @@ model Task {
   clientName     String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+
+  @@index([organizationId, dueDate])
 }
 
 model CaseStatus {

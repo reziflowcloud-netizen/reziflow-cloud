@@ -13,6 +13,8 @@ export default function NotificationSettings() {
   const { lang } = useLanguage()
   const copy = notificationText[lang]
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null)
+  const [automation, setAutomation] = useState<{ enabled: boolean; canManage: boolean } | null>(null)
+  const [automationBusy, setAutomationBusy] = useState(false)
   const [config, setConfig] = useState<{ canReceiveTeam: boolean; pushAvailable: boolean; publicKey: string; devices: number } | null>(null)
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('unsupported')
   const [active, setActive] = useState(false)
@@ -44,6 +46,10 @@ export default function NotificationSettings() {
   useEffect(() => {
     setMissingEntity(new URLSearchParams(window.location.search).has('unavailable'))
     setPilotDiagnostics(new URLSearchParams(window.location.search).get('pilotDiagnostics') === '1')
+    fetch('/api/notifications/organization', { cache: 'no-store' }).then(async response => {
+      if (!response.ok) throw new Error()
+      const data = await response.json(); setAutomation({ ...data.automation, canManage: data.canManage })
+    }).catch(() => setMessage('error'))
     fetch('/api/notifications/preferences', { cache: 'no-store' }).then(async response => {
       if (!response.ok) { setUnavailable(true); return }
       const data = await response.json(); setConfig(data); setPreferences(data.preferences)
@@ -63,6 +69,15 @@ export default function NotificationSettings() {
     if (!preferences) return
     setBusy(true); setMessage(null)
     try { await persist(preferences); setMessage('saved') } catch { setMessage('error') } finally { setBusy(false) }
+  }
+  async function toggleAutomation() {
+    if (!automation?.canManage || automationBusy) return
+    setAutomationBusy(true); setMessage(null)
+    try {
+      const response = await fetch('/api/notifications/organization', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !automation.enabled }) })
+      if (!response.ok) throw new Error()
+      const data = await response.json(); setAutomation({ ...data.automation, canManage: true }); setMessage('saved')
+    } catch { setMessage('error') } finally { setAutomationBusy(false) }
   }
   async function enable() {
     if (!preferences || !config?.pushAvailable || !pushSupported()) return
@@ -110,6 +125,10 @@ export default function NotificationSettings() {
       {missingEntity && <p role="status" className={styles.error}>{copy.unavailableEntity}</p>}
       {message && <p role={message === 'error' ? 'alert' : 'status'} className={message === 'error' ? styles.error : ''}>{copy[message]}</p>}
       {unavailable ? <p>{copy.unavailable}</p> : !preferences || !config ? <p>{copy.loading}</p> : <>
+        {automation?.canManage && <section className="card">
+          <h2>{copy.automationTitle}</h2><p>{copy.automationHelp}</p>
+          <button className={`btn ${automation.enabled ? 'btn-primary' : 'btn-secondary'}`} role="switch" aria-label={copy.automationTitle} aria-checked={automation.enabled} disabled={automationBusy} onClick={() => void toggleAutomation()}>{automation.enabled ? copy.automationOn : copy.automationOff}</button>
+        </section>}
         <section className="card"><h2>{copy.push}</h2>
           <p>{copy.permission}: <strong>{copy.permissionStates[permission]}</strong></p>
           <p>{copy.device}: <strong>{active ? copy.active : copy.inactive}</strong> · {copy.devices}: {config.devices}</p>
