@@ -49,7 +49,7 @@ test('remote diagnostic gate never invokes authenticated GET or business POST an
   assert.ok(!JSON.stringify(result).includes(secret))
   await assert.rejects(verifyNotificationTransport({secret, fetchApi: async (url, options) => options.headers.Authorization === `Bearer ${secret}` ? Response.json({diagnostic:true,generationInvoked:true}) : new Response('', {status:401})}))
   const workflow=fs.readFileSync('.github/workflows/notification-scheduler.yml','utf8')
-  const job=workflow.split('  verify-transport:')[1]
+  const job=workflow.split('  verify-transport:')[1].split('  activate-qstash-pilot:')[0]
   assert.match(job,/if: inputs.confirmation == 'VERIFY_TRANSPORT_DIAGNOSTIC'/)
   assert.doesNotMatch(job,/run-notification-job|Run production sweep|actions\/cache|QSTASH_NOTIFICATION_SETUP_TOKEN/)
 })

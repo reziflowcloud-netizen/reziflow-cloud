@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: Leave empty for fallback; CONFIGURE_PAUSED_ONLY for setup; VERIFY_TRANSPORT_DIAGNOSTIC for no-generation QA
+        description: Leave empty for fallback; CONFIGURE_PAUSED_ONLY; VERIFY_TRANSPORT_DIAGNOSTIC; ACTIVATE_TESTREZIDENTS_PILOT
         required: false
         type: string
 
@@ -80,3 +80,21 @@ jobs:
         env:
           NOTIFICATION_PRODUCTION_CRON_SECRET: ${{ secrets.NOTIFICATION_PRODUCTION_CRON_SECRET }}
         run: node scripts/verify-notification-transport.mjs
+
+  activate-qstash-pilot:
+    if: inputs.confirmation == 'ACTIVATE_TESTREZIDENTS_PILOT'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Activate existing QStash pilot schedule only
+        env:
+          QSTASH_ACTIVATION_CONFIRMATION: ${{ inputs.confirmation }}
+          NOTIFICATION_PRODUCTION_CRON_SECRET: ${{ secrets.NOTIFICATION_PRODUCTION_CRON_SECRET }}
+          QSTASH_NOTIFICATION_SETUP_TOKEN: ${{ secrets.QSTASH_NOTIFICATION_SETUP_TOKEN }}
+        run: node scripts/activate-notification-qstash.mjs
