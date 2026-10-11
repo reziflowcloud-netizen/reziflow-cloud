@@ -1,57 +1,53 @@
 import { prisma } from './prisma.ts'
 import { scheduledOccurrences } from './notificationOccurrence.ts'
-import { notificationGlobalEnabled, notificationGlobalSince } from './notificationRollout.ts'
+import { notificationCandidateQuery, type CandidateMode, type NotificationCandidate } from './notificationCandidates.ts'
 import { emitScheduledNotifications } from './scheduledNotifications.ts'
-import { notificationEventOrgIds, notificationEventUserIds, scheduledEventsEnabled } from './notificationEventGate.ts'
+import { scheduledEventsEnabled } from './notificationEventGate.ts'
+import { lockedOrganizationAutomation } from './notificationOrganization.ts'
 
 export const EVALUATION_BATCH_SIZE = 25
-export type EvaluationCursor = { kind: 'task' | 'case' | 'lead'; after: string }
+export type EvaluationCursor = { kind: CandidateMode; after: string; at?: string }
 export function parseEvaluationCursor(value: string | null): EvaluationCursor {
-  if (!value) return { kind: 'task', after: '' }
-  const match = value.match(/^(task|case|lead):([a-zA-Z0-9_-]{0,100})$/)
-  if (!match) throw new Error('Invalid cursor')
-  return { kind: match[1] as EvaluationCursor['kind'], after: match[2] }
+  if (!value) return { kind: 'frequent', after: '' }
+  const legacy = value.match(/^(task|case|lead):([a-zA-Z0-9_-]{0,100})$/)
+  if (legacy && !legacy[2]) return { kind: legacy[1] as CandidateMode, after: '' }
+  if (!/^n\.[a-zA-Z0-9_-]{1,700}$/.test(value)) throw new Error('Invalid cursor')
+  const data = JSON.parse(Buffer.from(value.slice(2), 'base64url').toString('utf8'))
+  if (Object.keys(data).sort().join(',') !== 'after,at,kind' || !['frequent','daily','task','lead','case'].includes(data.kind) || typeof data.after !== 'string' || data.after.length > 300 || !/^[a-zA-Z0-9_:.-]+$/.test(data.after) || typeof data.at !== 'string' || !Number.isFinite(Date.parse(data.at)) || new Date(data.at).toISOString() !== data.at) throw new Error('Invalid cursor')
+  return data
 }
-function occurrences(kind: EvaluationCursor['kind'], record: any, now: Date) {
-  return scheduledOccurrences(kind, record, now, notificationGlobalEnabled() ? notificationGlobalSince() : null)
-}
-// One page per invocation; short per-entity transactions, never a batch transaction.
-export async function evaluateNotificationPage(cursor: EvaluationCursor, now = new Date(), db: any = prisma) {
-  const start = Date.now(), orgs = notificationEventOrgIds()
-  let evaluated = 0, notificationsCreated = 0
+function encode(cursor: EvaluationCursor) { return 'n.' + Buffer.from(JSON.stringify(cursor)).toString('base64url') }
+// SQL filters occurrences before LIMIT. Recheck only selected rows under short
+// transactions; provider calls remain outside transactions. Freeze run time so
+// retries/continuations evaluate the same date/window across midnight.
+export async function evaluateNotificationPage(cursor: EvaluationCursor = parseEvaluationCursor(null), time = new Date(), db: any = prisma) {
+  const now = cursor.at ? new Date(cursor.at) : time, start = Date.now()
+  let evaluated = 0, notificationsCreated = 0, after = cursor.after
   const metrics = { skippedUnlinkedEmployees: 0, duplicatesPrevented: 0, deliveriesCreated: 0, recipientsEvaluated: 0 }
   const tenants = new Set<string>()
-  const result = (nextCursor: string | null) => ({ evaluated, notificationsCreated, tenantsScanned: notificationGlobalEnabled() ? tenants.size : orgs.length, batches: evaluated ? 1 : 0, ...metrics, runtimeMs: Date.now() - start, nextCursor })
-  if (!scheduledEventsEnabled()) return { evaluated: 0, nextCursor: null }
-  let after = cursor.after
-  // Fail closed instead of silently handling only part of a pilot allowlist.
-  if (!notificationGlobalEnabled() && (orgs.length > 10 || notificationEventUserIds().length > 100)) throw new Error('Scheduled pilot scope exceeds bounds')
-  const include = cursor.kind === 'case' ? {
-    client: { select: { organizationId: true, firstName: true, lastName: true } },
-    customDates: { orderBy: { id: 'asc' }, take: 101 },
-    statusHistory: { where: { changedAt: { gte: new Date(now.getTime() - 3 * 86400000) } }, select: { fromStatus: true, changedAt: true }, take: 101 },
-  } : undefined
-  const records = await db[cursor.kind].findMany({
-    where: { organizationId: notificationGlobalEnabled() ? { not: null } : { in: orgs }, id: { gt: after } }, orderBy: { id: 'asc' }, take: EVALUATION_BATCH_SIZE,
-    ...(include ? { include } : {}),
-  })
-  for (const record of records) {
-    if (evaluated && Date.now() - start >= 15000) return result(`${cursor.kind}:${after}`)
-    if (cursor.kind === 'case' && (record.customDates.length > 100 || record.statusHistory.length > 100)) throw new Error('Case date/history page exceeds scheduled bounds')
-    if (occurrences(cursor.kind, record, now).length) {
-      notificationsCreated += await db.$transaction(async (tx: any) => {
-        const table = { task: 'Task', case: 'Case', lead: 'Lead' }[cursor.kind]
-        await tx.$queryRawUnsafe(`SELECT id FROM "${table}" WHERE id = $1 AND "organizationId" = $2 FOR UPDATE`, record.id, record.organizationId)
-        const fresh = await tx[cursor.kind].findFirst({ where: { id: record.id, organizationId: record.organizationId }, ...(include ? { include } : {}) })
-        if (!fresh) return 0
-        if (cursor.kind === 'case' && (fresh.customDates.length > 100 || fresh.statusHistory.length > 100)) throw new Error('Case date/history page exceeds scheduled bounds')
-        return emitScheduledNotifications(tx, cursor.kind, fresh, occurrences(cursor.kind, fresh, now), metrics)
-      }, { maxWait: 10000, timeout: 10000 })
-    }
-    after = record.id
-    tenants.add(record.organizationId)
-    evaluated++
+  const result = (more: boolean) => ({ evaluated, notificationsCreated, tenantsScanned: tenants.size, batches: evaluated ? 1 : 0, ...metrics, runtimeMs: Date.now()-start, nextCursor: more ? encode({ kind: cursor.kind, after, at: now.toISOString() }) : null })
+  if (!scheduledEventsEnabled()) return result(false)
+  const candidates: NotificationCandidate[] = await db.$queryRaw(notificationCandidateQuery(cursor.kind, after, now, EVALUATION_BATCH_SIZE+1))
+  for (const candidate of candidates.slice(0,EVALUATION_BATCH_SIZE)) {
+    if (evaluated && Date.now()-start >= 15000) return result(true)
+    const kind = candidate.kind
+    const include = kind === 'case' ? {
+      client: { select: { organizationId: true, firstName: true, lastName: true } },
+      customDates: { orderBy: { id: 'asc' }, take: 101 },
+      statusHistory: { where: { changedAt: { gte: new Date(now.getTime()-3*86400000) } }, select: { fromStatus: true, changedAt: true }, take: 101 },
+    } : undefined
+    notificationsCreated += await db.$transaction(async (tx: any) => {
+      const automation = await lockedOrganizationAutomation(tx,candidate.organizationId)
+      if (!automation.enabled) return 0
+      const table = {task:'Task',case:'Case',lead:'Lead'}[kind]
+      await tx.$queryRawUnsafe(`SELECT id FROM "${table}" WHERE id = $1 AND "organizationId" = $2 FOR UPDATE`,candidate.id,candidate.organizationId)
+      const fresh = await tx[kind].findFirst({ where: {id:candidate.id,organizationId:candidate.organizationId}, ...(include ? {include} : {}) })
+      if (!fresh) return 0
+      if (kind === 'case' && (fresh.customDates.length > 100 || fresh.statusHistory.length > 100)) throw new Error('Case date/history scope exceeds bounds')
+      const events = scheduledOccurrences(kind,fresh,now,new Date(automation.activatedAt!)).filter(event => event.type === candidate.type && event.occurrence === candidate.occurrence)
+      return emitScheduledNotifications(tx,kind,fresh,events,metrics)
+    },{maxWait:10000,timeout:10000})
+    after = candidate.key; tenants.add(candidate.organizationId); evaluated++
   }
-  const nextKind = { task: 'case', case: 'lead', lead: null }[cursor.kind]
-  return result(records.length === EVALUATION_BATCH_SIZE ? `${cursor.kind}:${after}` : nextKind ? `${nextKind}:` : null)
+  return result(candidates.length > EVALUATION_BATCH_SIZE)
 }

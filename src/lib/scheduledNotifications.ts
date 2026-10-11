@@ -1,9 +1,10 @@
 import { Prisma } from '@prisma/client'
-import { notificationEventAllowed, notificationEventUserIds } from './notificationEventGate.ts'
+import { notificationEventAllowed } from './notificationEventGate.ts'
 import { canReceiveTeam, entityLink, notificationPreferences, type NotificationType } from './notificationPolicy.ts'
 import { notificationText } from './notificationI18n.ts'
 import { entityContext } from './notifications.ts'
-import { notificationGlobalEnabled } from './notificationRollout.ts'
+import { lockedOrganizationAutomation } from './notificationOrganization.ts'
+import { occurrenceTriggerAt } from './notificationOccurrence.ts'
 
 // Only the short entity transaction client is used, never global Prisma.
 // Phase 3A's assignment emitter keeps its existing behavior.
@@ -11,12 +12,16 @@ export type ScheduledMetrics = { skippedUnlinkedEmployees: number; duplicatesPre
 export async function emitScheduledNotifications(db: any, entityType: string, record: any, events: { type: NotificationType; occurrence: string }[], metrics?: ScheduledMetrics) {
   if (!record.assignedToId || !events.length) return 0
   const organizationId = record.organizationId
+  const automation = await lockedOrganizationAutomation(db, organizationId)
+  if (!automation.enabled) return 0
+  events = events.filter(event => occurrenceTriggerAt(event) >= Date.parse(automation.activatedAt!))
+  if (!events.length) return 0
   const linked = record.employeeId || entityType === 'lead' ? await db.employee.findFirst({
     where: { organizationId, active: true, ...(record.employeeId ? { id: record.employeeId } : { userId: record.assignedToId }) }, select: { userId: true },
   }) : null
   if ((record.employeeId || entityType === 'lead') && linked?.userId !== record.assignedToId) { if (metrics) metrics.skippedUnlinkedEmployees++; return 0 }
   const users = await db.user.findMany({
-    where: { organizationId, ...(notificationGlobalEnabled() ? { OR: [{ id: record.assignedToId }, { role: { in: ['owner', 'admin'] }, notificationPreference: { scope: 'team' } }] } : { id: { in: notificationEventUserIds() } }) },
+    where: { organizationId, OR: [{ id: record.assignedToId }, { role: { in: ['owner', 'admin'] }, notificationPreference: { scope: 'team' } }] },
     select: { id: true, role: true, restrictedAccess: true, notificationPreference: true }, take: 101,
   })
   if (users.length > 100) throw new Error('Scheduled recipient scope exceeds bounds')

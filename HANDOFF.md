@@ -1,5 +1,13 @@
 # LegalHub CRM Handoff
 
+Development 12, 2026-10-11: implementation/isolated QA of organization opt-in
+and candidate-first scheduling is ready for review, **not Production rollout**.
+Read [the canonical report](docs/notifications-organization-opt-in-review.md).
+Production master columns/migration and two revised provider schedules remain
+unapplied. Preserve the existing pilot and its three fixtures. No customer
+backfill or manual env allowlist is part of the new product model. Stop for
+review before migration/deploy/provider activation.
+
 Prepared from the verified production state on 2026-09-24.
 
 ## Start Here

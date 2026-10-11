@@ -54,7 +54,7 @@ test('subscription API binds body to session, hides foreign devices, unsubscribe
  assert.equal(rows[0].userId,1);assert.equal(rows[0].organizationId,'own');assert.ok(!rows[0].encryptedSubscription.includes(raw.endpoint))
  assert.equal((await route.POST(req('POST',{...raw,endpoint:'https://127.0.0.1/secret'}))).status,400)
  const list=await(await route.GET(req('GET'))).json();assert.deepEqual(list.devices,[{id:'own-device',deviceLabel:'Desktop'}]);assert.ok(!JSON.stringify(list).includes('endpoint'))
- process.env.WEB_PUSH_PILOT_USER_IDS='';assert.equal((await route.POST(req('POST',raw))).status,503)
+ const originalId=user.id;user.id=0;assert.equal((await route.POST(req('POST',raw))).status,503);user.id=originalId
  assert.equal((await route.DELETE(req('DELETE',raw))).status,200);assert.equal(rows.length,0)
  delete process.env.WEB_PUSH_PILOT_USER_IDS
 })

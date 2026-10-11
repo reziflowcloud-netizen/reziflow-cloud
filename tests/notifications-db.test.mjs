@@ -13,14 +13,14 @@ test('notification DB isolation, assignment, dedupe, scheduling and delivery', {
   const target = new URL(databaseUrl)
   assert.ok(['localhost', '127.0.0.1'].includes(target.hostname) && target.pathname.includes('notifications_qa'), 'Only isolated local notification QA DB is allowed')
   const db = new PrismaClient({ datasources: { db: { url: databaseUrl } }, log: [] })
-  t.after(() => db.$disconnect())
+  t.after(async () => { await db.organization.deleteMany({where:{slug:{startsWith:`notification-qa-`}}}); await db.$disconnect() })
   process.env.NOTIFICATIONS_ENABLED = 'true'; process.env.NOTIFICATION_EVENTS_ENABLED = 'true'
   process.env.WEB_PUSH_ENABLED = 'true'; process.env.PUSH_ENVIRONMENT = process.env.VERCEL_ENV || 'development'
   const vapidPair = createECDH('prime256v1'); vapidPair.generateKeys()
   process.env.VAPID_PUBLIC_KEY = vapidPair.getPublicKey().toString('base64url'); process.env.VAPID_PRIVATE_KEY = vapidPair.getPrivateKey().toString('base64url'); process.env.VAPID_SUBJECT = 'mailto:qa@example.test'
   process.env.PUSH_SUBSCRIPTION_ENCRYPTION_KEY = randomBytes(32).toString('hex')
   const suffix = randomBytes(6).toString('hex')
-  const a = await db.organization.create({ data: { name: 'Notification QA A', slug: `notification-qa-a-${suffix}` } })
+  const a = await db.organization.create({ data: { name: 'Notification QA A', notificationAutomationEnabled: true, notificationAutomationActivatedAt: new Date(0), slug: `notification-qa-a-${suffix}` } })
   const b = await db.organization.create({ data: { name: 'Notification QA B', slug: `notification-qa-b-${suffix}` } })
   const makeUser = (organizationId, role = 'employee', restrictedAccess = true) => db.user.create({ data: { organizationId, email: `${role}-${randomBytes(6).toString('hex')}@example.test`, password: 'not-a-login-hash', name: 'QA User', role, restrictedAccess } })
   const employee = await makeUser(a.id), next = await makeUser(a.id), owner = await makeUser(a.id, 'owner', false), outsider = await makeUser(b.id)

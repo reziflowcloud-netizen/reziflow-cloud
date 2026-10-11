@@ -9,7 +9,7 @@ function calendarTrigger(day: string, offset: number) {
   return warsawTimestamp(`${triggerDay}T00:00`)
 }
 // Occurrence identities/dedupe keys stay unchanged. Only their original trigger
-// instant determines whether a general rollout may create a new copy.
+// instant determines whether an organization's activation may create a new copy.
 export function occurrenceTriggerAt(event: ScheduledOccurrence) {
   if (event.type === 'lead_contact') return Date.parse(event.occurrence)
   if (event.type === 'task_overdue') return calendarTrigger(event.occurrence, 1)

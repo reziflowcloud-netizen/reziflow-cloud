@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {randomUUID} from 'node:crypto'
 import {PrismaClient} from '@prisma/client'
-import {notificationGlobalEnabled,notificationGlobalSince} from '../src/lib/notificationRollout.ts'
 import {assignmentEventsEnabled,notificationEventAllowed} from '../src/lib/notificationEventGate.ts'
 import {pushUserAllowed} from '../src/lib/pushSecurity.ts'
 import {scheduledOccurrences,occurrenceTriggerAt} from '../src/lib/notificationOccurrence.ts'
@@ -10,11 +9,11 @@ import {evaluateNotificationPage,parseEvaluationCursor} from '../src/lib/notific
 import {notifyAssignment} from '../src/lib/notifications.ts'
 const activation='2026-10-11T08:00:00.000Z'
 function env(run){const saved={...process.env};try{Object.assign(process.env,{NOTIFICATIONS_ENABLED:'true',NOTIFICATION_EVENTS_ENABLED:'true',NOTIFICATION_SCHEDULED_EVENTS_ENABLED:'true',NOTIFICATION_EVENTS_GLOBAL_ENABLED:'true',NOTIFICATION_EVENTS_GLOBAL_SINCE:activation,NOTIFICATION_EVENTS_PILOT_ORG_IDS:'old-pilot',NOTIFICATION_EVENTS_PILOT_USER_IDS:'16',WEB_PUSH_PILOT_USER_IDS:'16'});return run()}finally{for(const key of Object.keys(process.env))if(!(key in saved))delete process.env[key];Object.assign(process.env,saved)}}
-test('general scope is explicit; invalid/missing boundary fails closed even with valid pilot',()=>env(()=>{
- assert.equal(notificationGlobalEnabled(),true);assert.equal(notificationGlobalSince().toISOString(),activation)
+test('global flag is independent of old allowlists; tenant persistence gates generation',()=>env(()=>{
  assert.equal(notificationEventAllowed('lead_assigned','other-tenant',99),true);assert.equal(pushUserAllowed(99),true);assert.equal(pushUserAllowed(-1),false)
- for(const value of ['', 'invalid','2026-02-30T00:00:00.000Z','2026-10-11T10:00:00+02:00']){process.env.NOTIFICATION_EVENTS_GLOBAL_SINCE=value;assert.equal(notificationGlobalEnabled(),false);assert.equal(assignmentEventsEnabled(),false);assert.equal(pushUserAllowed(16),false)}
- delete process.env.NOTIFICATION_EVENTS_GLOBAL_ENABLED;assert.equal(assignmentEventsEnabled('other-tenant'),false);assert.equal(assignmentEventsEnabled('old-pilot'),true)
+ delete process.env.NOTIFICATION_EVENTS_PILOT_ORG_IDS;delete process.env.NOTIFICATION_EVENTS_PILOT_USER_IDS
+ assert.equal(assignmentEventsEnabled(),true)
+ process.env.NOTIFICATION_EVENTS_ENABLED='false';assert.equal(assignmentEventsEnabled(),false)
 }))
 test('original Warsaw triggers block historical backlog but retain future occurrences and unchanged identities',()=>{
  const since=new Date(activation),now=new Date('2026-10-11T08:15:00Z')
@@ -36,7 +35,7 @@ test('general mode PostgreSQL: independent tenants, own/team, unlinked skip, pre
  const saved={...process.env},url=process.env.NOTIFICATIONS_TEST_DATABASE_URL;assert.ok(['127.0.0.1','localhost'].includes(new URL(url).hostname));const db=new PrismaClient({datasources:{db:{url}},log:[]});const orgs=[]
  Object.assign(process.env,{NOTIFICATIONS_ENABLED:'true',NOTIFICATION_EVENTS_ENABLED:'true',NOTIFICATION_SCHEDULED_EVENTS_ENABLED:'true',NOTIFICATION_EVENTS_GLOBAL_ENABLED:'true',NOTIFICATION_EVENTS_GLOBAL_SINCE:activation});delete process.env.NOTIFICATION_EVENTS_PILOT_ORG_IDS;delete process.env.NOTIFICATION_EVENTS_PILOT_USER_IDS
  try{
-  const tenants=[];for(let i=0;i<2;i++){const org=await db.organization.create({data:{name:'Synthetic general QA',slug:randomUUID()}});orgs.push(org.id);const user=await db.user.create({data:{organizationId:org.id,email:randomUUID()+'@example.test',name:'Synthetic',password:'synthetic',role:'employee'}});const owner=await db.user.create({data:{organizationId:org.id,email:randomUUID()+'@example.test',name:'Synthetic',password:'synthetic',role:'owner'}});await db.notificationPreference.create({data:{organizationId:org.id,userId:owner.id,scope:'team'}});const employee=await db.employee.create({data:{organizationId:org.id,userId:user.id,name:'Synthetic'}});tenants.push({org,user,owner,employee})}
+  const tenants=[];for(let i=0;i<2;i++){const org=await db.organization.create({data:{name:'Synthetic general QA', notificationAutomationEnabled: true, notificationAutomationActivatedAt: new Date(activation),slug:randomUUID()}});orgs.push(org.id);const user=await db.user.create({data:{organizationId:org.id,email:randomUUID()+'@example.test',name:'Synthetic',password:'synthetic',role:'employee'}});const owner=await db.user.create({data:{organizationId:org.id,email:randomUUID()+'@example.test',name:'Synthetic',password:'synthetic',role:'owner'}});await db.notificationPreference.create({data:{organizationId:org.id,userId:owner.id,scope:'team'}});const employee=await db.employee.create({data:{organizationId:org.id,userId:user.id,name:'Synthetic'}});tenants.push({org,user,owner,employee})}
   const records=[];for(const t of tenants){
    const historic=await db.task.create({data:{organizationId:t.org.id,assignedToId:t.user.id,title:'Synthetic historical',dueDate:new Date('2026-10-10')}})
    const task=await db.task.create({data:{organizationId:t.org.id,assignedToId:t.user.id,title:'Synthetic upcoming',description:JSON.stringify({reminderAt:'2026-10-11T10:01'})}});records.push(task)

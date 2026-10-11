@@ -69,7 +69,7 @@ test('Lead webhook remains idempotent under a constrained connection pool', { sk
   const suffix = randomUUID()
   const org = await db.organization.create({
     data: {
-      name: 'Webhook pool synthetic QA',
+      name: 'Webhook pool synthetic QA', notificationAutomationEnabled: true, notificationAutomationActivatedAt: new Date(0),
       slug: `webhook-pool-${suffix}`,
       plan: 'free',
       billingStatus: 'active',

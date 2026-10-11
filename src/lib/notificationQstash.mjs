@@ -5,14 +5,18 @@ export const notificationScheduleId = 'legalhub-production-notifications'
 export const notificationQueue = notificationScheduleId
 export const qstashOrigin = 'https://qstash-eu-central-1.upstash.io'
 export const notificationDestination = 'https://legalhubcrm.com/api/internal/notifications'
-const cursorPattern = /^(task|case|lead):[a-zA-Z0-9_-]{0,100}$/
+export const notificationSchedules = [
+  { scheduleId: notificationScheduleId, cron: '*/15 * * * *', body: {}, mode: 'frequent' },
+  { scheduleId: notificationScheduleId + '-cases', cron: '0 6 * * *', body: { mode: 'daily' }, mode: 'daily' },
+]
+const cursorPattern = /^(?:(task|case|lead):[a-zA-Z0-9_-]{0,100}|n\.[a-zA-Z0-9_-]{1,700})$/
 const idPattern = /^[a-zA-Z0-9_-]{1,128}$/
 
 export function continuationInput(input, messageId, origin) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid continuation')
-  if (Object.keys(input).length === 0) {
+  if (Object.keys(input).length === 0 || (Object.keys(input).join(',') === 'mode' && input.mode === 'daily')) {
     if (!idPattern.test(messageId || '')) throw new Error('Missing message identity')
-    return { runId: messageId, page: 0, state: { origin, cursor: null, deliveryOnly: false } }
+    return { runId: messageId, page: 0, state: { origin, cursor: input.mode === 'daily' ? 'case:' : null, deliveryOnly: false } }
   }
   if (Object.keys(input).sort().join(',') !== 'page,runId,state' || !idPattern.test(input.runId || '') || !Number.isInteger(input.page) || input.page < 1 || input.page >= 200) throw new Error('Invalid continuation')
   const state = input.state
@@ -44,7 +48,7 @@ export async function runQstashNotificationChunk({ input, messageId, secret, tok
   let state = { ...job.state }
   const metrics = await runNotificationJob({
     origin, secret, checkpoint: '', checkpointStore: { read: async () => state, write: async next => { state = next } },
-    fetchPage, maxPages: 1, maxRuntimeMs: 45000, maxAttempts: 1, requestTimeoutMs: 40000,
+    fetchPage, maxPages: 1, maxRuntimeMs: 55000, maxAttempts: 1, requestTimeoutMs: 50000,
   })
   // A provider retry replays the same page; business dedupe/outbox leases remain
   // authoritative. Never ACK an incomplete chunk before its durable hand-off.

@@ -1,5 +1,4 @@
 import { createCipheriv, createDecipheriv, createECDH, createHash, randomBytes, timingSafeEqual } from 'node:crypto'
-import { notificationGlobalEnabled, notificationGlobalRequested } from './notificationRollout.ts'
 
 export function validPushEndpoint(value: unknown): value is string {
   if (typeof value !== 'string' || value.length > 2048) return false
@@ -69,5 +68,5 @@ export function pushPilotUserIds(): number[] {
   return Array.from(new Set(values.map(Number)))
 }
 export function pushUserAllowed(userId: number) {
-  return Number.isSafeInteger(userId) && userId > 0 && (notificationGlobalRequested() ? notificationGlobalEnabled() : pushPilotUserIds().includes(userId))
+  return Number.isSafeInteger(userId) && userId > 0
 }

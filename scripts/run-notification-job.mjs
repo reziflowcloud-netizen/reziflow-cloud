@@ -4,15 +4,16 @@ import { dirname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
 
-export async function runNotificationJob({ origin, secret, checkpoint, checkpointStore, fetchPage = fetch, maxPages = 200, maxRuntimeMs = 720000, maxAttempts = 3, requestTimeoutMs = 65000, pause = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
+export async function runNotificationJob({ origin, secret, checkpoint, checkpointStore, initialCursor = null, fetchPage = fetch, maxPages = 200, maxRuntimeMs = 720000, maxAttempts = 3, requestTimeoutMs = 65000, pause = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
   const target = new URL(origin)
   if (target.protocol !== 'https:' && !(target.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(target.hostname))) throw new Error('HTTPS required')
   if (target.username || target.password || !secret || secret.length < 32) throw new Error('Valid origin and cron secret required')
   let state = { origin: target.origin, cursor: null, deliveryOnly: false }
   try {
     const saved = checkpointStore ? await checkpointStore.read() : JSON.parse(await readFile(checkpoint, 'utf8'))
-    if (saved.origin === target.origin && (saved.cursor === null || /^(task|case|lead):[a-zA-Z0-9_-]{0,100}$/.test(saved.cursor)) && typeof saved.deliveryOnly === 'boolean') state = saved
+    if (saved.origin === target.origin && (saved.cursor === null || /^(?:(task|case|lead):[a-zA-Z0-9_-]{0,100}|n\.[a-zA-Z0-9_-]{1,700})$/.test(saved.cursor)) && typeof saved.deliveryOnly === 'boolean') state = saved
   } catch (error) { if (error.code !== 'ENOENT') throw new Error('Invalid notification checkpoint') }
+  if (!state.cursor && !state.deliveryOnly && initialCursor === 'case:') state.cursor = initialCursor
   const persist = async () => {
     if (checkpointStore) { await checkpointStore.write({ ...state }); return }
     await mkdir(dirname(checkpoint), { recursive: true })
@@ -36,13 +37,13 @@ export async function runNotificationJob({ origin, secret, checkpoint, checkpoin
     }
     if (!response?.ok) throw new Error(`Notification job incomplete (HTTP ${response?.status || 'unavailable'}); checkpoint preserved`)
     const result = await response.json()
-    if (result.nextCursor !== null && !/^(task|case|lead):[a-zA-Z0-9_-]{0,100}$/.test(result.nextCursor || '')) throw new Error('Invalid scheduler response')
+    if (result.nextCursor !== null && !/^(?:(task|case|lead):[a-zA-Z0-9_-]{0,100}|n\.[a-zA-Z0-9_-]{1,700})$/.test(result.nextCursor || '')) throw new Error('Invalid scheduler response')
     metrics.pages++; metrics.entitiesScanned += result.evaluated || 0; metrics.notificationsCreated += result.notificationsCreated || 0
     for (const key of ['deliveriesCreated', 'recipientsEvaluated', 'skippedUnlinkedEmployees', 'duplicatesPrevented']) metrics[key] += result[key] || 0
     metrics.pushProcessed += result.push.processed; metrics.pushDelivered += result.push.delivered
     state.cursor = result.nextCursor
     if (!state.cursor) {
-      if (result.push.processed < 20) { metrics.complete = true; state.deliveryOnly = false }
+      if (typeof result.push.more === 'boolean' ? !result.push.more : result.push.processed < 20) { metrics.complete = true; state.deliveryOnly = false }
       else state.deliveryOnly = true
     }
     await persist()
@@ -51,7 +52,7 @@ export async function runNotificationJob({ origin, secret, checkpoint, checkpoin
   return { ...metrics, runtimeMs: Date.now() - started }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const metrics = await runNotificationJob({ origin: process.env.NOTIFICATION_JOB_ORIGIN || '', secret: process.env.CRON_SECRET, checkpoint: resolve(process.env.NOTIFICATION_JOB_CHECKPOINT || '.qa/notification-job-checkpoint.json') })
+  const metrics = await runNotificationJob({ origin: process.env.NOTIFICATION_JOB_ORIGIN || '', secret: process.env.CRON_SECRET, initialCursor: process.env.NOTIFICATION_JOB_MODE === 'daily' ? 'case:' : null, checkpoint: resolve(process.env.NOTIFICATION_JOB_CHECKPOINT || '.qa/notification-job-checkpoint.json') })
   console.log(JSON.stringify(metrics))
   // A bounded continuation is successful; the next cadence resumes the checkpoint.
 }

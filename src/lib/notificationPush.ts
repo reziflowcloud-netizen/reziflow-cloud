@@ -4,10 +4,10 @@ import { prisma } from './prisma.ts'
 import { authorizedNotification, notificationUser, notificationsEnabled, notificationEventsEnabled, unreadNotificationCount } from './notifications.ts'
 import { CASE_NOTIFICATION_DATE_FIELDS, canReceiveTeam, notificationPreferences, notificationStillActionable, type NotificationType } from './notificationPolicy.ts'
 import { notificationText } from './notificationI18n.ts'
-import { decryptSubscription, pushConfigured, pushPilotUserIds, pushUserAllowed, subscriptionAAD } from './pushSecurity.ts'
+import { decryptSubscription, pushConfigured, pushUserAllowed, subscriptionAAD } from './pushSecurity.ts'
 import { isPushPilotNotification, pushPilotText } from './pushPilotPolicy.ts'
-import { enabledAutomaticEventTypes, notificationEventAllowed, notificationEventOrgIds, notificationEventUserIds } from './notificationEventGate.ts'
-import { notificationGlobalEnabled } from './notificationRollout.ts'
+import { enabledAutomaticEventTypes, notificationEventAllowed } from './notificationEventGate.ts'
+import { organizationAutomation } from './notificationOrganization.ts'
 
 export function pushPayload(notification: any, preferences: ReturnType<typeof notificationPreferences>, clientName: string, unread: number) {
   const copy = notificationText[preferences.language]
@@ -28,17 +28,19 @@ export function pushPayload(notification: any, preferences: ReturnType<typeof no
   }
 }
 type PushSender = (subscription: any, payload: string, options: any) => Promise<unknown>
-export async function deliverNotificationPush(db: any = prisma, sender: PushSender = webPush.sendNotification, now = new Date(), scope?: { deliveryId: string; userId: number; organizationId: string }, assignment?: { organizationId: string; entityIds: string[] }) {
+export async function deliverNotificationPush(db: any = prisma, sender: PushSender = webPush.sendNotification, now = new Date(), scope?: { deliveryId: string; userId: number; organizationId: string }, assignment?: { organizationId: string; entityIds: string[] }, budgetMs = 30000) {
   if (!notificationsEnabled() || !pushConfigured()) return { processed: 0, delivered: 0 }
   if (!scope && !notificationEventsEnabled()) return { processed: 0, delivered: 0 }
   const rows = await db.notificationPushDelivery.findMany({
-    where: { deliveredAt: null, terminalAt: null, nextAttemptAt: { lte: now }, OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }], ...(scope ? { id: scope.deliveryId, userId: scope.userId, organizationId: scope.organizationId, attempts: 0 } : { organizationId: notificationGlobalEnabled() ? assignment ? assignment.organizationId : { not: null } : { in: notificationEventOrgIds().filter(id => !assignment || id === assignment.organizationId) }, ...(notificationGlobalEnabled() ? {} : { userId: { in: notificationEventUserIds().filter(id => pushPilotUserIds().includes(id)) } }), notification: { type: { in: assignment ? ['lead_assigned', 'task_assigned'] : enabledAutomaticEventTypes() }, ...(assignment ? { entityId: { in: assignment.entityIds } } : {}), entityType: { not: 'push_test' } } }) },
+    where: { deliveredAt: null, terminalAt: null, nextAttemptAt: { lte: now }, OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }], ...(scope ? { id: scope.deliveryId, userId: scope.userId, organizationId: scope.organizationId, attempts: 0 } : { ...(assignment ? { organizationId: assignment.organizationId } : {}), notification: { organization: { notificationAutomationEnabled: true, notificationAutomationActivatedAt: { not: null } }, type: { in: assignment ? ['lead_assigned', 'task_assigned'] : enabledAutomaticEventTypes() }, ...(assignment ? { entityId: { in: assignment.entityIds } } : {}), entityType: { not: 'push_test' } } }) },
     orderBy: [{ nextAttemptAt: 'asc' }, { id: 'asc' }], take: 20,
   })
   let delivered = 0
+  let visited = 0
   const startedAt = Date.now()
   for (const row of rows) {
-    if (Date.now() - startedAt > 30000) break
+    if (Date.now() - startedAt > budgetMs) break
+    visited++
     const leaseToken = randomUUID()
     const claim = await db.notificationPushDelivery.updateMany({ where: { id: row.id, deliveredAt: null, terminalAt: null, ...(scope ? { attempts: 0 } : {}), OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }] }, data: { leaseToken, leaseUntil: new Date(now.getTime() + 120000), attempts: { increment: 1 } } })
     if (!claim.count) continue
@@ -49,7 +51,8 @@ export async function deliverNotificationPush(db: any = prisma, sender: PushSend
       const subscription = await db.pushSubscription.findFirst({ where: { id: row.subscriptionId, userId: row.userId, organizationId: row.organizationId, disabledAt: null } })
       const preferences = notificationPreferences(user?.notificationPreference, user && canReceiveTeam(user))
       const pilot = isPushPilotNotification(notification)
-      if (!notification || !subscription || !pushUserAllowed(row.userId) || (!scope && !notificationEventAllowed(notification.type, row.organizationId, row.userId)) || notification.readAt || !notification.pushRequested || !preferences.pushEnabled || (!pilot && !preferences.events[notification.type as NotificationType]?.push) || now.getTime() - notification.createdAt.getTime() > 86400000) {
+      const automation = !pilot ? organizationAutomation(await db.organization.findUnique({ where: { id: row.organizationId }, select: { notificationAutomationEnabled: true, notificationAutomationActivatedAt: true } })) : null
+      if (!notification || !subscription || !pushUserAllowed(row.userId) || (!scope && !notificationEventAllowed(notification.type, row.organizationId, row.userId)) || (!pilot && (!automation?.enabled || notification.createdAt.getTime() < Date.parse(automation.activatedAt!))) || notification.readAt || !notification.pushRequested || !preferences.pushEnabled || (!pilot && !preferences.events[notification.type as NotificationType]?.push) || now.getTime() - notification.createdAt.getTime() > 86400000) {
         await db.notificationPushDelivery.updateMany({ where: lease, data: { terminalAt: now, leaseUntil: null, leaseToken: null } }); continue
       }
       const raw = decryptSubscription(subscription.encryptedSubscription, subscriptionAAD(subscription))
@@ -88,5 +91,5 @@ export async function deliverNotificationPush(db: any = prisma, sender: PushSend
       // Never log provider errors, endpoint URLs, keys or payloads.
     }
   }
-  return { processed: rows.length, delivered }
+  return { processed: rows.length, delivered, ...(budgetMs !== 30000 ? { more: visited < rows.length || rows.length === 20 } : {}) }
 }

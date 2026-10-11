@@ -1,23 +1,8 @@
 import type { NotificationType } from './notificationPolicy.ts'
-import { notificationGlobalEnabled, notificationGlobalRequested } from './notificationRollout.ts'
 
-// Every malformed/empty gate denies all. Assignment and scheduled events have
-// separate switches; enabling Phase 3A must never enable a scheduled evaluator.
-function ids(value: string | undefined, valid: (value: string) => boolean) {
-  if (!value?.trim()) return []
-  const values = value.split(',').map(item => item.trim())
-  return values.every(valid) ? Array.from(new Set(values)) : []
-}
-export function notificationEventOrgIds() {
-  return ids(process.env.NOTIFICATION_EVENTS_PILOT_ORG_IDS, value => /^[a-zA-Z0-9_-]{1,100}$/.test(value))
-}
-export function notificationEventUserIds() {
-  return ids(process.env.NOTIFICATION_EVENTS_PILOT_USER_IDS, value => /^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value))).map(Number)
-}
-export function assignmentEventsEnabled(organizationId?: string) {
+// Global emergency gates. Tenant eligibility comes from persisted organization opt-in.
+export function assignmentEventsEnabled(_organizationId?: string) {
   return process.env.NOTIFICATIONS_ENABLED === 'true' && process.env.NOTIFICATION_EVENTS_ENABLED === 'true'
-    && (notificationGlobalRequested() ? notificationGlobalEnabled() : notificationEventOrgIds().length > 0 && notificationEventUserIds().length > 0
-    && (!organizationId || notificationEventOrgIds().includes(organizationId)))
 }
 export function scheduledEventsEnabled() {
   return assignmentEventsEnabled() && process.env.NOTIFICATION_SCHEDULED_EVENTS_ENABLED === 'true'
@@ -25,7 +10,7 @@ export function scheduledEventsEnabled() {
 export function notificationEventAllowed(type: NotificationType, organizationId: string, userId?: number) {
   return assignmentEventsEnabled(organizationId)
     && enabledAutomaticEventTypes().includes(type)
-    && (notificationGlobalEnabled() || userId === undefined || notificationEventUserIds().includes(userId))
+    && !!organizationId && (userId === undefined || Number.isSafeInteger(userId) && userId > 0)
 }
 export function enabledAutomaticEventTypes() {
   return scheduledEventsEnabled()

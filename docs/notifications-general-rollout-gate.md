@@ -1,5 +1,10 @@
 # Notifications general Production rollout — STOP
 
+Superseded implementation proposal: see
+[organization opt-in review](notifications-organization-opt-in-review.md).
+The historical Production capacity evidence below remains a record of the
+previous STOP; its global-watermark proposal is no longer the chosen model.
+
 Safety review: 2026-10-11. Production was not changed. This report records a
 blocked general rollout; it does not mark Development 12 complete.
 

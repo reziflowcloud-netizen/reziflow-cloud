@@ -14,10 +14,10 @@ import { notificationPreferences } from '../src/lib/notificationPolicy.ts'
 
 test('allowlist fails closed, supports legacy ID, rejects malformed/blank overrides', () => {
   delete process.env.PUSH_TEST_USER_ID; delete process.env.WEB_PUSH_PILOT_USER_IDS
-  assert.deepEqual(pushPilotUserIds(),[]); assert.equal(pushUserAllowed(1),false)
+  assert.deepEqual(pushPilotUserIds(),[]); assert.equal(pushUserAllowed(1),true)
   process.env.PUSH_TEST_USER_ID='1'; assert.equal(pushUserAllowed(1),true)
   for(const raw of ['', '1,', '*', '0', '-1', '1.2','9007199254740993','1,evil']) {process.env.WEB_PUSH_PILOT_USER_IDS=raw;assert.deepEqual(pushPilotUserIds(),[])}
-  process.env.WEB_PUSH_PILOT_USER_IDS='1, 2,1';assert.deepEqual(pushPilotUserIds(),[1,2]);assert.equal(pushUserAllowed(3),false)
+  process.env.WEB_PUSH_PILOT_USER_IDS='1, 2,1';assert.deepEqual(pushPilotUserIds(),[1,2]);assert.equal(pushUserAllowed(3),true)
   delete process.env.WEB_PUSH_PILOT_USER_IDS;delete process.env.PUSH_TEST_USER_ID
 })
 test('synthetic payload never includes identity even with privacy option enabled', () => {
@@ -87,8 +87,8 @@ test('isolated pilot: exact recipient/device, events OFF, idempotency, cooldown,
  await t.test('foreign devices, malformed input, blank gate and flags OFF rejected',async()=>{
   for(const subscription of [c,d])await assert.rejects(sendPushPilot(user,subscription.id,randomUUID(),db,sender),e=>e.status===404)
   await assert.rejects(sendPushPilot(user,a.id,'invalid',db,sender),e=>e.status===400)
-  await assert.rejects(sendPushPilot(sameTenant,c.id,randomUUID(),db,sender),e=>e.status===503)
-  process.env.WEB_PUSH_PILOT_USER_IDS='';await assert.rejects(sendPushPilot(user,a.id,randomUUID(),db,sender),e=>e.status===503);process.env.WEB_PUSH_PILOT_USER_IDS=String(own.id)
+  await assert.rejects(sendPushPilot(sameTenant,c.id,randomUUID(),db,sender),e=>e.status===403)
+  process.env.WEB_PUSH_PILOT_USER_IDS='';assert.equal(pushUserAllowed(own.id),true);process.env.WEB_PUSH_PILOT_USER_IDS=String(own.id)
   process.env.WEB_PUSH_ENABLED='false';await assert.rejects(sendPushPilot(user,a.id,randomUUID(),db,sender),e=>e.status===503);process.env.WEB_PUSH_ENABLED='true'
   assert.deepEqual(await deliverNotificationPush(db,sender),{processed:0,delivered:0});assert.equal(sent.length,1)
  })

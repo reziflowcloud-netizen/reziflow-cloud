@@ -3,6 +3,8 @@ import { prisma } from './prisma.ts'
 import { assignmentOccurrence, canReceiveTeam, entityLink, notificationPreferences, type NotificationType } from './notificationPolicy.ts'
 import { notificationText } from './notificationI18n.ts'
 import { assignmentEventsEnabled, notificationEventAllowed } from './notificationEventGate.ts'
+import { lockedOrganizationAutomation } from './notificationOrganization.ts'
+import { occurrenceTriggerAt } from './notificationOccurrence.ts'
 
 export function notificationsEnabled() { return process.env.NOTIFICATIONS_ENABLED === 'true' }
 export const notificationEventsEnabled = assignmentEventsEnabled
@@ -69,6 +71,9 @@ export function entityContext(entityType: string, record: any) {
 export async function emitNotification(db: any, type: NotificationType, entityType: string, record: any, occurrence: string) {
   if (!record.organizationId || !notificationEventAllowed(type, record.organizationId)) return []
   const organizationId = record.organizationId
+  const automation = await lockedOrganizationAutomation(db, organizationId)
+  const trigger = type === 'lead_assigned' || type === 'task_assigned' ? Date.parse(occurrence.slice(occurrence.indexOf(':') + 1)) : occurrenceTriggerAt({ type, occurrence })
+  if (!automation.enabled || !Number.isFinite(trigger) || trigger < Date.parse(automation.activatedAt!)) return []
   const linked = record.employeeId || type === 'lead_assigned' ? await db.employee.findFirst({ where: { ...(record.employeeId ? { id: record.employeeId } : { userId: record.assignedToId }), organizationId, active: true }, select: { userId: true } }) : null
   if (record.employeeId && linked?.userId !== record.assignedToId) return []
   if (type === 'lead_assigned' && (!linked?.userId || linked.userId !== record.assignedToId)) return []
@@ -108,11 +113,13 @@ export async function notifyAssignment(db: any, entityType: 'lead' | 'task', cur
 // Bulk assignments share recipient/preferences reads and write records in bounded chunks.
 export async function notifyLeadAssignmentBatch(db: any, organizationId: string, updated: any[], previous: any[]) {
   if (!notificationEventsEnabled(organizationId)) return []
+  const automation = await lockedOrganizationAutomation(db, organizationId)
+  if (!automation.enabled) return []
   const old = new Map(previous.map(record => [record.id, record]))
   const employees = await db.employee.findMany({ where: { organizationId, active: true, OR: [{ id: { in: updated.map(record => record.employeeId).filter(Boolean) } }, { userId: { in: updated.map(record => record.assignedToId).filter(Boolean) } }] }, select: { id: true, userId: true } })
   const links = new Map(employees.map((employee: any) => [employee.id, employee.userId]))
   const linkedUsers = new Set(employees.map((employee: any) => employee.userId))
-  const changed = updated.filter(record => record.organizationId === organizationId && (record.employeeId ? links.get(record.employeeId) === record.assignedToId : linkedUsers.has(record.assignedToId)) && assignmentOccurrence(record, old.get(record.id)))
+  const changed = updated.filter(record => record.organizationId === organizationId && new Date(record.updatedAt || record.createdAt).getTime() >= Date.parse(automation.activatedAt!) && (record.employeeId ? links.get(record.employeeId) === record.assignedToId : linkedUsers.has(record.assignedToId)) && assignmentOccurrence(record, old.get(record.id)))
   if (!changed.length) return []
   const notificationIds: string[] = []
   const recipients = await db.user.findMany({ where: { organizationId, OR: [{ id: { in: Array.from(new Set(changed.map(record => record.assignedToId))) } }, { role: { in: ['owner', 'admin'] }, notificationPreference: { scope: 'team' } }] }, select: { id: true, role: true, restrictedAccess: true, notificationPreference: true } })
