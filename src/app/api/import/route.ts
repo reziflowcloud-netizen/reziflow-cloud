@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { createCaseWithChecklist } from '@/lib/documentChecklist'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { assertBillingLimit, billingLimitResponsePayload, isBillableActiveCaseStatus, isBillingLimitError } from '@/lib/billing'
 
@@ -573,8 +574,7 @@ export async function POST(request: NextRequest) {
       const serviceName = read(row, columnMap.case.service)
       const service = serviceName ? serviceByName.get(serviceName) : null
 
-      const createdCase = await prisma.case.create({
-        data: {
+      const createdCase = await prisma.$transaction(tx => createCaseWithChecklist(tx, {
           organizationId,
           clientId: client.id,
           caseNumber: read(row, columnMap.case.caseNumber) || null,
@@ -605,8 +605,7 @@ export async function POST(request: NextRequest) {
           workContractDate: parseDate(read(row, columnMap.case.workContractDate)),
           workContractEndDate: parseDate(read(row, columnMap.case.workContractEndDate)),
           workContractSigned: parseBoolean(read(row, columnMap.case.workContractSigned)),
-        },
-      })
+      }))
       casesCreated++
 
       statusHistoryRows.push({

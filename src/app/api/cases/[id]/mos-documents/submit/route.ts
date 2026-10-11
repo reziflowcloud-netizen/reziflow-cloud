@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { caseWhereForScope, getDataAccessScope } from '@/lib/apiScope'
+import { withCaseChecklist } from '@/lib/checklistApi'
+import { ChecklistError, checklistDate } from '@/lib/documentChecklistPolicy'
+import { updateChecklistReadiness } from '@/lib/documentChecklist'
 
 const MAX_BATCH_SIZE = 100
 
@@ -46,6 +49,17 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     include: { client: { select: { firstName: true, lastName: true } } },
   })
   if (!caseRecord) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Compatibility endpoint for old clients: migrated Cases mutate the same items.
+  if (caseRecord.checklistInitializedAt) return withCaseChecklist(params.id, true, async (db, record) => {
+    const date = checklistDate(submittedAt)
+    const items = await db.caseChecklistItem.findMany({ where: { caseId: record.id, active: true, forMos: true, name: { in: names } } })
+    if (items.length !== names.length) throw new ChecklistError('Documents not configured for this case')
+    const pending = items.filter(item => item.status !== 'SUBMITTED_TO_MOS')
+    for (const item of pending) await db.caseChecklistItem.update({ where: { id: item.id }, data: { status: 'SUBMITTED_TO_MOS', receivedAt: item.receivedAt || date, mosSubmittedAt: date, version: { increment: 1 } } })
+    if (pending.length) await updateChecklistReadiness(db, record.id)
+    return { created: pending.length, skipped: items.length - pending.length }
+  })
 
   const requestedServiceId = Number.parseInt(String(body.serviceId || ''), 10)
   const serviceOptionType = Number.isInteger(requestedServiceId)

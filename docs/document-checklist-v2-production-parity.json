@@ -1,0 +1,188 @@
+{
+  "checkedAt": "2026-10-11T18:38:34.286Z",
+  "readOnly": true,
+  "inventory": {
+    "services": 145,
+    "mosCaseOptionRecords": 838,
+    "serviceSpecificRequirementGroups": 42,
+    "generalListRequirements": 586,
+    "cases": 274,
+    "casesWithMosConfigurationOrState": 156,
+    "mosTaskStates": 215,
+    "submittedMosTaskStates": 215,
+    "caseDocumentCount": 103,
+    "casesWithUploadedDocuments": 15,
+    "casesWithMosSubmissionHistory": 26,
+    "casesWithMosSubmissionDates": 43,
+    "servicesWithEffectiveMosTemplate": 145,
+    "servicesWithoutEffectiveMosTemplate": 0,
+    "servicesWithOwnSpecificMosTemplate": 39,
+    "duplicateRequirementRecords": 1,
+    "conflictingRequirementRecords": 0,
+    "unmappedRequirementRecords": 0,
+    "invalidRequirementReferences": 8,
+    "invalidCaseServiceReferences": 0,
+    "orphanDocumentReferences": 0,
+    "invalidStateReferences": 0,
+    "malformedState": 0,
+    "duplicateLegacyTaskStates": 1,
+    "missingSubmittedDate": 0,
+    "invalidSubmissionDate": 0,
+    "unnamedState": 0
+  },
+  "mapping": {
+    "normalizedLegacyDuplicates": 1,
+    "ignoredLegacyOrphanRecords": 8,
+    "orphanRecords": [
+      {
+        "recordId": 740,
+        "group": "mosDocument:149",
+        "serviceId": 149,
+        "disposition": "IGNORED_LEGACY_ORPHAN",
+        "evidence": {
+          "serviceMissing": true,
+          "cases": 0,
+          "matchingTasks": 0,
+          "history": 0,
+          "files": 0,
+          "exactGeneralCounterpart": true
+        }
+      },
+      {
+        "recordId": 741,
+        "group": "mosDocument:151",
+        "serviceId": 151,
+        "disposition": "IGNORED_LEGACY_ORPHAN",
+        "evidence": {
+          "serviceMissing": true,
+          "cases": 0,
+          "matchingTasks": 0,
+          "history": 0,
+          "files": 0,
+          "exactGeneralCounterpart": true
+        }
+      },
+      {
+        "recordId": 874,
+        "group": "mosDocument:174",
+        "serviceId": 174,
+        "disposition": "IGNORED_LEGACY_ORPHAN",
+        "evidence": {
+          "serviceMissing": true,
+          "cases": 0,
+          "matchingTasks": 0,
+          "history": 0,
+          "files": 0,
+          "exactGeneralCounterpart": true
+        }
+      },
+      {
+        "recordId": 743,
+        "group": "mosDocument:149",
+        "serviceId": 149,
+        "disposition": "IGNORED_LEGACY_ORPHAN",
+        "evidence": {
+          "serviceMissing": true,
+          "cases": 0,
+          "matchingTasks": 0,
+          "history": 0,
+          "files": 0,
+          "exactGeneralCounterpart": true
+        }
+      },
+      {
+        "recordId": 746,
+        "group": "mosDocument:151",
+        "serviceId": 151,
+        "disposition": "IGNORED_LEGACY_ORPHAN",
+        "evidence": {
+          "serviceMissing": true,
+          "cases": 0,
+          "matchingTasks": 0,
+          "history": 0,
+          "files": 0,
+          "exactGeneralCounterpart": true
+        }
+      },
+      {
+        "recordId": 879,
+        "group": "mosDocument:174",
+        "serviceId": 174,
+        "disposition": "IGNORED_LEGACY_ORPHAN",
+        "evidence": {
+          "serviceMissing": true,
+          "cases": 0,
+          "matchingTasks": 0,
+          "history": 0,
+          "files": 0,
+          "exactGeneralCounterpart": true
+        }
+      },
+      {
+        "recordId": 747,
+        "group": "mosDocument:151",
+        "serviceId": 151,
+        "disposition": "IGNORED_LEGACY_ORPHAN",
+        "evidence": {
+          "serviceMissing": true,
+          "cases": 0,
+          "matchingTasks": 0,
+          "history": 0,
+          "files": 0,
+          "exactGeneralCounterpart": true
+        }
+      },
+      {
+        "recordId": 880,
+        "group": "mosDocument:174",
+        "serviceId": 174,
+        "disposition": "IGNORED_LEGACY_ORPHAN",
+        "evidence": {
+          "serviceMissing": true,
+          "cases": 0,
+          "matchingTasks": 0,
+          "history": 0,
+          "files": 0,
+          "exactGeneralCounterpart": true
+        }
+      }
+    ],
+    "invalidExistingServiceReferencesAffectingV2": 0,
+    "dangerousAmbiguities": 0,
+    "validExistingServicesMapped": 145,
+    "projectedRequirements": 2471,
+    "generalFallbackParity": "PASS",
+    "legacyRecordsModified": 0,
+    "clientHistoryAffected": 0,
+    "clientFilesAffected": 0,
+    "templatePopulationRequired": false,
+    "legacyCaseOptionWrites": false
+  },
+  "templateParity": "PASS",
+  "gate": "PASS",
+  "existingCaseState": {
+    "projectedLegacyCompatibleCases": 274,
+    "automaticInitialization": false,
+    "massBackfill": false,
+    "existingStatesHistoryPreserved": true,
+    "explicitInitializationOnly": true,
+    "originalTasksDeleted": false,
+    "missingDatesRemainUnknown": true
+  },
+  "migration": {
+    "name": "20261011180000_document_checklist_v2",
+    "applied": 50,
+    "pending": [
+      "20261011180000_document_checklist_v2"
+    ],
+    "failed": 0,
+    "checksumMismatches": [],
+    "expansionAlreadyPresent": {
+      "tableExists": false,
+      "columnExists": false
+    },
+    "schemaOnly": true,
+    "dataBackfill": false,
+    "oldAppNewDbCompatibility": "isolated PASS; actual production smoke required after apply"
+  }
+}

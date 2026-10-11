@@ -1,0 +1,25 @@
+.root { min-width: 0; color: var(--text); }
+.header, .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between; }
+.header h3 { margin: 0; font-size: 17px; }
+.progress { width: 100%; height: 8px; accent-color: var(--brand); margin: 8px 0; }
+.muted { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.list { display: grid; gap: 8px; margin: 10px 0; }
+.item { width: 100%; text-align: left; display: flex; gap: 12px; align-items: flex-start; background: var(--surface, var(--bg)); border: 1px solid var(--border); border-radius: 10px; color: var(--text); padding: 12px; cursor: pointer; min-width: 0; }
+.item span { min-width: 0; overflow-wrap: anywhere; }
+.item strong { display: block; margin-bottom: 5px; }
+.badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.badge { font-size: 11px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; }
+.notice { padding: 12px; border: 1px solid var(--border); border-radius: 8px; margin: 10px 0; overflow-wrap: anywhere; }
+.overlay { position: fixed; inset: 0; z-index: 1200; background: #0008; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.editor { width: min(560px, 100%); max-height: 88dvh; overflow-y: auto; border-radius: 14px; padding: 20px; background: var(--surface); color: var(--text); border: 1px solid var(--border); min-width: 0; }
+.editor label { display: grid; gap: 6px; margin: 12px 0; font-size: 13px; }
+.editor h3 { margin: 0; overflow-wrap: anywhere; }
+.check { display: flex !important; align-items: center; gap: 8px; }
+.editor input, .editor select, .editor textarea { min-width: 0; width: 100%; }
+.check input { width: auto; }
+.file { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; overflow-wrap: anywhere; }
+.templateRow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.templateRow > input { flex: 1 1 200px; min-width: 0; }
+.templateRow label { display: flex; gap: 4px; align-items: center; font-size: 12px; }
+@media (max-width: 768px) { .overlay { padding: 0; align-items: flex-end; } .editor { width: 100%; border-radius: 16px 16px 0 0; padding: 18px 16px max(18px, env(safe-area-inset-bottom)); } }

@@ -27,7 +27,7 @@ export function visibleNotificationSql(user: any, inAppOnly = true) {
     ${inAppOnly ? Prisma.sql`AND n."inApp" = true` : Prisma.empty}
     AND (
       (n."entityType" = 'lead' AND EXISTS (SELECT 1 FROM "Lead" e WHERE e.id = n."entityId" AND e."organizationId" = n."organizationId" ${access} ${scheduledAccess} ${leadLink})) OR
-      (n."entityType" = 'case' AND EXISTS (SELECT 1 FROM "Case" e WHERE e.id = n."entityId" AND e."organizationId" = n."organizationId" ${access} ${scheduledAccess} ${caseLink})) OR
+      (n."entityType" = 'case' AND EXISTS (SELECT 1 FROM "Case" e WHERE e.id = n."entityId" AND e."organizationId" = n."organizationId" ${access} ${scheduledAccess} ${caseLink} AND (n.type <> 'documents_ready' OR e."assignedToId" = n."userId"))) OR
       (n."entityType" = 'task' AND EXISTS (SELECT 1 FROM "Task" e WHERE e.id = n."entityId" AND e."organizationId" = n."organizationId" ${access} ${scheduledAccess})) OR
       (n."type" = 'push_test' AND n."entityType" = 'push_test' AND n."entityId" = n.id AND n."deepLink" = '/dashboard' AND n."dedupeKey" ~ '^push-pilot:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
     )`

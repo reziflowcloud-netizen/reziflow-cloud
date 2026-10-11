@@ -1,6 +1,8 @@
 // src/app/api/cases/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { createCaseWithChecklist } from '@/lib/documentChecklist'
+import { ChecklistError } from '@/lib/documentChecklistPolicy'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { caseWhereForScope, findScopedClient, getDataAccessScope } from '@/lib/apiScope'
 import { assertBillingLimit, billingLimitResponsePayload, isBillableActiveCaseStatus, isBillingLimitError } from '@/lib/billing'
@@ -82,8 +84,10 @@ export async function POST(request: NextRequest) {
       await assertBillingLimit(organizationId, 'cases')
     }
 
-    const newCase = await prisma.case.create({
-      data: {
+    const client = await prisma.client.findFirst({ where: { id: body.clientId, organizationId }, select: { id: true } })
+    if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+    const newCase = await prisma.$transaction(async tx => {
+      const created = await createCaseWithChecklist(tx, {
         organizationId,
         caseNumber,
         clientId: body.clientId,
@@ -96,14 +100,14 @@ export async function POST(request: NextRequest) {
         employeeId,
         serviceId: body.serviceId ? parseInt(body.serviceId) : null,
         notes: body.notes || null,
-      }
-    })
-    await prisma.statusHistory.create({
-      data: { caseId: newCase.id, toStatus: newCase.status, changedBy: user.name as string || 'System' }
+      })
+      await tx.statusHistory.create({ data: { caseId: created.id, toStatus: created.status, changedBy: user.name as string || 'System' } })
+      return created
     })
     return NextResponse.json(newCase)
   } catch (e: any) {
     console.error(e)
+    if (e instanceof ChecklistError) return NextResponse.json({ error: e.message }, { status: e.status })
     if (isBillingLimitError(e)) return NextResponse.json(billingLimitResponsePayload(e), { status: 402 })
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

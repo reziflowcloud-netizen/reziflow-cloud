@@ -1,0 +1,244 @@
+{
+  "stage": "DOCUMENT CHECKLIST V2 — ready for production review; no production deploy",
+  "branch": "feature/document-checklist-v2",
+  "base": "origin/main at 9a2dc23",
+  "audit": {
+    "currentFlow": "CaseOption mosDocument:<serviceId> overrides mosDocument general list → Case MOS UI needed names → MOS: <name> Task with description.mosDocument {caseId, caseNumber, sentAt}; done/sentAt means submitted. Uploaded CaseDocument files were independent.",
+    "persistent": [
+      "CaseOption MOS names/order",
+      "Task MOS state/date/reminder JSON",
+      "Case MOS fields and cabinet credentials",
+      "DocUpdate MOS ID",
+      "CaseDocument upload metadata"
+    ],
+    "reusable": [
+      "Service / Case.serviceId",
+      "CaseDocument and authenticated file routes",
+      "Cloudinary / Dropbox storage",
+      "Case scope / tenant authorization",
+      "EntityAutosave / EntitySaveStatus",
+      "in-app Notification / organization automation opt-in / preferences"
+    ],
+    "limitations": [
+      "MOS requirements and Task state are separate from uploaded files.",
+      "No general required/optional readiness or stable per-case snapshot.",
+      "Existing DocumentTemplate represents generated DOCX templates, not requirements; it remains unchanged."
+    ],
+    "productionRecordCounts": null,
+    "localDryRun": {
+      "source": "isolated-local-qa",
+      "mode": "READ ONLY",
+      "templateRecords": 17,
+      "generalTemplateRecords": 10,
+      "serviceTemplateRecords": 7,
+      "mosTaskRecords": 16,
+      "submittedRecords": 14,
+      "validCaseReferences": 15,
+      "invalidOrCrossTenantReferences": 1,
+      "missingSubmittedDate": 1,
+      "uninitializedCases": 14
+    }
+  },
+  "schema": {
+    "flow": "Service → ServiceDocumentRequirement → CaseChecklistItem snapshot → existing CaseDocument files; MOS filters those same items by forMos",
+    "template": [
+      "id",
+      "serviceId",
+      "name",
+      "nameKey",
+      "required",
+      "forMos",
+      "sortOrder",
+      "active"
+    ],
+    "item": [
+      "id",
+      "caseId",
+      "templateId nullable",
+      "name snapshot",
+      "nameKey",
+      "required",
+      "forMos",
+      "status",
+      "receivedAt",
+      "mosSubmittedAt",
+      "sortOrder",
+      "note",
+      "active",
+      "outsideTemplate",
+      "version"
+    ],
+    "caseMetadata": [
+      "checklistInitializedAt",
+      "checklistServiceId",
+      "checklistVersion",
+      "documentsReady",
+      "documentsReadyOccurrence"
+    ],
+    "serviceMetadata": [
+      "documentTemplateInitializedAt",
+      "documentTemplateVersion"
+    ],
+    "files": "CaseDocument.checklistItemId nullable; one item can link multiple existing files, one file belongs to at most one item; attach requires same Case and scoped access",
+    "migration": "prisma/migrations/20261011180000_document_checklist_v2/migration.sql"
+  },
+  "semantics": {
+    "snapshots": "Atomic on normal Case creation, Lead conversion and CSV import; later template edits never alter existing snapshots.",
+    "existingCases": "No automatic backfill. Reads do not write. Explicit initialize maps current service/general requirements and legacy MOS history in one transaction; does not send baseline-ready notifications.",
+    "legacyTemplates": "Virtual initial templates preserve service-specific override/general fallback until the admin explicitly saves a service template. Legacy CaseOption records and settings UI remain untouched.",
+    "legacyHistory": "Normalize names; retain pending/submitted manual names and notes, skip invalid/cross-tenant references, dedupe by name, preserve latest actual sentAt. Missing sentAt stays null; reminder dueDate is not a submission date. Original Tasks remain intact.",
+    "status": "NEEDED → RECEIVED → SUBMITTED_TO_MOS; MOS status is permitted only when forMos. MOS submitted dates preserve literal calendar dates and reject invalid/future dates.",
+    "readiness": "All active required items must be RECEIVED or SUBMITTED_TO_MOS. Optional items do not block. Empty/optional-only sets have no blockers, but emit no readiness event.",
+    "merge": "Explicit Keep acknowledges the new service without changing items. Merge matches normalized snapshot names, preserves states/files/notes, adds new active requirements, and retains obsolete items with outsideTemplate. Retained required items still block until explicitly archived. Archived items are not silently restored.",
+    "notification": "One in-app-only responsible-user notification per real not-ready → ready occurrence; subsequent ready → not-ready → ready creates a new occurrence. Serialized Case mutation and dedupe key commit atomically. No Task or push auto-generation.",
+    "preferences": "Uses existing global feature flag and organization opt-in. Honors documents_ready.inApp=false when explicitly stored; no new global push type. Deep link resolves current Case access and opens ?tab=docs; reassignment hides old responsible notifications.",
+    "autosave": "Reuses EntityAutosave, minimal item PATCH, item integer CAS, Retry/conflict handling and navigation flush. Collection/template mutations also require CAS. Case autosave updatedAt is independent. Archive, file unlink/deletion and template save remain explicit.",
+    "performance": "One shared checklist controller drives desktop/mobile summary, Documents and MOS. Bounded relation fetches; no per-item query in the read payload. Transaction code only uses its supplied transaction client, with Case/service row locks.",
+    "locales": [
+      "ru",
+      "uk (UA UI)",
+      "pl"
+    ],
+    "themes": [
+      "light",
+      "dark",
+      "slate"
+    ],
+    "widths": [
+      390,
+      414,
+      430,
+      1024,
+      1440
+    ]
+  },
+  "validation": {
+    "base": "origin/main at 9a2dc23",
+    "branch": "feature/document-checklist-v2",
+    "environment": {
+      "PostgreSQL": "18.6",
+      "host": "127.0.0.1",
+      "port": 55432,
+      "Next": "14.2.35",
+      "Node": "v24.14.0",
+      "productionAccess": false,
+      "externalTransportCredentials": false
+    },
+    "regression": {
+      "command": "node scripts/document-checklist-runtime.cjs regression",
+      "tests": 264,
+      "pass": 264,
+      "fail": 0,
+      "skipped": 0,
+      "covers": [
+        "Case autosave",
+        "notifications",
+        "Web Push",
+        "QStash",
+        "Case CRUD",
+        "security",
+        "tenant isolation",
+        "auth/session",
+        "Lead visibility",
+        "Staff Scope",
+        "constrained webhook connection pool"
+      ]
+    },
+    "checklist": {
+      "command": "node scripts/document-checklist-runtime.cjs qa",
+      "checks": 18,
+      "browserCombinations": 45,
+      "errors": [],
+      "artifact": "docs/document-checklist-v2-qa.json"
+    },
+    "caseRegression": {
+      "command": "node scripts/document-checklist-runtime.cjs case-regression",
+      "checks": 23,
+      "viewports": 15,
+      "errors": [],
+      "artifact": "docs/document-checklist-v2-case-regression.json"
+    },
+    "security": {
+      "checks": 6,
+      "artifact": "docs/document-checklist-v2-case-security.json"
+    },
+    "compatibility": {
+      "result": "PASS",
+      "method": "Prisma client generated from origin/main schema performs legacy Case, Service, MOS settings/history and upload reads/writes against the expanded database; no checklist backfill",
+      "command": "DATABASE_URL=local QA node scripts/qa-document-checklist-compat.cjs"
+    },
+    "migrations": {
+      "result": "PASS",
+      "count": 51,
+      "freshDatabases": [
+        "legalhub_case_qa",
+        "legalhub_notifications_qa",
+        "legalhub_webhook_qa"
+      ],
+      "drift": "No difference detected",
+      "migration": "20261011180000_document_checklist_v2/migration.sql",
+      "strategy": "expand only; no existing-data updates or drops",
+      "finalFileFreshChain": "PASS: fourth empty database legalhub_checklist_migration_qa, all 51 migrations, zero drift after final SQL formatting check"
+    },
+    "TypeScript": "PASS: tsc --noEmit",
+    "Prisma": "PASS: prisma validate",
+    "safeBuild": "PASS: node scripts/document-checklist-runtime.cjs build, DATABASE_URL points to an unreachable loopback port; no migrations",
+    "diffCheck": "PASS: git diff --check",
+    "dryRun": {
+      "result": "PASS: read-only local synthetic data",
+      "artifact": "docs/document-checklist-v2-dry-run.json",
+      "productionParity": "Not measured; production was not accessed"
+    },
+    "limits": [
+      "Cloudinary/Dropbox external upload transport was not exercised; existing storage architecture is unchanged. File relations and authenticated scope rules were tested.",
+      "The security script mocks transport in Web Push/QStash regression; no live delivery.",
+      "Production MOS record counts and data parity are unknown. Legacy settings/history remain intact.",
+      "The old Prisma client tests database compatibility; an old production deployment was not started."
+    ],
+    "fixtures": "Synthetic organizations and fixtures retained only in the disposable local databases; screenshot paths are recorded in the QA artifact"
+  },
+  "changedFiles": [
+    "docs/document-checklist-v2-case-regression.json",
+    "docs/document-checklist-v2-case-security.json",
+    "docs/document-checklist-v2-dry-run.json",
+    "docs/document-checklist-v2-qa.json",
+    "docs/document-checklist-v2-report.json",
+    "docs/document-checklist-v2-validation.json",
+    "prisma/migrations/20261011180000_document_checklist_v2/migration.sql",
+    "prisma/schema.prisma",
+    "scripts/document-checklist-dry-run.cjs",
+    "scripts/document-checklist-runtime.cjs",
+    "scripts/qa-document-checklist-compat.cjs",
+    "scripts/qa-document-checklist.cjs",
+    "src/app/api/cases/[id]/checklist/[itemId]/files/route.ts",
+    "src/app/api/cases/[id]/checklist/[itemId]/route.ts",
+    "src/app/api/cases/[id]/checklist/route.ts",
+    "src/app/api/cases/[id]/mos-documents/submit/route.ts",
+    "src/app/api/cases/route.ts",
+    "src/app/api/import/route.ts",
+    "src/app/api/leads/[id]/convert/route.ts",
+    "src/app/api/services/[id]/document-template/route.ts",
+    "src/app/cases/[id]/CaseDetailMobile.tsx",
+    "src/app/cases/[id]/page.tsx",
+    "src/app/notifications/open/[id]/route.ts",
+    "src/app/settings/services/page.tsx",
+    "src/components/DocumentChecklist.module.css",
+    "src/components/DocumentChecklist.tsx",
+    "src/components/ServiceDocumentTemplate.tsx",
+    "src/hooks/useDocumentChecklist.ts",
+    "src/hooks/useEntityAutosave.ts",
+    "src/lib/checklistApi.ts",
+    "src/lib/documentChecklist.ts",
+    "src/lib/documentChecklistI18n.ts",
+    "src/lib/documentChecklistPolicy.ts",
+    "src/lib/notificationI18n.ts",
+    "src/lib/notifications.ts",
+    "src/lib/screenLeave.ts",
+    "tests/document-checklist-policy.test.mjs",
+    "tests/lead-webhook-pool-timeout.test.mjs",
+    "tests/notifications-db.test.mjs"
+  ],
+  "gitEvidence": "Final commit hash, local/remote equality and clean status are verified after this report is committed and reported in the final chat response.",
+  "productionReviewReady": "YES",
+  "productionRollout": "Not performed. Production data parity and deployment approval remain for the separate review/rollout stage."
+}

@@ -17,6 +17,8 @@ import { caseStatusLabel, isArchiveCaseStatus } from '@/lib/caseI18n'
 import { VOIVODESHIP_OFFICE_GROUPS } from '@/lib/voivodeshipOffices'
 import { useCaseMobileAccess } from '../CaseMobileAccessContext'
 import CaseDetailMobile from './CaseDetailMobile'
+import DocumentChecklist, { ChecklistSummary, ChecklistServicePrompt } from '@/components/DocumentChecklist'
+import { useDocumentChecklist } from '@/hooks/useDocumentChecklist'
 
 const WORK_TYPE = 'Выконывание пацы (Работа)'
 const LOCALES = { ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL' } as const
@@ -69,6 +71,9 @@ export default function CaseDetailPage() {
   const [mosDocuments, setMosDocuments] = useState<any[]>([])
   const [caseTasks, setCaseTasks] = useState<any[]>([])
   const [tab, setTab] = useState('details')
+  const checklist = useDocumentChecklist(String(id), c?.serviceId)
+  const changeTab = async (value: string) => { if (await prepareScreenLeave()) setTab(value) }
+  useEffect(() => { if (new URLSearchParams(window.location.search).get('tab') === 'docs') setTab('docs') }, [id])
   const [saving, setSaving] = useState(false)
   const [payAmount, setPayAmount] = useState('')
   const [payNote, setPayNote] = useState('')
@@ -842,6 +847,7 @@ export default function CaseDetailPage() {
     if (!confirm(t('delete_document_confirm'))) return
     await fetch(`/api/cases/${id}/documents/${docId}`, { method: 'DELETE' })
     setDocuments(p => p.filter((d: any) => d.id !== docId))
+    void checklist.reload()
   }
 
   async function deleteCase() {
@@ -925,6 +931,7 @@ export default function CaseDetailPage() {
   return (
     <>
       <CaseDetailMobile
+        checklist={checklist}
         id={String(id)}
         caseData={c}
         form={form}
@@ -944,7 +951,7 @@ export default function CaseDetailPage() {
         caseTasks={caseTasks}
         plannedPayments={plannedPayments}
         tab={tab}
-        setTab={setTab}
+        setTab={changeTab}
         restrictedAccess={restrictedAccess}
         saveStatus={saveStatus}
         onCustomDirtyChange={setCustomDirty}
@@ -1077,8 +1084,8 @@ export default function CaseDetailPage() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16 }}>
-          <div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 16 }}>
+          <div style={{ minWidth: 0 }}>
             {/* Табы */}
             <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--surface)', borderRadius: '10px 10px 0 0', padding: '0 4px', overflowX: 'auto' }}>
               {[
@@ -1087,7 +1094,7 @@ export default function CaseDetailPage() {
                 ['comments', `💬 ${t('comments_tab')} (${c.comments?.length||0})`],
                 ['docs', `📁 ${t('documents_tab')} (${documents.length})`],
               ].map(([t, label]) => (
-                <button key={t} onClick={() => setTab(t)} style={{
+                <button key={t} onClick={() => void changeTab(t)} style={{
                   padding: '12px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap',
                   fontWeight: tab === t ? 600 : 400,
                   color: tab === t ? 'var(--brand)' : 'var(--muted)',
@@ -1098,6 +1105,7 @@ export default function CaseDetailPage() {
 
             {tab === 'details' && (
               <div data-collapsible-scope="case-details">
+                <div className="card" style={{ marginBottom: 16 }}><ChecklistSummary controller={checklist} onView={() => void changeTab('docs')} /><ChecklistServicePrompt controller={checklist} /></div>
                 <CollapsibleCardsBehavior scope="case-details" />
                 <SectionVisibilityBehavior scope="case" />
                 {/* ── ОСНОВНЫЕ ДАННЫЕ ── */}
@@ -1272,6 +1280,7 @@ export default function CaseDetailPage() {
                   </div>
 
                   <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, marginTop: 4 }}>
+                    {checklist.data?.initialized ? <DocumentChecklist controller={checklist} files={documents} mosOnly /> : <>
                     <div className="section-title" style={{ marginBottom: 10 }}>{t('mos_documents')}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
                       <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', padding: 12, minHeight: 220 }}>
@@ -1400,6 +1409,7 @@ export default function CaseDetailPage() {
                         )}
                       </div>
                     </div>
+                  </>}
                   </div>
 
                   <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, marginTop: 14 }}>
@@ -1720,6 +1730,8 @@ export default function CaseDetailPage() {
             )}
 
             {tab === 'docs' && (
+              <>
+              <div className="card" style={{ marginBottom: 16 }}><ChecklistServicePrompt controller={checklist} /><DocumentChecklist controller={checklist} files={documents} /></div>
               <div>
                 <div className="card" style={{ borderRadius: '0 0 10px 10px', marginBottom: 16 }}>
                   <div className="section-title"><span>📁</span>{t('client_documents')}</div>
@@ -1809,6 +1821,7 @@ export default function CaseDetailPage() {
                   )}
                 </div>
               </div>
+            </>
             )}
 
             {/* ── МОДАЛЬНЫЙ ПРОСМОТР ДОКУМЕНТА ── */}
