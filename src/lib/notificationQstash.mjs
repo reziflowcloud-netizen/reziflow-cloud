@@ -54,3 +54,27 @@ export async function runQstashNotificationChunk({ input, messageId, secret, tok
   }
   return { ...metrics, runId: job.runId, page: job.page + 1, continuationQueued: !metrics.complete }
 }
+
+// Authenticated transport self-check. Both dependencies are in-memory; this
+// cannot evaluate entities, publish continuations, touch a DB, or send push.
+export async function diagnoseQstashNotificationTransport() {
+  const cursors = [null, 'task:diagnostic25', 'case:', 'lead:']
+  let input = {}, pending, page = 0
+  for (let step = 0; step < cursors.length; step++) {
+    pending = null
+    const result = await runQstashNotificationChunk({
+      input, messageId: 'diagnostic-transport',
+      secret: 'synthetic-diagnostic-cron-secret-12345678',
+      token: 'synthetic-diagnostic-qstash-token-12345678',
+      fetchPage: async url => {
+        if (url.origin !== 'https://legalhubcrm.com' || url.searchParams.get('cursor') !== cursors[page]) throw new Error('Diagnostic cursor mismatch')
+        page++
+        return Response.json({ evaluated: 0, notificationsCreated: 0, nextCursor: cursors[page] || null, push: { processed: 0, delivered: 0 } })
+      },
+      enqueue: async job => { pending = job.continuation },
+    })
+    if (result.complete !== (step === cursors.length - 1)) throw new Error('Diagnostic hand-off mismatch')
+    if (pending) input = pending
+  }
+  return { diagnostic: true, generationInvoked: false, providerInvoked: false, nextCursorOrchestration: 'PASS', chunks: page }
+}

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cronAuthorized } from '@/lib/pushSecurity'
 import { evaluateNotificationPage, parseEvaluationCursor } from '@/lib/notificationJobs'
 import { deliverNotificationPush } from '@/lib/notificationPush'
-import { runQstashNotificationChunk, continuationInput } from '@/lib/notificationQstash.mjs'
+import { runQstashNotificationChunk, continuationInput, diagnoseQstashNotificationTransport } from '@/lib/notificationQstash.mjs'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -41,6 +41,9 @@ export async function POST(request: NextRequest) {
     }
     body += decoder.decode()
     input = JSON.parse(body || '{}')
+    if (input?.mode === 'diagnostic' && Object.keys(input).length === 1) {
+      return NextResponse.json(await diagnoseQstashNotificationTransport(), { headers: { 'Cache-Control': 'no-store' } })
+    }
     continuationInput(input, request.headers.get('upstash-message-id'), 'https://legalhubcrm.com')
   } catch { return NextResponse.json({ error: 'Invalid scheduler continuation' }, { status: 400 }) }
   try {

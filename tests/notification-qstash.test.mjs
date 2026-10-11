@@ -5,7 +5,7 @@ import ts from 'typescript'
 import { createRequire } from 'node:module'
 import { NextRequest } from 'next/server.js'
 import { cronAuthorized } from '../src/lib/pushSecurity.ts'
-import { continuationInput, runQstashNotificationChunk, enqueueNotificationContinuation } from '../src/lib/notificationQstash.mjs'
+import { continuationInput, runQstashNotificationChunk, enqueueNotificationContinuation, diagnoseQstashNotificationTransport } from '../src/lib/notificationQstash.mjs'
 const require = createRequire(import.meta.url)
 const secret = 'synthetic-Qstash-cron-secret-123456789', token = 'synthetic-Qstash-API-token-1234567890'
 const origin = 'https://legalhubcrm.com'
@@ -62,7 +62,7 @@ test('continuation uses fixed HTTPS destination, header-only secrets, redaction 
 function route(job) {
   const exports = {}
   const code = ts.transpileModule(fs.readFileSync('src/app/api/internal/notifications/route.ts','utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText
-  new Function('require','exports',code)(id => id === '@/lib/pushSecurity' ? { cronAuthorized } : id === '@/lib/notificationQstash.mjs' ? { continuationInput, runQstashNotificationChunk: job } : id.startsWith('@/lib/') ? {} : require(id), exports)
+  new Function('require','exports',code)(id => id === '@/lib/pushSecurity' ? { cronAuthorized } : id === '@/lib/notificationQstash.mjs' ? { continuationInput, runQstashNotificationChunk: job, diagnoseQstashNotificationTransport } : id.startsWith('@/lib/') ? {} : require(id), exports)
   return exports.POST
 }
 test('actual POST fails closed before generation, bounds input and sanitizes transient errors', async () => {
@@ -79,4 +79,25 @@ test('actual POST fails closed before generation, bounds input and sanitizes tra
     const failed = await send(); assert.equal(failed.status, 503); assert.equal(failed.headers.get('retry-after'), '15'); assert.ok(!(await failed.text()).includes(secret))
     assert.equal(jobs, 1)
   } finally { for(const key of ['CRON_SECRET','NOTIFICATION_QSTASH_ENABLED','QSTASH_TOKEN']) { if(saved[key] === undefined) delete process.env[key]; else process.env[key] = saved[key] } }
+})
+
+test('authenticated diagnostic POST walks continuations entirely in memory without generation or provider requests', async () => {
+  const saved = { ...process.env }; let jobs = 0, networkCalls = 0
+  const originalFetch = globalThis.fetch
+  const post = route(async () => { jobs++; throw new Error('Business runner must not execute') })
+  const send = (auth, body = '{"mode":"diagnostic"}') => post(new NextRequest(origin + '/api/internal/notifications', { method: 'POST', headers: { authorization: auth }, body }))
+  try {
+    process.env.CRON_SECRET = secret; process.env.NOTIFICATION_QSTASH_ENABLED = 'true'; process.env.QSTASH_TOKEN = token
+    globalThis.fetch = async () => { networkCalls++; throw new Error('Network must not execute') }
+    for (const auth of ['', 'Bearer wrong']) assert.equal((await send(auth)).status, 401)
+    assert.equal((await send(`Bearer ${secret}`, '{"mode":"diagnostic","url":"https://foreign.test"}')).status, 400)
+    const response = await send(`Bearer ${secret}`)
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), { diagnostic: true, generationInvoked: false, providerInvoked: false, nextCursorOrchestration: 'PASS', chunks: 4 })
+    assert.equal(response.headers.get('cache-control'), 'no-store')
+    assert.equal(jobs, 0); assert.equal(networkCalls, 0)
+  } finally {
+    globalThis.fetch = originalFetch
+    for (const key of ['CRON_SECRET','NOTIFICATION_QSTASH_ENABLED','QSTASH_TOKEN']) { if (saved[key] === undefined) delete process.env[key]; else process.env[key] = saved[key] }
+  }
 })
