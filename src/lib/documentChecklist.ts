@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { ChecklistError, checklistProgress, documentNameKey } from './documentChecklistPolicy.ts'
 import { lockedOrganizationAutomation } from './notificationOrganization.ts'
+import { projectLegacyRequirements } from './documentChecklistLegacyMapping.ts'
 
 export async function effectiveDocumentTemplate(db: Prisma.TransactionClient, organizationId: string, serviceId: number | null) {
   const service = serviceId ? await db.service.findFirst({ where: { id: serviceId, organizationId }, include: { documentRequirements: { orderBy: { sortOrder: 'asc' } } } }) : null
@@ -8,9 +9,7 @@ export async function effectiveDocumentTemplate(db: Prisma.TransactionClient, or
   if (service?.documentTemplateInitializedAt) return { service, items: service.documentRequirements, legacy: false }
   const specific = serviceId ? await db.caseOption.findMany({ where: { organizationId, type: `mosDocument:${serviceId}` }, orderBy: { order: 'asc' } }) : []
   const options = specific.length ? specific : await db.caseOption.findMany({ where: { organizationId, type: 'mosDocument' }, orderBy: { order: 'asc' } })
-  const seen = new Set<string>()
-  const items = options.filter(option => { const key = documentNameKey(option.value); if (!key || seen.has(key)) return false; seen.add(key); return true })
-    .map(option => ({ id: '', name: option.value.trim(), nameKey: documentNameKey(option.value), required: true, forMos: true, active: true, sortOrder: option.order }))
+  const { items } = projectLegacyRequirements(options)
   return { service, items, legacy: true }
 }
 
