@@ -1,14 +1,22 @@
 # LegalHub CRM Handoff
 
-Development 12, 2026-10-11: implementation/isolated QA of organization opt-in
-and candidate-first scheduling is ready for review, **not Production rollout**.
-Read [the canonical report](docs/notifications-organization-opt-in-review.md).
-Production master columns/migration and two revised provider schedules remain
-unapplied. Preserve the existing pilot and its three fixtures. No customer
-backfill or manual env allowlist is part of the new product model. Stop for
-review before migration/deploy/provider activation.
+NOTIFICATIONS — PRODUCTION COMPLETE
 
-Prepared from the verified production state on 2026-09-24.
+Development 12 completed on 2026-10-11. Application merge `4adbf2f3e73aa54c38ee7e84e2f4ca266e0454e2`, Production deployment `dpl_He27oNwevfbt1KDc4sB2XyjUV7uU` READY. This documentation follow-up records the verified rollout; application code is unchanged. Canonical evidence: [notifications-production-complete.md](docs/notifications-production-complete.md).
+
+- Notification Center, personal event preferences, Mine/Team scope, privacy, dedupe, read/unread and badges.
+- Owner/Admin organization master switch; existing and new organizations default OFF. Activation watermark prevents historical/off-gap backfill.
+- Only TestRezidents enabled: ON=1, OFF=22. Final watermark `2026-10-11T10:27:00.154Z`. Do not enable customer organizations without their explicit opt-in.
+- Web Push remains per-user opt-in. Existing User16 iPhone subscription and all existing preferences/read state preserved. Phase 3A assignment events and Phase 3B scheduled events retain access checks and the verified iPhone fallback.
+- Candidate-first queries select only eligible occurrences in enabled organizations. No full entity hydration or continuation for empty runs.
+- QStash EU: frequent Task/Lead `*/15 * * * *`; daily Case +7/+1 `0 6 * * *` (08:00 Warsaw summer / 07:00 winter), date calculations Europe/Warsaw. Exactly two active schedules; old pilot PAUSED. GitHub manual fallback only.
+- Three consecutive real automatic frequent runs: 10:30, 10:45, 11:00 UTC, HTTP 200, one delivery/page each, zero continuations. Daily automatic execution N/A at completion: next run 2026-10-12 06:00 UTC; daily configuration and isolated regressions PASS.
+- Static current-data cost projection 97/day normal, 291/day with two retries, Free capacity 1000/day. Reassess when opted-in organizations/candidates grow.
+- Fresh private public-schema backup validated; guarded additive migration applied, 50 migrations / pending0 / failed0. Old application + new DB smoke passed before deployment.
+- Post-deploy isolated suite 261/261, UI 12/12, TypeScript, Prisma validation, full migration chain and DB-write-free build PASS. Observed Production errors/5xx, duplicates and non-enabled organization events: zero.
+- Temporary QStash setup GitHub secret deleted after the two configuration-only runs. Existing cron secret and Production sensitive token unchanged; no credential values in reports.
+
+Updated after the verified notification production rollout on 2026-10-11.
 
 ## Start Here
 
@@ -34,14 +42,12 @@ Before editing:
 ```text
 URL: https://legalhubcrm.com
 branch: main
-production application commit: af4ed41df056676712917091e75fbd0602d8eef4
-deployment: dpl_FUvk2hDgX8nqaUJ6nxaCcPQsWyVj
+production application commit: 4adbf2f3e73aa54c38ee7e84e2f4ca266e0454e2
+application rollout deployment: dpl_He27oNwevfbt1KDc4sB2XyjUV7uU
 status after rollout: READY
 ```
 
-Before this documentation update, `origin/main` matched the production
-application commit. This handoff task changes only `PROJECT_STATE.md` and
-`HANDOFF.md`; it does not change application code or the production database.
+The current notification application and additive migration are deployed. The latest documentation follow-up records the rollout without changing application code.
 
 ## Forgot Password — Production Complete
 

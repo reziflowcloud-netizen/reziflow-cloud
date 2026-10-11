@@ -1,15 +1,22 @@
 # Project State
 
-Development 12 update, 2026-10-11: organization opt-in/candidate-first
-notifications prepared on a feature branch; **not deployed**. Dedicated master
-default OFF, tenant activation watermark, two shared Task/Lead + daily Case
-schedules prepared. Current read-only initial-scope cost projection: 97/day,
-291/day with two retries on every request. Existing Production remains the
-TestRezidents/User16 pilot. Canonical review:
-[notifications-organization-opt-in-review.md](docs/notifications-organization-opt-in-review.md).
-Do not activate customer organizations or change Production before model review.
+NOTIFICATIONS — PRODUCTION COMPLETE
 
-Last updated against the production repository state by Codex: 2026-09-24.
+Development 12 completed on 2026-10-11. Application merge `4adbf2f3e73aa54c38ee7e84e2f4ca266e0454e2`, Production deployment `dpl_He27oNwevfbt1KDc4sB2XyjUV7uU` READY. This documentation follow-up records the verified rollout; application code is unchanged. Canonical evidence: [notifications-production-complete.md](docs/notifications-production-complete.md).
+
+- Notification Center, personal event preferences, Mine/Team scope, privacy, dedupe, read/unread and badges.
+- Owner/Admin organization master switch; existing and new organizations default OFF. Activation watermark prevents historical/off-gap backfill.
+- Only TestRezidents enabled: ON=1, OFF=22. Final watermark `2026-10-11T10:27:00.154Z`. Do not enable customer organizations without their explicit opt-in.
+- Web Push remains per-user opt-in. Existing User16 iPhone subscription and all existing preferences/read state preserved. Phase 3A assignment events and Phase 3B scheduled events retain access checks and the verified iPhone fallback.
+- Candidate-first queries select only eligible occurrences in enabled organizations. No full entity hydration or continuation for empty runs.
+- QStash EU: frequent Task/Lead `*/15 * * * *`; daily Case +7/+1 `0 6 * * *` (08:00 Warsaw summer / 07:00 winter), date calculations Europe/Warsaw. Exactly two active schedules; old pilot PAUSED. GitHub manual fallback only.
+- Three consecutive real automatic frequent runs: 10:30, 10:45, 11:00 UTC, HTTP 200, one delivery/page each, zero continuations. Daily automatic execution N/A at completion: next run 2026-10-12 06:00 UTC; daily configuration and isolated regressions PASS.
+- Static current-data cost projection 97/day normal, 291/day with two retries, Free capacity 1000/day. Reassess when opted-in organizations/candidates grow.
+- Fresh private public-schema backup validated; guarded additive migration applied, 50 migrations / pending0 / failed0. Old application + new DB smoke passed before deployment.
+- Post-deploy isolated suite 261/261, UI 12/12, TypeScript, Prisma validation, full migration chain and DB-write-free build PASS. Observed Production errors/5xx, duplicates and non-enabled organization events: zero.
+- Temporary QStash setup GitHub secret deleted after the two configuration-only runs. Existing cron secret and Production sensitive token unchanged; no credential values in reports.
+
+Last updated against the production repository state by Codex: 2026-10-11.
 
 ## Project
 
@@ -31,20 +38,16 @@ https://legalhubcrm.com
 
 ## Current Production State
 
-The approved Mobile UX, Staff Routing V2, and Forgot Password rollouts are in
-production.
+The approved Mobile UX, Staff Routing V2, Forgot Password and Development 12 Notifications rollouts are in production.
 
 ```text
 branch: main
-production application commit: af4ed41df056676712917091e75fbd0602d8eef4
-production deployment: dpl_FUvk2hDgX8nqaUJ6nxaCcPQsWyVj
+production application commit: 4adbf2f3e73aa54c38ee7e84e2f4ca266e0454e2
+application rollout deployment: dpl_He27oNwevfbt1KDc4sB2XyjUV7uU
 deployment status at rollout verification: READY
 ```
 
-At the start of this documentation-only update, `origin/main` matched the
-production application commit. The follow-up commit changes only
-`PROJECT_STATE.md` and `HANDOFF.md`; it does not change application code or the
-production database.
+The current notification application and additive migration are deployed. The latest documentation follow-up records the rollout without changing application code.
 
 ## Architecture
 
