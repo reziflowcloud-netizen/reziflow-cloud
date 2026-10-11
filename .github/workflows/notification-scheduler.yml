@@ -2,6 +2,11 @@ name: Production notification scheduler
 
 on:
   workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Leave empty for manual fallback; CONFIGURE_PAUSED_ONLY for QStash setup
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -12,7 +17,7 @@ concurrency:
 
 jobs:
   notifications:
-    if: github.ref == 'refs/heads/main' && vars.NOTIFICATION_SCHEDULER_ENABLED == 'true'
+    if: github.ref == 'refs/heads/main' && vars.NOTIFICATION_SCHEDULER_ENABLED == 'true' && inputs.confirmation != 'CONFIGURE_PAUSED_ONLY'
     runs-on: ubuntu-latest
     timeout-minutes: 14
     steps:
@@ -27,6 +32,7 @@ jobs:
         with:
           path: .scheduler/notification-checkpoint.json
           key: notification-production-v1-${{ github.run_id }}-${{ github.run_attempt }}
+
           restore-keys: notification-production-v1-
       - name: Run production sweep
         env:
@@ -40,3 +46,21 @@ jobs:
         with:
           path: .scheduler/notification-checkpoint.json
           key: notification-production-v1-${{ github.run_id }}-${{ github.run_attempt }}
+
+  configure-qstash:
+    if: inputs.confirmation == 'CONFIGURE_PAUSED_ONLY'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Configure paused QStash only
+        env:
+          QSTASH_SETUP_CONFIRMATION: ${{ inputs.confirmation }}
+          NOTIFICATION_PRODUCTION_CRON_SECRET: ${{ secrets.NOTIFICATION_PRODUCTION_CRON_SECRET }}
+          QSTASH_NOTIFICATION_SETUP_TOKEN: ${{ secrets.QSTASH_NOTIFICATION_SETUP_TOKEN }}
+        run: node scripts/setup-notification-qstash.mjs

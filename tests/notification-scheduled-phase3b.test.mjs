@@ -15,6 +15,7 @@ import { authorizedNotification, notificationUser, markNotificationsRead, unread
 import { deliverNotificationPush, pushPayload } from '../src/lib/notificationPush.ts'
 import { encryptSubscription, endpointHash, subscriptionAAD } from '../src/lib/pushSecurity.ts'
 import { runNotificationJob } from '../scripts/run-notification-job.mjs'
+import * as notificationQstash from '../src/lib/notificationQstash.mjs'
 import { parseWarsawDateTime, warsawDateTimeLocal } from '../src/lib/warsawDateTime.ts'
 import { normalizeLeadBody } from '../src/lib/leads.ts'
 
@@ -58,6 +59,7 @@ function loadRoute(overrides, entry = 'src/app/api/internal/notifications/route'
   const load = file => {
     const normalized = file.replaceAll('\\', '/').replace(/\.(ts|js)$/, '')
     if (overrides[normalized]) return overrides[normalized]
+    if (normalized === 'src/lib/notificationQstash.mjs') return notificationQstash
     if (cache.has(normalized)) return cache.get(normalized)
     const filename = normalized + '.ts', exports = {}; cache.set(normalized, exports)
     const code = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText
