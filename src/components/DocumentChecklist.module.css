@@ -8,6 +8,7 @@
 .accordionTitle { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; }
 .accordion .accordionTitle > span:first-child { color: var(--text); font-size: 16px; }
 .accordionTitle > span:last-child:not(:first-child) { white-space: nowrap; }
+.desktopHeading { display: none; }
 .accordion > button:focus-visible, .item:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
 .muted { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
@@ -18,13 +19,27 @@
 .statusControl[data-checklist-status-control="checked"] { border-color: var(--brand); background: var(--brand); color: var(--notification-on-accent); }
 .item strong { display: block; margin-bottom: 5px; }
 .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-.badge { font-size: 11px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; }
+.badge { font-size: 11px; padding: 2px 6px; border: 1px solid transparent; border-radius: 999px; background: color-mix(in srgb, var(--muted) 10%, transparent); color: var(--muted); cursor: default; }
+.row { display: grid; min-width: 0; }
+.selectableRow { grid-template-columns: 36px minmax(0, 1fr); }
+.selectionTarget { display: flex; justify-content: center; align-items: flex-start; padding-top: 10px; min-height: 44px; cursor: pointer; }
+.selectionCheckbox { appearance: none; width: 18px; height: 18px; flex: 0 0 18px; border: 1.5px solid var(--muted); border-radius: 4px; background: var(--input-bg); cursor: pointer; display: inline-grid; place-items: center; }
+.selectionCheckbox:checked { background: var(--brand); border-color: var(--brand); }
+.selectionCheckbox:checked::after { content: '✓'; color: var(--notification-on-accent); font-size: 14px; font-weight: 700; }
+.selectionCheckbox:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.selectionCheckbox:disabled { cursor: default; opacity: .6; }
+.mosGroupHeader { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.mosGroupHeader h4 { flex: 1 1 170px; }
+.selectAll { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; font-size: 12px; cursor: pointer; }
+.bulkActions { display: grid; gap: 10px; padding-top: 10px; margin-top: 8px; border-top: 1px solid var(--border); }
+.bulkActions > label { display: grid; gap: 5px; font-size: 12px; color: var(--muted); }
+.bulkActions button { max-width: 100%; white-space: normal; }
 .mosGroups { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 10px; }
 .mosGroup { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
 .mosGroup h4 { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; margin: 0; }
 .mosGroup .list { gap: 0; margin: 6px 0 0; }
 .mosItem { padding: 8px 0; gap: 10px; background: transparent; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
-.mosItem:last-child { border-bottom: 0; }
+.row:last-child .mosItem { border-bottom: 0; }
 .mosItem strong { font-size: 13px; margin-bottom: 3px; }
 .mosItem .badges { gap: 4px; margin-top: 4px; }
 .notice { padding: 12px; border: 1px solid var(--border); border-radius: 8px; margin: 10px 0; overflow-wrap: anywhere; }
@@ -40,6 +55,9 @@
 .templateRow > input { flex: 1 1 200px; min-width: 0; }
 .templateRow label { display: flex; gap: 4px; align-items: center; font-size: 12px; }
 @media (min-width: 769px) {
+  .mobileHeading { display: none; }
+  .desktopHeading { display: block; }
+  .desktopHeading .sectionHeading { font-size: 11px; margin-bottom: 0; }
   .progress { height: 10px; border-radius: 999px; overflow: hidden; appearance: none; background: var(--border); }
   .progress::-webkit-progress-bar { background: var(--border); border-radius: 999px; }
   .progress::-webkit-progress-value { background: var(--brand); border-radius: 999px; }

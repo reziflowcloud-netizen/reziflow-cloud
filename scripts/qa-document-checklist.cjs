@@ -208,7 +208,8 @@ async function main() {
       await req('delete', `${listUrl}/${row.id}`, { expectedVersion: row.version }); assert.equal((await get()).items.find(item => item.id === row.id).active, false)
       assert.equal(await db.caseDocument.count({ where: { id: file.id } }), 1)
     })
-    const polishDir = path.join(process.cwd(), 'docs', 'qa', 'document-checklist-v2-ui-polish'); await fs.mkdir(polishDir, { recursive: true })
+    const polishDir = path.join(process.cwd(), '.qa', 'desktop-cleanup-polish'); await fs.mkdir(polishDir, { recursive: true })
+    const detailsDir = path.join(process.cwd(), 'docs', 'qa', 'document-checklist-v2-desktop-cleanup'); await fs.mkdir(detailsDir, { recursive: true })
     const docsRoot = () => page.locator('[data-document-checklist=documents]:visible')
     const passportButton = () => docsRoot().locator('[data-checklist-item=Paszport]')
     const openPassport = async () => { await passportButton().click(); await page.getByRole('dialog').waitFor() }
@@ -216,7 +217,7 @@ async function main() {
     const { documentChecklistText } = await import('../src/lib/documentChecklistI18n.ts')
     const metadataVisible = async (row, item, lang) => {
       const copy = documentChecklistText[lang], text = await row.textContent()
-      for (const value of [item.status === 'NEEDED' ? copy.statusNeeded : item.status === 'RECEIVED' ? copy.received : copy.submitted, item.required ? copy.required : copy.optional, item.forMos ? 'MOS' : copy.notMos, item.files.length ? `${copy.files}: ${item.files.length}` : copy.noFiles, ...(item.outsideTemplate ? [copy.outside] : []), ...(item.note ? [item.note] : [])]) assert.ok(text.includes(value), `Missing item metadata: ${value}`)
+      for (const value of [item.status === 'NEEDED' ? copy.statusNeeded : item.status === 'RECEIVED' ? copy.received : copy.submitted, item.required ? copy.required : copy.optional, item.forMos ? 'MOS' : copy.notMos, item.files.length ? `${copy.fileCount}: ${item.files.length}` : copy.noFiles, ...(item.outsideTemplate ? [copy.outside] : []), ...(item.note ? [item.note] : [])]) assert.ok(text.includes(value), `Missing item metadata: ${value}`)
       if (item.mosSubmittedAt || item.receivedAt) assert.ok(text.includes(new Date(item.mosSubmittedAt || item.receivedAt).toLocaleDateString(lang === 'uk' ? 'uk-UA' : lang === 'pl' ? 'pl-PL' : 'ru-RU')))
     }
     await page.goto(origin + `/cases/${current.id}?tab=docs`)
@@ -312,9 +313,17 @@ async function main() {
         if (lang === 'uk' && theme === 'slate' && [390, 1440].includes(width)) await page.screenshot({ path: path.join(screenshotDir, `editor-${width}.png`) })
         await page.getByRole('dialog').locator('button').first().click()
         await page.goto(origin + `/cases/${current.id}`)
-        if (width < 769) await page.locator('[data-checklist-summary-accordion] button[aria-expanded]').click()
-        await page.locator('[data-checklist-summary]:visible').waitFor(); assert.equal(await overflow(), false, `summary ${width} ${lang} ${theme}`)
-        assert.equal(await page.locator('[data-checklist-summary]:visible progress').evaluate(el => Math.round(el.getBoundingClientRect().height)), width < 769 ? 8 : 10)
+        if (width < 769) {
+          await page.locator('[data-checklist-summary-accordion] button[aria-expanded]').click()
+          await page.locator('[data-checklist-summary]:visible').waitFor()
+          assert.equal(await page.locator('[data-checklist-summary]:visible progress').evaluate(el => Math.round(el.getBoundingClientRect().height)), 8)
+        } else {
+          const details = page.locator('[data-collapsible-scope=case-details]:visible'), basic = details.locator('[data-section-key=case-basic]')
+          await basic.waitFor(); assert.equal(await details.locator('[data-checklist-summary]').count(), 0)
+          assert.equal(await details.evaluate(el => Array.from(el.children).find(child => child.getBoundingClientRect().height > 0)?.getAttribute('data-section-key')), 'case-basic')
+          assert.ok(Math.abs((await basic.boundingBox()).y - (await details.boundingBox()).y) < 1, 'basic section starts at Details top without an empty gap')
+        }
+        assert.equal(await overflow(), false, `Details ${width} ${lang} ${theme}`)
         if (width < 769) await page.locator('[data-mobile-case-detail] [data-section-key=case-mos] button[aria-expanded]').click()
         else { const heading = page.locator('[data-collapse-key=case-mos] .section-title').first(); if (!await page.locator('[data-document-checklist=mos]:visible').count()) await heading.locator('button').click() }
         await page.locator('[data-document-checklist=mos]:visible').waitFor(); assert.equal(await overflow(), false, `MOS ${width} ${lang} ${theme}`)
@@ -328,25 +337,43 @@ async function main() {
         await page.goto(origin + '/settings/services'); const serviceRow = page.locator('.card').filter({ hasText: 'Document checklist service' }).first(); await serviceRow.getByRole('button', { name: lang === 'pl' ? 'Dokumenty' : lang === 'uk' ? 'Документи' : 'Документы', exact: true }).first().click()
         await page.locator('[data-service-document-template] input').first().waitFor(); assert.equal(await overflow(), false, `template ${width} ${lang} ${theme}`)
         if (lang === 'uk' && theme === 'slate' && [390, 1440].includes(width)) await page.screenshot({ path: path.join(screenshotDir, `templates-${width}.png`), fullPage: true })
-        report.viewports.push({ width, lang, theme, progressHeight: width < 769 ? 8 : 10, clientDocumentsFirst: 'PASS', collapseKeyboard: 'PASS', squareControls: 'PASS', documents: 'PASS', editor: 'PASS', summary: 'PASS', mos: 'PASS', template: 'PASS' })
+        report.viewports.push({ width, lang, theme, progressHeight: width < 769 ? 8 : 10, clientDocumentsFirst: 'PASS', collapseKeyboard: 'PASS', squareControls: 'PASS', documents: 'PASS', editor: 'PASS', summary: width < 769 ? 'mobile unchanged PASS' : 'desktop removed; no gap PASS', mos: 'PASS', template: 'PASS' })
       }
       report.screenshotDir = screenshotDir
     })
-    await check('seven UI polish screenshots: desktop/mobile summary, collapsed/expanded checklist, compact MOS, Save before/after', async () => {
+    await check('Details summary breakpoint 768/769: mobile retained; desktop absent without empty gap', async () => {
+      report.detailsBoundary = []
+      for (const width of [768, 769]) for (const lang of ['ru', 'uk', 'pl']) for (const theme of ['light', 'dark', 'slate']) {
+        await page.setViewportSize({ width, height: 1000 }); await page.goto(origin + `/cases/${current.id}`)
+        await page.evaluate(({ lang, theme }) => { localStorage.setItem('rezi_lang', lang); localStorage.setItem('rezi_theme', theme); document.documentElement.dataset.theme = theme; window.dispatchEvent(new CustomEvent('langchange', { detail: lang })) }, { lang, theme })
+        if (width === 768) {
+          await page.locator('[data-checklist-summary-accordion] button[aria-expanded]').click()
+          await page.locator('[data-checklist-summary]:visible').waitFor()
+          assert.equal(await page.locator('[data-checklist-summary]:visible progress').evaluate(el => Math.round(el.getBoundingClientRect().height)), 8)
+        } else {
+          const details = page.locator('[data-collapsible-scope=case-details]:visible'), basic = details.locator('[data-section-key=case-basic]')
+          await basic.waitFor(); assert.equal(await details.locator('[data-checklist-summary]').count(), 0)
+          assert.ok(Math.abs((await basic.boundingBox()).y - (await details.boundingBox()).y) < 1)
+        }
+        report.detailsBoundary.push({ width, lang, theme, summary: width === 768 ? 'mobile retained PASS' : 'desktop removed; no gap PASS' })
+      }
+    })
+    await check('desktop Details starts at basic section; mobile summary retained; Documents and MOS screenshots', async () => {
       await page.evaluate(() => { localStorage.setItem('rezi_lang', 'uk'); localStorage.setItem('rezi_theme', 'light') })
       await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto(origin + `/cases/${current.id}`)
-      await page.locator('[data-checklist-summary]:visible').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(polishDir, '01-desktop-details-progress.png') })
+      await page.locator('[data-collapsible-scope=case-details]:visible [data-section-key=case-basic]').waitFor(); await page.screenshot({ path: path.join(detailsDir, '01-desktop-details.png'), animations: 'disabled' })
       const heading = page.locator('[data-collapse-key=case-mos] .section-title').first(); if (!await page.locator('[data-document-checklist=mos]:visible').count()) await heading.locator('button').click()
       await page.locator('[data-collapse-key=case-mos]').screenshot({ path: path.join(polishDir, '05-compact-mos.png') })
       await page.setViewportSize({ width: 390, height: 1000 }); await page.goto(origin + `/cases/${current.id}`)
       await page.locator('[data-checklist-summary-accordion] button[aria-expanded]').click(); await page.locator('[data-checklist-summary]:visible').scrollIntoViewIfNeeded()
-      await page.screenshot({ path: path.join(polishDir, '02-mobile-details-progress.png') })
+      await page.screenshot({ path: path.join(detailsDir, '02-mobile-details.png'), animations: 'disabled' })
       await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto(origin + `/cases/${current.id}?tab=docs`)
       const root = docsRoot(); await root.locator('[data-checklist-item]').first().waitFor(); await root.locator('button[aria-expanded]').click()
       await root.scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(polishDir, '03-documents-collapsed.png') })
       await root.locator('button[aria-expanded]').click(); await root.screenshot({ path: path.join(polishDir, '04-checklist-expanded.png') })
       report.polishScreenshotDir = polishDir; report.polishScreenshots = (await fs.readdir(polishDir)).filter(name => name.endsWith('.png')).sort()
-      assert.equal(report.polishScreenshots.length, 7)
+      assert.equal(report.polishScreenshots.length, 5)
+      report.detailsScreenshots = ['01-desktop-details.png', '02-mobile-details.png'].map(name => path.relative(process.cwd(), path.join(detailsDir, name)).replaceAll('\\', '/'))
     })
     await check('service-change prompt and add-document editor on all five widths; explicit Keep persists', async () => {
       for (const width of [390, 414, 430, 1024, 1440]) {

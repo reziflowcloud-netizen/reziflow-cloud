@@ -1,0 +1,609 @@
+{
+  "mode": "qa",
+  "checks": {
+    "fileFailureCannotBeMaskedBySave": "PASS",
+    "fileRetryLinkReloadUnlinkPhysicalFilePreserved": "PASS",
+    "separateKeyboardSelectionSelectOneSeveralAllEligibleOnly": "PASS",
+    "historicalMosDateDefaultAndExplicitPicker": "PASS",
+    "bulkFailureKeepsSelectionAndGroupsRetryNoDoubleSubmit": "PASS",
+    "atomicUiGroupMovementDateNotesFilesReadinessDedupe": "PASS",
+    "bulkInvalidSelectionDatesCASRollbackAndCrossTenantDenied": "PASS",
+    "headingDesktopCRMMatchMobileUnchangedAndBadgesInformational": "PASS",
+    "responsiveLanguagesThemesBulkToolbar": "PASS"
+  },
+  "errors": [],
+  "fileAudit": {
+    "httpStatus": 200,
+    "request": {
+      "documentId": 36,
+      "unlink": false,
+      "expectedVersion": 0
+    },
+    "responseFiles": 1,
+    "dbLinkedToItem": true,
+    "beforeSaveRow": "QA PassportОчікуємоОбов’язковийMOS📎 Файлів: 1",
+    "modalFileVisible": 1,
+    "afterSaveRow": "QA PassportОчікуємоОбов’язковийMOS📎 Файлів: 1",
+    "afterReloadRow": "QA PassportОчікуємоОбов’язковийMOS📎 Файлів: 1",
+    "physicalFileAccessible": true,
+    "concurrentLinkStatus": 409,
+    "saveDisabledAfterFailedLink": true
+  },
+  "viewports": [
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "lang": "uk",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "lang": "uk",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "lang": "uk",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "lang": "pl",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "lang": "pl",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "lang": "pl",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 414,
+      "lang": "ru",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 414,
+      "lang": "ru",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 414,
+      "lang": "ru",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 414,
+      "lang": "uk",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 414,
+      "lang": "uk",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 414,
+      "lang": "uk",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 414,
+      "lang": "pl",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 414,
+      "lang": "pl",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 414,
+      "lang": "pl",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 430,
+      "lang": "ru",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 430,
+      "lang": "ru",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 430,
+      "lang": "ru",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 430,
+      "lang": "uk",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 430,
+      "lang": "uk",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 430,
+      "lang": "uk",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 430,
+      "lang": "pl",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 430,
+      "lang": "pl",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 430,
+      "lang": "pl",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1024,
+      "lang": "ru",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1024,
+      "lang": "ru",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1024,
+      "lang": "ru",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1024,
+      "lang": "uk",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1024,
+      "lang": "uk",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1024,
+      "lang": "uk",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1024,
+      "lang": "pl",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1024,
+      "lang": "pl",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1024,
+      "lang": "pl",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1280,
+      "lang": "ru",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1280,
+      "lang": "ru",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1280,
+      "lang": "ru",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1280,
+      "lang": "uk",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1280,
+      "lang": "uk",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1280,
+      "lang": "uk",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1280,
+      "lang": "pl",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1280,
+      "lang": "pl",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1280,
+      "lang": "pl",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "lang": "ru",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "lang": "ru",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "lang": "ru",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "lang": "uk",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "lang": "uk",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "lang": "uk",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "lang": "pl",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "lang": "pl",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "lang": "pl",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1920,
+      "lang": "ru",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1920,
+      "lang": "ru",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1920,
+      "lang": "ru",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1920,
+      "lang": "uk",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1920,
+      "lang": "uk",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1920,
+      "lang": "uk",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1920,
+      "lang": "pl",
+      "theme": "light",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1920,
+      "lang": "pl",
+      "theme": "dark",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    },
+    {
+      "width": 1920,
+      "lang": "pl",
+      "theme": "slate",
+      "heading": "PASS",
+      "informationalBadges": "PASS",
+      "bulkToolbar": "PASS",
+      "overflow": false
+    }
+  ],
+  "screenshots": [
+    "01-desktop-documents-headings.png",
+    "02-linked-file.png",
+    "03-unlinked-file.png",
+    "04-mos-multi-selection.png",
+    "05-mos-after-bulk.png",
+    "06-mobile-smoke.png"
+  ]
+}
