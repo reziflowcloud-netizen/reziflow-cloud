@@ -216,7 +216,7 @@ async function main() {
     const { documentChecklistText } = await import('../src/lib/documentChecklistI18n.ts')
     const metadataVisible = async (row, item, lang) => {
       const copy = documentChecklistText[lang], text = await row.textContent()
-      for (const value of [item.status === 'NEEDED' ? copy.statusNeeded : item.status === 'RECEIVED' ? copy.received : copy.submitted, item.required ? copy.required : copy.optional, item.forMos ? 'MOS' : copy.notMos, item.files.length ? `${copy.files}: ${item.files.length}` : copy.noFiles, ...(item.outsideTemplate ? [copy.outside] : []), ...(item.note ? [item.note] : [])]) assert.ok(text.includes(value), `Missing item metadata: ${value}`)
+      for (const value of [item.status === 'NEEDED' ? copy.statusNeeded : item.status === 'RECEIVED' ? copy.received : copy.submitted, item.required ? copy.required : copy.optional, item.forMos ? 'MOS' : copy.notMos, item.files.length ? `${copy.fileCount}: ${item.files.length}` : copy.noFiles, ...(item.outsideTemplate ? [copy.outside] : []), ...(item.note ? [item.note] : [])]) assert.ok(text.includes(value), `Missing item metadata: ${value}`)
       if (item.mosSubmittedAt || item.receivedAt) assert.ok(text.includes(new Date(item.mosSubmittedAt || item.receivedAt).toLocaleDateString(lang === 'uk' ? 'uk-UA' : lang === 'pl' ? 'pl-PL' : 'ru-RU')))
     }
     await page.goto(origin + `/cases/${current.id}?tab=docs`)

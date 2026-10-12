@@ -22,6 +22,7 @@ if (mode === 'build') {
   const files = fs.readdirSync('tests').filter(name => name.endsWith('.test.mjs')).map(name => path.join('tests', name))
   run(['--test', '--test-concurrency=1', ...files, 'tests/security/hardening.test.mjs'])
 } else if (mode === 'qa') run(['scripts/qa-document-checklist.cjs'])
+else if (mode === 'followup') run(['scripts/qa-document-checklist-followup.cjs', 'qa'])
 else if (mode === 'case-regression') {
   env.LEGALHUB_QA_NODE_MODULES = path.join(process.cwd(), 'node_modules')
   for (const [script, baseline, output] of [
@@ -36,4 +37,4 @@ else if (mode === 'case-regression') {
     fs.writeFileSync(output, JSON.stringify(report, null, 2) + '\n'); fs.writeFileSync(baseline, original)
     if (result.status !== 0) process.exit(result.status || 1)
   }
-} else throw new Error('Expected build, serve, regression, case-regression or qa')
+} else throw new Error('Expected build, serve, regression, case-regression, qa or followup')

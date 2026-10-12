@@ -1280,7 +1280,7 @@ export default function CaseDetailPage() {
                   </div>
 
                   <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, marginTop: 4 }}>
-                    {checklist.data?.initialized ? <DocumentChecklist controller={checklist} files={documents} mosOnly /> : <>
+                    {checklist.data?.initialized ? <DocumentChecklist controller={checklist} files={documents} mosOnly mosSentAt={form.mosSentAt} /> : <>
                     <div className="section-title" style={{ marginBottom: 10 }}>{t('mos_documents')}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
                       <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', padding: 12, minHeight: 220 }}>

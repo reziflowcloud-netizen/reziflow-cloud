@@ -1,0 +1,66 @@
+{
+  "branch": "fix/document-checklist-v2-followup-ux",
+  "baseCommit": "1a31e92f1efb68c7f21741d9638bb581465d094a",
+  "environment": "Isolated Next production build with disposable PostgreSQL 18.6 on 127.0.0.1:55432; synthetic fixtures only",
+  "productionChanged": false,
+  "deployed": false,
+  "migrationCreated": false,
+  "fileRelationAudit": {
+    "normalApprovedUiBeforePatch": {
+      "httpStatus": 200,
+      "responseFiles": 1,
+      "dbLinkedToItem": true,
+      "rowLinkedBeforeSave": true,
+      "rowLinkedAfterSaveAndReload": true,
+      "modalFileVisible": true,
+      "physicalFileAccessible": true
+    },
+    "reproducedFailureBeforePatch": {
+      "scenario": "Another checklist item links the selected CaseDocument after the editor dropdown was loaded",
+      "httpStatus": 409,
+      "targetRelationPersisted": false,
+      "saveDisabledAfterFailedLink": false,
+      "saveClosedModalAndMaskedFailedLink": true,
+      "rowCorrectlyRemainedUnlinked": true
+    },
+    "rootCause": "The failed explicit file operation could be hidden by Save: an otherwise clean autosave flush succeeded and closed the editor, despite the file link not having persisted. The successful HTTP 200 relation and rendering path was already correct.",
+    "qualification": "Confirmed by a controlled before/after reproduction. The original Production incident request was not traced during this isolated task.",
+    "afterPatch": "Save remains disabled while the explicit operation has an unresolved error. Retry retains the selected file and acknowledges the returned item/version. Link, Save, reload, reopen and unlink pass; physical file and CaseDocument remain intact.",
+    "architecture": "Existing CaseDocument.checklistItemId relation and existing authenticated file endpoint; no storage/provider change"
+  },
+  "oldMosAudit": {
+    "commit": "9a2dc23c2f659aed6dbed8e4b7ad5ed284da2abf",
+    "source": "src/app/cases/[id]/page.tsx and historical MOS submission route",
+    "selection": "Select all, individual selections and Shift range; selected count and one bulk submit action",
+    "dateSemantics": "Separate editable submission date picker. Initialize only an empty picker from form.mosSentAt when set and not after UTC today; otherwise UTC today. Explicit picker value wins; future dates are disallowed.",
+    "oldWrite": "Legacy MOS Tasks marked done with mosDocument.sentAt equal to the chosen date",
+    "oldSuccess": "Reload both MOS lists and clear selection",
+    "oldFailure": "Show error and retain selection",
+    "restoredV2": "Separate real selection checkboxes; Select all and Shift range; same date semantics; atomic updates of the same CaseChecklistItem IDs to SUBMITTED_TO_MOS with mosSubmittedAt. Full acknowledged checklist payload updates groups/counts without document navigation. Notes, files and existing receivedAt remain intact; legacy Tasks are not created or changed."
+  },
+  "validation": {
+    "fullRegression": { "passed": 267, "failed": 0, "skipped": 0 },
+    "focusedChecklist": { "passed": 24, "responsiveCombinations": 63, "report": "docs/document-checklist-v2-qa.json" },
+    "caseAutosaveAndCrud": { "passed": 23, "report": "docs/document-checklist-v2-case-regression.json" },
+    "caseSecurity": { "passed": 6, "report": "docs/document-checklist-v2-case-security.json" },
+    "followup": { "passed": 9, "responsiveCombinations": 63, "report": "docs/document-checklist-v2-followup-qa.json" },
+    "widths": [390, 414, 430, 1024, 1280, 1440, 1920],
+    "languages": ["ru", "uk", "pl"],
+    "themes": ["light", "dark", "slate"],
+    "typescript": "PASS (tsc --noEmit and final Next build type checks)",
+    "prismaValidate": "PASS",
+    "existingMigrationChain": { "applied": 51, "database": "legalhub_followup_migration_qa", "drift": "No difference detected" },
+    "safeBuild": "PASS (sanitized environment; build database URL uses a closed loopback port)",
+    "diffCheck": "PASS",
+    "protectedSourcesUnchanged": ["Prisma schema and migrations", "ServiceDocumentRequirement", "snapshot logic", "legacy mapping", "readiness helper", "QStash", "Push", "permissions", "storage providers"]
+  },
+  "screenshots": [
+    "docs/qa/document-checklist-v2-followup/01-desktop-documents-headings.png",
+    "docs/qa/document-checklist-v2-followup/02-linked-file.png",
+    "docs/qa/document-checklist-v2-followup/03-unlinked-file.png",
+    "docs/qa/document-checklist-v2-followup/04-mos-multi-selection.png",
+    "docs/qa/document-checklist-v2-followup/05-mos-after-bulk.png",
+    "docs/qa/document-checklist-v2-followup/06-mobile-smoke.png"
+  ],
+  "readyForProductionReview": true
+}
