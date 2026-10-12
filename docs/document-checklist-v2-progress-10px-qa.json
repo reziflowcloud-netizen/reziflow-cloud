@@ -1,0 +1,101 @@
+{
+  "title": "Document Checklist V2 — final desktop progress adjustment",
+  "checkedAt": "2026-10-12T07:43:07.103Z",
+  "branch": "fix/document-checklist-v2-ui-polish",
+  "productionChangesMade": false,
+  "applicationChange": "Only desktop media rule: progress height 12px -> 10px; mobile base rule remains 8px. Other application code unchanged.",
+  "desktop": "PASS: 10px",
+  "mobile": "PASS: unchanged 8px",
+  "themes": [
+    "light",
+    "dark",
+    "slate"
+  ],
+  "locales": [
+    "ru",
+    "uk",
+    "pl"
+  ],
+  "widths": [
+    {
+      "width": 390,
+      "progressHeight": 8,
+      "combinations": 9,
+      "result": "PASS"
+    },
+    {
+      "width": 414,
+      "progressHeight": 8,
+      "combinations": 9,
+      "result": "PASS"
+    },
+    {
+      "width": 430,
+      "progressHeight": 8,
+      "combinations": 9,
+      "result": "PASS"
+    },
+    {
+      "width": 1024,
+      "progressHeight": 10,
+      "combinations": 9,
+      "result": "PASS"
+    },
+    {
+      "width": 1280,
+      "progressHeight": 10,
+      "combinations": 9,
+      "result": "PASS"
+    },
+    {
+      "width": 1440,
+      "progressHeight": 10,
+      "combinations": 9,
+      "result": "PASS"
+    },
+    {
+      "width": 1920,
+      "progressHeight": 10,
+      "combinations": 9,
+      "result": "PASS"
+    }
+  ],
+  "focused": {
+    "checks": 24,
+    "pass": 24,
+    "fail": 0,
+    "combinations": 63,
+    "pageErrors": 0,
+    "noHorizontalOverflow": "PASS",
+    "checksVerified": {
+      "legacy general/service fallback and no mutation on reads": "PASS",
+      "template create/toggles/reorder/name/archive CAS and duplicate rejection": "PASS",
+      "atomic new Case snapshot; existing Case unchanged; later template edits isolated": "PASS",
+      "Lead conversion and CSV import both create Case snapshots": "PASS",
+      "optional-only snapshot has no blockers and emits no readiness event": "PASS",
+      "simultaneous final required statuses serialize and emit exactly one readiness occurrence": "PASS",
+      "readiness notification responsible only; optional missing; repeat save dedupe; second occurrence": "PASS",
+      "concurrent CAS one commit/one conflict; no partial writes; independent Case autosave version": "PASS",
+      "MOS same source, status/date validation, historical date persists, no task duplication": "PASS",
+      "file relation, cross-case rejection, note and reload persistence": "PASS",
+      "manual Case-only document; service change Keep; merge preserves statuses/files/notes and obsolete items": "PASS",
+      "explicit legacy conversion retains submitted names/dates and existing MOS credentials; no initial notification": "PASS",
+      "restricted access, cross-tenant, template permission and revoked session": "PASS",
+      "readiness respects organization OFF and recipient in-app opt-out": "PASS",
+      "explicit archive preserves linked files": "PASS",
+      "manual Save waits for server, closes once, preserves file and restores opener focus": "PASS",
+      "failed Save retains draft and editor; successful Retry closes without archive": "PASS",
+      "manual Save drains in-flight autosave and newer draft in CAS order before close": "PASS",
+      "CAS conflict retains editor and draft until explicit reload; subsequent Save closes": "PASS",
+      "file action blocks overlapping Save and preserves relation after final Save closes": "PASS",
+      "RU/UA/PL × Light/Dark/Slate × 390/414/430/1024/1280/1440/1920 responsive polish and no overflow": "PASS",
+      "seven UI polish screenshots: desktop/mobile summary, collapsed/expanded checklist, compact MOS, Save before/after": "PASS",
+      "service-change prompt and add-document editor on all five widths; explicit Keep persists": "PASS",
+      "actual UI autosave note/status and immediate close persists; date downgrade safe": "PASS"
+    }
+  },
+  "safeBuild": "PASS",
+  "desktopScreenshot": "docs/qa/document-checklist-v2-progress-10px/desktop.png",
+  "priorPolishEvidence": "Previous accepted screenshots retained; this report and desktop screenshot show the final 10px rule.",
+  "readyForProductionReview": true
+}

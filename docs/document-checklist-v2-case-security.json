@@ -1,5 +1,5 @@
 {
-  "environment": "isolated Next + PostgreSQL 18.6, disposable loopback database",
+  "environment": "isolated Next + disposable loopback PostgreSQL",
   "origin": "http://localhost:3107",
   "checks": {
     "authentication": "PASS",

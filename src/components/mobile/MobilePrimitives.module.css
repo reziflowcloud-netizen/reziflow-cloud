@@ -1,4 +1,15 @@
 .mobileOnly { display: none; }
+.allLayouts { display: block; }
+.allLayouts .accordionLabel { flex: 1; }
+
+.accordion { overflow: hidden; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); }
+.accordionTrigger { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 52px; padding: 12px 14px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.accordionLabel { min-width: 0; display: grid; gap: 3px; }
+.accordionLabel strong { font-size: 16px; }
+.accordionLabel span { color: var(--muted); font-size: 13px; }
+.chevron { color: var(--muted); font-size: 22px; transition: transform 150ms ease; }
+.chevronOpen { transform: rotate(180deg); }
+.accordionBody { padding: 0 14px 14px; }
 
 .badge {
   display: inline-flex;
@@ -94,35 +105,6 @@
 
   .searchControl { min-width: 0; }
   .searchControl > *, .filterControl > * { min-height: 44px; }
-
-  .accordion {
-    overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: 13px;
-    background: var(--surface);
-  }
-
-  .accordionTrigger {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    width: 100%;
-    min-height: 52px;
-    padding: 12px 14px;
-    border: 0;
-    background: transparent;
-    color: var(--text);
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .accordionLabel { min-width: 0; display: grid; gap: 3px; }
-  .accordionLabel strong { font-size: 16px; }
-  .accordionLabel span { color: var(--muted); font-size: 13px; }
-  .chevron { color: var(--muted); font-size: 22px; transition: transform 150ms ease; }
-  .chevronOpen { transform: rotate(180deg); }
-  .accordionBody { padding: 0 14px 14px; }
 
   .bulkBar {
     display: grid;

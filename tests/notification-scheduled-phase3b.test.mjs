@@ -260,12 +260,15 @@ test('Phase 3B real PostgreSQL: dates, access, atomic outbox, pool=1, failures a
   })
   await t.test('scheduled transport provider failure/retry, privacy OFF, safe resolver, read/badge and revoked role/access/deleted entity', async () => {
     await clear(); const record = await task(), contact = await lead(), date = await caseRecord(); await page('task'); await page('lead'); await page('case')
+    // Generation and delivery must share the fixture clock, including outbox DB defaults.
+    await db.notification.updateMany({ where: { organizationId: org.id }, data: { createdAt: now } })
+    await db.notificationPushDelivery.updateMany({ where: { organizationId: org.id }, data: { nextAttemptAt: now } })
     let payloads = []
-    await deliverNotificationPush(db, async (_sub, body) => { payloads.push(JSON.parse(body)); throw Object.assign(new Error('Synthetic provider transient'), { statusCode: 503 }) })
+    await deliverNotificationPush(db, async (_sub, body) => { payloads.push(JSON.parse(body)); throw Object.assign(new Error('Synthetic provider transient'), { statusCode: 503 }) }, now)
     assert.equal(payloads.length, 3)
     for (const payload of payloads) { assert.ok(!JSON.stringify(payload).includes('PRIVATE_SYNTHETIC')); assert.match(payload.url, /^\/notifications\/open\/[a-zA-Z0-9_-]+$/) }
     await db.notificationPushDelivery.updateMany({ where: { organizationId: org.id }, data: { nextAttemptAt: new Date(0) } }); payloads = []
-    await deliverNotificationPush(db, async (_sub, body) => payloads.push(JSON.parse(body))); await deliverNotificationPush(db, async (_sub, body) => payloads.push(JSON.parse(body))); assert.equal(payloads.length, 3)
+    await deliverNotificationPush(db, async (_sub, body) => payloads.push(JSON.parse(body)), now); await deliverNotificationPush(db, async (_sub, body) => payloads.push(JSON.parse(body)), now); assert.equal(payloads.length, 3)
     const account = await notificationUser(own.id, org.id, db); const before = await unreadNotificationCount(account, db)
     const note = await db.notification.findFirst({ where: { entityId: record.id, userId: own.id } }); await markNotificationsRead(account, note.id, db); assert.equal(await unreadNotificationCount(account, db), before - 1)
     const teamNote = await db.notification.findFirst({ where: { entityId: record.id, userId: owner.id } }); await db.user.update({ where: { id: owner.id }, data: { role: 'employee', restrictedAccess: false } }); assert.equal(await authorizedNotification(await notificationUser(owner.id, org.id, db), teamNote.id, db), null)
