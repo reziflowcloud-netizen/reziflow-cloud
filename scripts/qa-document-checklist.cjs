@@ -291,7 +291,7 @@ async function main() {
         await page.evaluate(({ lang, theme }) => { localStorage.setItem('rezi_lang', lang); localStorage.setItem('rezi_theme', theme); document.documentElement.dataset.theme = theme; window.dispatchEvent(new CustomEvent('langchange', { detail: lang })) }, { lang, theme })
         const root = page.locator('[data-document-checklist=documents]:visible'); await root.waitFor(); await root.locator('[data-checklist-item]').first().waitFor()
         assert.equal(await page.evaluate(() => innerWidth), width)
-        assert.equal(await root.locator('progress').evaluate(el => Math.round(el.getBoundingClientRect().height)), width < 769 ? 8 : 12)
+        assert.equal(await root.locator('progress').evaluate(el => Math.round(el.getBoundingClientRect().height)), width < 769 ? 8 : 10)
         const clientDocs = page.locator('[data-client-documents]:visible')
         assert.equal(await clientDocs.evaluate((el, checklist) => !!(el.compareDocumentPosition(checklist) & Node.DOCUMENT_POSITION_FOLLOWING), await root.elementHandle()), true)
         for (const item of (await get()).items.filter(item => item.active)) {
@@ -314,7 +314,7 @@ async function main() {
         await page.goto(origin + `/cases/${current.id}`)
         if (width < 769) await page.locator('[data-checklist-summary-accordion] button[aria-expanded]').click()
         await page.locator('[data-checklist-summary]:visible').waitFor(); assert.equal(await overflow(), false, `summary ${width} ${lang} ${theme}`)
-        assert.equal(await page.locator('[data-checklist-summary]:visible progress').evaluate(el => Math.round(el.getBoundingClientRect().height)), width < 769 ? 8 : 12)
+        assert.equal(await page.locator('[data-checklist-summary]:visible progress').evaluate(el => Math.round(el.getBoundingClientRect().height)), width < 769 ? 8 : 10)
         if (width < 769) await page.locator('[data-mobile-case-detail] [data-section-key=case-mos] button[aria-expanded]').click()
         else { const heading = page.locator('[data-collapse-key=case-mos] .section-title').first(); if (!await page.locator('[data-document-checklist=mos]:visible').count()) await heading.locator('button').click() }
         await page.locator('[data-document-checklist=mos]:visible').waitFor(); assert.equal(await overflow(), false, `MOS ${width} ${lang} ${theme}`)
@@ -328,7 +328,7 @@ async function main() {
         await page.goto(origin + '/settings/services'); const serviceRow = page.locator('.card').filter({ hasText: 'Document checklist service' }).first(); await serviceRow.getByRole('button', { name: lang === 'pl' ? 'Dokumenty' : lang === 'uk' ? 'Документи' : 'Документы', exact: true }).first().click()
         await page.locator('[data-service-document-template] input').first().waitFor(); assert.equal(await overflow(), false, `template ${width} ${lang} ${theme}`)
         if (lang === 'uk' && theme === 'slate' && [390, 1440].includes(width)) await page.screenshot({ path: path.join(screenshotDir, `templates-${width}.png`), fullPage: true })
-        report.viewports.push({ width, lang, theme, progressHeight: width < 769 ? 8 : 12, clientDocumentsFirst: 'PASS', collapseKeyboard: 'PASS', squareControls: 'PASS', documents: 'PASS', editor: 'PASS', summary: 'PASS', mos: 'PASS', template: 'PASS' })
+        report.viewports.push({ width, lang, theme, progressHeight: width < 769 ? 8 : 10, clientDocumentsFirst: 'PASS', collapseKeyboard: 'PASS', squareControls: 'PASS', documents: 'PASS', editor: 'PASS', summary: 'PASS', mos: 'PASS', template: 'PASS' })
       }
       report.screenshotDir = screenshotDir
     })

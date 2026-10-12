@@ -8,7 +8,7 @@
   "migrationCreated": false,
   "scope": "Existing UI components and editor behavior only; schema, snapshot/mapping, templates, APIs, permissions, readiness/notification and storage code unchanged.",
   "implementation": {
-    "desktopProgressPx": 12,
+    "desktopProgressPx": 10,
     "mobileProgressPx": 8,
     "mobileProgressBaselinePx": 8,
     "desktopBreakpointMinPx": 769,
@@ -117,5 +117,14 @@
       "docs/qa/document-checklist-v2-ui-polish/07-after-save-modal-closed.png"
     ]
   },
-  "readyForProductionReview": true
+  "readyForProductionReview": true,
+  "finalProgressAdjustment": {
+    "checkedAt": "2026-10-12T07:43:07.103Z",
+    "result": "PASS",
+    "desktopPx": 10,
+    "mobilePx": 8,
+    "focusedChecks": 24,
+    "combinations": 63,
+    "evidence": "docs/document-checklist-v2-progress-10px-qa.json"
+  }
 }

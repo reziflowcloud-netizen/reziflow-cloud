@@ -40,7 +40,7 @@
 .templateRow > input { flex: 1 1 200px; min-width: 0; }
 .templateRow label { display: flex; gap: 4px; align-items: center; font-size: 12px; }
 @media (min-width: 769px) {
-  .progress { height: 12px; border-radius: 999px; overflow: hidden; appearance: none; background: var(--border); }
+  .progress { height: 10px; border-radius: 999px; overflow: hidden; appearance: none; background: var(--border); }
   .progress::-webkit-progress-bar { background: var(--border); border-radius: 999px; }
   .progress::-webkit-progress-value { background: var(--brand); border-radius: 999px; }
   .progress::-moz-progress-bar { background: var(--brand); border-radius: 999px; }
