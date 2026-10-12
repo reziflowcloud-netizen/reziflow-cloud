@@ -1,0 +1,121 @@
+{
+  "title": "DOCUMENT CHECKLIST V2 — UI/UX POLISH PATCH — ISOLATED REVIEW",
+  "checkedAt": "2026-10-12T07:24:11.656Z",
+  "branch": "fix/document-checklist-v2-ui-polish",
+  "base": "eaf4175f6b5a510c02fa9d79251ecf70cba95064",
+  "productionChangesMade": false,
+  "deploymentPerformed": false,
+  "migrationCreated": false,
+  "scope": "Existing UI components and editor behavior only; schema, snapshot/mapping, templates, APIs, permissions, readiness/notification and storage code unchanged.",
+  "implementation": {
+    "desktopProgressPx": 12,
+    "mobileProgressPx": 8,
+    "mobileProgressBaselinePx": 8,
+    "desktopBreakpointMinPx": 769,
+    "documentsOrder": [
+      "existing client document generation and files",
+      "case checklist"
+    ],
+    "collapse": "Existing MobileAccordion reused on all layouts; client state only, progress/count/waiting summary remain visible.",
+    "statusControl": "22px square status representation. The keyboard-accessible row opens the existing editor; no Boolean/status model added.",
+    "mos": "Pre-V2 main 9a2dc23 layout audited: submitted first / documents to deliver second, side-by-side on desktop and stacked on mobile. forMos CaseChecklistItem source and every metadata field retained.",
+    "save": "Shared autosave/CAS flush confirmed before closing; synchronous operation guard blocks duplicate Save and overlap with file/archive actions; failure/conflict retains editor and draft; success uses existing localized save status. Existing dialog focus restoration retained."
+  },
+  "checks": {
+    "desktopProgressThicker": "PASS",
+    "mobileProgressUnchanged": "PASS",
+    "clientDocumentsFirst": "PASS",
+    "checklistBelow": "PASS",
+    "collapseExpand": "PASS",
+    "collapsedProgressVisible": "PASS",
+    "squareCheckbox": "PASS",
+    "statusSemanticsPreserved": "PASS",
+    "mosOldStyleLayout": "PASS",
+    "sameSourcePreserved": "PASS",
+    "metadataBadgesDatesNotesPreserved": "PASS",
+    "saveCloses": "PASS",
+    "failedSaveRetainsDraft": "PASS",
+    "doubleSubmitProtection": "PASS",
+    "desktopWidths": "PASS",
+    "mobileWidths": "PASS",
+    "locales": "PASS",
+    "themes": "PASS",
+    "accessibility": "PASS",
+    "checklistRegression": "PASS",
+    "autosaveRegression": "PASS",
+    "mosRegression": "PASS",
+    "security": "PASS",
+    "tenantIsolation": "PASS",
+    "typescript": "PASS",
+    "prismaValidate": "PASS",
+    "migrationChain": "PASS",
+    "safeBuild": "PASS",
+    "gitDiffCheck": "PASS"
+  },
+  "coverage": {
+    "fullRegression": {
+      "tests": 267,
+      "pass": 267,
+      "fail": 0,
+      "skipped": 0
+    },
+    "focusedChecks": 24,
+    "caseRegressionChecks": 23,
+    "securityChecks": 6,
+    "widths": [
+      390,
+      414,
+      430,
+      1024,
+      1280,
+      1440,
+      1920
+    ],
+    "locales": [
+      "ru",
+      "uk",
+      "pl"
+    ],
+    "themes": [
+      "light",
+      "dark",
+      "slate"
+    ],
+    "combinations": 63,
+    "migrationChainCount": 51,
+    "migrationDrift": 0,
+    "browserPageErrors": 0,
+    "externalStorageTransportExercised": false
+  },
+  "accessibility": [
+    "Collapse header is a button with aria-expanded and aria-controls; Space and Enter tested.",
+    "Status rows have localized editor/name/status labels, visible square empty/tick states, focus outline and full-row tap target; Enter opens editor.",
+    "Successful Save restores focus to opener; verified before and after CAS writes."
+  ],
+  "testMaintenance": "The existing scheduled-notification transport regression generated events at its fixed fixture clock but delivered using wall-clock time. The test now explicitly passes the same fixture clock and normalizes fixture-only DB timestamps. No production notification/push code changed.",
+  "commands": [
+    "node scripts/document-checklist-runtime.cjs regression",
+    "node scripts/document-checklist-runtime.cjs qa",
+    "node scripts/document-checklist-runtime.cjs case-regression",
+    "node node_modules/typescript/bin/tsc --noEmit",
+    "prisma validate with guarded loopback DATABASE_URL",
+    "prisma migrate deploy on a new disposable loopback database; migrate diff versus current schema: zero drift",
+    "node scripts/document-checklist-runtime.cjs build (DB URL uses unreachable loopback port; no migration/seed)",
+    "git diff --check"
+  ],
+  "evidence": {
+    "focused": "docs/document-checklist-v2-qa.json",
+    "caseRegression": "docs/document-checklist-v2-case-regression.json",
+    "security": "docs/document-checklist-v2-case-security.json",
+    "screenshots": [
+      "docs/qa/document-checklist-v2-ui-polish/01-desktop-details-progress.png",
+      "docs/qa/document-checklist-v2-ui-polish/02-mobile-details-progress.png",
+      "docs/qa/document-checklist-v2-ui-polish/03-documents-collapsed.png",
+      "docs/qa/document-checklist-v2-ui-polish/04-checklist-expanded.png",
+      "docs/qa/document-checklist-v2-ui-polish/05-compact-mos.png",
+      "docs/qa/document-checklist-v2-ui-polish/06-modal-before-save.png",
+      "docs/qa/document-checklist-v2-ui-polish/07-after-save-modal-closed.png"
+    ]
+  },
+  "readyForProductionReview": true
+}

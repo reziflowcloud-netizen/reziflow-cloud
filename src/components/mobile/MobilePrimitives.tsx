@@ -3,7 +3,7 @@ import NotificationBell from '@/components/NotificationBell'
 import MobileHeaderActions from './MobileHeaderActions'
 
 import Link from 'next/link'
-import { useState, type HTMLAttributes, type ReactNode } from 'react'
+import { useId, useState, type HTMLAttributes, type ReactNode } from 'react'
 import styles from './MobilePrimitives.module.css'
 
 function classes(...values: Array<string | false | null | undefined>) {
@@ -82,24 +82,27 @@ export function MobileAccordion({
   children,
   defaultOpen = false,
   className,
+  allLayouts = false,
 }: {
   title: ReactNode
   summary?: ReactNode
   children: ReactNode
   defaultOpen?: boolean
   className?: string
+  allLayouts?: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
+  const bodyId = useId()
   return (
-    <section className={classes(styles.mobileOnly, styles.accordion, className)}>
-      <button type="button" className={styles.accordionTrigger} aria-expanded={open} onClick={() => setOpen(value => !value)}>
+    <section className={classes(styles.mobileOnly, styles.accordion, allLayouts && styles.allLayouts, className)}>
+      <button type="button" className={styles.accordionTrigger} aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen(value => !value)}>
         <span className={styles.accordionLabel}>
           <strong>{title}</strong>
           {summary && <span>{summary}</span>}
         </span>
         <span className={classes(styles.chevron, open && styles.chevronOpen)} aria-hidden="true">⌄</span>
       </button>
-      <div className={styles.accordionBody} hidden={!open}>{children}</div>
+      <div id={bodyId} className={styles.accordionBody} hidden={!open}>{children}</div>
     </section>
   )
 }

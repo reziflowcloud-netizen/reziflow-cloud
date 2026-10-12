@@ -1731,8 +1731,7 @@ export default function CaseDetailPage() {
 
             {tab === 'docs' && (
               <>
-              <div className="card" style={{ marginBottom: 16 }}><ChecklistServicePrompt controller={checklist} /><DocumentChecklist controller={checklist} files={documents} /></div>
-              <div>
+              <div data-client-documents>
                 <div className="card" style={{ borderRadius: '0 0 10px 10px', marginBottom: 16 }}>
                   <div className="section-title"><span>📁</span>{t('client_documents')}</div>
                   <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 16, background: 'var(--bg)' }}>
@@ -1821,6 +1820,7 @@ export default function CaseDetailPage() {
                   )}
                 </div>
               </div>
+              <div className="card" style={{ marginBottom: 16 }}><div><ChecklistServicePrompt controller={checklist} /><DocumentChecklist controller={checklist} files={documents} /></div></div>
             </>
             )}
 

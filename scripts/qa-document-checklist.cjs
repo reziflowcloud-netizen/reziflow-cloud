@@ -208,13 +208,104 @@ async function main() {
       await req('delete', `${listUrl}/${row.id}`, { expectedVersion: row.version }); assert.equal((await get()).items.find(item => item.id === row.id).active, false)
       assert.equal(await db.caseDocument.count({ where: { id: file.id } }), 1)
     })
-    await check('RU/UA/PL × Light/Dark/Slate × 390/414/430/1024/1440 documents/summary/MOS/templates no horizontal overflow', async () => {
+    const polishDir = path.join(process.cwd(), 'docs', 'qa', 'document-checklist-v2-ui-polish'); await fs.mkdir(polishDir, { recursive: true })
+    const docsRoot = () => page.locator('[data-document-checklist=documents]:visible')
+    const passportButton = () => docsRoot().locator('[data-checklist-item=Paszport]')
+    const openPassport = async () => { await passportButton().click(); await page.getByRole('dialog').waitFor() }
+    const patchRoute = `**${listUrl}/*`
+    const { documentChecklistText } = await import('../src/lib/documentChecklistI18n.ts')
+    const metadataVisible = async (row, item, lang) => {
+      const copy = documentChecklistText[lang], text = await row.textContent()
+      for (const value of [item.status === 'NEEDED' ? copy.statusNeeded : item.status === 'RECEIVED' ? copy.received : copy.submitted, item.required ? copy.required : copy.optional, item.forMos ? 'MOS' : copy.notMos, item.files.length ? `${copy.files}: ${item.files.length}` : copy.noFiles, ...(item.outsideTemplate ? [copy.outside] : []), ...(item.note ? [item.note] : [])]) assert.ok(text.includes(value), `Missing item metadata: ${value}`)
+      if (item.mosSubmittedAt || item.receivedAt) assert.ok(text.includes(new Date(item.mosSubmittedAt || item.receivedAt).toLocaleDateString(lang === 'uk' ? 'uk-UA' : lang === 'pl' ? 'pl-PL' : 'ru-RU')))
+    }
+    await page.goto(origin + `/cases/${current.id}?tab=docs`)
+    await page.evaluate(() => { localStorage.setItem('rezi_lang', 'uk'); localStorage.setItem('rezi_theme', 'light'); document.documentElement.dataset.theme = 'light'; window.dispatchEvent(new CustomEvent('langchange', { detail: 'uk' })) })
+    await check('manual Save waits for server, closes once, preserves file and restores opener focus', async () => {
+      await passportButton().focus(); await page.keyboard.press('Enter'); const dialog = page.getByRole('dialog'); await dialog.waitFor()
+      await dialog.locator('textarea').fill('UI polish saved note')
+      let release, started, writes = 0
+      const gate = new Promise(resolve => { release = resolve }), requestStarted = new Promise(resolve => { started = resolve })
+      await page.route(patchRoute, async route => { if (route.request().method() !== 'PATCH') return route.continue(); writes++; started(); await gate; await route.continue() })
+      await page.screenshot({ path: path.join(polishDir, '06-modal-before-save.png') })
+      await dialog.locator('[data-checklist-save]').evaluate(button => { button.click(); button.click() })
+      await requestStarted
+      assert.equal(await dialog.isVisible(), true); assert.equal(await dialog.locator('[data-checklist-save]').isDisabled(), true)
+      assert.equal(await dialog.locator('textarea').isDisabled(), true); assert.equal(writes, 1)
+      release(); await dialog.waitFor({ state: 'hidden' }); await page.unroute(patchRoute)
+      assert.equal(writes, 1); const row = (await get()).items.find(item => item.name === 'Paszport')
+      assert.equal(row.note, 'UI polish saved note'); assert.equal(row.status, 'SUBMITTED_TO_MOS'); assert.equal(row.active, true); assert.equal(row.files[0].id, file.id)
+      assert.equal(await passportButton().evaluate(button => button === document.activeElement), true)
+      await docsRoot().locator('[role=status][data-state=saved]').waitFor()
+      await page.screenshot({ path: path.join(polishDir, '07-after-save-modal-closed.png') })
+    })
+    await check('failed Save retains draft and editor; successful Retry closes without archive', async () => {
+      await openPassport(); const dialog = page.getByRole('dialog'); await dialog.locator('textarea').fill('UI polish retry retained')
+      let writes = 0
+      await page.route(patchRoute, async route => { if (route.request().method() !== 'PATCH') return route.continue(); writes++; if (writes === 1) await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"synthetic unavailable"}' }); else await route.continue() })
+      await dialog.locator('[data-checklist-save]').click(); await dialog.locator('[data-state=error]').waitFor()
+      assert.equal(await dialog.isVisible(), true); assert.equal(await dialog.locator('textarea').inputValue(), 'UI polish retry retained')
+      assert.equal((await get()).items.find(item => item.name === 'Paszport').note, 'UI polish saved note')
+      await dialog.locator('[data-checklist-save]').click(); await dialog.waitFor({ state: 'hidden' }); await page.unroute(patchRoute)
+      const row = (await get()).items.find(item => item.name === 'Paszport'); assert.equal(row.note, 'UI polish retry retained'); assert.equal(row.active, true); assert.equal(writes, 2)
+    })
+    await check('manual Save drains in-flight autosave and newer draft in CAS order before close', async () => {
+      await openPassport(); const dialog = page.getByRole('dialog')
+      let release, started, writes = 0
+      const gate = new Promise(resolve => { release = resolve }), requestStarted = new Promise(resolve => { started = resolve })
+      await page.route(patchRoute, async route => { if (route.request().method() !== 'PATCH') return route.continue(); writes++; if (writes === 1) { started(); await gate } await route.continue() })
+      await dialog.locator('textarea').fill('UI polish pending A'); await requestStarted
+      await dialog.locator('textarea').fill('UI polish latest B'); await dialog.locator('[data-checklist-save]').click()
+      assert.equal(await dialog.isVisible(), true); release(); await dialog.waitFor({ state: 'hidden' }); await page.unroute(patchRoute)
+      assert.equal(writes, 2); assert.equal((await get()).items.find(item => item.name === 'Paszport').note, 'UI polish latest B')
+    })
+    await check('CAS conflict retains editor and draft until explicit reload; subsequent Save closes', async () => {
+      await openPassport(); const dialog = page.getByRole('dialog'); await dialog.locator('textarea').fill('UI polish conflict draft')
+      await page.route(patchRoute, async route => { if (route.request().method() === 'PATCH') await route.fulfill({ status: 409, contentType: 'application/json', body: '{"error":"synthetic conflict"}' }); else await route.continue() })
+      await dialog.locator('[data-checklist-save]').click(); await dialog.locator('[data-state=conflict]').waitFor(); await page.unroute(patchRoute)
+      assert.equal(await dialog.isVisible(), true); assert.equal(await dialog.locator('textarea').inputValue(), 'UI polish conflict draft')
+      await dialog.locator('[data-state=conflict] button').click()
+      await page.waitForFunction(() => !document.querySelector('[role=dialog] [data-state=conflict]'))
+      await dialog.locator('textarea').fill('UI polish after reload'); await dialog.locator('[data-checklist-save]').click(); await dialog.waitFor({ state: 'hidden' })
+      assert.equal((await get()).items.find(item => item.name === 'Paszport').note, 'UI polish after reload')
+    })
+    await check('file action blocks overlapping Save and preserves relation after final Save closes', async () => {
+      const extra = await db.caseDocument.create({ data: { caseId: current.id, name: 'UI polish harmless relation.pdf', fileType: 'pdf' } })
+      await page.reload(); await openPassport(); const dialog = page.getByRole('dialog')
+      await dialog.locator('select').last().selectOption(String(extra.id))
+      let release, started, writes = 0
+      const gate = new Promise(resolve => { release = resolve }), requestStarted = new Promise(resolve => { started = resolve })
+      const fileRoute = `**${listUrl}/*/files`
+      await page.route(fileRoute, async route => { writes++; started(); await gate; await route.continue() })
+      await dialog.getByRole('button', { name: 'Пов’язати файл', exact: true }).click(); await requestStarted
+      assert.equal(await dialog.locator('[data-checklist-save]').isDisabled(), true)
+      release(); await page.waitForFunction(() => !document.querySelector('[data-checklist-save]:disabled')); await page.unroute(fileRoute)
+      assert.equal(await dialog.isVisible(), true); await dialog.locator('[data-checklist-save]').click(); await dialog.waitFor({ state: 'hidden' })
+      assert.equal(writes, 1); assert.equal((await get()).items.find(item => item.name === 'Paszport').files.length, 2)
+    })
+    await check('RU/UA/PL × Light/Dark/Slate × 390/414/430/1024/1280/1440/1920 responsive polish and no overflow', async () => {
       const screenshotDir = path.join(process.env.TEMP, 'legalhub-document-checklist-v2-screenshots'); await fs.mkdir(screenshotDir, { recursive: true })
-      for (const width of [390, 414, 430, 1024, 1440]) for (const lang of ['ru', 'uk', 'pl']) for (const theme of ['light', 'dark', 'slate']) {
+      for (const width of [390, 414, 430, 1024, 1280, 1440, 1920]) for (const lang of ['ru', 'uk', 'pl']) for (const theme of ['light', 'dark', 'slate']) {
         await page.setViewportSize({ width, height: 1000 })
         await page.goto(origin + `/cases/${current.id}?tab=docs`)
         await page.evaluate(({ lang, theme }) => { localStorage.setItem('rezi_lang', lang); localStorage.setItem('rezi_theme', theme); document.documentElement.dataset.theme = theme; window.dispatchEvent(new CustomEvent('langchange', { detail: lang })) }, { lang, theme })
         const root = page.locator('[data-document-checklist=documents]:visible'); await root.waitFor(); await root.locator('[data-checklist-item]').first().waitFor()
+        assert.equal(await page.evaluate(() => innerWidth), width)
+        assert.equal(await root.locator('progress').evaluate(el => Math.round(el.getBoundingClientRect().height)), width < 769 ? 8 : 12)
+        const clientDocs = page.locator('[data-client-documents]:visible')
+        assert.equal(await clientDocs.evaluate((el, checklist) => !!(el.compareDocumentPosition(checklist) & Node.DOCUMENT_POSITION_FOLLOWING), await root.elementHandle()), true)
+        for (const item of (await get()).items.filter(item => item.active)) {
+          const row = root.locator('[data-checklist-item]').filter({ has: page.locator(`[data-checklist-status-control=${item.status === 'NEEDED' ? 'unchecked' : 'checked'}]`) }).filter({ hasText: item.name })
+          assert.equal(await row.count(), 1)
+          await metadataVisible(row, item, lang)
+          const shape = await row.locator('[data-checklist-status-control]').evaluate(el => ({ width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height, radius: getComputedStyle(el).borderRadius }))
+          assert.ok(Math.abs(shape.width - 22) < 0.1 && Math.abs(shape.height - 22) < 0.1); assert.equal(shape.radius, '4px')
+          assert.ok((await row.boundingBox()).height >= 44)
+        }
+        const collapse = root.locator('button[aria-expanded]').first()
+        await collapse.focus(); await page.keyboard.press('Space'); assert.equal(await collapse.getAttribute('aria-expanded'), 'false')
+        assert.equal(await root.locator('progress').isVisible(), true); assert.equal(await root.locator('[data-checklist-item]').first().isVisible(), false); assert.equal(await root.locator('[data-checklist-add]').isVisible(), false)
+        await page.keyboard.press('Enter'); assert.equal(await collapse.getAttribute('aria-expanded'), 'true')
         const overflow = () => page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)
         assert.equal(await overflow(), false, `documents ${width} ${lang} ${theme}`)
         await root.locator('[data-checklist-item=Paszport]').click(); await page.getByRole('dialog').waitFor(); assert.equal(await overflow(), false, 'item editor')
@@ -223,15 +314,39 @@ async function main() {
         await page.goto(origin + `/cases/${current.id}`)
         if (width < 769) await page.locator('[data-checklist-summary-accordion] button[aria-expanded]').click()
         await page.locator('[data-checklist-summary]:visible').waitFor(); assert.equal(await overflow(), false, `summary ${width} ${lang} ${theme}`)
+        assert.equal(await page.locator('[data-checklist-summary]:visible progress').evaluate(el => Math.round(el.getBoundingClientRect().height)), width < 769 ? 8 : 12)
         if (width < 769) await page.locator('[data-mobile-case-detail] [data-section-key=case-mos] button[aria-expanded]').click()
         else { const heading = page.locator('[data-collapse-key=case-mos] .section-title').first(); if (!await page.locator('[data-document-checklist=mos]:visible').count()) await heading.locator('button').click() }
         await page.locator('[data-document-checklist=mos]:visible').waitFor(); assert.equal(await overflow(), false, `MOS ${width} ${lang} ${theme}`)
+        const mos = page.locator('[data-document-checklist=mos]:visible'), live = await get()
+        for (const [group, items] of [['submitted', live.items.filter(item => item.active && item.forMos && item.status === 'SUBMITTED_TO_MOS')], ['needed', live.items.filter(item => item.active && item.forMos && item.status !== 'SUBMITTED_TO_MOS')]]) {
+          assert.equal(await mos.locator(`[data-checklist-mos-group=${group}] [data-checklist-item]`).count(), items.length)
+          for (const item of items) { const row = mos.locator(`[data-checklist-mos-group=${group}] [data-checklist-item]`).filter({ hasText: item.name }); assert.equal(await row.count(), 1); await metadataVisible(row, item, lang) }
+        }
+        const boxes = await mos.locator('[data-checklist-mos-group]').evaluateAll(els => els.map(el => el.getBoundingClientRect().toJSON()))
+        assert.equal(width < 769 ? boxes[1].top > boxes[0].top : Math.abs(boxes[1].top - boxes[0].top) < 1, true)
         await page.goto(origin + '/settings/services'); const serviceRow = page.locator('.card').filter({ hasText: 'Document checklist service' }).first(); await serviceRow.getByRole('button', { name: lang === 'pl' ? 'Dokumenty' : lang === 'uk' ? 'Документи' : 'Документы', exact: true }).first().click()
         await page.locator('[data-service-document-template] input').first().waitFor(); assert.equal(await overflow(), false, `template ${width} ${lang} ${theme}`)
         if (lang === 'uk' && theme === 'slate' && [390, 1440].includes(width)) await page.screenshot({ path: path.join(screenshotDir, `templates-${width}.png`), fullPage: true })
-        report.viewports.push({ width, lang, theme, documents: 'PASS', editor: 'PASS', summary: 'PASS', mos: 'PASS', template: 'PASS' })
+        report.viewports.push({ width, lang, theme, progressHeight: width < 769 ? 8 : 12, clientDocumentsFirst: 'PASS', collapseKeyboard: 'PASS', squareControls: 'PASS', documents: 'PASS', editor: 'PASS', summary: 'PASS', mos: 'PASS', template: 'PASS' })
       }
       report.screenshotDir = screenshotDir
+    })
+    await check('seven UI polish screenshots: desktop/mobile summary, collapsed/expanded checklist, compact MOS, Save before/after', async () => {
+      await page.evaluate(() => { localStorage.setItem('rezi_lang', 'uk'); localStorage.setItem('rezi_theme', 'light') })
+      await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto(origin + `/cases/${current.id}`)
+      await page.locator('[data-checklist-summary]:visible').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(polishDir, '01-desktop-details-progress.png') })
+      const heading = page.locator('[data-collapse-key=case-mos] .section-title').first(); if (!await page.locator('[data-document-checklist=mos]:visible').count()) await heading.locator('button').click()
+      await page.locator('[data-collapse-key=case-mos]').screenshot({ path: path.join(polishDir, '05-compact-mos.png') })
+      await page.setViewportSize({ width: 390, height: 1000 }); await page.goto(origin + `/cases/${current.id}`)
+      await page.locator('[data-checklist-summary-accordion] button[aria-expanded]').click(); await page.locator('[data-checklist-summary]:visible').scrollIntoViewIfNeeded()
+      await page.screenshot({ path: path.join(polishDir, '02-mobile-details-progress.png') })
+      await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto(origin + `/cases/${current.id}?tab=docs`)
+      const root = docsRoot(); await root.locator('[data-checklist-item]').first().waitFor(); await root.locator('button[aria-expanded]').click()
+      await root.scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(polishDir, '03-documents-collapsed.png') })
+      await root.locator('button[aria-expanded]').click(); await root.screenshot({ path: path.join(polishDir, '04-checklist-expanded.png') })
+      report.polishScreenshotDir = polishDir; report.polishScreenshots = (await fs.readdir(polishDir)).filter(name => name.endsWith('.png')).sort()
+      assert.equal(report.polishScreenshots.length, 7)
     })
     await check('service-change prompt and add-document editor on all five widths; explicit Keep persists', async () => {
       for (const width of [390, 414, 430, 1024, 1440]) {
@@ -241,7 +356,7 @@ async function main() {
         const prompt = page.locator('[data-checklist-service-prompt]:visible'); await prompt.waitFor()
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false)
         await prompt.locator('button').nth(1).click(); await prompt.waitFor({ state: 'hidden' })
-        const root = page.locator('[data-document-checklist=documents]:visible'); await root.locator(':scope > button').last().click()
+        const root = page.locator('[data-document-checklist=documents]:visible'); await root.locator('[data-checklist-add]').click()
         await page.getByRole('dialog').waitFor(); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false)
         await page.getByRole('dialog').locator('button').first().click()
         const list = await get(); assert.equal(list.templateServiceId, nextService)
