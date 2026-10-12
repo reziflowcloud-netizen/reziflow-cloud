@@ -17,7 +17,7 @@ import { caseStatusLabel, isArchiveCaseStatus } from '@/lib/caseI18n'
 import { VOIVODESHIP_OFFICE_GROUPS } from '@/lib/voivodeshipOffices'
 import { useCaseMobileAccess } from '../CaseMobileAccessContext'
 import CaseDetailMobile from './CaseDetailMobile'
-import DocumentChecklist, { ChecklistSummary, ChecklistServicePrompt } from '@/components/DocumentChecklist'
+import DocumentChecklist, { ChecklistServicePrompt } from '@/components/DocumentChecklist'
 import { useDocumentChecklist } from '@/hooks/useDocumentChecklist'
 
 const WORK_TYPE = 'Выконывание пацы (Работа)'
@@ -1105,7 +1105,7 @@ export default function CaseDetailPage() {
 
             {tab === 'details' && (
               <div data-collapsible-scope="case-details">
-                <div className="card" style={{ marginBottom: 16 }}><ChecklistSummary controller={checklist} onView={() => void changeTab('docs')} /><ChecklistServicePrompt controller={checklist} /></div>
+                <ChecklistServicePrompt controller={checklist} />
                 <CollapsibleCardsBehavior scope="case-details" />
                 <SectionVisibilityBehavior scope="case" />
                 {/* ── ОСНОВНЫЕ ДАННЫЕ ── */}
