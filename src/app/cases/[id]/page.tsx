@@ -124,7 +124,7 @@ export default function CaseDetailPage() {
     const updated = await res.json()
     setC((previous: any) => ({ ...previous, ...updated, service: services.find(service => service.id === updated.serviceId) || null }))
     if (['status', 'employeeId', 'caseNumber', 'filingDate', 'mosSentAt', 'fingerprintsDate', 'predictedDecisionDate', 'personalAppearDate', 'personalAppearTime', 'personalAppearLocation', 'cardPickupDate', 'cardPickupTime', 'cardPickupLocation', 'legalStayDeadline', 'workContractEndDate'].some(key => key in fields)) {
-      void loadCaseTasks({ ...c, ...updated }).catch(() => {})
+      void loadCaseTaskViews({ ...c, ...updated }).catch(() => {})
     }
     return updated.updatedAt
   }, saveCopy.leave, hasOtherDrafts)
@@ -174,9 +174,7 @@ export default function CaseDetailPage() {
       if (!force && (!autosave.safeToRefresh || hasOtherDrafts() || revision !== autosave.revision || version !== autosave.version)) return
       otherInputDirty.current = false
       setC(data)
-      loadPlannedPayments(data)
-      loadMosDocuments(data)
-      loadCaseTasks(data)
+      void loadCaseTaskViews(data)
       setCustomDates(data.customDates || [])
       setDocUpdates((data.docUpdates || []).filter((d: any) => !String(d.description || '').startsWith('__MOS_ID__:')))
       const loadedMosId = ((data.docUpdates || []).find((d: any) => String(d.description || '').startsWith('__MOS_ID__:'))?.description || '').replace('__MOS_ID__:', '')
@@ -322,7 +320,7 @@ export default function CaseDetailPage() {
       if (mosId.trim() !== initialMosId.trim()) followUpTasks.push(saveMosId())
       const customSave = customSectionsRef.current?.save() || Promise.resolve(true)
       const [customOk] = await Promise.all([customSave, ...followUpTasks])
-      await loadCaseTasks(nextCase)
+      await loadCaseTaskViews(nextCase)
       if (customOk === false) { otherInputDirty.current = true; alert(t('custom_fields_save_failed')) }
       else otherInputDirty.current = false
     } catch (err: any) {
@@ -348,9 +346,7 @@ export default function CaseDetailPage() {
     })
     if (!autosave.busy && autosave.state !== 'conflict' && autosave.version === version && matchesBaseline) autosave.version = data.updatedAt
     setC(data)
-    await loadPlannedPayments(data)
-    await loadMosDocuments(data)
-    await loadCaseTasks(data)
+    await loadCaseTaskViews(data)
     return data
   }
 
@@ -364,13 +360,11 @@ export default function CaseDetailPage() {
     return match ? match[1].replace(',', '.') : ''
   }
 
-  async function loadPlannedPayments(caseData = c) {
+  function applyPlannedPayments(caseData: any, tasks: any[]) {
     if (!caseData?.id) {
       setPlannedPayments([])
       return
     }
-    const tasks = await fetch('/api/tasks').then(r => r.json()).catch(() => [])
-    if (!Array.isArray(tasks)) return
     const caseNumber = String(caseData.caseNumber || '')
 
     const planned = tasks
@@ -419,10 +413,8 @@ export default function CaseDetailPage() {
     })
   }
 
-  async function loadMosDocuments(caseData = c) {
+  function applyMosDocuments(caseData: any, tasks: any[]) {
     if (!caseData?.id) return
-    const tasks = await fetch('/api/tasks').then(r => r.json()).catch(() => [])
-    if (!Array.isArray(tasks)) return
     const docs = tasks
       .map((task: any) => ({ task, meta: parseTaskDescription(task.description) }))
       .filter(({ meta }: any) => meta.mosDocument?.caseId === caseData.id)
@@ -438,10 +430,8 @@ export default function CaseDetailPage() {
     setMosDocuments(docs)
   }
 
-  async function loadCaseTasks(caseData = c) {
+  function applyCaseTasks(caseData: any, tasks: any[]) {
     if (!caseData?.id) return
-    const tasks = await fetch('/api/tasks').then(r => r.json()).catch(() => [])
-    if (!Array.isArray(tasks)) return
     const caseNumber = String(caseData.caseNumber || '')
     const related = tasks
       .map((task: any) => ({ task, meta: parseTaskDescription(task.description) }))
@@ -483,6 +473,20 @@ export default function CaseDetailPage() {
     setCaseTasks(related)
   }
 
+  async function loadCaseTaskViews(caseData = c) {
+    if (!caseData?.id) {
+      setPlannedPayments([])
+      setMosDocuments([])
+      setCaseTasks([])
+      return
+    }
+    const tasks = await fetch('/api/tasks').then(r => r.json()).catch(() => [])
+    if (!Array.isArray(tasks)) return
+    applyPlannedPayments(caseData, tasks)
+    applyMosDocuments(caseData, tasks)
+    applyCaseTasks(caseData, tasks)
+  }
+
   async function addMosDocument() {
     if (!newMosDocName.trim()) return
     await createTaskWithMeta(
@@ -493,7 +497,7 @@ export default function CaseDetailPage() {
     )
     setNewMosDocName('')
     setNewMosDocDueDate('')
-    await loadMosDocuments()
+    await loadCaseTaskViews()
   }
 
   function toggleMosDocumentSelection(name: string, index: number, shiftKey: boolean) {
@@ -547,7 +551,7 @@ export default function CaseDetailPage() {
       })
       if (!response.ok) throw new Error('MOS documents submit failed')
 
-      await Promise.all([loadMosDocuments(), loadCaseTasks()])
+      await loadCaseTaskViews()
       clearMosDocumentSelection()
     } catch {
       alert(t('mos_documents_submit_failed'))
@@ -572,8 +576,7 @@ export default function CaseDetailPage() {
         }),
       }),
     })
-    await loadMosDocuments()
-    await loadCaseTasks()
+    await loadCaseTaskViews()
   }
 
   async function markMosDocumentSent(doc: any) {
@@ -584,8 +587,7 @@ export default function CaseDetailPage() {
   async function deleteMosDocument(docId: string) {
     if (!confirm(t('delete_mos_document_confirm'))) return
     await fetch(`/api/tasks/${docId}`, { method: 'DELETE' })
-    await loadMosDocuments()
-    await loadCaseTasks()
+    await loadCaseTaskViews()
   }
 
   async function createCustomReminder(e?: any) {
@@ -606,7 +608,7 @@ export default function CaseDetailPage() {
       }
       setCustomReminderTitle('')
       setCustomReminderDate('')
-      await loadCaseTasks()
+      await loadCaseTaskViews()
       alert(t('reminder_added'))
     } catch (err: any) {
       alert(`${t('reminder_add_failed')}: ${err.message}`)
@@ -702,8 +704,7 @@ export default function CaseDetailPage() {
       })
     }
     setPaymentPlan([{ amount: '', dueDate: '' }])
-    await loadPlannedPayments()
-    await loadCaseTasks()
+    await loadCaseTaskViews()
     setCreatingPlan(false)
     alert(t('payment_plan_added'))
   }
@@ -731,7 +732,6 @@ export default function CaseDetailPage() {
     }
     await fetch(`/api/tasks/${plan.id}`, { method: 'DELETE' })
     await refreshCase()
-    await loadCaseTasks()
   }
 
   async function deletePlannedPayment(planId: string) {
@@ -742,8 +742,7 @@ export default function CaseDetailPage() {
       alert(`${t('delete_planned_payment_failed')}: ${err.error || res.status}`)
       return
     }
-    await loadPlannedPayments()
-    await loadCaseTasks()
+    await loadCaseTaskViews()
   }
 
   async function createClientTask() {
@@ -768,7 +767,7 @@ export default function CaseDetailPage() {
     })
     setTaskTitle('')
     setTaskDueDate('')
-    await loadCaseTasks()
+    await loadCaseTaskViews()
     setTaskSaving(false)
     alert(t('task_created'))
   }

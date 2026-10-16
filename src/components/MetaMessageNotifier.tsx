@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
+
+const VISIBLE_POLL_INTERVAL_MS = 30_000
 
 type LatestMessage = {
   id: number
@@ -37,7 +39,7 @@ export default function MetaMessageNotifier() {
   const soundAllowedRef = useRef(false)
   const originalTitleRef = useRef<string | null>(null)
   const titleTimeoutRef = useRef<number | null>(null)
-  const [enabled, setEnabled] = useState(true)
+  const pollingEnabledRef = useRef(true)
 
   useEffect(() => {
     originalTitleRef.current = document.title
@@ -59,17 +61,37 @@ export default function MetaMessageNotifier() {
   }, [])
 
   useEffect(() => {
-    if (!enabled) return
+    let disposed = false
+    let inFlight = false
+    let timeoutId: number | null = null
+    const controller = new AbortController()
+
+    function clearTimer() {
+      if (timeoutId !== null) window.clearTimeout(timeoutId)
+      timeoutId = null
+    }
+
+    function scheduleNext() {
+      clearTimer()
+      if (disposed || !pollingEnabledRef.current || document.visibilityState !== 'visible') return
+      timeoutId = window.setTimeout(() => void checkLatestMessage(), VISIBLE_POLL_INTERVAL_MS)
+    }
 
     async function checkLatestMessage() {
+      if (disposed || inFlight || !pollingEnabledRef.current || document.visibilityState !== 'visible') return
+      inFlight = true
       try {
-        const response = await fetch('/api/notifications/meta-messages', { cache: 'no-store' })
+        const response = await fetch('/api/notifications/meta-messages', { cache: 'no-store', signal: controller.signal })
         if (!response.ok) {
-          if (response.status === 401) setEnabled(false)
+          if (response.status === 401) pollingEnabledRef.current = false
           return
         }
 
         const data = await response.json()
+        if (data.enabled === false) {
+          pollingEnabledRef.current = false
+          return
+        }
         const latest = data.latest as LatestMessage | null
         if (!latest?.id) return
 
@@ -93,13 +115,27 @@ export default function MetaMessageNotifier() {
         }
       } catch {
         // Notification polling should never interrupt CRM work.
+      } finally {
+        inFlight = false
+        scheduleNext()
       }
     }
 
-    checkLatestMessage()
-    const intervalId = window.setInterval(checkLatestMessage, 15000)
-    return () => window.clearInterval(intervalId)
-  }, [enabled])
+    function handleVisibilityChange() {
+      clearTimer()
+      if (document.visibilityState === 'visible') void checkLatestMessage()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    if (document.visibilityState === 'visible') void checkLatestMessage()
+
+    return () => {
+      disposed = true
+      clearTimer()
+      controller.abort()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
 
   return null
 }

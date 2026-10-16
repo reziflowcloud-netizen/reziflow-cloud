@@ -10,6 +10,7 @@ import { handleNotificationOpen, publishNotificationStatus, updateAppBadge } fro
 import { prepareScreenLeave } from '@/lib/screenLeave'
 import { mobileStandalone, NotificationResumeTracker } from '@/lib/notificationResume'
 import styles from './Notifications.module.css'
+const VISIBLE_POLL_INTERVAL_MS = 90_000
 type Item = { id: string; type: NotificationType; title: string; body: string; createdAt: string; readAt: string | null }
 export default function NotificationCenter() {
   const { lang } = useLanguage()
@@ -151,7 +152,7 @@ export default function NotificationCenter() {
     }
     if (document.visibilityState === 'hidden') visibility()
     const workerMessage = (event: MessageEvent) => { handleNotificationOpen(event); if (event.data?.type === 'notifications-changed') refresh() }
-    const timer = window.setInterval(refresh, 45000)
+    const timer = window.setInterval(refresh, VISIBLE_POLL_INTERVAL_MS)
     window.addEventListener('focus', returned); window.addEventListener('pageshow', returned); window.addEventListener('notifications-changed', refresh); document.addEventListener('visibilitychange', visibility)
     navigator.serviceWorker?.addEventListener('message', workerMessage)
     // Refresh an existing worker after a release without requesting permission

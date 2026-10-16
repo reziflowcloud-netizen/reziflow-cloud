@@ -98,5 +98,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/auth).*)'],
+  matcher: ['/((?!_next/static(?:/|$)|_next/image(?:/|$)|favicon\\.ico$|manifest\\.json$|notification-sw\\.js$|assets(?:/|$)|api/auth(?:/|$)|api/webhooks/leads(?:/|$)|api/webhooks/meta/leads(?:/|$)|api/webhooks/meta/messages(?:/|$)|api/webhooks/telegram/leads(?:/|$)|api/internal/notifications(?:/|$)).*)'],
 }
