@@ -13,6 +13,7 @@ import styles from './LeadsMobile.module.css'
 import StaffScopeControl from '@/components/StaffScopeControl'
 import LeadContactSubtitle from '@/components/mobile/LeadContactSubtitle'
 import type { StaffScopeValue } from '@/lib/staffScope'
+import type { LeadScopeMetadata } from '@/lib/leadScopePersistence'
 
 type QuickFilter = 'all' | 'today' | 'overdue' | 'unassigned' | 'no_next_contact'
 type DatePreset = 'all' | 'today' | 'last7' | 'last30' | 'this_month' | 'last_month' | 'custom'
@@ -128,6 +129,7 @@ export type LeadsMobileProps = {
   statusColors: (status: any) => { bg: string; color: string }
   responsibleName: (lead: any) => string
   restrictedAccess: boolean
+  staffScopeMetadata: LeadScopeMetadata | null
   staffScope: StaffScopeValue
   setStaffScope: (value: StaffScopeValue) => void
   selectedCount: number
@@ -412,7 +414,7 @@ export default function LeadsMobile(props: LeadsMobileProps) {
               <button type="button" className={styles.closeButton} aria-label={copy.cancel} onClick={() => setFiltersOpen(false)}>×</button>
             </div>
             <div className={styles.filterFields}>
-              <StaffScopeControl value={props.staffScope} onChange={props.setStaffScope} employees={props.employees} restricted={props.restrictedAccess} lang={props.lang} compact />
+              <StaffScopeControl metadata={props.staffScopeMetadata} value={props.staffScope} onChange={props.setStaffScope} employees={props.employees} restricted={props.restrictedAccess} lang={props.lang} compact />
               <label>{copy.status}
                 <select className="select" value={props.status} onChange={event => props.setStatus(event.target.value)}>
                   <option value="">{copy.allStatuses}</option>

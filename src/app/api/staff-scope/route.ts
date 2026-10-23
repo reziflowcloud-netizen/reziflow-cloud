@@ -28,6 +28,8 @@ export async function GET() {
   ])
   const filterEnabled = staffScopeFilterEnabled(organization?.settings)
   return NextResponse.json({
+    userId: Number(user.id),
+    organizationId,
     restricted: access.restricted,
     defaultScope: access.restricted ? 'mine' : 'all',
     filterEnabled,

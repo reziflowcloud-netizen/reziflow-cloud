@@ -17,6 +17,8 @@ import LeadsMobile from './LeadsMobile'
 import { useLeadMobileAccess } from './LeadMobileAccessContext'
 import StaffScopeControl from '@/components/StaffScopeControl'
 import type { StaffScopeValue } from '@/lib/staffScope'
+import { parseLeadScope, writeLeadScopeQuery, type LeadScopeQuery } from '@/lib/leadScopePersistence'
+import { useLeadScopePersistence } from '@/hooks/useLeadScopePersistence'
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   'Новый': { bg: '#eff6ff', color: '#1d4ed8' },
@@ -35,6 +37,8 @@ type ViewMode = 'table' | 'board'
 type DatePreset = 'all' | 'today' | 'last7' | 'last30' | 'this_month' | 'last_month' | 'custom'
 type LeadColumnKey = 'lead' | 'status' | 'reason' | 'source' | 'interest' | 'createdAt' | 'lastContact' | 'nextContact' | 'responsible'
 type LeadListState = {
+  staffScope: StaffScopeValue
+  staffScopeOwner: string
   search: string
   status: string
   statusReasonFilter: string
@@ -81,6 +85,8 @@ const LEAD_TABLE_COLUMN_WIDTHS: Record<LeadColumnKey, number> = {
   responsible: 112,
 }
 const DEFAULT_LEAD_LIST_STATE: LeadListState = {
+  staffScope: 'all',
+  staffScopeOwner: '',
   search: '',
   status: '',
   statusReasonFilter: '',
@@ -107,6 +113,8 @@ function parseDateInput(value: string | null) {
 
 function parseLeadListState(params: URLSearchParams): LeadListState {
   return {
+    staffScope: parseLeadScope(params.get('staffScope')) || 'all',
+    staffScopeOwner: params.get('staffScopeOwner') || '',
     search: params.get('q') || DEFAULT_LEAD_LIST_STATE.search,
     status: params.get('status') || DEFAULT_LEAD_LIST_STATE.status,
     statusReasonFilter: params.get('reason') || DEFAULT_LEAD_LIST_STATE.statusReasonFilter,
@@ -125,8 +133,13 @@ function parseLeadListState(params: URLSearchParams): LeadListState {
   }
 }
 
-function buildLeadListQuery(state: LeadListState) {
+function buildLeadListQuery(state: LeadListState, unvalidatedScopeQuery?: LeadScopeQuery) {
   const params = new URLSearchParams()
+  if (state.staffScopeOwner) {
+    params.set('staffScope', state.staffScope)
+    params.set('staffScopeOwner', state.staffScopeOwner)
+  }
+  if (unvalidatedScopeQuery) writeLeadScopeQuery(params, unvalidatedScopeQuery)
   const search = state.search.trim()
   if (search) params.set('q', search)
   if (state.status) params.set('status', state.status)
@@ -149,8 +162,8 @@ function buildLeadListQuery(state: LeadListState) {
   return params.toString()
 }
 
-function buildLeadListHref(state: LeadListState) {
-  const query = buildLeadListQuery(state)
+function buildLeadListHref(state: LeadListState, unvalidatedScopeQuery?: LeadScopeQuery) {
+  const query = buildLeadListQuery(state, unvalidatedScopeQuery)
   return query ? `/leads?${query}` : '/leads'
 }
 
@@ -281,7 +294,7 @@ function isOverdue(value?: string) {
 
 export default function LeadsPage() {
   const router = useRouter()
-  const { restrictedAccess } = useLeadMobileAccess()
+  const { restrictedAccess, userId, organizationId } = useLeadMobileAccess()
   const { lang: currentLang, t } = useLanguage()
   const lang = normalizeLang(currentLang)
   const locale = LEAD_LOCALES[lang] || 'ru-RU'
@@ -299,13 +312,15 @@ export default function LeadsPage() {
   const [createdTo, setCreatedTo] = useState(DEFAULT_LEAD_LIST_STATE.createdTo)
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(DEFAULT_LEAD_LIST_STATE.quickFilter)
   const [employees, setEmployees] = useState<any[]>([])
-  const [staffScope, setStaffScope] = useState<StaffScopeValue>(restrictedAccess ? 'mine' : 'all')
+  const { staffScope, setStaffScope, staffScopeReady, staffScopeMetadata, staffScopeOwner, unvalidatedScopeQuery } = useLeadScopePersistence(userId, organizationId, restrictedAccess)
+  const leadRequestRef = useRef(0)
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
   const [allFilteredSelected, setAllFilteredSelected] = useState(false)
   const [excludedLeadIds, setExcludedLeadIds] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [bulkSaving, setBulkSaving] = useState(false)
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
+  const [leadStatusesReady, setLeadStatusesReady] = useState(false)
   const [leadSources, setLeadSources] = useState<LeadSourceOption[]>(LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true })))
   const [editingStatuses, setEditingStatuses] = useState(false)
   const [deletingStatusId, setDeletingStatusId] = useState<number | null>(null)
@@ -401,18 +416,22 @@ export default function LeadsPage() {
   }
 
   function loadLeads() {
+    if (!staffScopeReady) return Promise.resolve()
+    const request = ++leadRequestRef.current
     setLoading(true)
     const params = new URLSearchParams({ view: 'list', staffScope })
     return freshJson(`/api/leads?${params}`)
-      .then(data => { setLeads(Array.isArray(data) ? data : []); markScreenFetched() })
-      .finally(() => setLoading(false))
+      .then(data => { if (request === leadRequestRef.current) { setLeads(Array.isArray(data) ? data : []); markScreenFetched() } })
+      .catch(() => { if (request === leadRequestRef.current) setLeads([]) })
+      .finally(() => { if (request === leadRequestRef.current) setLoading(false) })
   }
 
-  useScreenRefresh(loadLeads)
+  useScreenRefresh(loadLeads, () => staffScopeReady)
 
   useEffect(() => {
     loadLeads()
-  }, [staffScope])
+    return () => { leadRequestRef.current++ }
+  }, [staffScope, staffScopeReady])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -425,8 +444,9 @@ export default function LeadsPage() {
 
   useEffect(() => {
     fetch('/api/lead-statuses', { cache: 'no-store' })
-      .then(res => res.json())
-      .then(data => setLeadStatuses(Array.isArray(data) ? data : []))
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (Array.isArray(data)) { setLeadStatuses(data); setLeadStatusesReady(true) } })
+      .catch(() => { /* Keep URL reason until status metadata can validate it. */ })
     fetch('/api/employees')
       .then(res => res.json())
       .then(data => setEmployees(Array.isArray(data) ? data.filter((item: any) => item.active) : []))
@@ -582,8 +602,9 @@ export default function LeadsPage() {
   useEffect(() => {
     if (!statusReasonFilter) return
     if (status && !selectedStatusConfig && leadStatuses.length === 0) return
+    if (!leadStatusesReady) return
     if (!showStatusReasons || !selectedStatusReasons.includes(statusReasonFilter)) setStatusReasonFilter('')
-  }, [status, selectedStatusConfig, leadStatuses.length, showStatusReasons, statusReasonFilter, selectedStatusReasons.join('|')])
+  }, [leadStatusesReady, status, selectedStatusConfig, leadStatuses.length, showStatusReasons, statusReasonFilter, selectedStatusReasons.join('|')])
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -646,6 +667,8 @@ export default function LeadsPage() {
   const selectedReminders = remindersByDate[selectedDate] || []
 
   const leadListState = useMemo<LeadListState>(() => ({
+    staffScope,
+    staffScopeOwner,
     search,
     status,
     statusReasonFilter,
@@ -658,15 +681,15 @@ export default function LeadsPage() {
     quickFilter,
     viewMode,
     sortConfig,
-  }), [search, status, statusReasonFilter, source, interest, temperature, datePreset, createdFrom, createdTo, quickFilter, viewMode, sortConfig])
+  }), [staffScope, staffScopeOwner, search, status, statusReasonFilter, source, interest, temperature, datePreset, createdFrom, createdTo, quickFilter, viewMode, sortConfig])
 
-  const leadListHref = useMemo(() => buildLeadListHref(leadListState), [leadListState])
+  const leadListHref = useMemo(() => buildLeadListHref(leadListState, staffScopeMetadata ? undefined : unvalidatedScopeQuery), [leadListState, staffScopeMetadata, unvalidatedScopeQuery])
 
   useEffect(() => {
-    if (!urlStateReady || typeof window === 'undefined') return
+    if (!urlStateReady || !staffScopeReady || typeof window === 'undefined') return
     const currentHref = `${window.location.pathname}${window.location.search}`
-    if (currentHref !== leadListHref) window.history.replaceState(null, '', leadListHref)
-  }, [urlStateReady, leadListHref])
+    if (currentHref !== leadListHref) window.history.replaceState(window.history.state, '', leadListHref)
+  }, [urlStateReady, staffScopeReady, staffScopeMetadata, leadListHref])
 
   function leadHref(id: string) {
     return `/leads/${id}?backTo=${encodeURIComponent(leadListHref)}`
@@ -1674,6 +1697,7 @@ export default function LeadsPage() {
         responsibleName={leadResponsibleName}
         restrictedAccess={restrictedAccess}
         staffScope={staffScope}
+        staffScopeMetadata={staffScopeMetadata}
         setStaffScope={setStaffScope}
         selectedCount={selectedLeadCount}
         currentPageCount={currentPageLeadIds.length}
@@ -1847,7 +1871,7 @@ export default function LeadsPage() {
             {leadInterests.map(item => <option key={item} value={item}>{item}</option>)}
           </select>
           <div className="lead-staff-scope-control">
-            <StaffScopeControl value={staffScope} onChange={setStaffScope} employees={employees} restricted={restrictedAccess} lang={lang} collapsedValueLabel />
+            <StaffScopeControl metadata={staffScopeMetadata} value={staffScope} onChange={setStaffScope} employees={employees} restricted={restrictedAccess} lang={lang} collapsedValueLabel />
           </div>
           <div ref={colMenuRef} className="lead-columns-control" style={{ position: 'relative' }}>
             <button

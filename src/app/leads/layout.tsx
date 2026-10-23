@@ -1,6 +1,6 @@
 // src/app/leads/layout.tsx
 import { redirect } from 'next/navigation'
-import { getUser } from '@/lib/auth'
+import { getOrganizationId, getUser } from '@/lib/auth'
 import Sidebar from '@/components/layout/Sidebar'
 import MobileNav from '@/components/layout/MobileNav'
 import LanguageProvider from '@/components/AuthenticatedUIProvider'
@@ -23,7 +23,7 @@ export default async function LeadsLayout({ children }: { children: React.ReactN
         />
         <div className="main-content" style={{ flex: 1 }}>
           {isConferenceDemoSession(user) && <ConferenceDemoBar />}
-          <LeadMobileAccessProvider restrictedAccess={user.restrictedAccess === true}>
+          <LeadMobileAccessProvider key={JSON.stringify([user.id, getOrganizationId(user)])} userId={Number(user.id)} organizationId={getOrganizationId(user)} restrictedAccess={user.restrictedAccess === true}>
             {children}
           </LeadMobileAccessProvider>
         </div>
