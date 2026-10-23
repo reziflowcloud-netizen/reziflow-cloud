@@ -27,4 +27,7 @@ write('app/api/[...path]/route.js',`import {NextResponse} from 'next/server';imp
  return NextResponse.json(data)
 };export async function POST(){return NextResponse.json({error:'Read-only synthetic harness'}, {status:405})};export const PUT=POST;export const PATCH=POST;export const DELETE=POST;`)
 console.log('Frontend-only synthetic harness: http://127.0.0.1:3117/leads (no database, no authentication backend)')
-const result=cp.spawnSync(process.execPath,[path.join(root,'node_modules/next/dist/bin/next'),'dev',dir,'--hostname','127.0.0.1','--port','3117'],{cwd:root,env:{...process.env,NEXT_TELEMETRY_DISABLED:'1'},stdio:'inherit'});process.exit(result.status??1)
+const serverEnv={...process.env,NEXT_TELEMETRY_DISABLED:'1'}
+// Do not pass database/auth secrets to this frontend-only child process.
+for(const key of ['DATABASE_URL','DIRECT_URL','JWT_SECRET']) delete serverEnv[key]
+const result=cp.spawnSync(process.execPath,[path.join(root,'node_modules/next/dist/bin/next'),'dev',dir,'--hostname','127.0.0.1','--port','3117'],{cwd:root,env:serverEnv,stdio:'inherit'});process.exit(result.status??1)

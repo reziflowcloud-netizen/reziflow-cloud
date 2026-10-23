@@ -31,9 +31,9 @@ async function main() {
   const employee = async (name, organizationId, userId, active=true) => db.employee.create({data:{name,organizationId,userId,active}})
   const own = await employee('Synthetic Own',org.id,a.id), other = await employee('Synthetic Other',org.id,b.id), inactive=await employee('Synthetic Inactive',org.id,null,false), foreign=await employee('Synthetic Foreign',orgB.id,c.id)
   await employee('Synthetic Restricted',org.id,restricted.id)
-  await db.leadStatus.create({data:{name:'Новый',organizationId:org.id}})
+  await db.leadStatus.create({data:{name:'Новый',organizationId:org.id,requireReason:true,reasons:['QA Reason']}})
   for (const [name, assignedToId, employeeId] of [['Synthetic Mine',a.id,own.id],['Synthetic Team',b.id,other.id],['Synthetic Restricted',restricted.id,own.id]]) {
-    await db.lead.create({data:{organizationId:org.id,fullName:name,firstName:name,assignedToId,employeeId,status:'Новый',source:'manual',serviceInterest:'QA Interest'}})
+    await db.lead.create({data:{organizationId:org.id,fullName:name,firstName:name,assignedToId,employeeId,status:'Новый',source:'manual',serviceInterest:'QA Interest',urgency:'warm',statusReason:'QA Reason'}})
   }
   browser=await chromium.launch({headless:process.env.LEADS_QA_INTERACTIVE!=='1',executablePath:process.env.CHROMIUM_PATH || '/usr/bin/chromium',args:['--no-sandbox']})
   const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage()
@@ -43,9 +43,9 @@ async function main() {
   const scope=()=>page.locator('select[aria-label="Ответственный"]:visible,select[aria-label="Відповідальний"]:visible,select[aria-label="Odpowiedzialny"]:visible')
   const expectScope=async value=>{await scope().waitFor();await page.waitForFunction(value=>Array.from(document.querySelectorAll('select')).some(s=>s.getAttribute('aria-label')&&['Ответственный','Відповідальний','Odpowiedzialny'].includes(s.getAttribute('aria-label'))&&s.value===value),value);assert.equal(await scope().inputValue(),value)}
   const goto=async (query='')=>{await page.goto(origin+'/leads'+query);await scope().waitFor()}
-  const filters='&status='+encodeURIComponent('Новый')+'&source=manual&interest=QA+Interest&q=Synthetic&temperature=&period=all&quick=all&sort=lead&dir=desc'
+  const filters='&status='+encodeURIComponent('Новый')+'&source=manual&interest=QA+Interest&q=Synthetic&temperature=warm&period=custom&from=2026-01-01&to=2027-12-31&quick=no_next_contact&reason=QA+Reason&sort=lead&dir=desc'
   const urlFor=(value,who=a)=>'?'+new URLSearchParams({staffScope:value,staffScopeOwner:owner(who)})+filters
-  const checkFilters=()=>{const p=new URL(page.url()).searchParams;assert.equal(p.get('status'),'Новый');assert.equal(p.get('source'),'manual');assert.equal(p.get('interest'),'QA Interest');assert.equal(p.get('q'),'Synthetic');assert.equal(p.get('sort'),'lead');assert.equal(p.get('dir'),'desc')}
+  const checkFilters=()=>{const p=new URL(page.url()).searchParams;assert.equal(p.get('status'),'Новый');assert.equal(p.get('source'),'manual');assert.equal(p.get('interest'),'QA Interest');assert.equal(p.get('q'),'Synthetic');assert.equal(p.get('sort'),'lead');assert.equal(p.get('dir'),'desc');assert.equal(p.get('temperature'),'warm');assert.equal(p.get('period'),'custom');assert.equal(p.get('from'),'2026-01-01');assert.equal(p.get('to'),'2027-12-31');assert.equal(p.get('quick'),'no_next_contact');assert.equal(p.get('reason'),'QA Reason')}
   await login(a)
   if(process.env.LEADS_QA_INTERACTIVE==='1') { await goto(urlFor('mine'));await page.pause() }
   for (const value of ['all','mine',`employee:${other.id}`]) {
@@ -128,6 +128,16 @@ async function main() {
     await select.waitFor();assert.equal(await select.inputValue(),`employee:${other.id}`)
     const overflow=await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth);assert.equal(overflow,false)
     const file=`${width}-${lang}-${theme}.png`;await p.screenshot({path:path.join(out,file),fullPage:true})
+    if(width===390) {
+      await p.getByRole('dialog').getByRole('button',{name:/Показать/}).click()
+      for(const mode of ['app','browser']) {
+        await p.getByText('Synthetic Team',{exact:true}).filter({visible:true}).first().click();await p.waitForURL('**/leads/*')
+        if(mode==='app') await p.getByRole('button',{name:'Назад',exact:true}).click();else await p.goBack()
+        await p.getByRole('button',{name:'Фильтры',exact:true}).click();await select.waitFor();assert.equal(await select.inputValue(),`employee:${other.id}`)
+        await p.getByRole('dialog').getByRole('button',{name:/Показать/}).click()
+      }
+      report.checks.push('mobile 390: actual detail in-app Back and browser Back preserve employee')
+    }
     report.matrix.push({width,lang,theme,selection:'employee',reload:'PASS',overflow:false,screenshot:file});await ctx.close()
   }
   assert.deepEqual(report.errors,[])

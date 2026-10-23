@@ -320,6 +320,7 @@ export default function LeadsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [bulkSaving, setBulkSaving] = useState(false)
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
+  const [leadStatusesReady, setLeadStatusesReady] = useState(false)
   const [leadSources, setLeadSources] = useState<LeadSourceOption[]>(LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true })))
   const [editingStatuses, setEditingStatuses] = useState(false)
   const [deletingStatusId, setDeletingStatusId] = useState<number | null>(null)
@@ -443,8 +444,9 @@ export default function LeadsPage() {
 
   useEffect(() => {
     fetch('/api/lead-statuses', { cache: 'no-store' })
-      .then(res => res.json())
-      .then(data => setLeadStatuses(Array.isArray(data) ? data : []))
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (Array.isArray(data)) { setLeadStatuses(data); setLeadStatusesReady(true) } })
+      .catch(() => { /* Keep URL reason until status metadata can validate it. */ })
     fetch('/api/employees')
       .then(res => res.json())
       .then(data => setEmployees(Array.isArray(data) ? data.filter((item: any) => item.active) : []))
@@ -600,8 +602,9 @@ export default function LeadsPage() {
   useEffect(() => {
     if (!statusReasonFilter) return
     if (status && !selectedStatusConfig && leadStatuses.length === 0) return
+    if (!leadStatusesReady) return
     if (!showStatusReasons || !selectedStatusReasons.includes(statusReasonFilter)) setStatusReasonFilter('')
-  }, [status, selectedStatusConfig, leadStatuses.length, showStatusReasons, statusReasonFilter, selectedStatusReasons.join('|')])
+  }, [leadStatusesReady, status, selectedStatusConfig, leadStatuses.length, showStatusReasons, statusReasonFilter, selectedStatusReasons.join('|')])
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {}
