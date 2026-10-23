@@ -195,6 +195,7 @@ export default function CaseDetailPage() {
         mosNumber: data.mosNumber || '',
         mosSentAt: data.mosSentAt?.slice(0, 10) || '',
         mosSentByPost: data.mosSentByPost || false,
+        decisionReceived: data.decisionReceived === true,
         predictedDecisionDate: data.predictedDecisionDate?.slice(0, 10) || '',
         fingerprintsDate: data.fingerprintsDate?.slice(0, 10) || '',
         cabinetLogin: data.cabinetLogin || '',
@@ -1454,6 +1455,10 @@ export default function CaseDetailPage() {
                       <label className="label">{t('predicted_decision_date')}</label>
                       <input className="input" type="date" value={form.predictedDecisionDate || ''} onChange={e => set('predictedDecisionDate', e.target.value)} />
                     </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                      <input type="checkbox" style={{ width: 16, height: 16, flexShrink: 0, accentColor: 'var(--brand)' }} checked={form.decisionReceived === true} onChange={e => set('decisionReceived', e.target.checked)} />
+                      {t('decision_received')}
+                    </label>
                   </div>
 
                   <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, marginTop: 14 }}>

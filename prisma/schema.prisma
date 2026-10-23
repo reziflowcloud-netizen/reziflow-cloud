@@ -541,6 +541,7 @@ model Case {
   mosSentAt             DateTime?
   mosSentByPost         Boolean          @default(false)
   predictedDecisionDate DateTime?
+  decisionReceived      Boolean          @default(false)
   fingerprintsDate      DateTime?
   cabinetLogin          String?
   cabinetPassword       String?

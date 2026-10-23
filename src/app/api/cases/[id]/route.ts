@@ -239,6 +239,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (has('mosNumber')) baseData.mosNumber = body.mosNumber || null
     if (has('mosSentAt')) baseData.mosSentAt = nullableDate('mosSentAt')
     if (has('mosSentByPost')) baseData.mosSentByPost = body.mosSentByPost ?? false
+    if (has('decisionReceived')) {
+      if (typeof body.decisionReceived !== 'boolean') return NextResponse.json({ error: 'Invalid decision received value' }, { status: 400 })
+      baseData.decisionReceived = body.decisionReceived
+    }
     if (has('predictedDecisionDate')) baseData.predictedDecisionDate = nullableDate('predictedDecisionDate')
     if (has('fingerprintsDate')) baseData.fingerprintsDate = nullableDate('fingerprintsDate')
     if (has('cabinetLogin')) baseData.cabinetLogin = body.cabinetLogin || null
