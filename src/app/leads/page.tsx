@@ -17,7 +17,7 @@ import LeadsMobile from './LeadsMobile'
 import { useLeadMobileAccess } from './LeadMobileAccessContext'
 import StaffScopeControl from '@/components/StaffScopeControl'
 import type { StaffScopeValue } from '@/lib/staffScope'
-import { parseLeadScope } from '@/lib/leadScopePersistence'
+import { parseLeadScope, writeLeadScopeQuery, type LeadScopeQuery } from '@/lib/leadScopePersistence'
 import { useLeadScopePersistence } from '@/hooks/useLeadScopePersistence'
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
@@ -133,12 +133,13 @@ function parseLeadListState(params: URLSearchParams): LeadListState {
   }
 }
 
-function buildLeadListQuery(state: LeadListState) {
+function buildLeadListQuery(state: LeadListState, unvalidatedScopeQuery?: LeadScopeQuery) {
   const params = new URLSearchParams()
   if (state.staffScopeOwner) {
     params.set('staffScope', state.staffScope)
     params.set('staffScopeOwner', state.staffScopeOwner)
   }
+  if (unvalidatedScopeQuery) writeLeadScopeQuery(params, unvalidatedScopeQuery)
   const search = state.search.trim()
   if (search) params.set('q', search)
   if (state.status) params.set('status', state.status)
@@ -161,8 +162,8 @@ function buildLeadListQuery(state: LeadListState) {
   return params.toString()
 }
 
-function buildLeadListHref(state: LeadListState) {
-  const query = buildLeadListQuery(state)
+function buildLeadListHref(state: LeadListState, unvalidatedScopeQuery?: LeadScopeQuery) {
+  const query = buildLeadListQuery(state, unvalidatedScopeQuery)
   return query ? `/leads?${query}` : '/leads'
 }
 
@@ -311,7 +312,7 @@ export default function LeadsPage() {
   const [createdTo, setCreatedTo] = useState(DEFAULT_LEAD_LIST_STATE.createdTo)
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(DEFAULT_LEAD_LIST_STATE.quickFilter)
   const [employees, setEmployees] = useState<any[]>([])
-  const { staffScope, setStaffScope, staffScopeReady, staffScopeMetadata, staffScopeOwner } = useLeadScopePersistence(userId, organizationId, restrictedAccess)
+  const { staffScope, setStaffScope, staffScopeReady, staffScopeMetadata, staffScopeOwner, unvalidatedScopeQuery } = useLeadScopePersistence(userId, organizationId, restrictedAccess)
   const leadRequestRef = useRef(0)
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
   const [allFilteredSelected, setAllFilteredSelected] = useState(false)
@@ -679,10 +680,10 @@ export default function LeadsPage() {
     sortConfig,
   }), [staffScope, staffScopeOwner, search, status, statusReasonFilter, source, interest, temperature, datePreset, createdFrom, createdTo, quickFilter, viewMode, sortConfig])
 
-  const leadListHref = useMemo(() => buildLeadListHref(leadListState), [leadListState])
+  const leadListHref = useMemo(() => buildLeadListHref(leadListState, staffScopeMetadata ? undefined : unvalidatedScopeQuery), [leadListState, staffScopeMetadata, unvalidatedScopeQuery])
 
   useEffect(() => {
-    if (!urlStateReady || !staffScopeReady || !staffScopeMetadata || typeof window === 'undefined') return
+    if (!urlStateReady || !staffScopeReady || typeof window === 'undefined') return
     const currentHref = `${window.location.pathname}${window.location.search}`
     if (currentHref !== leadListHref) window.history.replaceState(window.history.state, '', leadListHref)
   }, [urlStateReady, staffScopeReady, staffScopeMetadata, leadListHref])

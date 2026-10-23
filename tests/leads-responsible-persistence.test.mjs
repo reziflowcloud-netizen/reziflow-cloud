@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { leadScopeOwner, leadScopeStorageKey, parseLeadScope, validateLeadScope, restoreLeadScope, readLeadScope, writeLeadScope } from '../src/lib/leadScopePersistence.ts'
+import { leadScopeOwner, leadScopeStorageKey, parseLeadScope, validateLeadScope, restoreLeadScope, readLeadScope, writeLeadScope, readLeadScopeQuery, writeLeadScopeQuery } from '../src/lib/leadScopePersistence.ts'
 
 const metadata = { userId: 7, organizationId: 'qa-a', restricted: false, controlVisible: true, mineAvailable: true, employees: [{id: 11, name: 'Synthetic'}] }
 const owner = leadScopeOwner(metadata.userId, metadata.organizationId)
@@ -49,4 +49,17 @@ test('storage is optional and malformed entries are ignored', () => {
   writeLeadScope(owner,'mine',storage)
   assert.equal(readLeadScope(owner,storage),'mine')
   assert.equal(readLeadScope(leadScopeOwner(8,'qa-a'),storage),null)
+})
+
+test('metadata outage preserves exact scope binding or absence while other filters change', () => {
+  for (const raw of ['', 'staffScope=mine', new URLSearchParams({staffScope:'employee:11',staffScopeOwner:owner}).toString(), new URLSearchParams({staffScope:'mine',staffScopeOwner:leadScopeOwner(8,'qa-b')}).toString()]) {
+    const original = new URLSearchParams(raw)
+    const rebuilt = new URLSearchParams({status:'changed',source:'manual',interest:'QA',staffScope:'all',staffScopeOwner:owner})
+    writeLeadScopeQuery(rebuilt,readLeadScopeQuery(original))
+    assert.deepEqual(readLeadScopeQuery(rebuilt),readLeadScopeQuery(original))
+    assert.equal(rebuilt.get('status'),'changed')
+    assert.equal(rebuilt.get('interest'),'QA')
+    const detail = new URL('http://localhost/leads/qa?backTo='+encodeURIComponent('/leads?'+rebuilt))
+    assert.deepEqual(readLeadScopeQuery(new URL('http://localhost'+detail.searchParams.get('backTo')).searchParams),readLeadScopeQuery(original))
+  }
 })
