@@ -1,0 +1,74 @@
+{
+  "checks": [
+    "desktop all: reload, in-app Back, browser Back, other filters",
+    "desktop mine: reload, in-app Back, browser Back, other filters",
+    "desktop employee:27: reload, in-app Back, browser Back, other filters",
+    "switching all/mine/employee updates current URL and storage",
+    "delayed metadata preserves Mine and blocks premature lead requests/storage overwrites",
+    "late previous All request cannot replace current Mine results",
+    "metadata failure: filter changes persist, scope URL/storage/backTo untouched, Mine returns after recovery",
+    "account/org switches and old URLs isolate selections; original namespace restores",
+    "inactive/deleted/foreign employee, revoked employee, unavailable Mine and restricted server access",
+    "malformed/unavailable storage: validated URL still survives reload",
+    "mobile 390: actual detail in-app Back and browser Back preserve employee"
+  ],
+  "matrix": [
+    {
+      "width": 1024,
+      "lang": "ru",
+      "theme": "light",
+      "selection": "employee",
+      "reload": "PASS",
+      "overflow": false,
+      "screenshot": "1024-ru-light.png"
+    },
+    {
+      "width": 1440,
+      "lang": "uk",
+      "theme": "dark",
+      "selection": "employee",
+      "reload": "PASS",
+      "overflow": false,
+      "screenshot": "1440-uk-dark.png"
+    },
+    {
+      "width": 1440,
+      "lang": "pl",
+      "theme": "slate",
+      "selection": "employee",
+      "reload": "PASS",
+      "overflow": false,
+      "screenshot": "1440-pl-slate.png"
+    },
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "dark",
+      "selection": "employee",
+      "reload": "PASS",
+      "overflow": false,
+      "screenshot": "390-ru-dark.png"
+    },
+    {
+      "width": 414,
+      "lang": "uk",
+      "theme": "slate",
+      "selection": "employee",
+      "reload": "PASS",
+      "overflow": false,
+      "screenshot": "414-uk-slate.png"
+    },
+    {
+      "width": 430,
+      "lang": "pl",
+      "theme": "light",
+      "selection": "employee",
+      "reload": "PASS",
+      "overflow": false,
+      "screenshot": "430-pl-light.png"
+    }
+  ],
+  "errors": [],
+  "isolation": "empty localhost-only dedicated QA DB; synthetic fixtures only",
+  "result": "PASS"
+}

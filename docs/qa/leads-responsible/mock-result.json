@@ -1,0 +1,11 @@
+{
+  "result": "PASS",
+  "mode": "frontend-only actual components / synthetic API, no DB/server auth",
+  "checks": [
+    "Mine reload",
+    "in-app Back",
+    "same-tab identity switch",
+    "metadata failure preserves filters/scope/storage/backTo"
+  ],
+  "errors": []
+}
