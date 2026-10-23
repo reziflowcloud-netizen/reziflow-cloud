@@ -1,0 +1,7 @@
+const assert=require('assert/strict'),fs=require('fs'),{PrismaClient:Old}=require('../node_modules/.cache/decision-old-client'),{PrismaClient:New}=require('@prisma/client');
+const url=new URL(process.env.DATABASE_URL);assert.equal(url.hostname,'127.0.0.1');assert.equal(url.port,'55434');assert.equal(url.pathname,'/decision_legacy_qa');
+const db=process.argv[2]==='before'?new Old():new New();
+(async()=>{if(process.argv[2]==='before'){
+const org=await db.organization.create({data:{name:'Synthetic pre-migration',slug:'synthetic-pre'}});const client=await db.client.create({data:{organizationId:org.id,firstName:'Synthetic',lastName:'Legacy'}});
+const record=await db.case.create({data:{organizationId:org.id,clientId:client.id,mosNumber:'LEGACY-MOS',mosSentByPost:true,mosSentAt:new Date('2026-01-02'),predictedDecisionDate:new Date('2027-02-03'),cabinetLogin:'synthetic-only',notes:'Legacy values retained',status:'Новый'}});fs.writeFileSync('work/decision-legacy-before.json',JSON.stringify(record));console.log('PASS legacy row inserted before additive migration');
+}else{const before=JSON.parse(fs.readFileSync('work/decision-legacy-before.json'));const now=JSON.parse(JSON.stringify(await db.case.findUniqueOrThrow({where:{id:before.id}})));assert.equal(now.decisionReceived,false);delete now.decisionReceived;assert.deepEqual(now,before);console.log('PASS all legacy fields and updatedAt unchanged; default false');}})().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>db.$disconnect());

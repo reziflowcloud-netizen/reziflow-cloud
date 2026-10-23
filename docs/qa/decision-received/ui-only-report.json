@@ -1,0 +1,59 @@
+{
+  "mode": "UI-only actual components; server-memory synthetic API; no DB/security evidence",
+  "matrix": [
+    {
+      "width": 1440,
+      "lang": "ru",
+      "theme": "light",
+      "trueFalseReloadReopen": "PASS",
+      "belowDate": true,
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "lang": "uk",
+      "theme": "dark",
+      "trueFalseReloadReopen": "PASS",
+      "belowDate": true,
+      "overflow": false
+    },
+    {
+      "width": 1024,
+      "lang": "pl",
+      "theme": "slate",
+      "trueFalseReloadReopen": "PASS",
+      "belowDate": true,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "dark",
+      "trueFalseReloadReopen": "PASS",
+      "belowDate": true,
+      "overflow": false
+    },
+    {
+      "width": 414,
+      "lang": "uk",
+      "theme": "slate",
+      "trueFalseReloadReopen": "PASS",
+      "belowDate": true,
+      "overflow": false
+    },
+    {
+      "width": 430,
+      "lang": "pl",
+      "theme": "light",
+      "trueFalseReloadReopen": "PASS",
+      "belowDate": true,
+      "overflow": false
+    }
+  ],
+  "checks": [
+    "mock stale CAS; actual UI conflict state",
+    "mock failure retains actual UI draft; retry persists"
+  ],
+  "errors": [],
+  "result": "PASS"
+}

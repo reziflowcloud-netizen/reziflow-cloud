@@ -1,0 +1,73 @@
+{
+  "checks": [
+    "old Prisma create/read/write on expanded DB; default false",
+    "true persisted; omitted field preserves true; 7 invalid booleans rejected atomically; stale CAS 409; MOS/date/status unchanged; zero Task/notification changes",
+    "second authorized user visibility; restricted non-owner/foreign tenant GET+PATCH 404; anonymous PATCH rejected/redirected before handler",
+    "failed autosave retains unchecked draft, DB checked; explicit retry persists false",
+    "mobile predicted date autosave, important-date summary and both existing reminder kinds preserved; receipt-only patches change zero populated reminder/notification rows; colleague sees false"
+  ],
+  "matrix": [
+    {
+      "width": 1440,
+      "lang": "ru",
+      "theme": "light",
+      "autosaveTrueFalse": true,
+      "reloadReopen": true,
+      "minimalPatch": true,
+      "overflow": false,
+      "screenshot": "1440-ru-light.png"
+    },
+    {
+      "width": 1440,
+      "lang": "uk",
+      "theme": "dark",
+      "autosaveTrueFalse": true,
+      "reloadReopen": true,
+      "minimalPatch": true,
+      "overflow": false,
+      "screenshot": "1440-uk-dark.png"
+    },
+    {
+      "width": 1024,
+      "lang": "pl",
+      "theme": "slate",
+      "autosaveTrueFalse": true,
+      "reloadReopen": true,
+      "minimalPatch": true,
+      "overflow": false,
+      "screenshot": "1024-pl-slate.png"
+    },
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "dark",
+      "autosaveTrueFalse": true,
+      "reloadReopen": true,
+      "minimalPatch": true,
+      "overflow": false,
+      "screenshot": "390-ru-dark.png"
+    },
+    {
+      "width": 414,
+      "lang": "uk",
+      "theme": "slate",
+      "autosaveTrueFalse": true,
+      "reloadReopen": true,
+      "minimalPatch": true,
+      "overflow": false,
+      "screenshot": "414-uk-slate.png"
+    },
+    {
+      "width": 430,
+      "lang": "pl",
+      "theme": "light",
+      "autosaveTrueFalse": true,
+      "reloadReopen": true,
+      "minimalPatch": true,
+      "overflow": false,
+      "screenshot": "430-pl-light.png"
+    }
+  ],
+  "errors": [],
+  "result": "PASS"
+}
