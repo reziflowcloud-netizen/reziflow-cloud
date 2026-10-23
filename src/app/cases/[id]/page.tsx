@@ -1454,11 +1454,11 @@ export default function CaseDetailPage() {
                     <div className="form-group" style={{ maxWidth: 360 }}>
                       <label className="label">{t('predicted_decision_date')}</label>
                       <input className="input" type="date" value={form.predictedDecisionDate || ''} onChange={e => set('predictedDecisionDate', e.target.value)} />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, cursor: 'pointer' }}>
+                        <input type="checkbox" style={{ width: 16, height: 16, flexShrink: 0, accentColor: 'var(--brand)' }} checked={form.decisionReceived === true} onChange={e => set('decisionReceived', e.target.checked)} />
+                        {t('decision_received')}
+                      </label>
                     </div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                      <input type="checkbox" style={{ width: 16, height: 16, flexShrink: 0, accentColor: 'var(--brand)' }} checked={form.decisionReceived === true} onChange={e => set('decisionReceived', e.target.checked)} />
-                      {t('decision_received')}
-                    </label>
                   </div>
 
                   <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, marginTop: 14 }}>
