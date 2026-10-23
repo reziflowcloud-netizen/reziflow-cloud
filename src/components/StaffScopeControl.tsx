@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { StaffScopeValue } from '@/lib/staffScope'
+import type { LeadScopeMetadata } from '@/lib/leadScopePersistence'
 import type { Lang } from '@/lib/translations'
 
 type EmployeeOption = { id: number; name: string }
@@ -14,6 +15,7 @@ const COPY = {
 
 export default function StaffScopeControl({
   value,
+  metadata,
   onChange,
   employees,
   restricted = false,
@@ -22,6 +24,7 @@ export default function StaffScopeControl({
   collapsedValueLabel = false,
 }: {
   value: StaffScopeValue
+  metadata?: LeadScopeMetadata | null
   onChange: (value: StaffScopeValue) => void
   employees: EmployeeOption[]
   restricted?: boolean
@@ -30,11 +33,16 @@ export default function StaffScopeControl({
   collapsedValueLabel?: boolean
 }) {
   const copy = COPY[lang] || COPY.ru
-  const [mineAvailable, setMineAvailable] = useState(restricted)
-  const [controlVisible, setControlVisible] = useState<boolean | null>(null)
+  const [fetchedMineAvailable, setMineAvailable] = useState(restricted)
+  const [fetchedControlVisible, setControlVisible] = useState<boolean | null>(null)
+
+  const mineAvailable = metadata === undefined ? fetchedMineAvailable : metadata?.mineAvailable === true
+  const controlVisible = metadata === undefined ? fetchedControlVisible : metadata?.controlVisible ?? null
 
   useEffect(() => {
+    if (metadata !== undefined) return
     let active = true
+    setControlVisible(null)
     fetch('/api/staff-scope', { cache: 'no-store' })
       .then(response => response.ok ? response.json() : null)
       .then(data => {
@@ -48,13 +56,13 @@ export default function StaffScopeControl({
         setControlVisible(true)
       })
     return () => { active = false }
-  }, [restricted])
+  }, [restricted, metadata])
 
   useEffect(() => {
-    if (restricted) return
+    if (restricted || controlVisible === null || metadata !== undefined) return
     if (controlVisible === false && value !== 'all') onChange('all')
     else if (!mineAvailable && value === 'mine') onChange('all')
-  }, [controlVisible, mineAvailable, onChange, restricted, value])
+  }, [controlVisible, mineAvailable, onChange, restricted, value, metadata])
 
   if (controlVisible !== true) return null
 
