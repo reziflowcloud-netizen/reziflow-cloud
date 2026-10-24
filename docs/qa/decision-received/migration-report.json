@@ -1,0 +1,23 @@
+{
+  "base": "2cfa567b7d638682b551088df2274df51096bd7e",
+  "empty_database": {
+    "applied": 52,
+    "failed": 0,
+    "pending": 0
+  },
+  "legacy_upgrade": {
+    "base_applied": 51,
+    "newly_applied": 1,
+    "final_applied": 52,
+    "failed": 0,
+    "pending": 0,
+    "all_prior_case_fields_unchanged": true,
+    "updatedAt_unchanged": true,
+    "decisionReceived": false
+  },
+  "base_migration_files_byte_identical": 52,
+  "old_prisma_create_read_write": "PASS",
+  "exact_old_application_get_legacy_patch_ui": "PASS",
+  "prisma_validate": "PASS",
+  "production_operations": 0
+}

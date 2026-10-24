@@ -6,7 +6,7 @@ export const CASE_AUTOSAVE_FIELDS = new Set([
   'cardPickupDate', 'cardPickupTime', 'cardPickupLocation', 'legalStayDeadline', 'notes',
   'trustee', 'employeeId', 'workContractType', 'workContractNumber', 'workContractDate',
   'workContractEndDate', 'workContractSigned', 'staySubPurpose',
-  'filingDate', 'mosSentAt', 'fingerprintsDate', 'predictedDecisionDate',
+  'filingDate', 'mosSentAt', 'fingerprintsDate', 'predictedDecisionDate', 'decisionReceived',
 ])
 const canAutosave = (key: string) => CASE_AUTOSAVE_FIELDS.has(key) || /^custom:\d+$/.test(key)
 // Financial values and credentials stay explicit.
