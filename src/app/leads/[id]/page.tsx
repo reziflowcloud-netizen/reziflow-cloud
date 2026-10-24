@@ -216,7 +216,7 @@ export default function LeadDetailPage() {
   }, [services, lead?.serviceInterest, convertForm.serviceId])
 
   const messageLoadRef = useRef(0)
-  useMetaMessageAck(dialogRef, String(id), messageSnapshot)
+  useMetaMessageAck(dialogRef, String(id), messageSnapshot, lead?.id === String(id))
   async function loadMessages() {
     const generation = ++messageLoadRef.current
     const response = await fetch(`/api/leads/${id}/messages`, { cache: 'no-store' })
@@ -239,7 +239,7 @@ export default function LeadDetailPage() {
       conversationOpenedRef.current = navigation
       dialogRef.current.scrollIntoView({ block: 'center' })
     }
-  }, [id, conversationSearch, messageSnapshot])
+  }, [id, conversationSearch, messageSnapshot, lead?.id])
 
   useEffect(() => {
     const dialog = dialogRef.current

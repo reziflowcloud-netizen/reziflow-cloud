@@ -220,7 +220,7 @@ export default function NotificationCenter() {
         <div className={styles.toolbar}><button disabled={!unread || loading} onClick={() => void markRead()}>{copy.markAll}</button><Link href="/settings/notifications" onClick={async event => { event.preventDefault(); if (await prepareScreenLeave()) window.location.assign('/settings/notifications') }}>{copy.settings}</Link></div>
         <div className={styles.list} aria-busy={loading}>
           {error && <p role="alert" className={styles.error}>{copy.error}</p>}
-          {!items.length && <p className={styles.empty}>{loading ? copy.loading : copy.empty}</p>}
+          {!items.length && !meta.length && <p className={styles.empty}>{loading ? copy.loading : copy.empty}</p>}
           {items.map(item => <article key={item.id} className={`${styles.item} ${!item.readAt ? styles.unread : ''}`}>
             <span className={`${styles.eventIcon} ${item.type === 'task_overdue' ? styles.urgent : item.type === 'case_date' || item.type === 'task_due' ? styles.upcoming : ''}`} aria-hidden="true">{item.type.startsWith('task') ? '✓' : item.type === 'case_date' ? '◷' : '↗'}</span>
             <div className={styles.itemCopy}><a href={`/notifications/open/${item.id}`} onClick={async event => { event.preventDefault(); if (await prepareScreenLeave()) window.location.assign(`/notifications/open/${item.id}`) }}><strong>{copy.events[item.type] || item.title}</strong><p>{item.body}</p></a><time dateTime={item.createdAt} title={new Date(item.createdAt).toLocaleString(lang, { timeZone: 'Europe/Warsaw' })}>{timestamp(item.createdAt)}</time>{item.readAt ? <span className={styles.readState}> · {copy.read}</span> : <button className={styles.markRead} onClick={() => void markRead(item.id)}>{copy.markRead}</button>}</div>

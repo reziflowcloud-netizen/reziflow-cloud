@@ -2075,7 +2075,7 @@ export default function LeadsPage() {
                               <div className="lead-table-person">
                                 <div className="lead-table-person-name" style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13 }}>
                                   {temp && <span title={leadTemperatureLabel(lang, lead.urgency)} style={{ width: 8, height: 8, borderRadius: 999, background: temp.color, flex: '0 0 auto' }} />}
-                                  <span>{leadDisplayName(lead)}</span><MetaUnreadBadge lead={lead} lang={lang} />
+                                  <span style={{ minWidth: 0, flex: '1 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{leadDisplayName(lead)}</span><MetaUnreadBadge lead={lead} lang={lang} />
                                 </div>
                                 <div className="lead-table-person-contact" style={{ fontSize: 12, color: 'var(--muted)' }}>{lead.phone || lead.email || lead.instagram || lead.facebook || lt('contact_not_set')}</div>
                               </div>
