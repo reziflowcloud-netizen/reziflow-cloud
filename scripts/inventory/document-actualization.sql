@@ -1,8 +1,10 @@
 -- TRUSTED OPERATOR ONLY. Aggregate inventory; does not activate or mutate Cases.
--- psql "$TRUSTED_OPERATOR_CONNECTION" -X --set=ON_ERROR_STOP=1 --file=this-file
+-- Configure an existing trusted read-only connection privately, then:
+-- psql -X --set=ON_ERROR_STOP=1 --file=scripts/inventory/document-actualization.sql
 -- Do not paste credentials/results containing customer data. Output is counts only.
 BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
 SET LOCAL statement_timeout = '30s';
+SET LOCAL search_path = pg_catalog, public;
 WITH dates AS (
   SELECT c.id, c."organizationId", c."decisionReceived", c."assignedToId", c."employeeId",
     (SELECT MAX(CASE WHEN d.date::time='00:00:00' THEN d.date::date

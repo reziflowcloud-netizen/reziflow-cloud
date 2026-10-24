@@ -12,7 +12,7 @@ function digest(dir) {
       const file = path.join(folder, entry.name)
       if (entry.isDirectory()) visit(file)
       else {
-        hash.update(path.relative(dir, file).replaceAll('\\', '/') + '\0')
+        hash.update(path.relative(dir, file).split(path.sep).join('/') + '\0')
         hash.update(fs.readFileSync(file))
         hash.update('\0')
       }

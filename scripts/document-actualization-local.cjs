@@ -23,9 +23,11 @@ if (process.argv[2]?.startsWith('build')) {
 const src = path.join(app, 'src')
 if (fs.existsSync(src) && fs.lstatSync(src).isSymbolicLink()) fs.unlinkSync(src)
 if (['dev', 'build', 'build-prepare', 'typecheck'].includes(process.argv[2])) {
-  fs.rmSync(src, { recursive: true, force: true })
-  fs.cpSync(path.join(root, 'src'), src, { recursive: true })
   const digest = require('./actualization-source-evidence.cjs').digest
+  if (!fs.existsSync(src) || digest(src) !== digest(path.join(root, 'src'))) {
+    fs.rmSync(src, { recursive: true, force: true })
+    fs.cpSync(path.join(root, 'src'), src, { recursive: true })
+  }
   if (digest(src) !== digest(path.join(root, 'src'))) throw Error('Source snapshot mismatch')
   fs.writeFileSync(
     path.join(app, 'source-digest.json'),

@@ -52,6 +52,11 @@ const getRecord = (id) =>
 const contexts = []
 async function main() {
   report.source = sourceEvidence()
+  // Quiesce only this runner's failed-run synthetic tenants in the dedicated local DB.
+  await db.organization.updateMany({
+    where: { name: 'Synthetic Actualization QA', slug: { startsWith: 'actualization-' } },
+    data: { notificationAutomationEnabled: false },
+  })
   const org = await db.organization.create({
       data: { name: 'Synthetic Actualization QA', slug: 'actualization-' + suffix },
     }),
@@ -724,6 +729,202 @@ async function main() {
         0,
       )
       assert.equal(sends, 1)
+      await db.case.update({ where: { id: c3.id }, data: { decisionReceived: true } })
+      await sync(c3.id)
+    },
+  )
+  await run(
+    'personal event preferences, push opt-out and activation watermark do not suppress Task creation',
+    async () => {
+      await db.organization.update({
+        where: { id: org.id },
+        data: { notificationAutomationEnabled: true, notificationAutomationActivatedAt: since },
+      })
+      await db.notificationPreference.update({
+        where: { id: preference.id },
+        data: {
+          events: {
+            task_due: { inApp: false, push: false },
+            task_overdue: { inApp: false, push: false },
+          },
+          pushEnabled: true,
+        },
+      })
+      const c = await newCase({ predictedDecisionDate: base })
+      await sync(c.id, true)
+      const t = (await control(c))[0]
+      await evaluateNotificationPage({ kind: 'task', after: '' }, now, db)
+      assert.equal(await db.notification.count({ where: { entityId: t.id } }), 0)
+      await db.case.update({ where: { id: c.id }, data: { decisionReceived: true } })
+      await sync(c.id)
+      await db.notificationPreference.update({
+        where: { id: preference.id },
+        data: { events: {}, pushEnabled: false },
+      })
+      const c2 = await newCase({ predictedDecisionDate: base })
+      await sync(c2.id, true)
+      const t2 = (await control(c2))[0]
+      await evaluateNotificationPage({ kind: 'task', after: '' }, now, db)
+      const n = await db.notification.findFirstOrThrow({ where: { entityId: t2.id } })
+      assert.equal(n.pushRequested, false)
+      assert.equal(
+        await db.notificationPushDelivery.count({ where: { notification: { entityId: t2.id } } }),
+        0,
+      )
+      await db.case.update({ where: { id: c2.id }, data: { decisionReceived: true } })
+      await sync(c2.id)
+      await db.organization.update({
+        where: { id: org.id },
+        data: { notificationAutomationActivatedAt: now },
+      })
+      const c3 = await newCase({ predictedDecisionDate: base })
+      await sync(c3.id, true)
+      const t3 = (await control(c3))[0]
+      await evaluateNotificationPage({ kind: 'task', after: '' }, now, db)
+      assert.equal(await db.notification.count({ where: { entityId: t3.id } }), 0)
+      await db.case.update({ where: { id: c3.id }, data: { decisionReceived: true } })
+      await sync(c3.id)
+      await db.organization.update({
+        where: { id: org.id },
+        data: { notificationAutomationActivatedAt: since },
+      })
+      await db.notificationPreference.update({
+        where: { id: preference.id },
+        data: { pushEnabled: true },
+      })
+    },
+  )
+  await run(
+    'a failed real provider attempt becomes retry outbox then stop cancels it permanently',
+    async () => {
+      const c = await newCase({ predictedDecisionDate: base })
+      await sync(c.id, true)
+      const t = (await control(c))[0],
+        q = await queue(t)
+      let attempts = 0
+      assert.equal(
+        (
+          await deliverNotificationPush(
+            db,
+            async () => {
+              attempts++
+              throw Error('Synthetic provider failure')
+            },
+            now,
+          )
+        ).delivered,
+        0,
+      )
+      const retry = await db.notificationPushDelivery.findUniqueOrThrow({
+        where: { id: q.delivery.id },
+      })
+      assert.equal(retry.attempts, 1)
+      assert.equal(retry.terminalAt, null)
+      assert.ok(retry.nextAttemptAt)
+      const loaded = await get(c.id)
+      assert.equal(
+        (
+          await patch(c.id, { decisionReceived: true, expectedUpdatedAt: loaded.updatedAt })
+        ).status(),
+        200,
+      )
+      assert.ok(
+        (await db.notificationPushDelivery.findUniqueOrThrow({ where: { id: q.delivery.id } }))
+          .terminalAt,
+      )
+      await deliverNotificationPush(
+        db,
+        async () => {
+          attempts++
+        },
+        new Date(now.getTime() + 7200000),
+      )
+      assert.equal(attempts, 1)
+    },
+  )
+  await run(
+    'locked real delivery revalidates the current notification occurrence after early checks',
+    async () => {
+      const c = await newCase({ predictedDecisionDate: base })
+      await sync(c.id, true)
+      const t = (await control(c))[0],
+        q = await queue(t)
+      let intercepted = false,
+        calls = 0
+      const proxy = new Proxy(db, {
+        get(target, key) {
+          if (key === '$transaction')
+            return async (fn, options) => {
+              if (!intercepted) {
+                intercepted = true
+                await db.notification.update({
+                  where: { id: q.n.id },
+                  data: { dedupeKey: 'task_due:task:' + t.id + ':1900-01-01:default' },
+                })
+              }
+              return db.$transaction(fn, options)
+            }
+          const v = target[key]
+          return typeof v === 'function' ? v.bind(target) : v
+        },
+      })
+      assert.equal(
+        (
+          await deliverNotificationPush(
+            proxy,
+            async () => {
+              calls++
+            },
+            now,
+          )
+        ).delivered,
+        0,
+      )
+      assert.ok(intercepted)
+      assert.equal(calls, 0)
+      assert.ok(
+        (await db.notificationPushDelivery.findUniqueOrThrow({ where: { id: q.delivery.id } }))
+          .terminalAt,
+      )
+      await db.case.update({ where: { id: c.id }, data: { decisionReceived: true } })
+      await sync(c.id)
+    },
+  )
+  await run(
+    'scheduler Organization→Case→Task races with Case stop without deadlock or queued post-stop delivery',
+    async () => {
+      for (let i = 0; i < 3; i++) {
+        const c = await newCase({ predictedDecisionDate: base })
+        await sync(c.id, true)
+        const t = (await control(c))[0],
+          loaded = await get(c.id)
+        const [_, stopped] = await Promise.all([
+          evaluateNotificationPage({ kind: 'task', after: '' }, now, db),
+          patch(c.id, { decisionReceived: true, expectedUpdatedAt: loaded.updatedAt }),
+        ])
+        assert.equal(stopped.status(), 200)
+        assert.equal((await control(c)).length, 0)
+        assert.ok((await db.notification.count({ where: { entityId: t.id } })) <= 1)
+        assert.equal(
+          await db.notificationPushDelivery.count({
+            where: { notification: { entityId: t.id }, terminalAt: null, deliveredAt: null },
+          }),
+          0,
+        )
+      }
+      let calls = 0
+      await deliverNotificationPush(
+        db,
+        async () => {
+          calls++
+        },
+        now,
+      )
+      assert.equal(calls, 0)
+      await db.organization.update({
+        where: { id: org.id },
+        data: { notificationAutomationEnabled: false },
+      })
     },
   )
   assert.deepEqual(sourceEvidence(), report.source)
