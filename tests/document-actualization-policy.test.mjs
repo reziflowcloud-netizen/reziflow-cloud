@@ -6,6 +6,7 @@ import {
   serviceDocUpdate,
   actualizationSummary,
   actualizationRef,
+  actualizationTaskTitle,
 } from '../src/lib/documentActualizationPolicy.ts'
 import { actualizationTaskId } from '../src/lib/documentActualization.ts'
 const record = { id: 'case', predictedDecisionDate: '2026-01-01', docUpdates: [] }
@@ -92,4 +93,10 @@ test('offsetless timestamps are rejected consistently across host timezones', as
       ),
       [null, '2026-03-29', '2026-03-30'],
     )
+})
+
+test('metadata-aware titles follow current language and never change ordinary or persisted titles',()=>{
+const task={id:'case-actualization-synthetic',title:'Persisted creation title',description:JSON.stringify({documentActualization:{version:1,caseId:'case',cycle:'2026-04-01'}})}
+for(const [lang,title] of [['uk','Актуалізувати документи'],['ru','Актуализировать документы'],['pl','Zaktualizować dokumenty']])assert.equal(actualizationTaskTitle(task,lang),title)
+assert.equal(task.title,'Persisted creation title');assert.equal(actualizationTaskTitle({id:'manual',title:'Ordinary title'},'pl'),'Ordinary title')
 })
