@@ -1,0 +1,200 @@
+
+> migraflow-app@0.1.0 build
+> prisma generate && next build
+
+Prisma schema loaded from prisma/schema.prisma
+
+✔ Generated Prisma Client (v5.22.0) to ./node_modules/@prisma/client in 723ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate
+
+  ▲ Next.js 14.2.35
+
+   Creating an optimized production build ...
+Browserslist: caniuse-lite is outdated. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/73) ...
+   Generating static pages (18/73) 
+   Generating static pages (36/73) 
+   Generating static pages (54/73) 
+ ✓ Generating static pages (73/73)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                    Size     First Load JS
+┌ ƒ /                                          147 B           120 kB
+├ ○ /_not-found                                876 B          88.3 kB
+├ ƒ /api/auth/forgot-password                  0 B                0 B
+├ ƒ /api/auth/login                            0 B                0 B
+├ ƒ /api/auth/logout                           0 B                0 B
+├ ƒ /api/auth/me                               0 B                0 B
+├ ƒ /api/auth/register                         0 B                0 B
+├ ƒ /api/auth/reset-password                   0 B                0 B
+├ ƒ /api/billing                               0 B                0 B
+├ ƒ /api/billing/contact                       0 B                0 B
+├ ƒ /api/case-options                          0 B                0 B
+├ ƒ /api/case-options/[id]                     0 B                0 B
+├ ƒ /api/cases                                 0 B                0 B
+├ ƒ /api/cases/[id]                            0 B                0 B
+├ ƒ /api/cases/[id]/checklist                  0 B                0 B
+├ ƒ /api/cases/[id]/checklist/[itemId]         0 B                0 B
+├ ƒ /api/cases/[id]/checklist/[itemId]/files   0 B                0 B
+├ ƒ /api/cases/[id]/comments                   0 B                0 B
+├ ƒ /api/cases/[id]/comments/[docId]           0 B                0 B
+├ ƒ /api/cases/[id]/custom-dates               0 B                0 B
+├ ƒ /api/cases/[id]/custom-dates/[dateId]      0 B                0 B
+├ ƒ /api/cases/[id]/doc-updates                0 B                0 B
+├ ƒ /api/cases/[id]/doc-updates/[updateId]     0 B                0 B
+├ ƒ /api/cases/[id]/documents                  0 B                0 B
+├ ƒ /api/cases/[id]/documents/[docId]          0 B                0 B
+├ ƒ /api/cases/[id]/generate-document          0 B                0 B
+├ ƒ /api/cases/[id]/mos-documents/submit       0 B                0 B
+├ ƒ /api/cases/[id]/payments                   0 B                0 B
+├ ƒ /api/cases/[id]/payments/[paymentId]       0 B                0 B
+├ ƒ /api/cases/bulk                            0 B                0 B
+├ ƒ /api/clients                               0 B                0 B
+├ ƒ /api/clients/[id]                          0 B                0 B
+├ ƒ /api/clients/[id]/travel                   0 B                0 B
+├ ƒ /api/clients/[id]/travel/[travelId]        0 B                0 B
+├ ƒ /api/cloudinary                            0 B                0 B
+├ ƒ /api/conference/events                     0 B                0 B
+├ ƒ /api/contact                               0 B                0 B
+├ ƒ /api/custom-field-values                   0 B                0 B
+├ ƒ /api/custom-fields                         0 B                0 B
+├ ƒ /api/custom-fields/[id]                    0 B                0 B
+├ ƒ /api/custom-sections                       0 B                0 B
+├ ƒ /api/custom-sections/[id]                  0 B                0 B
+├ ƒ /api/document-templates                    0 B                0 B
+├ ƒ /api/document-templates/[id]               0 B                0 B
+├ ƒ /api/documents/[id]/file                   0 B                0 B
+├ ƒ /api/employees                             0 B                0 B
+├ ƒ /api/employees/[id]                        0 B                0 B
+├ ƒ /api/employees/[id]/identity               0 B                0 B
+├ ƒ /api/export                                0 B                0 B
+├ ƒ /api/fix-sequences                         0 B                0 B
+├ ƒ /api/import                                0 B                0 B
+├ ƒ /api/import-leads                          0 B                0 B
+├ ƒ /api/internal/notifications                0 B                0 B
+├ ƒ /api/lead-channel-routes                   0 B                0 B
+├ ƒ /api/lead-sources                          0 B                0 B
+├ ƒ /api/lead-statuses                         0 B                0 B
+├ ƒ /api/lead-statuses/[id]                    0 B                0 B
+├ ƒ /api/lead-webhook-logs                     0 B                0 B
+├ ƒ /api/lead-webhook-settings                 0 B                0 B
+├ ƒ /api/leads                                 0 B                0 B
+├ ƒ /api/leads/[id]                            0 B                0 B
+├ ƒ /api/leads/[id]/contacts                   0 B                0 B
+├ ƒ /api/leads/[id]/convert                    0 B                0 B
+├ ƒ /api/leads/[id]/messages                   0 B                0 B
+├ ƒ /api/leads/[id]/reminders                  0 B                0 B
+├ ƒ /api/leads/bulk                            0 B                0 B
+├ ƒ /api/meta/data-deletion                    0 B                0 B
+├ ƒ /api/meta/oauth/callback                   0 B                0 B
+├ ƒ /api/meta/oauth/disconnect                 0 B                0 B
+├ ƒ /api/meta/oauth/select                     0 B                0 B
+├ ƒ /api/meta/oauth/start                      0 B                0 B
+├ ƒ /api/meta/subscriptions                    0 B                0 B
+├ ƒ /api/meta/token-diagnostics                0 B                0 B
+├ ƒ /api/notifications                         0 B                0 B
+├ ƒ /api/notifications/meta-messages           0 B                0 B
+├ ƒ /api/notifications/organization            0 B                0 B
+├ ƒ /api/notifications/pilot-diagnostics       0 B                0 B
+├ ƒ /api/notifications/preferences             0 B                0 B
+├ ƒ /api/notifications/subscriptions           0 B                0 B
+├ ƒ /api/notifications/test-push               0 B                0 B
+├ ƒ /api/organization-settings                 0 B                0 B
+├ ƒ /api/organizations                         0 B                0 B
+├ ƒ /api/organizations/[id]                    0 B                0 B
+├ ƒ /api/organizations/[id]/admin-password     0 B                0 B
+├ ƒ /api/partner/referrals                     0 B                0 B
+├ ƒ /api/referrals                             0 B                0 B
+├ ƒ /api/referrals/[id]                        0 B                0 B
+├ ƒ /api/referrals/[id]/commissions            0 B                0 B
+├ ƒ /api/referrals/[id]/payouts                0 B                0 B
+├ ƒ /api/services                              0 B                0 B
+├ ƒ /api/services/[id]                         0 B                0 B
+├ ƒ /api/services/[id]/document-template       0 B                0 B
+├ ƒ /api/staff-scope                           0 B                0 B
+├ ƒ /api/statuses                              0 B                0 B
+├ ƒ /api/statuses/[id]                         0 B                0 B
+├ ƒ /api/storage-settings                      0 B                0 B
+├ ƒ /api/task-priorities                       0 B                0 B
+├ ƒ /api/task-priorities/[id]                  0 B                0 B
+├ ƒ /api/tasks                                 0 B                0 B
+├ ƒ /api/tasks/[id]                            0 B                0 B
+├ ƒ /api/ui-section-settings                   0 B                0 B
+├ ƒ /api/user-preferences                      0 B                0 B
+├ ƒ /api/users                                 0 B                0 B
+├ ƒ /api/users/[id]                            0 B                0 B
+├ ƒ /api/users/[id]/avatar                     0 B                0 B
+├ ƒ /api/webhooks/leads/[slug]                 0 B                0 B
+├ ƒ /api/webhooks/leads/[slug]/[key]           0 B                0 B
+├ ƒ /api/webhooks/meta/leads/[slug]            0 B                0 B
+├ ƒ /api/webhooks/meta/messages                0 B                0 B
+├ ƒ /api/webhooks/meta/messages/[slug]         0 B                0 B
+├ ƒ /api/webhooks/telegram/leads/[slug]/[key]  0 B                0 B
+├ ƒ /calendar                                  15.4 kB         133 kB
+├ ƒ /cases                                     12.2 kB         141 kB
+├ ƒ /cases/[id]                                42.7 kB         166 kB
+├ ƒ /cases/new                                 3.96 kB         113 kB
+├ ƒ /clients                                   4.62 kB         127 kB
+├ ƒ /clients/[id]                              24.6 kB         153 kB
+├ ƒ /clients/new                               3.06 kB         112 kB
+├ ƒ /conference                                10.7 kB         113 kB
+├ ƒ /conference/demo                           0 B                0 B
+├ ○ /contact                                   3.22 kB         114 kB
+├ ƒ /dashboard                                 14.1 kB         131 kB
+├ ƒ /dashboard/debt                            2.36 kB         120 kB
+├ ƒ /dashboard/income                          2.37 kB         120 kB
+├ ƒ /dashboard/new-cases                       2.37 kB         120 kB
+├ ƒ /dashboard/new-clients                     2.37 kB         120 kB
+├ ○ /data-deletion                             189 B          96.3 kB
+├ ○ /delete-data                               189 B          96.3 kB
+├ ƒ /employees                                 147 B          87.6 kB
+├ ○ /forgot-password                           3.29 kB         115 kB
+├ ƒ /leads                                     24 kB           161 kB
+├ ƒ /leads/[id]                                16.3 kB         147 kB
+├ ƒ /leads/new                                 3.22 kB         128 kB
+├ ○ /login                                     9.25 kB         120 kB
+├ ƒ /notifications/open/[id]                   0 B                0 B
+├ ƒ /partner                                   2.25 kB        98.4 kB
+├ ƒ /pricing                                   147 B           120 kB
+├ ○ /privacy                                   189 B          96.3 kB
+├ ƒ /register                                  6.26 kB         117 kB
+├ ○ /regulamin                                 187 B          96.3 kB
+├ ○ /reset-password                            3.9 kB          115 kB
+├ ƒ /settings                                  1.17 kB         118 kB
+├ ƒ /settings/billing                          6.52 kB         124 kB
+├ ƒ /settings/case-options                     5.31 kB         123 kB
+├ ƒ /settings/conference                       194 B           118 kB
+├ ƒ /settings/document-templates               3.37 kB         121 kB
+├ ƒ /settings/employees                        3.92 kB         121 kB
+├ ƒ /settings/export                           10.6 kB         128 kB
+├ ƒ /settings/integrations                     20.6 kB         138 kB
+├ ƒ /settings/lead-sources                     2.59 kB         120 kB
+├ ƒ /settings/notifications                    4.96 kB         114 kB
+├ ƒ /settings/organizations                    7.42 kB         125 kB
+├ ƒ /settings/referrals                        7.58 kB         125 kB
+├ ƒ /settings/sections                         9.3 kB          127 kB
+├ ƒ /settings/services                         7.37 kB         125 kB
+├ ƒ /settings/statuses                         3.18 kB         120 kB
+├ ƒ /settings/users                            5.58 kB         123 kB
+├ ƒ /stages                                    5.47 kB         123 kB
+└ ƒ /tasks                                     23 kB           140 kB
++ First Load JS shared by all                  87.4 kB
+  ├ chunks/2117-646fe4a468df9718.js            31.7 kB
+  ├ chunks/fd9d1056-fac10d712aab3b23.js        53.6 kB
+  └ other shared chunks (total)                2.04 kB
+
+
+ƒ Middleware                                   34.7 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

@@ -1,15 +1,20 @@
 {
   "source": {
-    "head": "dc17974d7a0b1b79b12e394cae67dfddb9b21b2e",
-    "srcTree": "515003364b1d29d3bc5137c2b1aab22e48772ece",
-    "sourceDigest": "4567429ecc7ff67c26eff7d81c48b41138534d653360afcd92b5f354dc20c3f5",
-    "copiedSourceDigest": "4567429ecc7ff67c26eff7d81c48b41138534d653360afcd92b5f354dc20c3f5"
+    "head": "7b12ca3f03332c96127e7fd72d72f757c6b1f289",
+    "srcTree": "7593906e1492e343d07f4c205fdcb60ba43b8bd8",
+    "sourceDigest": "86a071128eecfe019ccf81a13842aedfac2749cdd98a5de0bea6b03202aa1085",
+    "copiedSourceDigest": "86a071128eecfe019ccf81a13842aedfac2749cdd98a5de0bea6b03202aa1085"
   },
   "mode": "corrected",
   "checks": [
     {
       "writerKind": "DocUpdate",
       "identityKind": "deactivation",
+      "initialStatuses": [
+        200,
+        200
+      ],
+      "confirmedRetry": false,
       "statuses": [
         200,
         200
@@ -19,6 +24,11 @@
     {
       "writerKind": "DocUpdate",
       "identityKind": "identity",
+      "initialStatuses": [
+        200,
+        409
+      ],
+      "confirmedRetry": true,
       "statuses": [
         200,
         200
@@ -28,6 +38,11 @@
     {
       "writerKind": "Case",
       "identityKind": "deactivation",
+      "initialStatuses": [
+        200,
+        200
+      ],
+      "confirmedRetry": false,
       "statuses": [
         200,
         200
@@ -37,6 +52,11 @@
     {
       "writerKind": "Checklist",
       "identityKind": "deactivation",
+      "initialStatuses": [
+        200,
+        200
+      ],
+      "confirmedRetry": false,
       "statuses": [
         200,
         200
@@ -44,6 +64,11 @@
       "deadlock": false
     }
   ],
-  "runnerSha256": "10de63cf9c5dda30bb95d0dc574e8f5aa0413450140456949601592939025e98",
+  "deadlocks": {
+    "before": 4,
+    "after": 4,
+    "delta": 0
+  },
+  "runnerSha256": "a71911bf8efbb8f1c042560bea81ecdfc35326df49204c0d4d74b1a25791372a",
   "result": "PASS"
 }

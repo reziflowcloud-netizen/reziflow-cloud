@@ -12,6 +12,7 @@ const db=new PrismaClient(),origin='http://127.0.0.1:3127',stamp=Date.now(),expe
 let org
 try{
  for(const table of ['DocUpdate','Case','CaseChecklistItem'])await db.$executeRawUnsafe(`DROP TRIGGER IF EXISTS qa_fallback_lock_barrier ON "${table}"`)
+ const deadlocksBefore=Number((await db.$queryRawUnsafe('SELECT deadlocks FROM pg_stat_database WHERE datname=current_database()'))[0].deadlocks)
  const password=randomBytes(24).toString('hex'),hash=await bcrypt.hash(password,10)
  org=await db.organization.create({data:{name:'Synthetic Lock Order QA',slug:'fallback-lock-'+stamp,notificationAutomationEnabled:true,notificationAutomationActivatedAt:new Date('2020-01-01')}})
  const user=await db.user.create({data:{organizationId:org.id,name:'Synthetic Lock Owner',email:`lock-${stamp}@example.invalid`,password:hash,role:'owner'}})
@@ -50,10 +51,16 @@ try{
    assert.ok(paused,'real API writer reached the test-only barrier after Case lock')
    const changing=identityKind==='identity'?ctx.put(origin+'/api/employees/'+employee.id+'/identity',{data:{expectedUserId:responsible.id,userId:null,confirmImpact:true}}):ctx.patch(origin+'/api/employees/'+employee.id,{data:{active:false}})
    await new Promise(resolve=>setTimeout(resolve,300));release();await holding
-   const [writeResult,identityResponse]=await Promise.all([writing,changing]);assert.ok(writeResult.response,'writer request failed: '+writeResult.error);const writeResponse=writeResult.response;const statuses=[writeResponse.status(),identityResponse.status()]
+   const [writeResult,firstIdentityResponse]=await Promise.all([writing,changing]);let identityResponse=firstIdentityResponse;const initialStatuses=[writeResult.response?.status(),firstIdentityResponse.status()];let confirmedRetry=false
+   if(!expectOld&&identityKind==='identity'&&firstIdentityResponse.status()===409){
+     const conflict=await firstIdentityResponse.json();assert.match(conflict.error,/concurrently|refresh|retry/i)
+     const current=await ctx.get(origin+'/api/employees/'+employee.id+'/identity');assert.equal(current.status(),200);const currentLink=(await current.json()).userId;assert.equal(currentLink,responsible.id)
+     identityResponse=await ctx.put(origin+'/api/employees/'+employee.id+'/identity',{data:{expectedUserId:currentLink,userId:null,confirmImpact:true}});confirmedRetry=true
+   }
+   assert.ok(writeResult.response,'writer request failed: '+writeResult.error);const writeResponse=writeResult.response;const statuses=[writeResponse.status(),identityResponse.status()]
    const bodies=await Promise.all([writeResponse.text(),identityResponse.text()])
    await db.$executeRawUnsafe(`DROP TRIGGER qa_fallback_lock_barrier ON "${table}"`)
-   const row={writerKind,identityKind,statuses,deadlock:bodies.some(b=>/deadlock|40P01/i.test(b))}
+   const row={writerKind,identityKind,initialStatuses,confirmedRetry,statuses,deadlock:bodies.some(b=>/deadlock|40P01/i.test(b))}
    report.checks.push(row)
    if(!expectOld){assert.deepEqual(statuses,[200,200],JSON.stringify(row)+' '+bodies.join('\n'));const tasks=await actualizationTasks(db,org.id,r.id);assert.equal(tasks.filter(t=>t.status==='todo').length,1);assert.equal(tasks.find(t=>t.status==='todo').assignedToId,null)
      if(writerKind!=='Checklist'){assert.equal(tasks.find(t=>t.status==='todo').dueDate.toISOString().slice(0,10),'2026-05-02');assert.equal(tasks.find(t=>t.id===previous.id).status,index===1?'done':'inactive')}
@@ -62,6 +69,10 @@ try{
    console.log(expectOld?'REPRO':'PASS',writerKind,'vs',identityKind,JSON.stringify(row))
  }
  await db.$executeRawUnsafe('DROP FUNCTION public.qa_fallback_lock_barrier()')
+ await new Promise(resolve=>setTimeout(resolve,1200))
+ const deadlocksAfter=Number((await db.$queryRawUnsafe('SELECT deadlocks FROM pg_stat_database WHERE datname=current_database()'))[0].deadlocks)
+ report.deadlocks={before:deadlocksBefore,after:deadlocksAfter,delta:deadlocksAfter-deadlocksBefore}
+ if(!expectOld)assert.equal(report.deadlocks.delta,0,'PostgreSQL must report zero new deadlocks, including generic error wrappers')
  if(expectOld)assert.ok(report.checks.some(r=>r.deadlock),'checkpoint race must reproduce a real deadlock')
  assert.deepEqual(evidence.sourceEvidence(),report.source);report.runnerSha256=createHash('sha256').update(await fs.readFile(new URL(import.meta.url))).digest('hex')
  report.result=expectOld?'DEADLOCK REPRODUCED':'PASS';await fs.mkdir('work/admin-fallback-evidence',{recursive:true});await fs.writeFile('work/admin-fallback-evidence/'+(expectOld?'checkpoint-lock-reproduction.json':'lock-order.json'),JSON.stringify(report,null,2))

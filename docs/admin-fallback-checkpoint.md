@@ -1,3 +1,5 @@
+Historical corrected checkpoint; superseded by the final evidence in [admin-fallback-qa.md](admin-fallback-qa.md).
+
 # Corrected admin fallback lock-order checkpoint
 
 Interim review checkpoint. Full final-source API/browser/build evidence is being

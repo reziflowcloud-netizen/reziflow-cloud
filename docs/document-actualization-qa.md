@@ -1,5 +1,8 @@
 # Document actualization — final development QA
 
+Admin fallback follow-up: [current implementation and final-source QA](admin-fallback-qa.md).
+The original evidence below remains historical; follow-up reports identify the new source tree.
+
 Base `895ebe271f8a2c106029992f0497252cc9a81eee`; branch
 `feature/document-actualization-reminders`. No Production writes, credentials,
 migrations, activation/backfill, deployment, PR or main merge.

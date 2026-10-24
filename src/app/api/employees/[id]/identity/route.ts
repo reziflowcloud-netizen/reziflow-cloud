@@ -108,7 +108,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   } catch (error: any) {
     if (error?.code === 'P2002') return NextResponse.json({ error: 'CRM User is already linked to another Employee' }, { status: 409 })
     if (error?.code === 'P2003') return NextResponse.json({ error: 'Cross-organization identity is not allowed' }, { status: 400 })
-    if (error?.code === 'P2034') return NextResponse.json({ error: 'Identity changed concurrently; refresh and retry' }, { status: 409 })
+    if (error?.code === 'P2034' || (error?.code === 'P2010' && error?.meta?.code === '40001')) return NextResponse.json({ error: 'Identity changed concurrently; refresh and retry' }, { status: 409 })
     return NextResponse.json({ error: 'Could not update Employee identity' }, { status: 500 })
   }
 }

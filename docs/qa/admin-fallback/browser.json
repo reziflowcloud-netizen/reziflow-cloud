@@ -1,0 +1,364 @@
+{
+  "source": {
+    "head": "7b12ca3f03332c96127e7fd72d72f757c6b1f289",
+    "srcTree": "7593906e1492e343d07f4c205fdcb60ba43b8bd8",
+    "sourceDigest": "86a071128eecfe019ccf81a13842aedfac2749cdd98a5de0bea6b03202aa1085",
+    "copiedSourceDigest": "86a071128eecfe019ccf81a13842aedfac2749cdd98a5de0bea6b03202aa1085"
+  },
+  "matrix": [
+    {
+      "width": 1024,
+      "lang": "ru",
+      "theme": "light",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-1024-ru-light.png",
+        "month-chip-1024-ru-light.png",
+        "calendar-1024-ru-light.png",
+        "cases-1024-ru-light.png",
+        "dashboard-1024-ru-light.png"
+      ]
+    },
+    {
+      "width": 1024,
+      "lang": "ru",
+      "theme": "dark",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-1024-ru-dark.png",
+        "month-chip-1024-ru-dark.png",
+        "calendar-1024-ru-dark.png",
+        "cases-1024-ru-dark.png",
+        "dashboard-1024-ru-dark.png"
+      ]
+    },
+    {
+      "width": 1024,
+      "lang": "ru",
+      "theme": "slate",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-1024-ru-slate.png",
+        "month-chip-1024-ru-slate.png",
+        "calendar-1024-ru-slate.png",
+        "cases-1024-ru-slate.png",
+        "dashboard-1024-ru-slate.png"
+      ]
+    },
+    {
+      "width": 1024,
+      "lang": "uk",
+      "theme": "light",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-1024-uk-light.png",
+        "month-chip-1024-uk-light.png",
+        "calendar-1024-uk-light.png",
+        "cases-1024-uk-light.png",
+        "dashboard-1024-uk-light.png"
+      ]
+    },
+    {
+      "width": 1024,
+      "lang": "uk",
+      "theme": "dark",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-1024-uk-dark.png",
+        "month-chip-1024-uk-dark.png",
+        "calendar-1024-uk-dark.png",
+        "cases-1024-uk-dark.png",
+        "dashboard-1024-uk-dark.png"
+      ]
+    },
+    {
+      "width": 1024,
+      "lang": "uk",
+      "theme": "slate",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-1024-uk-slate.png",
+        "month-chip-1024-uk-slate.png",
+        "calendar-1024-uk-slate.png",
+        "cases-1024-uk-slate.png",
+        "dashboard-1024-uk-slate.png"
+      ]
+    },
+    {
+      "width": 1024,
+      "lang": "pl",
+      "theme": "light",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-1024-pl-light.png",
+        "month-chip-1024-pl-light.png",
+        "calendar-1024-pl-light.png",
+        "cases-1024-pl-light.png",
+        "dashboard-1024-pl-light.png"
+      ]
+    },
+    {
+      "width": 1024,
+      "lang": "pl",
+      "theme": "dark",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-1024-pl-dark.png",
+        "month-chip-1024-pl-dark.png",
+        "calendar-1024-pl-dark.png",
+        "cases-1024-pl-dark.png",
+        "dashboard-1024-pl-dark.png"
+      ]
+    },
+    {
+      "width": 1024,
+      "lang": "pl",
+      "theme": "slate",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-1024-pl-slate.png",
+        "month-chip-1024-pl-slate.png",
+        "calendar-1024-pl-slate.png",
+        "cases-1024-pl-slate.png",
+        "dashboard-1024-pl-slate.png"
+      ]
+    },
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "light",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-390-ru-light.png",
+        "calendar-390-ru-light.png",
+        "cases-390-ru-light.png",
+        "dashboard-390-ru-light.png"
+      ]
+    },
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "dark",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-390-ru-dark.png",
+        "calendar-390-ru-dark.png",
+        "cases-390-ru-dark.png",
+        "dashboard-390-ru-dark.png"
+      ]
+    },
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "slate",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-390-ru-slate.png",
+        "calendar-390-ru-slate.png",
+        "cases-390-ru-slate.png",
+        "dashboard-390-ru-slate.png"
+      ]
+    },
+    {
+      "width": 390,
+      "lang": "uk",
+      "theme": "light",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-390-uk-light.png",
+        "calendar-390-uk-light.png",
+        "cases-390-uk-light.png",
+        "dashboard-390-uk-light.png"
+      ]
+    },
+    {
+      "width": 390,
+      "lang": "uk",
+      "theme": "dark",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-390-uk-dark.png",
+        "calendar-390-uk-dark.png",
+        "cases-390-uk-dark.png",
+        "dashboard-390-uk-dark.png"
+      ]
+    },
+    {
+      "width": 390,
+      "lang": "uk",
+      "theme": "slate",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-390-uk-slate.png",
+        "calendar-390-uk-slate.png",
+        "cases-390-uk-slate.png",
+        "dashboard-390-uk-slate.png"
+      ]
+    },
+    {
+      "width": 390,
+      "lang": "pl",
+      "theme": "light",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-390-pl-light.png",
+        "calendar-390-pl-light.png",
+        "cases-390-pl-light.png",
+        "dashboard-390-pl-light.png"
+      ]
+    },
+    {
+      "width": 390,
+      "lang": "pl",
+      "theme": "dark",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-390-pl-dark.png",
+        "calendar-390-pl-dark.png",
+        "cases-390-pl-dark.png",
+        "dashboard-390-pl-dark.png"
+      ]
+    },
+    {
+      "width": 390,
+      "lang": "pl",
+      "theme": "slate",
+      "screens": [
+        "Tasks",
+        "Calendar",
+        "Case",
+        "Upcoming Events"
+      ],
+      "badge": true,
+      "overflow": false,
+      "screenshots": [
+        "tasks-390-pl-slate.png",
+        "calendar-390-pl-slate.png",
+        "cases-390-pl-slate.png",
+        "dashboard-390-pl-slate.png"
+      ]
+    }
+  ],
+  "errors": [],
+  "runnerSha256": "cb51228e1357f0a24beaf996e6f31e3385ba3443d35defc8aa71075acbbe5ebd",
+  "result": "PASS"
+}

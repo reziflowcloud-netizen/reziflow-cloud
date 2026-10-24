@@ -622,7 +622,7 @@ export default function CalendarPage() {
                             color,
                             borderLeft: `2px solid ${color}`,
                           }}>
-                            {fallback ? <><span className="cal-chip-title">{!isDue ? '⏰ ' : ''}{actualizationTaskTitle(t,lang)}</span><ActualizationAssignmentBadge task={t} lang={lang} compact /></> : <>{!isDue ? '⏰ ' : ''}{actualizationTaskTitle(t,lang)}</>}
+                            {fallback ? <><span className="cal-chip-title" style={{flex:'1 1 0',minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{!isDue ? '⏰ ' : ''}{actualizationTaskTitle(t,lang)}</span><ActualizationAssignmentBadge task={t} lang={lang} compact /></> : <>{!isDue ? '⏰ ' : ''}{actualizationTaskTitle(t,lang)}</>}
                           </div>
                         )
                       })}

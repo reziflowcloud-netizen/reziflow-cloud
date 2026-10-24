@@ -1,0 +1,27 @@
+{
+  "source": {
+    "head": "7b12ca3f03332c96127e7fd72d72f757c6b1f289",
+    "srcTree": "7593906e1492e343d07f4c205fdcb60ba43b8bd8",
+    "sourceDigest": "86a071128eecfe019ccf81a13842aedfac2749cdd98a5de0bea6b03202aa1085",
+    "copiedSourceDigest": "86a071128eecfe019ccf81a13842aedfac2749cdd98a5de0bea6b03202aa1085"
+  },
+  "checks": [
+    "all invalid owner mappings, including absent Employee, resolve to fallback",
+    "multiple unlinked admins default/Mine Tasks; linked Case; restricted and foreign denied; one Task",
+    "master OFF leaves fallback visible and creates no notifications",
+    "repeat/concurrent scheduler creates personal admin copies and dedupes without Team Scope",
+    "valid responsible and fallback transitions preserve cycle Task and notification history",
+    "real provider entry sends once per admin, privacy honored, replay sends none",
+    "fresh revalidation blocks changed role/preferences/master/subscription after early snapshot",
+    "concurrent reassignment API waits for locked provider handoff; no subsequent stale send",
+    "reassignment before scheduler/provider commits prevents stale admin delivery",
+    "scheduler versus confirmed reassignment serializes without stale post-commit delivery",
+    "Employee mutation API reconciles activated ledger only; inactive and missing links fall back",
+    "User and Employee deletion APIs reconcile activated cycles and never activate history",
+    "personal task event opt-out suppresses only that admin without hiding the Task",
+    "latest genuine date +90, service exclusion, decision stop/resume and completed history",
+    "ordinary Task Mine scope and Calendar task feed remain unchanged"
+  ],
+  "runnerSha256": "41bb6076a14befeaf352fa836cc04eb291a6b72641afd12bc0fc0e067c59b919",
+  "result": "PASS"
+}
