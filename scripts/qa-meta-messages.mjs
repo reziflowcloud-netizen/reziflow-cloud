@@ -61,6 +61,13 @@ try {
   assert.equal(await counts(a,lead.id),3)
  })
  await run('postback-only events persist without unread receipt',async()=>{const before=await counts(a,ig.id);await webhook('instagram',[{sender:{id:'ig-user'},recipient:{id:'qa-page'},timestamp:Date.now(),postback:{title:'Synthetic menu',payload:'synthetic-postback'}}]);const row=await db.leadMessage.findFirst({where:{organizationId:org.id,externalMessageId:'synthetic-postback'}});assert.ok(row);assert.equal(row.liveReceipt,null);assert.equal(await counts(a,ig.id),before)})
+ await run('IG attachment and real send entry point use mocked provider; outgoing remains ineligible',async()=>{
+  const target=await db.lead.create({data:{organizationId:org.id,fullName:'Synthetic attachment send',source:'instagram',messengerId:'instagram:attachment-send'}})
+  await webhook('instagram',[event('attachment-send','ig-attachment',{message:{mid:'ig-attachment',attachments:[{type:'image',payload:{url:'https://example.invalid/synthetic.jpg'}}]}})])
+  assert.equal(await counts(a,target.id),1)
+  const sent=await a.post(`/api/leads/${target.id}/messages`,{data:{direction:'outgoing',senderType:'employee',channel:'instagram',text:'Synthetic mocked send only'}});assert.equal(sent.status(),200,await sent.text());const outgoing=await sent.json();assert.equal(outgoing.liveReceipt,null);assert.equal(await counts(a,target.id),1)
+  await db.lead.delete({where:{id:target.id}})
+ })
  await run('historical sync and replay of synced message stay ineligible',async()=>{
   await webhook('instagram',[{sender:{id:'ig-user'},recipient:{id:'qa-page'},read:{watermark:Date.now()}}]);const history=await db.leadMessage.findFirst({where:{organizationId:org.id,externalMessageId:'synced-ig-user'}});assert.ok(history);assert.equal(history.liveReceipt,null)
   await webhook('instagram',[event('ig-user','synced-ig-user',{timestamp:Date.UTC(2020,0,1)})]);assert.equal(await counts(a,ig.id),2)
@@ -71,8 +78,9 @@ try {
   assert.ok(higher.id>synced.id)
   const earlier=await snapshot(a,ig.id)
   const baseline=await counts(a,ig.id)
+  const seqBefore=(await db.$queryRaw`SELECT last_value FROM "MetaLiveReceiptSequence"`)[0].last_value
   await Promise.all([webhook('instagram',[event('ig-user','fresh-synced')]),webhook('instagram',[event('ig-user','fresh-synced')])])
-  const promoted=await db.leadMessage.findUnique({where:{id:synced.id}});assert.ok(promoted.liveReceipt)
+  const promoted=await db.leadMessage.findUnique({where:{id:synced.id}});assert.ok(promoted.liveReceipt);assert.equal(Number((await db.$queryRaw`SELECT last_value FROM "MetaLiveReceiptSequence"`)[0].last_value)-Number(seqBefore),1)
   await ack(a,ig.id,earlier.token);assert.equal(await counts(a,ig.id),1)
   await ack(a,ig.id,(await snapshot(a,ig.id)).token);assert.equal(await counts(a,ig.id),0)
   // Restore one direct-first unread for subsequent per-user independence group.
@@ -88,7 +96,16 @@ try {
   assert.equal((await ack(f,ig.id,snap.token)).status(),404);assert.equal((await ack(s,ig.id,snap.token)).status(),404)
   const forged=await request.newContext({baseURL:origin,extraHTTPHeaders:{Cookie:'auth-token='+snap.token}});assert.equal((await forged.get('/api/notifications/meta-messages')).status(),401);await forged.dispose()
  })
- await run('latest read retains actionable older fallback unread without cursor regression',async()=>{const latest=await poll(b);await ack(b,ig.id,(await snapshot(b,ig.id)).token);const remaining=await poll(b);assert.equal(remaining.latest.id,latest.latest.id);assert.equal(remaining.unread.length,0)})
+ await run('latest read retains actionable older fallback unread without cursor regression',async()=>{
+  const older=await db.lead.create({data:{organizationId:org.id,fullName:'Synthetic older fallback',source:'instagram',messengerId:'instagram:older-fallback'}})
+  await webhook('instagram',[event('older-fallback','older-fallback-event')])
+  await webhook('instagram',[event('ig-user','newest-after-older')])
+  const latest=await poll(b);assert.equal(latest.latest.leadId,ig.id);assert.ok(latest.unread.some(x=>x.leadId===older.id))
+  assert.equal((await ack(b,ig.id,(await snapshot(b,ig.id)).token)).status(),200)
+  const remaining=await poll(b);assert.equal(remaining.latest.id,latest.latest.id);assert.ok(remaining.unread.some(x=>x.leadId===older.id&&x.count===1));assert.equal(remaining.unread.some(x=>x.leadId===ig.id),false)
+  for(const c of [a,b])await ack(c,older.id,(await snapshot(c,older.id)).token)
+  await db.lead.delete({where:{id:older.id}})
+ })
  await run('server persisted sound ON/OFF independent from push and org master',async()=>{
   const p=await get(a,'/api/notifications/preferences');for(const enabled of [true,false]){const r=await a.put('/api/notifications/preferences',{data:{...p.preferences,metaMessageSound:enabled}});assert.equal(r.status(),200,await r.text());assert.equal((await poll(a)).sound,enabled);assert.equal((await poll(await context(owner))).sound,enabled)}
  })
@@ -132,10 +149,26 @@ try {
   let release,ready;const gate=new Promise(r=>release=r),started=new Promise(r=>ready=r)
   const deleting=db.$transaction(async tx=>{await tx.lead.delete({where:{id:doomed.id}});ready();await gate},{timeout:20000});await started;const pending=ack(a,doomed.id,t);await waitLock('Lead');release();await deleting;assert.equal((await pending).status(),404)
  })
+ await run('actual Lead reassignment, ACK and identity three-way barrier completes without inversion',async()=>{
+  await db.lead.update({where:{id:lead.id},data:{assignedToId:staff.id,employeeId:employee.id}})
+  const token=(await snapshot(s,lead.id)).token;await get(a,'/api/leads/'+lead.id)
+  await held('SELECT id FROM "Organization" WHERE id=$1 FOR UPDATE',[org.id],async release=>{
+   const change=b.patch('/api/leads/'+lead.id,{data:{assignedToId:other.id}});await waitLock('Organization')
+   const pending=ack(s,lead.id,token),identity=b.patch('/api/users/'+staff.id,{data:{role:'employee',restrictedAccess:false}})
+   release();assert.deepEqual([(await change).status(),(await pending).status(),(await identity).status()],[200,404,200])
+  });assert.equal((await b.patch('/api/users/'+staff.id,{data:{restrictedAccess:true}})).status(),200)
+ })
+ await run('actual Lead DELETE queued before ACK returns safe not-found after cascade',async()=>{
+  const doomed=await db.lead.create({data:{organizationId:org.id,fullName:'Synthetic API delete race'}}),token=(await snapshot(a,doomed.id)).token;await get(a,'/api/leads/'+doomed.id)
+  await held('SELECT id FROM "Lead" WHERE id=$1 FOR UPDATE',[doomed.id],async release=>{
+   const deleting=a.delete('/api/leads/'+doomed.id);await waitLock('DELETE FROM');const pending=ack(a,doomed.id,token);release();assert.equal((await deleting).status(),200);assert.equal((await pending).status(),404)
+  })
+ })
  await run('unread list includes every match beyond five-item alert preview',async()=>{
   for(let i=0;i<31;i++){const l=await db.lead.create({data:{organizationId:org.id,fullName:'Synthetic page '+i}});await db.leadMessage.create({data:{organizationId:org.id,leadId:l.id,channel:'facebook',text:'Synthetic bounded preview fixture',liveReceipt:(await db.$queryRaw`SELECT nextval('"MetaLiveReceiptSequence"')::int AS value`)[0].value}})}
   const p=await poll(a);assert.equal(p.unread.length,5);assert.equal((await list(a)).filter(x=>x.metaUnreadCount>0).length,31)
  })
+ const deadlocks=(await db.$queryRaw`SELECT deadlocks FROM pg_stat_database WHERE datname=current_database()`)[0].deadlocks;report.deadlocks=Number(deadlocks);assert.equal(Number(deadlocks),0)
  assert.equal(digest('src'),report.source.srcDigest);assert.equal(digest('work/meta-app/src'),report.source.srcDigest)
  await fs.mkdir('docs/qa/meta-messages',{recursive:true});await fs.writeFile('docs/qa/meta-messages/integration.json',JSON.stringify(report,null,2)+'\n')
  await fs.writeFile('work/meta-fixtures.json',JSON.stringify({org,owner,admin,staff,other,foreign,lead,ig,password},null,2))

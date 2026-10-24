@@ -351,7 +351,7 @@ export default function LeadsMobile(props: LeadsMobileProps) {
                 <div className={styles.cardTop}>
                   <div className={styles.avatar}>{leadDisplayName(lead).slice(0, 2).toUpperCase()}</div>
                   <div className={styles.person}>
-                    <div className={styles.name}>{leadDisplayName(lead)} <MetaUnreadBadge lead={lead} lang={props.lang} /></div>
+                    <div className={styles.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ minWidth: 0, flex: '1 1 auto', overflow: 'hidden', textOverflow: 'ellipsis' }}>{leadDisplayName(lead)}</span><MetaUnreadBadge lead={lead} lang={props.lang} /></div>
                     <LeadContactSubtitle
                       className={styles.contact}
                       lead={lead}
