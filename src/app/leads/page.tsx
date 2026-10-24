@@ -1,4 +1,6 @@
 'use client'
+import MetaUnreadBadge from '@/components/MetaUnreadBadge'
+import { metaMessageText } from '@/lib/metaMessageI18n'
 import NotificationBell from '@/components/NotificationBell'
 import { warsawDateTimeLocal } from '@/lib/warsawDateTime'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
@@ -30,7 +32,7 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   'Переведён в клиента': { bg: '#f3f4f6', color: '#374151' },
 }
 
-type QuickFilter = 'all' | 'today' | 'overdue' | 'unassigned' | 'no_next_contact'
+type QuickFilter = 'all' | 'today' | 'overdue' | 'unassigned' | 'no_next_contact' | 'unread'
 type SortKey = 'lead' | 'status' | 'source' | 'interest' | 'createdAt' | 'lastContact' | 'nextContact' | 'responsible'
 type SortDirection = 'asc' | 'desc'
 type ViewMode = 'table' | 'board'
@@ -53,7 +55,7 @@ type LeadListState = {
   sortConfig: { key: SortKey; direction: SortDirection }
 }
 
-const QUICK_FILTER_VALUES: QuickFilter[] = ['all', 'today', 'overdue', 'unassigned', 'no_next_contact']
+const QUICK_FILTER_VALUES: QuickFilter[] = ['all', 'today', 'overdue', 'unassigned', 'no_next_contact', 'unread']
 const SORT_KEY_VALUES: SortKey[] = ['lead', 'status', 'source', 'interest', 'createdAt', 'lastContact', 'nextContact', 'responsible']
 const SORT_DIRECTION_VALUES: SortDirection[] = ['asc', 'desc']
 const VIEW_MODE_VALUES: ViewMode[] = ['table', 'board']
@@ -426,6 +428,12 @@ export default function LeadsPage() {
       .finally(() => { if (request === leadRequestRef.current) setLoading(false) })
   }
 
+  useEffect(() => {
+    const refresh = () => { void loadLeads() }
+    window.addEventListener('meta-messages-changed', refresh)
+    window.addEventListener('meta-messages-read', refresh)
+    return () => { window.removeEventListener('meta-messages-changed', refresh); window.removeEventListener('meta-messages-read', refresh) }
+  }, [staffScope, staffScopeReady])
   useScreenRefresh(loadLeads, () => staffScopeReady)
 
   useEffect(() => {
@@ -513,6 +521,7 @@ export default function LeadsPage() {
         const createdAt = new Date(lead.createdAt).getTime()
         if (Number.isNaN(createdAt) || createdAt < range.start || createdAt >= range.end) return false
       }
+      if (quickFilter === 'unread') return lead.metaUnreadCount > 0
       if (quickFilter === 'today') return isToday(lead.nextContactAt) && !isConvertedLead(lead)
       if (quickFilter === 'overdue') return isOverdue(lead.nextContactAt) && !isConvertedLead(lead)
       if (quickFilter === 'unassigned') return !leadResponsibleName(lead) && !isConvertedLead(lead)
@@ -565,6 +574,7 @@ export default function LeadsPage() {
 
   const quickCounts = useMemo(() => ({
     all: leads.length,
+    unread: leads.filter(lead => lead.metaUnreadCount > 0).length,
     today: leads.filter(lead => isToday(lead.nextContactAt) && !isConvertedLead(lead)).length,
     overdue: leads.filter(lead => isOverdue(lead.nextContactAt) && !isConvertedLead(lead)).length,
     unassigned: leads.filter(lead => !leadResponsibleName(lead) && !isConvertedLead(lead)).length,
@@ -1805,6 +1815,7 @@ export default function LeadsPage() {
         <div className="lead-quick-filters" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
           {([
             ['all', 'quick_all'],
+            ['unread', 'meta_unread'],
             ['today', 'quick_today'],
             ['overdue', 'quick_overdue'],
             ['unassigned', 'quick_unassigned'],
@@ -1817,7 +1828,7 @@ export default function LeadsPage() {
               onClick={() => setQuickFilter(key)}
               style={{ padding: '7px 10px' }}
             >
-              {lt(label)} <span style={{ opacity: 0.78 }}>({quickCounts[key]})</span>
+              {key === 'unread' ? metaMessageText[lang].unread : lt(label)} <span style={{ opacity: 0.78 }}>({quickCounts[key]})</span>
             </button>
           ))}
           {LEAD_TEMPERATURES.map(item => (
@@ -2064,7 +2075,7 @@ export default function LeadsPage() {
                               <div className="lead-table-person">
                                 <div className="lead-table-person-name" style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13 }}>
                                   {temp && <span title={leadTemperatureLabel(lang, lead.urgency)} style={{ width: 8, height: 8, borderRadius: 999, background: temp.color, flex: '0 0 auto' }} />}
-                                  <span>{leadDisplayName(lead)}</span>
+                                  <span>{leadDisplayName(lead)}</span><MetaUnreadBadge lead={lead} lang={lang} />
                                 </div>
                                 <div className="lead-table-person-contact" style={{ fontSize: 12, color: 'var(--muted)' }}>{lead.phone || lead.email || lead.instagram || lead.facebook || lt('contact_not_set')}</div>
                               </div>
@@ -2191,7 +2202,7 @@ export default function LeadsPage() {
                               <div style={{ minWidth: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                   {temp && <span title={leadTemperatureLabel(lang, lead.urgency)} style={{ width: 8, height: 8, borderRadius: 999, background: temp.color, flex: '0 0 auto' }} />}
-                                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{leadDisplayName(lead)}</span>
+                                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{leadDisplayName(lead)}</span><MetaUnreadBadge lead={lead} lang={lang} />
                                 </div>
                                 <div className={overdue ? 'lead-overdue-muted' : undefined} style={{ color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.phone || lead.email || lead.instagram || lt('contact_not_set')}</div>
                               </div>
@@ -2264,7 +2275,7 @@ export default function LeadsPage() {
                       style={{ textAlign: 'left', border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 8, padding: 10, cursor: 'pointer' }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                        <strong>{leadDisplayName(lead)}</strong>
+                        <strong>{leadDisplayName(lead)}</strong><MetaUnreadBadge lead={lead} lang={lang} />
                         <span style={{ color: 'var(--muted)', fontSize: 12 }}>{lead.reminderKind === 'deadline' ? lt('deadline_at') : new Date(lead.reminderAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                       <div style={{ color: 'var(--muted)', fontSize: 12 }}>{lead.reminderNote || lt('no_note')}</div>

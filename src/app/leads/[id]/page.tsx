@@ -1,4 +1,5 @@
 'use client'
+import { useMetaMessageAck } from '@/hooks/useMetaMessageAck'
 import NotificationBell from '@/components/NotificationBell'
 import { warsawDateTimeLocal } from '@/lib/warsawDateTime'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
@@ -40,6 +41,7 @@ export default function LeadDetailPage() {
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
   const [leadSources, setLeadSources] = useState<LeadSourceOption[]>(LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true })))
   const [messages, setMessages] = useState<any[]>([])
+  const [messageSnapshot, setMessageSnapshot] = useState<string | null>(null)
   const [reminders, setReminders] = useState<any[]>([])
   const [messageForm, setMessageForm] = useState({
     text: '',
@@ -211,10 +213,26 @@ export default function LeadDetailPage() {
     if (service) setConvertForm(current => ({ ...current, serviceId: String(service.id) }))
   }, [services, lead?.serviceInterest, convertForm.serviceId])
 
+  const messageLoadRef = useRef(0)
+  useMetaMessageAck(dialogRef, String(id), messageSnapshot)
   async function loadMessages() {
-    const data = await fetch(`/api/leads/${id}/messages`, { cache: 'no-store' }).then(r => r.json())
-    setMessages(Array.isArray(data) ? data : [])
+    const generation = ++messageLoadRef.current
+    const response = await fetch(`/api/leads/${id}/messages`, { cache: 'no-store' })
+    if (!response.ok) return
+    const data = await response.json()
+    if (generation !== messageLoadRef.current || !Array.isArray(data)) return
+    setMessages(data)
+    setMessageSnapshot(response.headers.get('X-Meta-Message-Snapshot'))
   }
+  useEffect(() => {
+    const refresh = () => { void loadMessages() }
+    window.addEventListener('meta-messages-changed', refresh)
+    return () => { messageLoadRef.current++; window.removeEventListener('meta-messages-changed', refresh) }
+  }, [id])
+  const conversationOpenedRef = useRef(false)
+  useEffect(() => {
+    if (!conversationOpenedRef.current && messageSnapshot && new URLSearchParams(window.location.search).has('conversation') && window.innerWidth > 768) { conversationOpenedRef.current = true; dialogRef.current?.scrollIntoView({ block: 'center' }) }
+  }, [messageSnapshot])
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -446,6 +464,7 @@ export default function LeadDetailPage() {
         leadStatuses={leadStatuses}
         leadSources={leadSources}
         messages={messages}
+        messageSnapshot={messageSnapshot}
         reminders={reminders}
         messageSources={messageSources}
         messageForm={messageForm}

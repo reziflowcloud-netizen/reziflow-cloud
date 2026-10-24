@@ -1,3 +1,4 @@
+import { currentMetaUser, metaUnreadCounts } from '@/lib/metaMessages'
 import { dispatchAssignmentPush } from '@/lib/assignmentDelivery'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -129,6 +130,8 @@ export async function GET(request: NextRequest) {
     orderBy: { updatedAt: 'desc' },
   })
 
+  const current = await currentMetaUser(user)
+  const unread = current ? await metaUnreadCounts(current, leads.map((lead: any) => lead.id)) : new Map<string, number>()
   const leadIdList = leads.map((lead: any) => lead.id)
   const leadIds = new Set(leadIdList)
   const latestMessages = leadIdList.length
@@ -169,6 +172,7 @@ export async function GET(request: NextRequest) {
     const lastMessageAt = lastMessageByLead.get(lead.id) || null
     return {
       ...lead,
+      metaUnreadCount: unread.get(lead.id) || 0,
       phones: phonesWithLegacy(lead),
       leadReminders: remindersByLead[lead.id] || [],
       lastMessageAt,

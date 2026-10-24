@@ -1,4 +1,5 @@
 'use client'
+import { invalidateMetaSession } from '@/lib/metaMessageBrowser'
 
 import Link from 'next/link'
 import MobileExperience from '@/components/MobileExperience'
@@ -117,6 +118,7 @@ export default function MobileNav() {
   async function logout() {
     if (!await prepareScreenLeave()) return
     await disconnectPushDevice()
+    invalidateMetaSession()
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/')
     router.refresh()

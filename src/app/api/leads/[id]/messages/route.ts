@@ -1,3 +1,4 @@
+import { currentMetaUser, metaLeadAccess, messageSnapshot } from '@/lib/metaMessages'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
@@ -177,7 +178,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
 
-  const lead = await findScopedLead(params.id, organizationId, { id: true })
+  const current = await currentMetaUser(user)
+  if (!current) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const lead = await prisma.lead.findFirst({ where: metaLeadAccess(current, params.id), select: { id: true } })
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const messages = await (prisma as any).leadMessage.findMany({
@@ -186,7 +189,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     orderBy: { sentAt: 'asc' },
   })
 
-  return NextResponse.json(messages)
+  return NextResponse.json(messages, { headers: { 'X-Meta-Message-Snapshot': await messageSnapshot(current, params.id, messages), 'Cache-Control': 'private, no-store' } })
 }
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {

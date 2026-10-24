@@ -1,4 +1,5 @@
 'use client'
+import { invalidateMetaSession } from '@/lib/metaMessageBrowser'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -30,6 +31,7 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
     try {
+      invalidateMetaSession()
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

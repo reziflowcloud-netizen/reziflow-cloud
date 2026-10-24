@@ -28,6 +28,7 @@ model User {
   leads               Lead[]
   leadContactHistory  LeadContactHistory[]
   leadMessages        LeadMessage[]
+  metaMessageReads    MetaMessageRead[]
   employee            Employee?            @relation("EmployeeUser")
   passwordResetTokens PasswordResetToken[]
   notifications Notification[]
@@ -247,6 +248,7 @@ model Lead {
   updatedAt           DateTime             @updatedAt
   contactHistory      LeadContactHistory[]
   messages            LeadMessage[]
+  metaMessageReads    MetaMessageRead[]
   webhookLogs         LeadWebhookLog[]
   phones              LeadPhone[]
 
@@ -326,6 +328,7 @@ model LeadMessage {
   direction         String       @default("incoming")
   senderType        String       @default("lead")
   senderName        String?
+  liveIncoming      Boolean      @default(false)
   externalMessageId String?
   text              String
   payload           Json?
@@ -333,9 +336,21 @@ model LeadMessage {
   createdAt         DateTime     @default(now())
 
   @@unique([organizationId, externalMessageId])
+  @@index([organizationId, liveIncoming, id])
+  @@index([organizationId, leadId, liveIncoming, id])
   @@index([organizationId, sentAt])
   @@index([leadId, sentAt])
   @@index([organizationId, channel])
+}
+
+model MetaMessageRead {
+  organizationId String
+  userId Int
+  leadId String
+  throughId Int @default(0)
+  user User @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  @@id([organizationId, userId, leadId])
 }
 
 model DocumentTemplate {
@@ -881,6 +896,7 @@ model Notification {
 }
 
 model NotificationPreference {
+  metaMessageSound Boolean @default(false)
   id             String       @id @default(cuid())
   organizationId String
   userId         Int
