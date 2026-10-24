@@ -1,0 +1,32 @@
+{
+  "base": "895ebe271f8a2c106029992f0497252cc9a81eee",
+  "testedSourceCommit": "a2cd68132e5598b8e931625e3623c799c23a6671",
+  "srcTree": "449a5c07f9f446287229020a596ef16930fe06b1",
+  "sourceAndCopiedSha256": "f82a40ef33dcbd2077223cd983a16b5966090d2e986ab51a9b1b9d1c8fbad3da",
+  "integrationGroups": 18,
+  "realBrowserMatrix": 6,
+  "realBrowserJourneys": 3,
+  "regressions": {
+    "registered": 89,
+    "pass": 87,
+    "fail": 0,
+    "skip": 2,
+    "skipReason": "Existing notification DB fixtures require their separate NOTIFICATIONS_TEST_DATABASE_URL; required feature DB coverage executed in 18-group dedicated suite"
+  },
+  "typecheck": {
+    "command": "node scripts/document-actualization-local.cjs typecheck",
+    "exitCode": 0
+  },
+  "build": {
+    "command": "node scripts/document-actualization-local.cjs build",
+    "underlyingCommand": "npm run build (prisma generate && next build)",
+    "exitCode": 0
+  },
+  "baseMigrationChainAppliedLocally": 52,
+  "newMigration": false,
+  "productionInventory": "NOT EXECUTED",
+  "productionActivation": "NOT EXECUTED",
+  "productionAccess": false,
+  "mergeOrDeploy": false,
+  "workWindowsReview": "Reported PASS; native CUA date-input limitation and harness logo 404 documented"
+}

@@ -1,0 +1,90 @@
+{
+  "source": {
+    "head": "a2cd68132e5598b8e931625e3623c799c23a6671",
+    "srcTree": "449a5c07f9f446287229020a596ef16930fe06b1",
+    "sourceDigest": "f82a40ef33dcbd2077223cd983a16b5966090d2e986ab51a9b1b9d1c8fbad3da",
+    "copiedSourceDigest": "f82a40ef33dcbd2077223cd983a16b5966090d2e986ab51a9b1b9d1c8fbad3da"
+  },
+  "checks": [
+    "actual DocUpdate add/edit/delete UI with parent CAS adopted; fallback restored",
+    "legacy offset timestamp displays/edits Warsaw day; description-only edit retains exact stored timestamp",
+    "cleared date with no genuine updates yields no control and neutral inline no-date state"
+  ],
+  "matrix": [
+    {
+      "width": 1440,
+      "lang": "ru",
+      "theme": "light",
+      "receiptImmediateStopResume": true,
+      "reload": true,
+      "tasksLocalized": true,
+      "calendarLocalized": true,
+      "mobileCaseLink": false,
+      "overflow": false,
+      "screenshot": "1440-ru-light.png"
+    },
+    {
+      "width": 1440,
+      "lang": "uk",
+      "theme": "dark",
+      "receiptImmediateStopResume": true,
+      "reload": true,
+      "tasksLocalized": true,
+      "calendarLocalized": true,
+      "mobileCaseLink": false,
+      "overflow": false,
+      "screenshot": "1440-uk-dark.png"
+    },
+    {
+      "width": 1024,
+      "lang": "pl",
+      "theme": "slate",
+      "receiptImmediateStopResume": true,
+      "reload": true,
+      "tasksLocalized": true,
+      "calendarLocalized": true,
+      "mobileCaseLink": false,
+      "overflow": false,
+      "screenshot": "1024-pl-slate.png"
+    },
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "dark",
+      "receiptImmediateStopResume": true,
+      "reload": true,
+      "tasksLocalized": true,
+      "calendarLocalized": true,
+      "mobileCaseLink": true,
+      "overflow": false,
+      "screenshot": "390-ru-dark.png"
+    },
+    {
+      "width": 414,
+      "lang": "uk",
+      "theme": "slate",
+      "receiptImmediateStopResume": true,
+      "reload": true,
+      "tasksLocalized": true,
+      "calendarLocalized": true,
+      "mobileCaseLink": true,
+      "overflow": false,
+      "screenshot": "414-uk-slate.png"
+    },
+    {
+      "width": 430,
+      "lang": "pl",
+      "theme": "light",
+      "receiptImmediateStopResume": true,
+      "reload": true,
+      "tasksLocalized": true,
+      "calendarLocalized": true,
+      "mobileCaseLink": true,
+      "overflow": false,
+      "screenshot": "430-pl-light.png"
+    }
+  ],
+  "errors": [],
+  "runnerSha256": "d85e4dea34a5ffe5f97c0de1d3f15ffa9bd8876d40491d0728527489b6d75f13",
+  "result": "PASS"
+}

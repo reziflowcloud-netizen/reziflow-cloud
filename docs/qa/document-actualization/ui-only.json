@@ -1,0 +1,61 @@
+{
+  "sourceDigest": "f82a40ef33dcbd2077223cd983a16b5966090d2e986ab51a9b1b9d1c8fbad3da",
+  "mode": "UI-only actual components / server-memory fixtures; no DB or auth-security proof",
+  "matrix": [
+    {
+      "width": 1440,
+      "lang": "ru",
+      "theme": "light",
+      "immediateStopResume": true,
+      "tasksCalendarLocalized": true,
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "lang": "uk",
+      "theme": "dark",
+      "immediateStopResume": true,
+      "tasksCalendarLocalized": true,
+      "overflow": false
+    },
+    {
+      "width": 1024,
+      "lang": "pl",
+      "theme": "slate",
+      "immediateStopResume": true,
+      "tasksCalendarLocalized": true,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "dark",
+      "immediateStopResume": true,
+      "tasksCalendarLocalized": true,
+      "overflow": false
+    },
+    {
+      "width": 414,
+      "lang": "uk",
+      "theme": "slate",
+      "immediateStopResume": true,
+      "tasksCalendarLocalized": true,
+      "overflow": false
+    },
+    {
+      "width": 430,
+      "lang": "pl",
+      "theme": "light",
+      "immediateStopResume": true,
+      "tasksCalendarLocalized": true,
+      "overflow": false
+    }
+  ],
+  "checks": [
+    "actual DocUpdate UI add/correct/delete against synthetic API",
+    "mock failure retains draft; existing Retry saves",
+    "mock CAS conflict surfaced by actual autosave UI"
+  ],
+  "errors": [],
+  "result": "PASS"
+}
