@@ -12,7 +12,7 @@ import CustomSectionsRenderer from '@/components/CustomSectionsRenderer'
 import { freshJson } from '@/lib/screenRefresh'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, POLISH_VOIVODESHIPS, leadDisplayName, type LeadSourceOption } from '@/lib/leads'
 import { useLanguage } from '@/context/LanguageContext'
@@ -41,7 +41,9 @@ export default function LeadDetailPage() {
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
   const [leadSources, setLeadSources] = useState<LeadSourceOption[]>(LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true })))
   const [messages, setMessages] = useState<any[]>([])
-  const [messageSnapshot, setMessageSnapshot] = useState<string | null>(null)
+  const [messageEnvelope, setMessageEnvelope] = useState<{ leadId: string; snapshot: string | null } | null>(null)
+  const messageSnapshot = messageEnvelope?.leadId === String(id) ? messageEnvelope.snapshot : null
+  const conversationSearch = useSearchParams().toString()
   const [reminders, setReminders] = useState<any[]>([])
   const [messageForm, setMessageForm] = useState({
     text: '',
@@ -222,17 +224,22 @@ export default function LeadDetailPage() {
     const data = await response.json()
     if (generation !== messageLoadRef.current || !Array.isArray(data)) return
     setMessages(data)
-    setMessageSnapshot(response.headers.get('X-Meta-Message-Snapshot'))
+    setMessageEnvelope({ leadId: String(id), snapshot: response.headers.get('X-Meta-Message-Snapshot') })
   }
   useEffect(() => {
     const refresh = () => { void loadMessages() }
     window.addEventListener('meta-messages-changed', refresh)
     return () => { messageLoadRef.current++; window.removeEventListener('meta-messages-changed', refresh) }
   }, [id])
-  const conversationOpenedRef = useRef(false)
+  const conversationOpenedRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!conversationOpenedRef.current && messageSnapshot && new URLSearchParams(window.location.search).has('conversation') && window.innerWidth > 768) { conversationOpenedRef.current = true; dialogRef.current?.scrollIntoView({ block: 'center' }) }
-  }, [messageSnapshot])
+    const navigation = `${String(id)}?${conversationSearch}`
+    if (new URLSearchParams(conversationSearch).get('conversation') !== '1') { conversationOpenedRef.current = null; return }
+    if (conversationOpenedRef.current !== navigation && messageSnapshot && dialogRef.current && window.innerWidth > 768) {
+      conversationOpenedRef.current = navigation
+      dialogRef.current.scrollIntoView({ block: 'center' })
+    }
+  }, [id, conversationSearch, messageSnapshot])
 
   useEffect(() => {
     const dialog = dialogRef.current

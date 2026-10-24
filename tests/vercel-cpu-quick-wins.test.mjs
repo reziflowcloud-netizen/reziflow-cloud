@@ -29,7 +29,7 @@ test('non-Meta tenants stop message polling after the existing settings gate', a
   assert.match(route, /getLeadWebhookSettings\(organization\.settings\)/)
   assert.match(route, /if \(!settings\.facebookMessagesEnabled\)/)
   assert.match(route, /enabled: false, latest: null/)
-  assert.match(route, /m\.\"liveIncoming\"[\s\S]*LIMIT 1/)
+  assert.match(route, /m\.\"liveReceipt\"[\s\S]*LIMIT 1/)
   assert.doesNotMatch(route, /leadWebhookLogs:/)
   assert.doesNotMatch(route, /leadWebhookLog\.findFirst/)
   assert.match(notifier, /if \(data\.enabled === false\)/)

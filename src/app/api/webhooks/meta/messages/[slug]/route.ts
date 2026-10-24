@@ -401,7 +401,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
   const safePayload = sanitizeLeadWebhookPayload(body)
   const organization = await prisma.organization.findUnique({
     where: { slug: params.slug },
-    select: { id: true, settings: true },
+    select: { id: true, settings: true, metaMessageActivatedAt: true },
   })
 
   if (!organization) return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
@@ -522,9 +522,9 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
 
     const existingMessage = await (prisma as any).leadMessage.findFirst({
       where: { organizationId: organization.id, externalMessageId },
-      select: { id: true, leadId: true },
+      select: { id: true, leadId: true, liveReceipt: true },
     })
-    if (existingMessage) {
+    if (existingMessage?.liveReceipt != null) {
       processed++
       if (!leadIds.includes(existingMessage.leadId)) leadIds.push(existingMessage.leadId)
       continue
@@ -583,7 +583,18 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
 
     const result = await (prisma as any).$transaction(async (tx: any) => {
       await lockInboundLead(tx, organization.id)
-      if (await tx.leadMessage.findFirst({ where: { organizationId: organization.id, externalMessageId }, select: { id: true } })) return null
+      // A direct event can promote a sync-first row once. Provider timestamp is
+      // ONLY an activation boundary; receipt sequence is the read/sound ordering.
+      const qualifies = Boolean(event.message?.mid) && !event.postback && !isPageOutgoing && Number.isFinite(event.timestamp)
+        && Number(event.timestamp) >= organization.metaMessageActivatedAt.getTime()
+        && Number(event.timestamp) <= Date.now() + 5 * 60_000
+      const existing = await tx.leadMessage.findFirst({ where: { organizationId: organization.id, externalMessageId } })
+      if (existing) {
+        if (existing.liveReceipt != null || !qualifies || existing.direction !== 'incoming' || existing.channel !== channel || existing.sentAt < organization.metaMessageActivatedAt) return null
+        const [receipt] = await tx.$queryRaw`SELECT nextval('"MetaLiveReceiptSequence"')::int AS value`
+        await tx.leadMessage.update({ where: { id: existing.id }, data: { liveReceipt: receipt.value } })
+        return tx.lead.findFirst({ where: { id: existing.leadId, organizationId: organization.id } })
+      }
       let lead = await tx.lead.findFirst({
           where: { organizationId: organization.id, messengerId: { in: messengerIds } },
           select: { id: true, fullName: true, instagram: true },
@@ -616,13 +627,16 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
         await notifyAssignment(tx, 'lead', lead)
       }
 
+      const liveReceipt = qualifies
+        ? (await tx.$queryRaw`SELECT nextval('"MetaLiveReceiptSequence"')::int AS value`)[0].value
+        : null
       await tx.leadMessage.create({
         data: {
           organizationId: organization.id,
           leadId: lead.id,
           channel,
           direction: isPageOutgoing ? 'outgoing' : 'incoming',
-          liveIncoming: !isPageOutgoing,
+          liveReceipt,
           senderType: isPageOutgoing ? 'system' : 'lead',
           senderName: isPageOutgoing ? pageSenderName(channel) : displayName,
           externalMessageId,

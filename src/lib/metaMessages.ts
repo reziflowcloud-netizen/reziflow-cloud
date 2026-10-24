@@ -2,8 +2,11 @@ import { Prisma } from '@prisma/client'
 import { prisma } from './prisma'
 export { messageSnapshot, parseMessageSnapshot } from './metaMessageSnapshot'
 
-// Eligibility is set ONLY in the serialized live webhook transaction. In particular,
-// conversationSync and manual incoming writes keep the database default false.
+// Live receipt is allocated ONLY in the serialized direct webhook transaction.
+// conversationSync/manual/old-app writes keep null until a qualifying direct event.
+export const metaAccessSql = (userId: number) => Prisma.sql`
+ EXISTS (SELECT 1 FROM "User" access_user WHERE access_user.id=${userId} AND access_user."organizationId"=l."organizationId"
+   AND (access_user.role IN ('owner','admin') OR NOT access_user."restrictedAccess" OR l."assignedToId"=access_user.id))`
 export const metaRecipientSql = (userId: number) => Prisma.sql`
  EXISTS (SELECT 1 FROM "User" u WHERE u.id=${userId} AND u."organizationId"=l."organizationId"
  AND (u.role IN ('owner','admin') OR NOT u."restrictedAccess" OR l."assignedToId"=u.id)
@@ -26,10 +29,11 @@ export function metaLeadAccess(user: any, leadId: string) {
 export async function metaUnreadCounts(user: any, leadIds: string[]) {
   if (!leadIds.length) return new Map<string, number>()
   const rows = await prisma.$queryRaw<{ leadId: string; count: number }[]>(Prisma.sql`
-    SELECT m."leadId", count(*)::int AS count FROM "LeadMessage" m
-    JOIN "Lead" l ON l.id=m."leadId" AND l."organizationId"=m."organizationId"
-    LEFT JOIN "MetaMessageRead" r ON r."organizationId"=m."organizationId" AND r."leadId"=m."leadId" AND r."userId"=${user.id}
-    WHERE m."organizationId"=${user.organizationId} AND m."leadId" IN (${Prisma.join(leadIds)}) AND m."liveIncoming"
-      AND m.id>COALESCE(r."throughId",0) GROUP BY m."leadId"`)
+    SELECT l.id AS "leadId", c.count FROM "Lead" l
+    LEFT JOIN "MetaMessageRead" r ON r."organizationId"=l."organizationId" AND r."leadId"=l.id AND r."userId"=${user.id}
+    CROSS JOIN LATERAL (SELECT count(*)::int AS count FROM "LeadMessage" m
+      WHERE m."organizationId"=l."organizationId" AND m."leadId"=l.id
+        AND m."liveReceipt">COALESCE(r."throughReceipt",0)) c
+    WHERE l."organizationId"=${user.organizationId} AND l.id IN (${Prisma.join(leadIds)}) AND ${metaAccessSql(user.id)} AND c.count>0`)
   return new Map(rows.map(row => [row.leadId, row.count]))
 }

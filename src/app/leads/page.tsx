@@ -2275,7 +2275,7 @@ export default function LeadsPage() {
                       style={{ textAlign: 'left', border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 8, padding: 10, cursor: 'pointer' }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                        <strong>{leadDisplayName(lead)}</strong><MetaUnreadBadge lead={lead} lang={lang} />
+                        <strong>{leadDisplayName(lead)}</strong>
                         <span style={{ color: 'var(--muted)', fontSize: 12 }}>{lead.reminderKind === 'deadline' ? lt('deadline_at') : new Date(lead.reminderAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                       <div style={{ color: 'var(--muted)', fontSize: 12 }}>{lead.reminderNote || lt('no_note')}</div>

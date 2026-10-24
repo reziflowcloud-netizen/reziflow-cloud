@@ -80,6 +80,7 @@ model Organization {
   cancelAtPeriodEnd     Boolean              @default(false)
   graceEndsAt           DateTime?
   settings              Json?
+  metaMessageActivatedAt DateTime @default(now())
   notificationAutomationEnabled Boolean @default(false)
   notificationAutomationActivatedAt DateTime?
   createdAt             DateTime             @default(now())
@@ -328,7 +329,7 @@ model LeadMessage {
   direction         String       @default("incoming")
   senderType        String       @default("lead")
   senderName        String?
-  liveIncoming      Boolean      @default(false)
+  liveReceipt       Int?         @unique
   externalMessageId String?
   text              String
   payload           Json?
@@ -336,8 +337,8 @@ model LeadMessage {
   createdAt         DateTime     @default(now())
 
   @@unique([organizationId, externalMessageId])
-  @@index([organizationId, liveIncoming, id])
-  @@index([organizationId, leadId, liveIncoming, id])
+  @@index([organizationId, liveReceipt])
+  @@index([organizationId, leadId, liveReceipt])
   @@index([organizationId, sentAt])
   @@index([leadId, sentAt])
   @@index([organizationId, channel])
@@ -347,7 +348,7 @@ model MetaMessageRead {
   organizationId String
   userId Int
   leadId String
-  throughId Int @default(0)
+  throughReceipt Int @default(0)
   user User @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: Cascade)
   lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
   @@id([organizationId, userId, leadId])

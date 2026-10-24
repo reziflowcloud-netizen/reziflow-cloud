@@ -1,0 +1,30 @@
+{
+  "source": {
+    "srcDigest": "b7cb5bc33d7d42d36b4f56d958ae592c41dbfa10ddadd635ae1ad3f874f2b465",
+    "copiedSrcDigest": "b7cb5bc33d7d42d36b4f56d958ae592c41dbfa10ddadd635ae1ad3f874f2b465",
+    "head": "5a6b472819ac0ebec1265e57ca59f8850bfff1b2"
+  },
+  "checks": [
+    "non-Meta tenant retains polling stop gate",
+    "empty first inbox, default sound OFF",
+    "FB first, repeat, concurrent duplicate and attachment persisted once",
+    "IG bursts, provider timestamps out of order, fallback for both admins",
+    "empty snapshot never acknowledges first future event",
+    "authorized list badges independent from recipient-only global alerts",
+    "outgoing echo and manual incoming are ineligible",
+    "postback-only events persist without unread receipt",
+    "historical sync and replay of synced message stay ineligible",
+    "fresh sync-first promotion once after earlier read; outgoing higher ID cannot swallow unseen receipt",
+    "per-user read persistence across sessions and devices; stale ACK monotonic",
+    "tampered, foreign user/tenant/lead snapshot and auth-cookie substitution rejected",
+    "latest read retains actionable older fallback unread without cursor regression",
+    "server persisted sound ON/OFF independent from push and org master",
+    "serialized eligible commit order barrier, invisible arrival ACK, duplicate race",
+    "visual revision covers accessible nonrecipient arrivals and reads outside preview",
+    "unread count SQL rechecks assignment changed after earlier Lead-list query",
+    "ACK queued behind actual role/restriction API change rejects stale snapshot",
+    "ACK waits leading Organization before User and rechecks revoked permissions",
+    "ACK versus reassignment and deletion barriers return safe status without deadlocks",
+    "unread list includes every match beyond five-item alert preview"
+  ]
+}

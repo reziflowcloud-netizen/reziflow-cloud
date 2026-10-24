@@ -9,10 +9,11 @@ import bcrypt from 'bcryptjs'
 const url = new URL(process.env.DATABASE_URL || '')
 assert.equal(url.hostname,'127.0.0.1'); assert.equal(url.port,'55435'); assert.equal(url.pathname,'/actualization_qa')
 const db = new PrismaClient(), origin='http://127.0.0.1:3127', suffix=Date.now(), contexts=[]
-const report={source:{head:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()},checks:[]}
+const digest=(await import('./actualization-source-evidence.cjs')).default.digest
+const report={source:{srcDigest:digest('src'),copiedSrcDigest:digest('work/meta-app/src'),head:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()},checks:[]}
 const run=async(name,fn)=>{await fn(); report.checks.push(name); console.log('PASS',name)}
 const password='Synthetic-only-meta-qa-2026', hash=await bcrypt.hash(password,10)
-const org=await db.organization.create({data:{name:'Synthetic Meta QA',slug:'meta-qa-'+suffix,settings:{facebookMessagesEnabled:true,facebookLeadPageAccessToken:'synthetic-token',instagramMessagesPageAccessToken:'synthetic-token'}}})
+const org=await db.organization.create({data:{name:'Synthetic Meta QA',slug:'meta-qa-'+suffix,metaMessageActivatedAt:new Date(Date.now()-120000),settings:{facebookMessagesEnabled:true,facebookLeadPageAccessToken:'synthetic-token',instagramMessagesPageAccessToken:'synthetic-token'}}})
 // getLeadWebhookSettings uses the organization's existing nested integration key.
 const settingsModule=await fs.readFile('src/lib/leadWebhook.ts','utf8')
 const settingsKey=settingsModule.match(/const raw = .*?settings\?\.([A-Za-z]+)/)?.[1]
@@ -47,10 +48,10 @@ try {
   await webhook('facebook',[event('fb-user','fb-first')]); await webhook('facebook',[event('fb-user','fb-first')]);
   await Promise.all([webhook('facebook',[event('fb-user','fb-race')]),webhook('facebook',[event('fb-user','fb-race')])]);
   await webhook('facebook',[event('fb-user','fb-attachment',{message:{mid:'fb-attachment',attachments:[{type:'image',payload:{url:'https://example.invalid/synthetic.jpg'}}]}})])
-  assert.equal(await db.leadMessage.count({where:{organizationId:org.id,liveIncoming:true,leadId:lead.id}}),3);assert.equal(await counts(s,lead.id),3)
+  assert.equal(await db.leadMessage.count({where:{organizationId:org.id,liveReceipt:{not:null},leadId:lead.id}}),3);assert.equal(await counts(s,lead.id),3)
  })
  await run('IG bursts, provider timestamps out of order, fallback for both admins',async()=>{
-  await webhook('instagram',[event('ig-user','ig-first',{timestamp:Date.UTC(2030,0,1)}),event('ig-user','ig-later',{timestamp:Date.UTC(2000,0,1)})]);assert.equal(await counts(a,ig.id),2);assert.equal((await poll(a)).unread[0].leadId,ig.id);assert.equal((await poll(b)).unread[0].leadId,ig.id)
+  await webhook('instagram',[event('ig-user','ig-first',{timestamp:Date.now()-1000}),event('ig-user','ig-later',{timestamp:Date.now()-2000})]);assert.equal(await counts(a,ig.id),2);assert.equal((await poll(a)).unread[0].leadId,ig.id);assert.equal((await poll(b)).unread[0].leadId,ig.id)
  })
  await run('empty snapshot never acknowledges first future event',async()=>{assert.equal((await ack(a,ig.id,empty.token)).status(),200);assert.equal(await counts(a,ig.id),2)})
  await run('authorized list badges independent from recipient-only global alerts',async()=>{assert.equal(await counts(a,lead.id),3);assert.equal((await poll(a)).unread.some(x=>x.leadId===lead.id),false);assert.equal((await poll(s)).unread.some(x=>x.leadId===lead.id),true);assert.equal(await counts(s,ig.id),undefined)})
@@ -59,13 +60,27 @@ try {
   assert.equal((await a.post(`/api/leads/${lead.id}/messages`,{data:{text:'Synthetic manual',direction:'incoming',channel:'facebook'}})).status(),200)
   assert.equal(await counts(a,lead.id),3)
  })
+ await run('postback-only events persist without unread receipt',async()=>{const before=await counts(a,ig.id);await webhook('instagram',[{sender:{id:'ig-user'},recipient:{id:'qa-page'},timestamp:Date.now(),postback:{title:'Synthetic menu',payload:'synthetic-postback'}}]);const row=await db.leadMessage.findFirst({where:{organizationId:org.id,externalMessageId:'synthetic-postback'}});assert.ok(row);assert.equal(row.liveReceipt,null);assert.equal(await counts(a,ig.id),before)})
  await run('historical sync and replay of synced message stay ineligible',async()=>{
-  await webhook('instagram',[{sender:{id:'ig-user'},recipient:{id:'qa-page'},read:{watermark:Date.now()}}]);const history=await db.leadMessage.findFirst({where:{organizationId:org.id,externalMessageId:'synced-ig-user'}});assert.ok(history);assert.equal(history.liveIncoming,false)
-  await webhook('instagram',[event('ig-user','synced-ig-user')]);assert.equal(await counts(a,ig.id),2)
+  await webhook('instagram',[{sender:{id:'ig-user'},recipient:{id:'qa-page'},read:{watermark:Date.now()}}]);const history=await db.leadMessage.findFirst({where:{organizationId:org.id,externalMessageId:'synced-ig-user'}});assert.ok(history);assert.equal(history.liveReceipt,null)
+  await webhook('instagram',[event('ig-user','synced-ig-user',{timestamp:Date.UTC(2020,0,1)})]);assert.equal(await counts(a,ig.id),2)
+ })
+ await run('fresh sync-first promotion once after earlier read; outgoing higher ID cannot swallow unseen receipt',async()=>{
+  const synced=await db.leadMessage.create({data:{organizationId:org.id,leadId:ig.id,externalMessageId:'fresh-synced',channel:'instagram',text:'Synthetic fresh sync first',payload:{conversationSync:true},sentAt:new Date()}})
+  const higher=await db.leadMessage.create({data:{organizationId:org.id,leadId:ig.id,channel:'instagram',direction:'outgoing',text:'Synthetic higher outgoing'}})
+  assert.ok(higher.id>synced.id)
+  const earlier=await snapshot(a,ig.id)
+  const baseline=await counts(a,ig.id)
+  await Promise.all([webhook('instagram',[event('ig-user','fresh-synced')]),webhook('instagram',[event('ig-user','fresh-synced')])])
+  const promoted=await db.leadMessage.findUnique({where:{id:synced.id}});assert.ok(promoted.liveReceipt)
+  await ack(a,ig.id,earlier.token);assert.equal(await counts(a,ig.id),1)
+  await ack(a,ig.id,(await snapshot(a,ig.id)).token);assert.equal(await counts(a,ig.id),0)
+  // Restore one direct-first unread for subsequent per-user independence group.
+  await webhook('instagram',[event('ig-user','after-promotion-a'),event('ig-user','after-promotion-b')])
  })
  const snap=await snapshot(a,ig.id)
  await run('per-user read persistence across sessions and devices; stale ACK monotonic',async()=>{
-  assert.equal((await ack(a,ig.id,snap.token)).status(),200);assert.equal(await counts(a,ig.id),0);assert.equal(await counts(b,ig.id),2);const second=await context(owner);assert.equal(await counts(second,ig.id),0)
+  assert.equal((await ack(a,ig.id,snap.token)).status(),200);assert.equal(await counts(a,ig.id),0);assert.equal(await counts(b,ig.id),5);const second=await context(owner);assert.equal(await counts(second,ig.id),0)
   await webhook('instagram',[event('ig-user','ig-new')]);assert.equal((await ack(a,ig.id,empty.token)).status(),200);assert.equal(await counts(a,ig.id),1)
  })
  await run('tampered, foreign user/tenant/lead snapshot and auth-cookie substitution rejected',async()=>{
@@ -84,9 +99,24 @@ try {
   })
   assert.equal((await ack(a,ig.id,before.token)).status(),200);assert.equal(await counts(a,ig.id),1)
   let unblock,inserted;const gate=new Promise(r=>unblock=r),ready=new Promise(r=>inserted=r)
-  const one=db.$transaction(async tx=>{await tx.$queryRawUnsafe('SELECT id FROM "Organization" WHERE id=$1 FOR UPDATE',org.id);const row=await tx.leadMessage.create({data:{organizationId:org.id,leadId:ig.id,channel:'instagram',text:'Synthetic held',liveIncoming:true,externalMessageId:'ig-held'}});firstId=row.id;inserted();await gate},{timeout:20000});await ready
+  const one=db.$transaction(async tx=>{await tx.$queryRawUnsafe('SELECT id FROM "Organization" WHERE id=$1 FOR UPDATE',org.id);const row=await tx.leadMessage.create({data:{organizationId:org.id,leadId:ig.id,channel:'instagram',text:'Synthetic held',liveReceipt:(await tx.$queryRaw`SELECT nextval('"MetaLiveReceiptSequence"')::int AS value`)[0].value,externalMessageId:'ig-held'}});firstId=row.id;inserted();await gate},{timeout:20000});await ready
   const two=webhook('instagram',[event('ig-user','ig-ordered')]);await waitLock('Organization');const middle=await snapshot(a,ig.id);assert.equal(middle.messages.some(x=>x.id===firstId),false);unblock();await one;await two
   const second=await db.leadMessage.findFirst({where:{organizationId:org.id,externalMessageId:'ig-ordered'}});assert.ok(second.id>firstId);await ack(a,ig.id,middle.token);assert.equal(await counts(a,ig.id),2)
+ })
+ await run('visual revision covers accessible nonrecipient arrivals and reads outside preview',async()=>{
+  const before=await poll(a);await webhook('facebook',[event('fb-user','nonrecipient-visual')]);const after=await poll(a);assert.equal(after.latest.id,before.latest.id);assert.notEqual(after.visualRevision,before.visualRevision)
+  const tab=await context(owner);await ack(tab,lead.id,(await snapshot(tab,lead.id)).token);const read=await poll(a);assert.equal(read.latest.id,after.latest.id);assert.notEqual(read.visualRevision,after.visualRevision)
+ })
+ await run('unread count SQL rechecks assignment changed after earlier Lead-list query',async()=>{
+  await held('LOCK TABLE "LeadMessage" IN ACCESS EXCLUSIVE MODE',[],async release=>{
+   const pending=list(s);await waitLock('SELECT l.id AS "leadId"');await db.lead.update({where:{id:lead.id},data:{assignedToId:other.id,employeeId:null}});release();const rows=await pending;assert.equal(rows.find(x=>x.id===lead.id)?.metaUnreadCount,0)
+  });await db.lead.update({where:{id:lead.id},data:{assignedToId:staff.id,employeeId:employee.id}})
+ })
+ await run('ACK queued behind actual role/restriction API change rejects stale snapshot',async()=>{
+  const token=(await snapshot(a,ig.id)).token
+  await held('SELECT id FROM "Organization" WHERE id=$1 FOR UPDATE',[org.id],async release=>{
+   const change=b.patch('/api/users/'+owner.id,{data:{role:'employee',restrictedAccess:true}});await waitLock('Organization');const pending=ack(a,ig.id,token);release();assert.equal((await change).status(),200);assert.equal((await pending).status(),404)
+  });assert.equal((await b.patch('/api/users/'+owner.id,{data:{role:'owner',restrictedAccess:false}})).status(),200)
  })
  await run('ACK waits leading Organization before User and rechecks revoked permissions',async()=>{
   const token=(await snapshot(s,lead.id)).token
@@ -103,9 +133,10 @@ try {
   const deleting=db.$transaction(async tx=>{await tx.lead.delete({where:{id:doomed.id}});ready();await gate},{timeout:20000});await started;const pending=ack(a,doomed.id,t);await waitLock('Lead');release();await deleting;assert.equal((await pending).status(),404)
  })
  await run('unread list includes every match beyond five-item alert preview',async()=>{
-  for(let i=0;i<31;i++){const l=await db.lead.create({data:{organizationId:org.id,fullName:'Synthetic page '+i}});await db.leadMessage.create({data:{organizationId:org.id,leadId:l.id,channel:'facebook',text:'Synthetic bounded preview fixture',liveIncoming:true}})}
-  const p=await poll(a);assert.equal(p.unread.length,5);assert.equal((await list(a)).filter(x=>x.metaUnreadCount>0).length,32)
+  for(let i=0;i<31;i++){const l=await db.lead.create({data:{organizationId:org.id,fullName:'Synthetic page '+i}});await db.leadMessage.create({data:{organizationId:org.id,leadId:l.id,channel:'facebook',text:'Synthetic bounded preview fixture',liveReceipt:(await db.$queryRaw`SELECT nextval('"MetaLiveReceiptSequence"')::int AS value`)[0].value}})}
+  const p=await poll(a);assert.equal(p.unread.length,5);assert.equal((await list(a)).filter(x=>x.metaUnreadCount>0).length,31)
  })
+ assert.equal(digest('src'),report.source.srcDigest);assert.equal(digest('work/meta-app/src'),report.source.srcDigest)
  await fs.mkdir('docs/qa/meta-messages',{recursive:true});await fs.writeFile('docs/qa/meta-messages/integration.json',JSON.stringify(report,null,2)+'\n')
  await fs.writeFile('work/meta-fixtures.json',JSON.stringify({org,owner,admin,staff,other,foreign,lead,ig,password},null,2))
  console.log('TOTAL',report.checks.length)

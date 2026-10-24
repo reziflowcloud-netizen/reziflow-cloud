@@ -17,3 +17,11 @@ globalThis.fetch = async (input, init) => {
  if (!['127.0.0.1','localhost'].includes(target.hostname)) throw Error('Non-loopback network blocked by synthetic provider fixture')
  return original(input, init)
 }
+// Capture SQL only in this guarded synthetic process, for exact EXPLAIN and count
+// evidence. No result rows, passwords, connection URLs or provider tokens logged.
+const Module=require('node:module'),fs=require('node:fs'),path=require('node:path'),load=Module._load,wrapped=new WeakMap()
+Module._load=function(name,...args){const value=load.call(this,name,...args);if(name!=='@prisma/client'||!value.PrismaClient)return value
+ let Client=wrapped.get(value.PrismaClient)
+ if(!Client){Client=class extends value.PrismaClient{constructor(options={}){super({...options,log:[{emit:'event',level:'query'}]});this.$on('query',e=>{if(process.env.QA_META_QUERY_LOG&&/^\s*SELECT/.test(e.query))fs.appendFileSync(process.env.QA_META_QUERY_LOG,JSON.stringify({query:e.query,params:e.params,duration:e.duration})+'\n')})}};wrapped.set(value.PrismaClient,Client)}
+ return {...value,PrismaClient:Client}
+}

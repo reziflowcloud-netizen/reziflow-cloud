@@ -25,8 +25,16 @@ if (fs.existsSync(src) && fs.lstatSync(src).isSymbolicLink()) fs.unlinkSync(src)
 if (['dev', 'build', 'build-prepare', 'typecheck'].includes(process.argv[2])) {
   const digest = require('./actualization-source-evidence.cjs').digest
   if (!fs.existsSync(src) || digest(src) !== digest(path.join(root, 'src'))) {
-    fs.rmSync(src, { recursive: true, force: true })
-    fs.cpSync(path.join(root, 'src'), src, { recursive: true })
+    function syncTree(from, to) {
+      fs.mkdirSync(to, { recursive: true })
+      for (const entry of fs.readdirSync(to)) if (!fs.existsSync(path.join(from, entry))) fs.rmSync(path.join(to, entry), { recursive: true, force: true })
+      for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
+        const source = path.join(from, entry.name), destination = path.join(to, entry.name)
+        if (entry.isDirectory()) syncTree(source, destination)
+        else if (!fs.existsSync(destination) || !fs.readFileSync(source).equals(fs.readFileSync(destination))) fs.copyFileSync(source, destination)
+      }
+    }
+    syncTree(path.join(root, 'src'), src)
   }
   if (digest(src) !== digest(path.join(root, 'src'))) throw Error('Source snapshot mismatch')
   fs.writeFileSync(
@@ -76,6 +84,7 @@ const env = {
   // No Push provider configuration is inherited or supplied to the app.
   WEB_PUSH_ENABLED: 'false',
   META_APP_SECRET: 'synthetic-meta-qa-secret',
+  QA_META_QUERY_LOG: path.join(root, 'work/meta-query-log.jsonl'),
   NODE_OPTIONS: '--require=' + path.join(root, 'scripts/meta-message-provider-preload.cjs'),
 }
 delete env.DIRECT_URL

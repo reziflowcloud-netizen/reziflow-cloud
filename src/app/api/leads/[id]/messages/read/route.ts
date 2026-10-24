@@ -18,7 +18,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     if (!await tx.lead.findFirst({ where: metaLeadAccess(user, params.id), select: { id: true } })) return 404
     const through = await parseMessageSnapshot(body.snapshot, user, params.id)
     if (through === null) return 400
-    await tx.$executeRaw`INSERT INTO "MetaMessageRead" ("organizationId","userId","leadId","throughId") VALUES (${user.organizationId},${user.id},${params.id},${through}) ON CONFLICT ("organizationId","userId","leadId") DO UPDATE SET "throughId"=GREATEST("MetaMessageRead"."throughId",EXCLUDED."throughId")`
+    await tx.$executeRaw`INSERT INTO "MetaMessageRead" ("organizationId","userId","leadId","throughReceipt") VALUES (${user.organizationId},${user.id},${params.id},${through}) ON CONFLICT ("organizationId","userId","leadId") DO UPDATE SET "throughReceipt"=GREATEST("MetaMessageRead"."throughReceipt",EXCLUDED."throughReceipt")`
     return 200
   })
   return NextResponse.json(result === 200 ? { ok: true } : { error: 'Unavailable' }, { status: result })
