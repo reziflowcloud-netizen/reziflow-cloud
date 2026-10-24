@@ -1,0 +1,13 @@
+{
+  "oldSource": "07d765e5ad16386c3fed2de806b0e25069dbe44b",
+  "migrations": 53,
+  "checks": [
+    "old-main authenticated login",
+    "old-main /api/leads?view=list",
+    "old-main /api/leads/cmvmlg38j00051irzhbahso41/messages",
+    "old-main /api/notifications/preferences",
+    "old-main /api/notifications/meta-messages",
+    "old-main write defaults to null receipt",
+    "old-main preferences read/write additive compatibility"
+  ]
+}

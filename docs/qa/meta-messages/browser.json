@@ -1,0 +1,179 @@
+{
+  "source": {
+    "srcDigest": "f53a6e2d26792bc60032830ea5cd9da59f264d11bbaf5c1ca83ea71bc54fbff1"
+  },
+  "matrix": [
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "light",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": true
+    },
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "dark",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": true
+    },
+    {
+      "width": 390,
+      "lang": "ru",
+      "theme": "slate",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": true
+    },
+    {
+      "width": 390,
+      "lang": "uk",
+      "theme": "light",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": true
+    },
+    {
+      "width": 390,
+      "lang": "uk",
+      "theme": "dark",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": true
+    },
+    {
+      "width": 390,
+      "lang": "uk",
+      "theme": "slate",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": true
+    },
+    {
+      "width": 390,
+      "lang": "pl",
+      "theme": "light",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": true
+    },
+    {
+      "width": 390,
+      "lang": "pl",
+      "theme": "dark",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": true
+    },
+    {
+      "width": 390,
+      "lang": "pl",
+      "theme": "slate",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": true
+    },
+    {
+      "width": 1440,
+      "lang": "ru",
+      "theme": "light",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": false
+    },
+    {
+      "width": 1440,
+      "lang": "ru",
+      "theme": "dark",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": false
+    },
+    {
+      "width": 1440,
+      "lang": "ru",
+      "theme": "slate",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": false
+    },
+    {
+      "width": 1440,
+      "lang": "uk",
+      "theme": "light",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": false
+    },
+    {
+      "width": 1440,
+      "lang": "uk",
+      "theme": "dark",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": false
+    },
+    {
+      "width": 1440,
+      "lang": "uk",
+      "theme": "slate",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": false
+    },
+    {
+      "width": 1440,
+      "lang": "pl",
+      "theme": "light",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": false
+    },
+    {
+      "width": 1440,
+      "lang": "pl",
+      "theme": "dark",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": false
+    },
+    {
+      "width": 1440,
+      "lang": "pl",
+      "theme": "slate",
+      "overflow": false,
+      "filterPersisted": true,
+      "visibleLoadedAck": true,
+      "mobileOverviewNoAck": false
+    }
+  ],
+  "journeys": [
+    "mobile overview and explicit conversation on consecutive Leads",
+    "failed ACK retains unread; focus retries once successfully",
+    "keyboard badge 769/table, measured badge contained",
+    "keyboard badge 1024/table, measured badge contained",
+    "keyboard badge 1359/table, measured badge contained",
+    "keyboard badge 1440/board, measured badge contained",
+    "keyboard badge 390/table, measured badge contained"
+  ],
+  "errors": []
+}

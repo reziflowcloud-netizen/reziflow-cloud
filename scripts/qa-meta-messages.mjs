@@ -35,7 +35,7 @@ async function snapshot(c,id){const r=await c.get(`/api/leads/${id}/messages`);a
 const ack=(c,id,token)=>c.post(`/api/leads/${id}/messages/read`,{data:{snapshot:token}})
 async function counts(c,id){return (await list(c)).find(x=>x.id===id)?.metaUnreadCount}
 // Barrier confirms the competing request is waiting in PostgreSQL before release.
-async function waitLock(fragment){const until=Date.now()+15000;while(Date.now()<until){const r=await db.$queryRawUnsafe(`SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE $1`,'%'+fragment+'%');if(r.length)return;await new Promise(resolve=>setTimeout(resolve,20))}throw Error('DB barrier did not observe '+fragment)}
+async function waitLock(fragment,minimum=1){const until=Date.now()+15000;while(Date.now()<until){const r=await db.$queryRawUnsafe(`SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE $1`,'%'+fragment+'%');if(r.length>=minimum)return;await new Promise(resolve=>setTimeout(resolve,20))}throw Error('DB barrier did not observe '+fragment)}
 async function held(sql,params,fn){let release,ready;const gate=new Promise(r=>release=r),started=new Promise(r=>ready=r);const holding=db.$transaction(async tx=>{await tx.$queryRawUnsafe(sql,...params);ready();await gate},{timeout:20000});await started;try{return await fn(release)}finally{release();await holding}}
 try {
  // Explicit synthetic integration settings; discover parser shape from source, never env.
@@ -154,7 +154,8 @@ try {
   const token=(await snapshot(s,lead.id)).token;await get(a,'/api/leads/'+lead.id)
   await held('SELECT id FROM "Organization" WHERE id=$1 FOR UPDATE',[org.id],async release=>{
    const change=b.patch('/api/leads/'+lead.id,{data:{assignedToId:other.id}});await waitLock('Organization')
-   const pending=ack(s,lead.id,token),identity=b.patch('/api/users/'+staff.id,{data:{role:'employee',restrictedAccess:false}})
+   const pending=ack(s,lead.id,token);await waitLock('Organization',2)
+   const identity=b.patch('/api/users/'+staff.id,{data:{role:'employee',restrictedAccess:false}});await waitLock('Organization',3)
    release();assert.deepEqual([(await change).status(),(await pending).status(),(await identity).status()],[200,404,200])
   });assert.equal((await b.patch('/api/users/'+staff.id,{data:{restrictedAccess:true}})).status(),200)
  })

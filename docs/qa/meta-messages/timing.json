@@ -1,0 +1,16 @@
+{
+  "sourceDigest": "f53a6e2d26792bc60032830ea5cd9da59f264d11bbaf5c1ca83ea71bc54fbff1",
+  "checks": [
+    "initial poll reconciles visual state without initial sound; accessible nonrecipient cursor refreshes list",
+    "empty baseline then first future event sounds once; repeated poll and read never replay audio",
+    "never-resolving AudioContext.resume cannot block visual polling",
+    "autoplay rejection preserves visual polling and no sound",
+    "OFF invalidates stale in-flight sound; ON advances baseline without replay; queued refresh is immediate",
+    "session change discards stale in-flight response and clears published user data",
+    "cross-tab read event outside preview refreshes list even unchanged poll preview",
+    "two same-user tabs deduplicate receipt sound with real shared Web Locks/storage; bursts batch",
+    "controlled hidden document has zero repeated polls; visible resumes exactly one refresh",
+    "Next client navigation consumes same-Lead query and new-Lead dialogue once; polling does not steal scroll/tab"
+  ],
+  "errors": []
+}
