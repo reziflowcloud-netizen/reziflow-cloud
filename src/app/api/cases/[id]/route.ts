@@ -316,6 +316,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const fieldIds = Object.keys(customValues || {}).map(Number)
     if (fieldIds.some(id => !Number.isInteger(id) || id <= 0)) return NextResponse.json({ error: 'Invalid custom field' }, { status: 400 })
     const updated = await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "Organization" WHERE id = ${organizationId} FOR SHARE`
       // Legacy clients have no loaded version: retain manual last-writer behavior,
       // but serialize against CAS writers and always advance the latest version.
       const locked = await tx.$queryRaw<Array<{ updatedAt: Date; status: string }>>`

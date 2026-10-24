@@ -91,7 +91,8 @@ export function actualizationTaskTitle(task: any, language: string) {
 }
 
 export function actualizationNeedsAssignment(task: any) {
-  return !!actualizationRef(task) && task.assignedToId == null && !actualizationFinished(task) && task.status !== 'inactive'
+  const ref = actualizationRef(task)
+  return !!ref && (ref.requiresAssignment === true || task.assignedToId === null) && !actualizationFinished(task) && task.status !== 'inactive'
 }
 export const actualizationAssignmentLabels = {
   uk: 'Не призначено відповідального',

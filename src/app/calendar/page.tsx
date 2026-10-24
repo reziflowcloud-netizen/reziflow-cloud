@@ -1,6 +1,6 @@
 'use client'
 import ActualizationAssignmentBadge from '@/components/ActualizationAssignmentBadge'
-import {actualizationTaskTitle} from '@/lib/documentActualizationPolicy'
+import {actualizationTaskTitle, actualizationNeedsAssignment, actualizationAssignmentLabels} from '@/lib/documentActualizationPolicy'
 import { createTaskFetch } from '@/lib/createTaskFetch'
 import NotificationBell from '@/components/NotificationBell'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
@@ -141,7 +141,7 @@ export default function CalendarPage() {
     const query = `staffScope=${encodeURIComponent(scope)}`
     return Promise.all([
       freshJson(`/api/tasks?${query}`),
-      freshJson(`/api/cases?${query}`),
+      freshJson(`/api/cases?${query}`).catch(error => { if (scope === 'mine' && error.message === 'HTTP 409') return []; throw error }),
     ]).then(([taskData, caseData]) => {
       setTasks(Array.isArray(taskData) ? taskData : [])
       setCases(Array.isArray(caseData) ? caseData : [])
@@ -420,6 +420,10 @@ export default function CalendarPage() {
           margin-bottom: 2px;
         }
 
+        /* Only managed fallback month chips: one bounded line, full label in detail. */
+        .cal-chip--actualization-fallback { display: flex; align-items: flex-start; gap: 3px; line-height: 14px; }
+        .cal-chip--actualization-fallback > .cal-chip-title { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
         /* ── Точки (мобиль) — скрыты на десктопе ── */
         .cal-dots {
           display: none;
@@ -611,13 +615,14 @@ export default function CalendarPage() {
                       {allItems.slice(0, 3).map((t, i) => {
                         const isDue = !!getTasksForDate(cell.year, cell.month, cell.day).find(dt => dt.id === t.id)
                         const color = !isDue ? '#7c3aed' : getPriorityColor(t.priority)
+                        const fallback = actualizationNeedsAssignment(t)
                         return (
-                          <div key={t.id + i} className="cal-chip" style={{
+                          <div key={t.id + i} className={`cal-chip${fallback ? ' cal-chip--actualization-fallback' : ''}`} title={fallback ? `${actualizationTaskTitle(t,lang)} · ${actualizationAssignmentLabels[lang==='ru'||lang==='pl'?lang:'uk']}` : undefined} style={{
                             background: color + '20',
                             color,
                             borderLeft: `2px solid ${color}`,
                           }}>
-                            {!isDue ? '⏰ ' : ''}{actualizationTaskTitle(t,lang)}<ActualizationAssignmentBadge task={t} lang={lang} />
+                            {fallback ? <><span className="cal-chip-title">{!isDue ? '⏰ ' : ''}{actualizationTaskTitle(t,lang)}</span><ActualizationAssignmentBadge task={t} lang={lang} compact /></> : <>{!isDue ? '⏰ ' : ''}{actualizationTaskTitle(t,lang)}</>}
                           </div>
                         )
                       })}
@@ -633,6 +638,7 @@ export default function CalendarPage() {
                       {allItems.slice(0, 4).map((t, i) => {
                         const isDue = !!getTasksForDate(cell.year, cell.month, cell.day).find(dt => dt.id === t.id)
                         const color = !isDue ? '#7c3aed' : getPriorityColor(t.priority)
+                        const fallback = actualizationNeedsAssignment(t)
                         return <div key={t.id + i} className="cal-dot" style={{ background: color }} />
                       })}
                       {allItems.length > 4 && (

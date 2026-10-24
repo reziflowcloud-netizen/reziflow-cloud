@@ -467,6 +467,7 @@ export default function CaseDetailPage() {
         id: task.id,
         title: task.title,
         description: task.description,
+        assignedToId: task.assignedToId,
         status: task.status || 'todo',
         priority: task.priority || '',
         dueDate: task.dueDate?.slice(0, 10) || meta.reminderAt?.slice(0, 10) || '',

@@ -17,6 +17,7 @@ export async function effectiveDocumentTemplate(db: Prisma.TransactionClient, or
 export async function createCaseWithChecklist(db: Prisma.TransactionClient, data: Prisma.CaseUncheckedCreateInput) {
   const organizationId = data.organizationId
   if (!organizationId) throw new ChecklistError('Organization required')
+  await db.$queryRaw(Prisma.sql`SELECT id FROM "Organization" WHERE id = ${organizationId} FOR SHARE`)
   if (!await db.client.findFirst({ where: { id: data.clientId, organizationId }, select: { id: true } })) throw new ChecklistError('Client not found', 404)
   if (data.assignedToId && !await db.user.findFirst({ where: { id: data.assignedToId, organizationId }, select: { id: true } })) throw new ChecklistError('Responsible user not found', 404)
   if (data.employeeId && !await db.employee.findFirst({ where: { id: data.employeeId, organizationId }, select: { id: true } })) throw new ChecklistError('Employee not found', 404)

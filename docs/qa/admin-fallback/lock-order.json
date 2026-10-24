@@ -1,0 +1,49 @@
+{
+  "source": {
+    "head": "dc17974d7a0b1b79b12e394cae67dfddb9b21b2e",
+    "srcTree": "515003364b1d29d3bc5137c2b1aab22e48772ece",
+    "sourceDigest": "4567429ecc7ff67c26eff7d81c48b41138534d653360afcd92b5f354dc20c3f5",
+    "copiedSourceDigest": "4567429ecc7ff67c26eff7d81c48b41138534d653360afcd92b5f354dc20c3f5"
+  },
+  "mode": "corrected",
+  "checks": [
+    {
+      "writerKind": "DocUpdate",
+      "identityKind": "deactivation",
+      "statuses": [
+        200,
+        200
+      ],
+      "deadlock": false
+    },
+    {
+      "writerKind": "DocUpdate",
+      "identityKind": "identity",
+      "statuses": [
+        200,
+        200
+      ],
+      "deadlock": false
+    },
+    {
+      "writerKind": "Case",
+      "identityKind": "deactivation",
+      "statuses": [
+        200,
+        200
+      ],
+      "deadlock": false
+    },
+    {
+      "writerKind": "Checklist",
+      "identityKind": "deactivation",
+      "statuses": [
+        200,
+        200
+      ],
+      "deadlock": false
+    }
+  ],
+  "runnerSha256": "10de63cf9c5dda30bb95d0dc574e8f5aa0413450140456949601592939025e98",
+  "result": "PASS"
+}

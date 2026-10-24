@@ -7,6 +7,7 @@ import {
   actualizationSummary,
   actualizationRef,
   actualizationTaskTitle,
+  actualizationNeedsAssignment,
 } from '../src/lib/documentActualizationPolicy.ts'
 import { actualizationTaskId } from '../src/lib/documentActualization.ts'
 const record = { id: 'case', predictedDecisionDate: '2026-01-01', docUpdates: [] }
@@ -99,4 +100,14 @@ test('metadata-aware titles follow current language and never change ordinary or
 const task={id:'case-actualization-synthetic',title:'Persisted creation title',description:JSON.stringify({documentActualization:{version:1,caseId:'case',cycle:'2026-04-01'}})}
 for(const [lang,title] of [['uk','Актуалізувати документи'],['ru','Актуализировать документы'],['pl','Zaktualizować dokumenty']])assert.equal(actualizationTaskTitle(task,lang),title)
 assert.equal(task.title,'Persisted creation title');assert.equal(actualizationTaskTitle({id:'manual',title:'Ordinary title'},'pl'),'Ordinary title')
+})
+
+test('assignment badge distinguishes an absent projection from an unassigned managed Task',()=>{
+ const base={id:'case-actualization-synthetic',status:'todo',description:JSON.stringify({documentActualization:{version:1,caseId:'case',cycle:'2026-04-01',requiresAssignment:false}})}
+ assert.equal(actualizationNeedsAssignment(base),false)
+ assert.equal(actualizationNeedsAssignment({...base,assignedToId:7}),false)
+ assert.equal(actualizationNeedsAssignment({...base,assignedToId:null}),true)
+ assert.equal(actualizationNeedsAssignment({...base,assignedToId:null,status:'inactive'}),false)
+ assert.equal(actualizationNeedsAssignment({...base,assignedToId:null,status:'done'}),false)
+ assert.equal(actualizationNeedsAssignment({id:'manual',assignedToId:null}),false)
 })

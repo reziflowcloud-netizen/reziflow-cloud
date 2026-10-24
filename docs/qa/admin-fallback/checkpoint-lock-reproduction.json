@@ -1,0 +1,42 @@
+{
+  "mode": "checkpoint-reproduction",
+  "checks": [
+    {
+      "writerKind": "DocUpdate",
+      "identityKind": "deactivation",
+      "statuses": [
+        200,
+        500
+      ],
+      "deadlock": true
+    },
+    {
+      "writerKind": "DocUpdate",
+      "identityKind": "identity",
+      "statuses": [
+        200,
+        500
+      ],
+      "deadlock": false
+    },
+    {
+      "writerKind": "Case",
+      "identityKind": "deactivation",
+      "statuses": [
+        200,
+        500
+      ],
+      "deadlock": true
+    },
+    {
+      "writerKind": "Checklist",
+      "identityKind": "deactivation",
+      "statuses": [
+        200,
+        500
+      ],
+      "deadlock": true
+    }
+  ],
+  "result": "DEADLOCK REPRODUCED"
+}

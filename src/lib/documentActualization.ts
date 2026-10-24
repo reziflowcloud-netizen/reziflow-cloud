@@ -17,6 +17,8 @@ export function actualizationTaskId(organizationId: string, caseId: string, cycl
   )
 }
 export async function lockActualizationCase(tx: any, organizationId: string, caseId: string) {
+  // All managed writers order Organization before Case, including next-cycle INSERTs.
+  await tx.$queryRawUnsafe('SELECT id FROM "Organization" WHERE id=$1 FOR SHARE',organizationId)
   await tx.$queryRawUnsafe(
     'SELECT id FROM "Case" WHERE id=$1 AND "organizationId"=$2 FOR UPDATE',
     caseId,
@@ -210,7 +212,10 @@ export async function withActualizationDelivery(
 // Identity mutations alone never activate historical Cases. The Organization lock
 // serializes them with managed scheduler/delivery; Cases are locked in ID order.
 export async function lockActualizationIdentity(tx: any, organizationId: string) {
-  await tx.$queryRawUnsafe('SELECT id FROM "Organization" WHERE id=$1 FOR UPDATE',organizationId)
+  await tx.$queryRawUnsafe('SELECT id FROM "Organization" WHERE id=$1 FOR NO KEY UPDATE',organizationId)
+  const ledger = await tx.task.findMany({where:{organizationId,id:{startsWith:'case-actualization-'}},select:{id:true,description:true}})
+  const ids = Array.from(new Set<string>(ledger.map((t:any)=>actualizationRef(t)?.caseId).filter(Boolean))).sort()
+  for (const id of ids) await lockActualizationCase(tx,organizationId,id)
 }
 export async function reconcileActivatedActualizations(tx: any, organizationId: string) {
   const ledger = await tx.task.findMany({where:{organizationId,id:{startsWith:'case-actualization-'}},select:{id:true,description:true}})

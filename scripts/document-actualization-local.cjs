@@ -70,6 +70,11 @@ const env = {
   DATABASE_URL: 'postgresql://actualization_qa:disposable_only@127.0.0.1:55435/actualization_qa',
   JWT_SECRET: 'local-synthetic-decision-qa-key-only-2026',
   NEXT_TELEMETRY_DISABLED: '1',
+  NOTIFICATIONS_ENABLED: 'true',
+  NOTIFICATION_EVENTS_ENABLED: 'true',
+  NOTIFICATION_SCHEDULED_EVENTS_ENABLED: 'true',
+  // No Push provider configuration is inherited or supplied to the app.
+  WEB_PUSH_ENABLED: 'false',
 }
 delete env.DIRECT_URL
 
