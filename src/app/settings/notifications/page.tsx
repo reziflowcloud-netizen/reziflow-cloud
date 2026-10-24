@@ -1,4 +1,5 @@
 'use client'
+import { metaMessageText } from '@/lib/metaMessageI18n'
 import NotificationBell from '@/components/NotificationBell'
 import PushPilotDiagnostics from '@/components/PushPilotDiagnostics'
 import { useCallback, useEffect, useState } from 'react'
@@ -63,7 +64,7 @@ export default function NotificationSettings() {
   async function persist(value: NotificationPreferences) {
     const response = await fetch('/api/notifications/preferences', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...value, language: lang }) })
     if (!response.ok) throw new Error()
-    const data = await response.json(); setPreferences(data.preferences)
+    const data = await response.json(); setPreferences(data.preferences); window.dispatchEvent(new Event('meta-preferences-changed')); (() => { try { const channel = new BroadcastChannel('legalhub-meta-preferences'); channel.postMessage('changed'); channel.close() } catch {} })()
   }
   async function save() {
     if (!preferences) return
@@ -154,6 +155,7 @@ export default function NotificationSettings() {
           {NOTIFICATION_TYPES.map(type => <tr key={type}><td>{copy.events[type]}</td>{(['inApp', 'push'] as const).map(channel => <td key={channel}><label><input type="checkbox" disabled={busy} aria-label={`${copy.events[type]}: ${copy[channel]}`} checked={preferences.events[type][channel]} onChange={event => setPreferences({ ...preferences, events: { ...preferences.events, [type]: { ...preferences.events[type], [channel]: event.target.checked } } })} /></label></td>)}</tr>)}
         </tbody></table></section>
         {config.canReceiveTeam && <section className="card"><h2>{copy.scope}</h2><div className={styles.controls}>{(['mine', 'team'] as const).map(scope => <label key={scope}><input type="radio" name="notification-scope" disabled={busy} checked={preferences.scope === scope} onChange={() => setPreferences({ ...preferences, scope })} />{copy[scope]}</label>)}</div></section>}
+        <section className="card"><label><input type="checkbox" disabled={busy} checked={preferences.metaMessageSound} onChange={event => setPreferences({ ...preferences, metaMessageSound: event.target.checked })} />{metaMessageText[lang].sound}</label></section>
         <section className="card"><label><input type="checkbox" disabled={busy} checked={preferences.showClientName} onChange={event => setPreferences({ ...preferences, showClientName: event.target.checked })} />{copy.privacy}</label><p>{copy.privacyHelp}</p></section>
         <div><button className="btn btn-primary" disabled={busy} onClick={() => void save()}>{copy.save}</button></div>
       </>}

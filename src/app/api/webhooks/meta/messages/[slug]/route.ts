@@ -622,6 +622,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
           leadId: lead.id,
           channel,
           direction: isPageOutgoing ? 'outgoing' : 'incoming',
+          liveIncoming: !isPageOutgoing,
           senderType: isPageOutgoing ? 'system' : 'lead',
           senderName: isPageOutgoing ? pageSenderName(channel) : displayName,
           externalMessageId,

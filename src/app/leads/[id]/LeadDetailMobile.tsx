@@ -1,4 +1,5 @@
 'use client'
+import { useMetaMessageAck } from '@/hooks/useMetaMessageAck'
 import NotificationBell from '@/components/NotificationBell'
 import MobileHeaderActions from '@/components/mobile/MobileHeaderActions'
 
@@ -24,6 +25,7 @@ type LeadDetailMobileProps = {
   leadStatuses: any[]
   leadSources: LeadSourceOption[]
   messages: any[]
+  messageSnapshot: string | null
   reminders: any[]
   messageSources: LeadSourceOption[]
   messageForm: any
@@ -134,6 +136,8 @@ export default function LeadDetailMobile(props: LeadDetailMobileProps) {
   const [overflowOpen, setOverflowOpen] = useState(false)
   const overflowRef = useRef<HTMLDivElement>(null)
   const messageListRef = useRef<HTMLDivElement>(null)
+  useMetaMessageAck(messageListRef, props.lead.id, props.messageSnapshot, activeTab === 'dialog')
+  useEffect(() => { if (new URLSearchParams(window.location.search).get('conversation') === '1') setActiveTab('dialog') }, [])
   const statuses = props.leadStatuses.length ? props.leadStatuses : DEFAULT_LEAD_STATUSES
   const statusConfig = statuses.find(status => status.name === props.form.status)
   const statusColor = statusConfig?.color || '#64748b'

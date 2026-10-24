@@ -1,4 +1,6 @@
 'use client'
+import MetaUnreadBadge from '@/components/MetaUnreadBadge'
+import { metaMessageText } from '@/lib/metaMessageI18n'
 import NotificationBell from '@/components/NotificationBell'
 import MobileHeaderActions from '@/components/mobile/MobileHeaderActions'
 
@@ -15,7 +17,7 @@ import LeadContactSubtitle from '@/components/mobile/LeadContactSubtitle'
 import type { StaffScopeValue } from '@/lib/staffScope'
 import type { LeadScopeMetadata } from '@/lib/leadScopePersistence'
 
-type QuickFilter = 'all' | 'today' | 'overdue' | 'unassigned' | 'no_next_contact'
+type QuickFilter = 'all' | 'today' | 'overdue' | 'unassigned' | 'no_next_contact' | 'unread'
 type DatePreset = 'all' | 'today' | 'last7' | 'last30' | 'this_month' | 'last_month' | 'custom'
 
 const COPY = {
@@ -32,7 +34,7 @@ const COPY = {
     thisMonth: 'Этот месяц', lastMonth: 'Прошлый месяц', custom: 'Свой период', from: 'От', to: 'До',
     loading: 'Загрузка лидов…', empty: 'Лиды не найдены', addFirst: 'Добавить первый лид',
     overdue: 'Просрочено', today: 'Сегодня', tomorrow: 'Завтра', dayShort: 'дн.',
-    quick: { all: 'Все', today: 'Сегодня', overdue: 'Просроченные', unassigned: 'Без ответственного', no_next_contact: 'Без контакта' },
+    quick: { unread: 'Новые сообщения', all: 'Все', today: 'Сегодня', overdue: 'Просроченные', unassigned: 'Без ответственного', no_next_contact: 'Без контакта' },
   },
   uk: {
     total: 'Усього', active: 'Активних', add: 'Додати лід', select: 'Вибрати', cancel: 'Скасувати',
@@ -47,7 +49,7 @@ const COPY = {
     thisMonth: 'Цей місяць', lastMonth: 'Минулий місяць', custom: 'Свій період', from: 'Від', to: 'До',
     loading: 'Завантаження лідів…', empty: 'Лідів не знайдено', addFirst: 'Додати перший лід',
     overdue: 'Прострочено', today: 'Сьогодні', tomorrow: 'Завтра', dayShort: 'дн.',
-    quick: { all: 'Усі', today: 'Сьогодні', overdue: 'Прострочені', unassigned: 'Без відповідального', no_next_contact: 'Без контакту' },
+    quick: { unread: 'Нові повідомлення', all: 'Усі', today: 'Сьогодні', overdue: 'Прострочені', unassigned: 'Без відповідального', no_next_contact: 'Без контакту' },
   },
   pl: {
     total: 'Wszystkie', active: 'Aktywne', add: 'Dodaj lead', select: 'Wybierz', cancel: 'Anuluj',
@@ -62,7 +64,7 @@ const COPY = {
     thisMonth: 'Ten miesiąc', lastMonth: 'Poprzedni miesiąc', custom: 'Własny okres', from: 'Od', to: 'Do',
     loading: 'Ładowanie leadów…', empty: 'Nie znaleziono leadów', addFirst: 'Dodaj pierwszy lead',
     overdue: 'Zaległe', today: 'Dzisiaj', tomorrow: 'Jutro', dayShort: 'd.',
-    quick: { all: 'Wszystkie', today: 'Dzisiaj', overdue: 'Zaległe', unassigned: 'Bez opiekuna', no_next_contact: 'Bez kontaktu' },
+    quick: { unread: 'Nowe wiadomości', all: 'Wszystkie', today: 'Dzisiaj', overdue: 'Zaległe', unassigned: 'Bez opiekuna', no_next_contact: 'Bez kontaktu' },
   },
 }
 
@@ -349,7 +351,7 @@ export default function LeadsMobile(props: LeadsMobileProps) {
                 <div className={styles.cardTop}>
                   <div className={styles.avatar}>{leadDisplayName(lead).slice(0, 2).toUpperCase()}</div>
                   <div className={styles.person}>
-                    <div className={styles.name}>{leadDisplayName(lead)}</div>
+                    <div className={styles.name}>{leadDisplayName(lead)} <MetaUnreadBadge lead={lead} lang={props.lang} /></div>
                     <LeadContactSubtitle
                       className={styles.contact}
                       lead={lead}

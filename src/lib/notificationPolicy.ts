@@ -9,6 +9,7 @@ export type NotificationType = typeof NOTIFICATION_TYPES[number]
 export type NotificationPreferences = {
   scope: 'mine' | 'team'
   events: Record<NotificationType, { inApp: boolean; push: boolean }>
+  metaMessageSound: boolean
   pushEnabled: boolean
   showClientName: boolean
   language: 'ru' | 'uk' | 'pl'
@@ -23,6 +24,7 @@ export function notificationPreferences(raw?: any, teamAllowed = false): Notific
       inApp: raw?.events?.[type]?.inApp !== false,
       push: raw?.events?.[type]?.push !== false,
     }])) as NotificationPreferences['events'],
+    metaMessageSound: raw?.metaMessageSound === true,
     pushEnabled: raw?.pushEnabled === true,
     showClientName: raw?.showClientName === true,
     language: ['ru', 'uk', 'pl'].includes(raw?.language) ? raw.language : 'uk',

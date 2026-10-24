@@ -1,4 +1,5 @@
 'use client'
+import { invalidateMetaSession } from '@/lib/metaMessageBrowser'
 import NotificationBell from '@/components/NotificationBell'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -90,6 +91,7 @@ export default function Sidebar({
 
   async function handleLogout() {
     await disconnectPushDevice()
+    invalidateMetaSession()
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/')
   }
