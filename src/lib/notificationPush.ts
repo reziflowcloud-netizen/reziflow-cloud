@@ -1,3 +1,4 @@
+import {withActualizationDelivery} from './documentActualization.ts'
 import { randomUUID } from 'node:crypto'
 import webPush from 'web-push'
 import { prisma } from './prisma.ts'
@@ -71,10 +72,12 @@ export async function deliverNotificationPush(db: any = prisma, sender: PushSend
       if (!pilot && preferences.showClientName) {
         clientName = notification.entityType === 'case' ? record?.client?.organizationId === row.organizationId ? [record.client.firstName, record.client.lastName].filter(Boolean).join(' ') : '' : notification.entityType === 'lead' ? record?.fullName || [record?.firstName, record?.lastName].filter(Boolean).join(' ') : record?.clientName || ''
       }
-      await sender(raw, JSON.stringify(pushPayload(notification, preferences, clientName, await unreadNotificationCount(user, db))), {
+      const sent=await withActualizationDelivery(db,record,lease,async()=>{await sender(raw, JSON.stringify(pushPayload(notification, preferences, clientName, await unreadNotificationCount(user, db))), {
         TTL: 3600, timeout: 8000, urgency: notification.type === 'task_overdue' ? 'high' : 'normal',
         vapidDetails: { subject: process.env.VAPID_SUBJECT!, publicKey: process.env.VAPID_PUBLIC_KEY!, privateKey: process.env.VAPID_PRIVATE_KEY! },
       })
+      })
+      if(!sent){await db.notificationPushDelivery.updateMany({where:lease,data:{terminalAt:now,leaseUntil:null,leaseToken:null}});continue}
       await db.notificationPushDelivery.updateMany({ where: lease, data: { deliveredAt: new Date(), leaseUntil: null, leaseToken: null } })
       delivered++
     } catch (error) {

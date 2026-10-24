@@ -1,3 +1,5 @@
+import {syncDocumentActualization, actualizationTasks} from '@/lib/documentActualization'
+import {actualizationSummary} from '@/lib/documentActualizationPolicy'
 // src/app/api/cases/[id]/route.ts
 import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
@@ -34,6 +36,7 @@ function taskBelongsToCase(
     meta.predictedDecision,
     meta.predictedDecisionDocuments,
     meta.caseImportantDate,
+          meta.documentActualization,
   ]
 
   if (refs.some((ref: any) => ref?.caseId === caseId)) return true
@@ -187,7 +190,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     })
     if (!record) return null
     const fields = await tx.customField.findMany({ where: { active: true, section: { organizationId, scope: 'case', active: true } }, select: { id: true, values: { where: { organizationId, recordType: 'case', recordId: params.id }, select: { value: true }, take: 1 } } })
-    return { ...record, customFieldValues: Object.fromEntries(fields.map(field => [field.id, field.values[0]?.value || ''])) }
+    return { ...record, documentActualization: actualizationSummary(record, await actualizationTasks(tx,organizationId,params.id)), customFieldValues: Object.fromEntries(fields.map(field => [field.id, field.values[0]?.value || ''])) }
     }, { isolationLevel: 'RepeatableRead' })
     if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json({
@@ -315,13 +318,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const updated = await prisma.$transaction(async tx => {
       // Legacy clients have no loaded version: retain manual last-writer behavior,
       // but serialize against CAS writers and always advance the latest version.
-      const locked = legacy ? await tx.$queryRaw<Array<{ updatedAt: Date; status: string }>>`
+      const locked = await tx.$queryRaw<Array<{ updatedAt: Date; status: string }>>`
         SELECT "updatedAt", "status" FROM "Case"
         WHERE "id" = ${params.id} AND "organizationId" = ${organizationId}
         FOR UPDATE
-      ` : null
+      `
       if (legacy && !locked?.length) throw Object.assign(new Error('CASE_CONFLICT'), { status: 409 })
-      const writeVersion = locked?.[0]?.updatedAt || expected
+      const priorControl = await tx.case.findFirst({where:caseWhereForScope(scope,organizationId,{id:params.id})})
+      const writeVersion = legacy ? locked?.[0]?.updatedAt || expected : expected
       const previousStatus = locked?.[0]?.status ?? existing.status
       const claimed = await tx.case.updateMany({
         where: { AND: [caseWhereForScope(scope, organizationId, { id: params.id }), { updatedAt: writeVersion }] },
@@ -363,7 +367,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       const calendarFields = ['status', 'employeeId', 'caseNumber', 'filingDate', 'personalAppearDate', 'personalAppearTime', 'personalAppearLocation', 'cardPickupDate', 'cardPickupTime', 'cardPickupLocation', 'legalStayDeadline', 'workContractEndDate']
       if (caseForCalendar && calendarFields.some(has)) await syncFixedImportantDateTasks(organizationId, caseForCalendar, tx)
       if (caseForCalendar) await syncCaseDateReminders(tx, organizationId, caseForCalendar, body)
-      return updated
+      const relevant = !!priorControl && ((has('predictedDecisionDate') && priorControl.predictedDecisionDate?.getTime() !== updated.predictedDecisionDate?.getTime()) || (has('decisionReceived') && priorControl.decisionReceived !== updated.decisionReceived))
+      await syncDocumentActualization(tx,updated,relevant,body.reminderLanguage)
+      return {...updated, documentActualization: actualizationSummary({...updated,docUpdates:await tx.docUpdate.findMany({where:{caseId:params.id}})},await actualizationTasks(tx,organizationId,params.id))}
     })
 
     if (legacy) {

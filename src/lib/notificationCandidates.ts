@@ -32,6 +32,7 @@ export function notificationCandidateQuery(mode: CandidateMode, after: string, n
     CROSS JOIN LATERAL (SELECT ${reminderInstant()} AS reminder) r
     WHERE lower(trim(t.status)) NOT IN ('done','completed','cancelled','canceled','inactive')
       AND NOT EXISTS (SELECT 1 FROM jsonb_each(CASE WHEN jsonb_typeof(m.meta) = 'object' THEN m.meta ELSE '{}'::jsonb END) a WHERE a.key IN ('leadReminder','caseImportantDate','fingerprintsAppointment','predictedDecision') AND a.value NOT IN ('null'::jsonb,'false'::jsonb,'0'::jsonb,'""'::jsonb))
+      AND (t.id NOT LIKE 'case-actualization-%' OR EXISTS (SELECT 1 FROM "Case" control WHERE control.id = m.meta->'documentActualization'->>'caseId' AND control."organizationId" = t."organizationId" AND control."decisionReceived" = false AND control."assignedToId" = t."assignedToId" AND (control."employeeId" IS NULL OR EXISTS (SELECT 1 FROM "Employee" owner WHERE owner.id=control."employeeId" AND owner."organizationId"=control."organizationId" AND owner.active=true AND owner."userId"=t."assignedToId"))))
       AND (t."dueDate" IS NOT NULL OR r.reminder IS NOT NULL)
       AND (r.reminder IS NOT NULL OR (t."dueDate" AT TIME ZONE 'UTC')::date <= (${now}::timestamptz AT TIME ZONE 'Europe/Warsaw')::date + 1)`
   const lead = Prisma.sql`SELECT 'lead'::text AS kind, l.id, l."organizationId", l."assignedToId", o.since,

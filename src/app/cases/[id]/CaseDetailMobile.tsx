@@ -1,4 +1,5 @@
 'use client'
+import DocumentActualizationStatus from '@/components/DocumentActualizationStatus'
 import NotificationBell from '@/components/NotificationBell'
 import MobileHeaderActions from '@/components/mobile/MobileHeaderActions'
 
@@ -287,8 +288,9 @@ export default function CaseDetailMobile(props: any) {
           </MobileAccordion></div>
 
           <div data-section-scope="case" data-section-key="case-doc-updates"><MobileAccordion title={copy.updates} summary={props.docUpdates.length ? `${props.docUpdates.length}` : props.t('no_doc_updates')}>
-            {props.docUpdates.length > 0 && <div className={styles.compactList}>{[...props.docUpdates].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item: any) => <div key={item.id}><span><strong>{new Date(item.date).toLocaleDateString(props.locale)}</strong><small>{item.description}</small></span><button type="button" className={styles.iconDanger} onClick={() => props.onRemoveDocUpdate(item.id)}>×</button></div>)}</div>}
-            <div className={styles.inlineForm}><input type="date" value={props.newDocDate} onChange={event => props.setNewDocDate(event.target.value)} /><input value={props.newDocDesc} onChange={event => props.setNewDocDesc(event.target.value)} placeholder={props.t('doc_update_placeholder')} /><button type="button" onClick={props.onAddDocUpdate} disabled={!props.newDocDate || !props.newDocDesc.trim()}>{copy.addUpdate}</button></div><div data-custom-fields-slot="case:case-doc-updates" />
+            <DocumentActualizationStatus value={c.documentActualization} lang={lang} />
+            {props.docUpdates.length > 0 && <div className={styles.compactList}>{[...props.docUpdates].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item: any) => <div key={item.id}><span><strong>{new Date(item.date).toLocaleDateString(props.locale)}</strong><small>{item.description}</small></span><button type="button" onClick={()=>props.onEditDocUpdate(item)} aria-label={props.t('edit')}>✎</button><button type="button" className={styles.iconDanger} onClick={() => props.onRemoveDocUpdate(item.id)}>×</button></div>)}</div>}
+            <div className={styles.inlineForm}><input type="date" value={props.newDocDate} onChange={event => props.setNewDocDate(event.target.value)} /><input value={props.newDocDesc} onChange={event => props.setNewDocDesc(event.target.value)} placeholder={props.t('doc_update_placeholder')} /><button type="button" onClick={props.onAddDocUpdate} disabled={!props.newDocDate || !props.newDocDesc.trim()}>{props.editingDocUpdate?props.t('save'):copy.addUpdate}</button>{props.editingDocUpdate&&<button type="button" onClick={props.onCancelDocUpdate}>{props.t('cancel')}</button>}</div><div data-custom-fields-slot="case:case-doc-updates" />
           </MobileAccordion></div>
 
           <div data-section-scope="case" data-section-key="case-notes"><MobileAccordion title={copy.notes} summary={form.notes || props.t('not_specified')}><textarea className={styles.textarea} value={form.notes || ''} onChange={event => props.setField('notes', event.target.value)} rows={5} placeholder={props.t('notes_placeholder')} /><div data-custom-fields-slot="case:case-notes" /></MobileAccordion></div>

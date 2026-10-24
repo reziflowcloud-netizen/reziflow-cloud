@@ -1,3 +1,4 @@
+import {actualizationRef} from '@/lib/documentActualizationPolicy'
 import { dispatchAssignmentPush } from '@/lib/assignmentDelivery'
 import { createTaskOnce, TaskCreateConflict } from '@/lib/taskCreate'
 import { assignmentEventsEnabled } from '@/lib/notificationEventGate'
@@ -61,7 +62,11 @@ export async function GET(request: NextRequest) {
       .map(caseRecord => caseRecord.id)
   )
 
-  return NextResponse.json(tasks.filter((_, index) => {
+  const managedCaseIds=tasks.map(task=>actualizationRef(task)?.caseId).filter(Boolean)
+  const allowedManagedCases=await prisma.case.findMany({where:caseWhereForScope(scope,organizationId,{id:{in:managedCaseIds}}),select:{id:true}})
+  const allowed=new Set(allowedManagedCases.map(c=>c.id))
+  return NextResponse.json(tasks.filter((task, index) => {
+    const managed=actualizationRef(task);if(managed&&(task.status==='inactive'||!allowed.has(managed.caseId)))return false
     const ref = taskRefs[index]
     if (ref?.kind === 'filingDate') return false
     if (ref?.kind === 'personalAppearDate' && retiredPersonalAppearCaseIds.has(ref.caseId)) return false

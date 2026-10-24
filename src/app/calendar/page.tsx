@@ -244,7 +244,7 @@ export default function CalendarPage() {
   function taskRelatedCaseId(task: any) {
     if (!task) return ''
     const meta = taskMeta(task)
-    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask, meta.fingerprintsAppointment, meta.predictedDecision, meta.caseImportantDate]
+    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask, meta.fingerprintsAppointment, meta.predictedDecision, meta.caseImportantDate, meta.documentActualization]
     const metaCaseId = refs.find((ref: any) => ref?.caseId)?.caseId
     if (metaCaseId) return metaCaseId
     const byNumber = cases.find((item: any) => {
@@ -277,6 +277,7 @@ export default function CalendarPage() {
       meta.fingerprintsAppointment?.caseId,
       meta.predictedDecision?.caseId,
       meta.caseImportantDate?.caseId,
+      meta.documentActualization?.caseId,
     ]
     const caseId = refs.find(value => typeof value === 'string' && value.trim()) || ''
     return caseId && cases.some((item: any) => item.id === caseId) ? caseId : ''

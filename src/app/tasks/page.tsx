@@ -254,7 +254,7 @@ export default function TasksPage() {
   }
   function taskMatchesCase(task: Task, item: CaseItem) {
     const meta = taskMeta(task)
-    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask, meta.fingerprintsAppointment, meta.predictedDecision, meta.caseImportantDate]
+    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask, meta.fingerprintsAppointment, meta.predictedDecision, meta.caseImportantDate, meta.documentActualization]
     if (refs.some((ref: any) => ref?.caseId === item.id)) return true
     const number = String(item.caseNumber || '')
     return !!number && (String(task.title || '').includes(number) || String(task.description || '').includes(number))
@@ -272,7 +272,7 @@ export default function TasksPage() {
   function taskRelatedCaseId(task: Task | null) {
     if (!task) return ''
     const meta = taskMeta(task)
-    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask, meta.fingerprintsAppointment, meta.predictedDecision, meta.caseImportantDate]
+    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask, meta.fingerprintsAppointment, meta.predictedDecision, meta.caseImportantDate, meta.documentActualization]
     const metaCaseId = refs.find((ref: any) => ref?.caseId)?.caseId
     return typeof metaCaseId === 'string' && cases.some(item => item.id === metaCaseId) ? metaCaseId : ''
   }

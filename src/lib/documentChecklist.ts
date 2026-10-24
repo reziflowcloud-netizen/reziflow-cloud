@@ -1,3 +1,4 @@
+import {syncDocumentActualization} from './documentActualization.ts'
 import { Prisma } from '@prisma/client'
 import { ChecklistError, checklistProgress, documentNameKey } from './documentChecklistPolicy.ts'
 import { lockedOrganizationAutomation } from './notificationOrganization.ts'
@@ -22,8 +23,10 @@ export async function createCaseWithChecklist(db: Prisma.TransactionClient, data
   // Serialize template edits and snapshots; use only the supplied client inside a transaction.
   if (data.serviceId) await db.$queryRaw(Prisma.sql`SELECT id FROM "Service" WHERE id = ${data.serviceId} AND "organizationId" = ${organizationId} FOR SHARE`)
   const template = await effectiveDocumentTemplate(db, organizationId, data.serviceId || null)
-  return db.case.create({ data: { ...data, checklistInitializedAt: new Date(), checklistServiceId: data.serviceId || null, documentsReady: !template.items.some(item => item.active && item.required),
+  const created = await db.case.create({ data: { ...data, checklistInitializedAt: new Date(), checklistServiceId: data.serviceId || null, documentsReady: !template.items.some(item => item.active && item.required),
     checklistItems: { create: template.items.filter(item => item.active).map(item => ({ templateId: item.id || null, name: item.name, nameKey: item.nameKey, required: item.required, forMos: item.forMos, sortOrder: item.sortOrder })) } } })
+  await syncDocumentActualization(db,created,true)
+  return created
 }
 
 export async function checklistPayload(db: Prisma.TransactionClient, caseId: string) {
