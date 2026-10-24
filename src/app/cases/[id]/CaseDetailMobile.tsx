@@ -1,5 +1,7 @@
 'use client'
+import {actualizationTaskTitle} from '@/lib/documentActualizationPolicy'
 import DocumentActualizationStatus from '@/components/DocumentActualizationStatus'
+import {actualizationDay,serviceDocUpdate} from '@/lib/documentActualizationPolicy'
 import NotificationBell from '@/components/NotificationBell'
 import MobileHeaderActions from '@/components/mobile/MobileHeaderActions'
 
@@ -256,7 +258,7 @@ export default function CaseDetailMobile(props: any) {
           </div>
 
           <MobileAccordion title={`${copy.tasks} · ${props.caseTasks.length}`} summary={props.caseTasks[0]?.title || copy.noTasks} defaultOpen>
-            {props.caseTasks.length > 0 ? <div className={styles.taskList}>{props.caseTasks.map((task: any) => <div key={task.id}><Icon name="check" /><span><strong>{task.title}</strong>{task.dueDate && <small>{new Date(task.dueDate).toLocaleDateString(props.locale)}</small>}{task.note && <em>{task.note}</em>}</span><b className={task.status === 'done' ? styles.taskDone : styles.taskActive}>{task.status === 'done' ? copy.done : copy.active}</b></div>)}</div> : <div className={styles.emptyState}>{copy.noTasks}</div>}
+            {props.caseTasks.length > 0 ? <div className={styles.taskList}>{props.caseTasks.map((task: any) => <div key={task.id}><Icon name="check" /><span><strong>{actualizationTaskTitle(task,lang)}</strong>{task.dueDate && <small>{new Date(task.dueDate).toLocaleDateString(props.locale)}</small>}{task.note && <em>{task.note}</em>}</span><b className={task.status === 'done' ? styles.taskDone : styles.taskActive}>{task.status === 'done' ? copy.done : copy.active}</b></div>)}</div> : <div className={styles.emptyState}>{copy.noTasks}</div>}
             <div className={styles.inlineForm}><input value={props.taskTitle} onChange={event => props.setTaskTitle(event.target.value)} placeholder={props.t('task_placeholder')} /><input type="date" value={props.taskDueDate} onChange={event => props.setTaskDueDate(event.target.value)} /><button type="button" onClick={props.onCreateTask} disabled={!props.taskTitle.trim() || props.taskSaving}>{copy.addTask}</button></div>
           </MobileAccordion>
 
@@ -289,7 +291,7 @@ export default function CaseDetailMobile(props: any) {
 
           <div data-section-scope="case" data-section-key="case-doc-updates"><MobileAccordion title={copy.updates} summary={props.docUpdates.length ? `${props.docUpdates.length}` : props.t('no_doc_updates')}>
             <DocumentActualizationStatus value={c.documentActualization} lang={lang} />
-            {props.docUpdates.length > 0 && <div className={styles.compactList}>{[...props.docUpdates].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item: any) => <div key={item.id}><span><strong>{new Date(item.date).toLocaleDateString(props.locale)}</strong><small>{item.description}</small></span><button type="button" onClick={()=>props.onEditDocUpdate(item)} aria-label={props.t('edit')}>✎</button><button type="button" className={styles.iconDanger} onClick={() => props.onRemoveDocUpdate(item.id)}>×</button></div>)}</div>}
+            {props.docUpdates.length > 0 && <div className={styles.compactList}>{[...props.docUpdates].sort((a: any, b: any) => String(actualizationDay(b.date)||'').localeCompare(String(actualizationDay(a.date)||''))).map((item: any) => <div key={item.id}><span><strong>{actualizationDay(item.date)?new Date(actualizationDay(item.date)+'T12:00:00Z').toLocaleDateString(props.locale,{timeZone:'Europe/Warsaw'}):props.t('date_not_set')}</strong><small>{item.description}</small></span><button type="button" onClick={()=>props.onEditDocUpdate(item)} aria-label={props.t('edit')}>✎</button><button type="button" className={styles.iconDanger} onClick={() => props.onRemoveDocUpdate(item.id)}>×</button></div>)}</div>}
             <div className={styles.inlineForm}><input type="date" value={props.newDocDate} onChange={event => props.setNewDocDate(event.target.value)} /><input value={props.newDocDesc} onChange={event => props.setNewDocDesc(event.target.value)} placeholder={props.t('doc_update_placeholder')} /><button type="button" onClick={props.onAddDocUpdate} disabled={!props.newDocDate || !props.newDocDesc.trim()}>{props.editingDocUpdate?props.t('save'):copy.addUpdate}</button>{props.editingDocUpdate&&<button type="button" onClick={props.onCancelDocUpdate}>{props.t('cancel')}</button>}</div><div data-custom-fields-slot="case:case-doc-updates" />
           </MobileAccordion></div>
 

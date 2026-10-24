@@ -1,4 +1,5 @@
 'use client'
+import {actualizationTaskTitle} from '@/lib/documentActualizationPolicy'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
 import { freshJson } from '@/lib/screenRefresh'
 import { useState, useEffect, type CSSProperties } from 'react'
@@ -421,7 +422,7 @@ export default function UpcomingEvents() {
               <span style={{ fontSize: 15, flexShrink: 0 }}>{isRem ? '⏰' : item.isOverdue ? '⚠️' : '✓'}</span>
 
               <span className="upcoming-title" style={{ fontWeight: 500, fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>
-                {item.task.title}
+                {actualizationTaskTitle(item.task,lang)}
               </span>
 
               {item.task.clientName && (
@@ -468,7 +469,7 @@ export default function UpcomingEvents() {
             >
               <span className="upcoming-mobile-icon" aria-hidden="true">{isRem ? '⏰' : item.isOverdue ? '⚠️' : '✓'}</span>
               <span className="upcoming-mobile-main">
-                <span className="upcoming-mobile-title">{item.task.title}</span>
+                <span className="upcoming-mobile-title">{actualizationTaskTitle(item.task,lang)}</span>
                 {item.task.clientName && (
                   <span className="upcoming-mobile-meta">👤 {item.task.clientName}</span>
                 )}

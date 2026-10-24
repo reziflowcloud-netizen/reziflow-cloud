@@ -61,7 +61,7 @@ export async function deliverNotificationPush(db: any = prisma, sender: PushSend
       const selections = {
         case: { id: true, assignedToId: true, status: true, ...Object.fromEntries(CASE_NOTIFICATION_DATE_FIELDS.map(field => [field, true])), customDates: { select: { id: true, date: true } }, statusHistory: { select: { fromStatus: true, changedAt: true } }, client: { select: { organizationId: true, firstName: true, lastName: true } } },
         lead: { id: true, employeeId: true, assignedToId: true, fullName: true, firstName: true, lastName: true, nextContactAt: true, lastContactAt: true, convertedAt: true, convertedClientId: true, status: true },
-        task: { id: true, assignedToId: true, clientName: true, status: true, dueDate: true, description: true },
+        task: { id: true, organizationId:true, assignedToId: true, clientName: true, status: true, dueDate: true, description: true },
       }
       const record = pilot ? null : await db[notification.entityType].findFirst({ where, select: selections[notification.entityType as keyof typeof selections] })
       const linked = notification?.type === 'lead_assigned' && record ? await db.employee.findFirst({ where: { organizationId: row.organizationId, active: true, userId: record.assignedToId, ...(record.employeeId ? { id: record.employeeId } : {}) }, select: { id: true } }) : null
@@ -76,7 +76,7 @@ export async function deliverNotificationPush(db: any = prisma, sender: PushSend
         TTL: 3600, timeout: 8000, urgency: notification.type === 'task_overdue' ? 'high' : 'normal',
         vapidDetails: { subject: process.env.VAPID_SUBJECT!, publicKey: process.env.VAPID_PUBLIC_KEY!, privateKey: process.env.VAPID_PRIVATE_KEY! },
       })
-      })
+      },now)
       if(!sent){await db.notificationPushDelivery.updateMany({where:lease,data:{terminalAt:now,leaseUntil:null,leaseToken:null}});continue}
       await db.notificationPushDelivery.updateMany({ where: lease, data: { deliveredAt: new Date(), leaseUntil: null, leaseToken: null } })
       delivered++

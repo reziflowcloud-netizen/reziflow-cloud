@@ -68,7 +68,6 @@ test('all nested case mutation routes use the shared parent-child selector', asy
   const paths = [
     'src/app/api/cases/[id]/payments/[paymentId]/route.ts',
     'src/app/api/cases/[id]/custom-dates/[dateId]/route.ts',
-    'src/app/api/cases/[id]/doc-updates/[updateId]/route.ts',
     'src/app/api/cases/[id]/documents/[docId]/route.ts',
     'src/app/api/cases/[id]/comments/[docId]/route.ts',
   ]
@@ -77,6 +76,15 @@ test('all nested case mutation routes use the shared parent-child selector', asy
     assert.match(source, /caseChildWhere\(params\.id,/)
     assert.match(source, /findScopedCase\(params\.id, organizationId/)
   }
+})
+
+test('DocUpdate routes delegate to the shared transactional parent-child scope',async()=>{
+  const route=await readFile(resolve(workspace,'src/app/api/cases/[id]/doc-updates/[updateId]/route.ts'),'utf8')
+  const helper=await readFile(resolve(workspace,'src/lib/docUpdateWrite.ts'),'utf8')
+  assert.match(route,/writeDocUpdate\(user, params.id, kind/)
+  assert.match(helper,/caseChildWhere\(caseId, updateId!/)
+  assert.match(helper,/caseWhereForScope\(scope, organizationId, \{ id: caseId \}\)/)
+  assert.match(helper,/lockActualizationCase\(tx, organizationId, caseId\)/)
 })
 
 test('arbitrary, local, private and unexpected document URLs are rejected', () => {

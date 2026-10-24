@@ -1,4 +1,5 @@
 'use client'
+import {actualizationTaskTitle} from '@/lib/documentActualizationPolicy'
 import { createTaskFetch } from '@/lib/createTaskFetch'
 import NotificationBell from '@/components/NotificationBell'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
@@ -615,7 +616,7 @@ export default function CalendarPage() {
                             color,
                             borderLeft: `2px solid ${color}`,
                           }}>
-                            {!isDue ? '⏰ ' : ''}{t.title}
+                            {!isDue ? '⏰ ' : ''}{actualizationTaskTitle(t,lang)}
                           </div>
                         )
                       })}
@@ -655,6 +656,7 @@ export default function CalendarPage() {
               onClose={() => setSelectedCell(null)}
               translate={t}
               locale={locale}
+              lang={lang}
               showResponsible={staffScope === 'all'}
             />}
           </div>
@@ -673,6 +675,7 @@ export default function CalendarPage() {
               onClose={() => setSelectedCell(null)}
               translate={t}
               locale={locale}
+              lang={lang}
               showResponsible={staffScope === 'all'}
             />
           </div>
@@ -811,7 +814,7 @@ export default function CalendarPage() {
 }
 
 // ── Компонент панели дня (переиспользуется для десктопа и мобиля) ──
-function DayPanel({ selectedCell, selectedItems, year, getTasksForDate, getPriorityColor, openEdit, onClose, translate, locale, showResponsible }: any) {
+function DayPanel({ selectedCell, selectedItems, year, getTasksForDate, getPriorityColor, openEdit, onClose, translate, locale, lang, showResponsible }: any) {
   const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']
   const monthName = new Date(selectedCell.year, selectedCell.month, 1).toLocaleDateString(locale || 'ru-RU', { month: 'long' })
   return (
@@ -839,7 +842,7 @@ function DayPanel({ selectedCell, selectedItems, year, getTasksForDate, getPrior
             style={{ padding: '10px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <div style={{ width: 3, minHeight: 44, background: color, borderRadius: 2, flexShrink: 0, marginTop: 2 }} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 3, color: 'var(--text)' }}>{t.title}</div>
+              <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 3, color: 'var(--text)' }}>{actualizationTaskTitle(t,lang)}</div>
               {t.clientName && <div style={{ fontSize: 11, color: 'var(--muted)' }}>👤 {t.clientName}</div>}
               {showResponsible && t.assignedTo?.name && <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>👤 {t.assignedTo.name}</div>}
               <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>

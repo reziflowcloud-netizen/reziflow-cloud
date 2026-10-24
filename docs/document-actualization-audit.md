@@ -13,4 +13,8 @@ No migration: retained inactive/completed cycle Tasks form the durable cycle led
 
 Dates: latest valid genuine DocUpdate date, else predicted date, +90 calendar days; literal UTC-midnight date-only values keep their CRM date and timestamps use Warsaw day. Never createdAt or three months. Completed current cycles are retained. A→B→A reuses A's ID/history; an unfinished retired A can resume while completed A cannot be recreated. Receipt stop retires only unfinished controls and cancels pending deliveries. Normal Task mutation cannot forge/detach/reassign/re-date or delete managed controls; completing one does not mutate DocUpdates or generate another cycle.
 
-WIP validation: isolated copied-source TypeScript check PASS. Unit/integration/concurrency/browser/build checks are pending. This checkpoint is not deployment-ready.
+Correction policy: date-only and explicit-offset timestamps are accepted; offsetless timestamps are rejected independently of host TZ. Display/sort/edit use the same Warsaw business date; a description-only edit retains the original stored timestamp and cannot activate a historical Case. Task titles are localized at render time from managed metadata, without changing ordinary or persisted titles. Receipt autosave refreshes Case task views immediately.
+
+Source evidence: final integration/browser runners must assert recursive SHA-256 equality between feature `src` and copied app `src`, a clean committed source tree, and record HEAD/src tree/digests before and after the run. Interim copied-snapshot results are not final evidence.
+
+WIP validation so far: 5 policy tests, 14 real PostgreSQL/authenticated HTTP/notification groups, typecheck, related regressions 86 PASS / 0 FAIL / 2 unrelated fixture-dependent SKIP. Final source-digest-qualified integration/browser/build runs are still pending. This checkpoint is not deployment-ready.

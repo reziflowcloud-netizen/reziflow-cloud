@@ -80,6 +80,8 @@ export async function POST(request: NextRequest) {
   const organizationId = getOrganizationId(user)
   const scope = await getDataAccessScope(user, organizationId)
   const body = await request.json()
+  if(!body||typeof body!=='object'||Array.isArray(body))return NextResponse.json({error:'Invalid body'},{status:400})
+  try{const meta=JSON.parse(body.description||'{}');if(meta&&Object.prototype.hasOwnProperty.call(meta,'documentActualization'))return NextResponse.json({error:'Reserved automatic Task metadata'},{status:400})}catch{}
   const assignedToId = scope.restricted && scope.userId ? scope.userId : body.assignedToId ? parseInt(body.assignedToId) : null
   if (assignedToId && !await prisma.user.findFirst({ where: { id: assignedToId, organizationId }, select: { id: true } })) return NextResponse.json({ error: 'User not found' }, { status: 400 })
   const key = request.headers.get('X-LegalHub-Create-Request')

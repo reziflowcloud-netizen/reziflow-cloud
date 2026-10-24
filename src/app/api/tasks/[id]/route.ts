@@ -32,7 +32,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         if(!await tx.case.findFirst({where:{id:managed.caseId,organizationId,...(scope.restricted?{assignedToId:scope.userId}:{})},select:{id:true}}))throw new EntityWriteError(404,'Not found')
         for(const key of ['title','description','dueDate','assignedToId','clientName'])if(key in body&&(key==='dueDate'?new Date(body[key]).getTime()!==existing.dueDate?.getTime():body[key]!==existing[key]))throw new EntityWriteError(409,'Automatic control is managed by the Case')
         if('status' in body&&body.status!==existing.status&&!['done','completed'].includes(body.status))throw new EntityWriteError(409,'Automatic control can only be completed here')
-      }else{try{if(JSON.parse(body.description||'{}')?.documentActualization)throw new EntityWriteError(400,'Reserved automatic Task metadata')}catch(e){if(e instanceof EntityWriteError)throw e}}
+      }else{try{if(Object.prototype.hasOwnProperty.call(JSON.parse(body.description||'{}')||{},'documentActualization'))throw new EntityWriteError(400,'Reserved automatic Task metadata')}catch(e){if(e instanceof EntityWriteError)throw e}}
       const data: any = {}
       for (const key of ['title', 'description', 'priority', 'status', 'clientName']) if (key in body) { if (body[key] != null && typeof body[key] !== 'string') throw new EntityWriteError(400, 'Invalid field'); data[key] = body[key] }
       if ('dueDate' in body) {

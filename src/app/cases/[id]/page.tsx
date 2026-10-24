@@ -1,5 +1,7 @@
 'use client'
+import {actualizationTaskTitle} from '@/lib/documentActualizationPolicy'
 import DocumentActualizationStatus from '@/components/DocumentActualizationStatus'
+import {actualizationDay,serviceDocUpdate} from '@/lib/documentActualizationPolicy'
 import { createTaskFetch } from '@/lib/createTaskFetch'
 import NotificationBell from '@/components/NotificationBell'
 import { useCaseAutosave } from '@/hooks/useCaseAutosave'
@@ -124,7 +126,7 @@ export default function CaseDetailPage() {
     if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status })
     const updated = await res.json()
     setC((previous: any) => ({ ...previous, ...updated, service: services.find(service => service.id === updated.serviceId) || null }))
-    if (['status', 'employeeId', 'caseNumber', 'filingDate', 'mosSentAt', 'fingerprintsDate', 'predictedDecisionDate', 'personalAppearDate', 'personalAppearTime', 'personalAppearLocation', 'cardPickupDate', 'cardPickupTime', 'cardPickupLocation', 'legalStayDeadline', 'workContractEndDate'].some(key => key in fields)) {
+    if (['status', 'employeeId', 'caseNumber', 'filingDate', 'mosSentAt', 'fingerprintsDate', 'predictedDecisionDate', 'decisionReceived', 'personalAppearDate', 'personalAppearTime', 'personalAppearLocation', 'cardPickupDate', 'cardPickupTime', 'cardPickupLocation', 'legalStayDeadline', 'workContractEndDate'].some(key => key in fields)) {
       void loadCaseTaskViews({ ...c, ...updated }).catch(() => {})
     }
     return updated.updatedAt
@@ -138,7 +140,7 @@ export default function CaseDetailPage() {
   const [newDocDate, setNewDocDate] = useState('')
   const [newDocDesc, setNewDocDesc] = useState('')
   const [editingDocUpdate,setEditingDocUpdate] = useState<number|null>(null)
-  function editDocUpdate(doc:any){setEditingDocUpdate(doc.id);setNewDocDate(doc.date.slice(0,10));setNewDocDesc(doc.description)}
+  function editDocUpdate(doc:any){setEditingDocUpdate(doc.id);setNewDocDate(actualizationDay(doc.date)||'');setNewDocDesc(doc.description)}
   function cancelDocUpdate(){setEditingDocUpdate(null);setNewDocDate('');setNewDocDesc('')}
   const [isMobilePresentation, setIsMobilePresentation] = useState(false)
 
@@ -180,7 +182,7 @@ export default function CaseDetailPage() {
       setC(data)
       void loadCaseTaskViews(data)
       setCustomDates(data.customDates || [])
-      setDocUpdates((data.docUpdates || []).filter((d: any) => !String(d.description || '').startsWith('__MOS_ID__:')))
+      setDocUpdates((data.docUpdates || []).filter((d: any) => !serviceDocUpdate(d.description)))
       const loadedMosId = ((data.docUpdates || []).find((d: any) => String(d.description || '').startsWith('__MOS_ID__:'))?.description || '').replace('__MOS_ID__:', '')
       setMosId(loadedMosId)
       setInitialMosId(loadedMosId)
@@ -426,6 +428,7 @@ export default function CaseDetailPage() {
       .map(({ task, meta }: any) => ({
         id: task.id,
         title: task.title,
+        description: task.description,
         status: task.status || 'todo',
         dueDate: task.dueDate?.slice(0, 10) || meta.reminderAt?.slice(0, 10) || '',
         sentAt: meta.mosDocument?.sentAt || '',
@@ -462,6 +465,7 @@ export default function CaseDetailPage() {
       .map(({ task, meta }: any) => ({
         id: task.id,
         title: task.title,
+        description: task.description,
         status: task.status || 'todo',
         priority: task.priority || '',
         dueDate: task.dueDate?.slice(0, 10) || meta.reminderAt?.slice(0, 10) || '',
@@ -813,7 +817,7 @@ export default function CaseDetailPage() {
     if (!newDocDate || !newDocDesc.trim()) return
     await autosave.flush();if(autosave.state==='error'||autosave.state==='conflict')return
     try{
-      const res=await fetch(`/api/cases/${id}/doc-updates${editingDocUpdate?'/'+editingDocUpdate:''}`,{method:editingDocUpdate?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:newDocDate,description:newDocDesc.trim(),expectedUpdatedAt:autosave.version,reminderLanguage:lang})})
+      const res=await fetch(`/api/cases/${id}/doc-updates${editingDocUpdate?'/'+editingDocUpdate:''}`,{method:editingDocUpdate?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:editingDocUpdate&&actualizationDay(docUpdates.find(d=>d.id===editingDocUpdate)?.date)===newDocDate?docUpdates.find(d=>d.id===editingDocUpdate).date:newDocDate,description:newDocDesc.trim(),expectedUpdatedAt:autosave.version,reminderLanguage:lang})})
       if(!res.ok)throw new Error(`HTTP ${res.status}`)
       const doc=await res.json();setDocUpdates(p=>[...p.filter(d=>d.id!==doc.id),doc]);cancelDocUpdate();await refreshCase();await loadCaseTaskViews()
     }catch(e){alert(`${t('save_error')}: ${String(e)}`)}
@@ -1581,9 +1585,9 @@ export default function CaseDetailPage() {
                   )}
                   {docUpdates.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
-                      {[...docUpdates].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((d: any) => (
+                      {[...docUpdates].sort((a: any, b: any) => String(actualizationDay(b.date)||'').localeCompare(String(actualizationDay(a.date)||''))).map((d: any) => (
                         <div key={d.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                          <div style={{ minWidth: 90, fontSize: 12, color: 'var(--muted)', fontWeight: 600, paddingTop: 1 }}>{new Date(d.date).toLocaleDateString(locale)}</div>
+                          <div style={{ minWidth: 90, fontSize: 12, color: 'var(--muted)', fontWeight: 600, paddingTop: 1 }}>{actualizationDay(d.date)?new Date(actualizationDay(d.date)+'T12:00:00Z').toLocaleDateString(locale,{timeZone:'Europe/Warsaw'}):t('date_not_set')}</div>
                           <div style={{ flex: 1, fontSize: 13 }}>{d.description}</div>
                           <button type="button" aria-label={t('edit')} onClick={()=>editDocUpdate(d)}>✎</button>
                           <button onClick={() => removeDocUpdate(d.id)} style={{ background: '#fef2f2', border: 'none', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 12, color: '#dc2626', flexShrink: 0 }}>🗑</button>
@@ -1981,7 +1985,7 @@ export default function CaseDetailPage() {
                   {caseTasks.map((task: any) => (
                     <div key={task.id} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, lineHeight: 1.3 }}>{task.title}</div>
+                        <div style={{ fontWeight: 600, fontSize: 13, lineHeight: 1.3 }}>{actualizationTaskTitle(task,lang)}</div>
                         <span className="badge" style={{
                           background: task.status === 'done' ? '#dcfce7' : '#fef3c7',
                           color: task.status === 'done' ? '#166534' : '#92400e',
