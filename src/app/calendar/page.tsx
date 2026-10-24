@@ -1,4 +1,6 @@
 'use client'
+import ActualizationAssignmentBadge from '@/components/ActualizationAssignmentBadge'
+import {actualizationTaskTitle, actualizationNeedsAssignment, actualizationAssignmentLabels} from '@/lib/documentActualizationPolicy'
 import { createTaskFetch } from '@/lib/createTaskFetch'
 import NotificationBell from '@/components/NotificationBell'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
@@ -139,7 +141,7 @@ export default function CalendarPage() {
     const query = `staffScope=${encodeURIComponent(scope)}`
     return Promise.all([
       freshJson(`/api/tasks?${query}`),
-      freshJson(`/api/cases?${query}`),
+      freshJson(`/api/cases?${query}`).catch(error => { if (scope === 'mine' && error.message === 'HTTP 409') return []; throw error }),
     ]).then(([taskData, caseData]) => {
       setTasks(Array.isArray(taskData) ? taskData : [])
       setCases(Array.isArray(caseData) ? caseData : [])
@@ -244,7 +246,7 @@ export default function CalendarPage() {
   function taskRelatedCaseId(task: any) {
     if (!task) return ''
     const meta = taskMeta(task)
-    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask, meta.fingerprintsAppointment, meta.predictedDecision, meta.caseImportantDate]
+    const refs = [meta.paymentPlan, meta.mosDocument, meta.autoReminder, meta.customCaseReminder, meta.quickCaseTask, meta.fingerprintsAppointment, meta.predictedDecision, meta.caseImportantDate, meta.documentActualization]
     const metaCaseId = refs.find((ref: any) => ref?.caseId)?.caseId
     if (metaCaseId) return metaCaseId
     const byNumber = cases.find((item: any) => {
@@ -277,6 +279,7 @@ export default function CalendarPage() {
       meta.fingerprintsAppointment?.caseId,
       meta.predictedDecision?.caseId,
       meta.caseImportantDate?.caseId,
+      meta.documentActualization?.caseId,
     ]
     const caseId = refs.find(value => typeof value === 'string' && value.trim()) || ''
     return caseId && cases.some((item: any) => item.id === caseId) ? caseId : ''
@@ -416,6 +419,10 @@ export default function CalendarPage() {
           white-space: nowrap;
           margin-bottom: 2px;
         }
+
+        /* Only managed fallback month chips: one bounded line, full label in detail. */
+        .cal-chip--actualization-fallback { display: flex; align-items: flex-start; gap: 3px; line-height: 14px; }
+        .cal-chip--actualization-fallback > .cal-chip-title { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         /* ── Точки (мобиль) — скрыты на десктопе ── */
         .cal-dots {
@@ -608,13 +615,14 @@ export default function CalendarPage() {
                       {allItems.slice(0, 3).map((t, i) => {
                         const isDue = !!getTasksForDate(cell.year, cell.month, cell.day).find(dt => dt.id === t.id)
                         const color = !isDue ? '#7c3aed' : getPriorityColor(t.priority)
+                        const fallback = actualizationNeedsAssignment(t)
                         return (
-                          <div key={t.id + i} className="cal-chip" style={{
+                          <div key={t.id + i} className={`cal-chip${fallback ? ' cal-chip--actualization-fallback' : ''}`} title={fallback ? `${actualizationTaskTitle(t,lang)} · ${actualizationAssignmentLabels[lang==='ru'||lang==='pl'?lang:'uk']}` : undefined} style={{
                             background: color + '20',
                             color,
                             borderLeft: `2px solid ${color}`,
                           }}>
-                            {!isDue ? '⏰ ' : ''}{t.title}
+                            {fallback ? <><span className="cal-chip-title" style={{flex:'1 1 0',minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{!isDue ? '⏰ ' : ''}{actualizationTaskTitle(t,lang)}</span><ActualizationAssignmentBadge task={t} lang={lang} compact /></> : <>{!isDue ? '⏰ ' : ''}{actualizationTaskTitle(t,lang)}</>}
                           </div>
                         )
                       })}
@@ -630,6 +638,7 @@ export default function CalendarPage() {
                       {allItems.slice(0, 4).map((t, i) => {
                         const isDue = !!getTasksForDate(cell.year, cell.month, cell.day).find(dt => dt.id === t.id)
                         const color = !isDue ? '#7c3aed' : getPriorityColor(t.priority)
+                        const fallback = actualizationNeedsAssignment(t)
                         return <div key={t.id + i} className="cal-dot" style={{ background: color }} />
                       })}
                       {allItems.length > 4 && (
@@ -654,6 +663,7 @@ export default function CalendarPage() {
               onClose={() => setSelectedCell(null)}
               translate={t}
               locale={locale}
+              lang={lang}
               showResponsible={staffScope === 'all'}
             />}
           </div>
@@ -672,6 +682,7 @@ export default function CalendarPage() {
               onClose={() => setSelectedCell(null)}
               translate={t}
               locale={locale}
+              lang={lang}
               showResponsible={staffScope === 'all'}
             />
           </div>
@@ -810,7 +821,7 @@ export default function CalendarPage() {
 }
 
 // ── Компонент панели дня (переиспользуется для десктопа и мобиля) ──
-function DayPanel({ selectedCell, selectedItems, year, getTasksForDate, getPriorityColor, openEdit, onClose, translate, locale, showResponsible }: any) {
+function DayPanel({ selectedCell, selectedItems, year, getTasksForDate, getPriorityColor, openEdit, onClose, translate, locale, lang, showResponsible }: any) {
   const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']
   const monthName = new Date(selectedCell.year, selectedCell.month, 1).toLocaleDateString(locale || 'ru-RU', { month: 'long' })
   return (
@@ -838,7 +849,7 @@ function DayPanel({ selectedCell, selectedItems, year, getTasksForDate, getPrior
             style={{ padding: '10px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <div style={{ width: 3, minHeight: 44, background: color, borderRadius: 2, flexShrink: 0, marginTop: 2 }} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 3, color: 'var(--text)' }}>{t.title}</div>
+              <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 3, color: 'var(--text)' }}>{actualizationTaskTitle(t,lang)}<ActualizationAssignmentBadge task={t} lang={lang} /></div>
               {t.clientName && <div style={{ fontSize: 11, color: 'var(--muted)' }}>👤 {t.clientName}</div>}
               {showResponsible && t.assignedTo?.name && <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>👤 {t.assignedTo.name}</div>}
               <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>

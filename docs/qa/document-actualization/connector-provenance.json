@@ -1,0 +1,220 @@
+{
+  "base": "895ebe271f8a2c106029992f0497252cc9a81eee",
+  "feature": "4a157cdab22088100bca3f8ac2fcea826e455cd1",
+  "files": [
+    {
+      "path": "src/lib/notifications.ts",
+      "sha": "7c86c1c867c5fddf6a03ccf6b256719db344056b"
+    },
+    {
+      "path": "docs/qa/document-actualization/calendar-1440-ru-light.png",
+      "sha": "44ebbc4e0bf2c7386233c5d14f30e3547d0a916f"
+    },
+    {
+      "path": "docs/qa/document-actualization/414-uk-slate.png",
+      "sha": "3c2cf4fad53a85b45c204a25ca1811b38990eeee"
+    },
+    {
+      "path": "docs/qa/document-actualization/430-pl-light.png",
+      "sha": "6cccec30ac13d6f2eb1b553ef520d4024fb047ee"
+    },
+    {
+      "path": "src/components/UpcomingEvents.tsx",
+      "sha": "3d8eef71227203d968f46cc84f1743dac1f67563"
+    },
+    {
+      "path": "docs/document-actualization-audit.md",
+      "sha": "16fa319b47780d016abafaffbadb002c6111e62e"
+    },
+    {
+      "path": "docs/qa/document-actualization/calendar-430-pl-light.png",
+      "sha": "35639bc5a2b5d9ddfcd909d38a98965d1ef24fdb"
+    },
+    {
+      "path": "src/app/calendar/page.tsx",
+      "sha": "a4297a67dbd547df05dd20a2000d7849f56d627d"
+    },
+    {
+      "path": "src/lib/docUpdateWrite.ts",
+      "sha": "df302ea542addd44a0113a40cae37d4231a38ad0"
+    },
+    {
+      "path": "tests/mobile-refresh-autosave.test.mjs",
+      "sha": "f1d1fcd2dbd9056d6a7e1c9859f9bdb577d4308c"
+    },
+    {
+      "path": "src/components/DocumentActualizationStatus.tsx",
+      "sha": "27ba0b0779b817cce40f0d1862c75b58d9e93076"
+    },
+    {
+      "path": "docs/qa/document-actualization/changed-files.txt",
+      "sha": "215e6faa618a92f3e5d7db3bdfc1e476a8753fd7"
+    },
+    {
+      "path": "docs/qa/document-actualization/calendar-390-ru-dark.png",
+      "sha": "1a1cde8991493839b69458d5b3f9d73bd0a5df02"
+    },
+    {
+      "path": "docs/qa/document-actualization/calendar-1024-pl-slate.png",
+      "sha": "44712d16394d68e21f9cfd1fcc629acc0e0ece50"
+    },
+    {
+      "path": "scripts/document-actualization-ui-harness.cjs",
+      "sha": "6213ca771a304873faaa41b17987c779298827c8"
+    },
+    {
+      "path": "docs/qa/document-actualization/calendar-414-uk-slate.png",
+      "sha": "a82e618d67d9d386cdc1e988f12806dc747c476a"
+    },
+    {
+      "path": "scripts/actualization-source-evidence.cjs",
+      "sha": "7582ce195e42586e479c45b5961e7f913d33a45d"
+    },
+    {
+      "path": "src/app/tasks/page.tsx",
+      "sha": "66ac3024355162a713ad31fc5fe50ceb50d5fb3c"
+    },
+    {
+      "path": "docs/qa/document-actualization/1024-pl-slate.png",
+      "sha": "2646c375d7ecd1f1e963fb044a52396f19c5c1d4"
+    },
+    {
+      "path": "docs/qa/document-actualization/integration.json",
+      "sha": "b08bd4302a9e363ba504f036e6bfe771543e6db7"
+    },
+    {
+      "path": "src/lib/notificationCandidates.ts",
+      "sha": "c5a0f4c157508c24753f9aa44d7b797c33fa900e"
+    },
+    {
+      "path": "docs/qa/document-actualization/390-ru-dark.png",
+      "sha": "02288ac1cd15684a7da31497dbd63166aced59bb"
+    },
+    {
+      "path": "docs/qa/document-actualization/verification.json",
+      "sha": "f2d3193b7e20df9a2ccbc3f785166a3d212a0282"
+    },
+    {
+      "path": "src/app/calendar/CalendarMobile.tsx",
+      "sha": "980da14b0f0ba6574c7e2ee39255926895be8f3a"
+    },
+    {
+      "path": "src/lib/notificationJobs.ts",
+      "sha": "8cd29882af292604f64492951b7a6d1e591e50c9"
+    },
+    {
+      "path": "docs/qa/document-actualization/1440-uk-dark.png",
+      "sha": "089960eea9644246d714d570e0042d6b0b3e2bc9"
+    },
+    {
+      "path": "docs/qa/document-actualization/ui-only.json",
+      "sha": "69dde24f58f57997812194471f9681e77b5b999a"
+    },
+    {
+      "path": "src/app/tasks/TasksMobile.tsx",
+      "sha": "6370746033731cd2057c7e1b1690b0ee014c9358"
+    },
+    {
+      "path": "docs/document-actualization-qa.md",
+      "sha": "e7993c9dd60c3b1cdc4ee624e5a4b665508d498b"
+    },
+    {
+      "path": "src/app/api/tasks/route.ts",
+      "sha": "2a1dd3a2702090d43ef955d52b9982b31a9af609"
+    },
+    {
+      "path": "src/lib/documentActualization.ts",
+      "sha": "7f6d90a0031e617aa4a760fbf4a0a56943ec4dde"
+    },
+    {
+      "path": "scripts/qa-document-actualization.mjs",
+      "sha": "1bbebd02e43e8418674ee45be85b30eaf59c39ba"
+    },
+    {
+      "path": "src/lib/documentActualizationPolicy.ts",
+      "sha": "dab1e555da17031536f0ff4369345433840aa053"
+    },
+    {
+      "path": "src/app/api/cases/[id]/doc-updates/[updateId]/route.ts",
+      "sha": "b2a095d8f278a5d3353014c0a9450b16ade30aec"
+    },
+    {
+      "path": "docs/qa/document-actualization/browser.json",
+      "sha": "9f748c567c76e01d31d8c5c40412d7419ed14b90"
+    },
+    {
+      "path": "tests/security/hardening.test.mjs",
+      "sha": "9ae4f345674f014a08401c8dee678d032e968d5e"
+    },
+    {
+      "path": "scripts/inventory/document-actualization.sql",
+      "sha": "ba649e2bef5f9a56b7fa84503c55913334d00e29"
+    },
+    {
+      "path": "src/lib/documentChecklist.ts",
+      "sha": "b8980d30c304e87f514b9599fdb7b9ca9a44d6cc"
+    },
+    {
+      "path": "src/app/cases/[id]/CaseDetailMobile.tsx",
+      "sha": "0a87c1c813213c379c421137812925a54adac802"
+    },
+    {
+      "path": "docs/document-actualization-inventory-plan.md",
+      "sha": "b841bff15d3c34f6582b5d209f00b8ac332d1486"
+    },
+    {
+      "path": "docs/document-actualization-ui-review.md",
+      "sha": "14997fbd4539c99e40bb220c547a5a7b71e7406e"
+    },
+    {
+      "path": "scripts/fixtures/actualization-ui-api.js",
+      "sha": "1bd9432d699b3dd00cbda7ee39ca3d3dc080edf6"
+    },
+    {
+      "path": "scripts/qa-document-actualization-ui.mjs",
+      "sha": "7a389943bafa983c71982ccb462143fc3b112fcb"
+    },
+    {
+      "path": "scripts/document-actualization-local.cjs",
+      "sha": "b40d943ded1a60377ad89a3629ae68303df601e8"
+    },
+    {
+      "path": "src/app/api/cases/[id]/doc-updates/route.ts",
+      "sha": "f6583fffc72febaf845057057bbdc5fe036ec821"
+    },
+    {
+      "path": "tests/document-actualization-policy.test.mjs",
+      "sha": "80892b41f061ac35b9af30ce8fa2f0a7db656f29"
+    },
+    {
+      "path": "docs/qa/document-actualization/1440-ru-light.png",
+      "sha": "ca7a131d83f08d046494dbd98a41d810540c56c4"
+    },
+    {
+      "path": "src/app/api/tasks/[id]/route.ts",
+      "sha": "65316a2ab859a6d818e7dfe6b6d054739af6cc97"
+    },
+    {
+      "path": "src/lib/notificationPush.ts",
+      "sha": "5ce9ad60c2e44bbb39a9075eed8554a94b514d5d"
+    },
+    {
+      "path": "scripts/qa-document-actualization-browser.mjs",
+      "sha": "cf4c283ca8e3451ea452e2f40d3449bb509b17fd"
+    },
+    {
+      "path": "src/app/api/cases/[id]/route.ts",
+      "sha": "d9c97028c9a6b147271addf6a308c5f38ae095f4"
+    },
+    {
+      "path": "src/app/cases/[id]/page.tsx",
+      "sha": "8d111922ee57d7bb00f92a01e951068e7e23cf65"
+    },
+    {
+      "path": "docs/qa/document-actualization/calendar-1440-uk-dark.png",
+      "sha": "53ad16a9d5f8cd54f4ddaa697de09fa40212215f"
+    }
+  ],
+  "srcTree": "449a5c07f9f446287229020a596ef16930fe06b1",
+  "method": "Exact base 895ebe2 plus 53 connector fetch_file(base64,ref=4a157cd) files; each Git blob SHA1 verified; no repository env files copied. Local reconstruction commit is not a remote ancestor; publication uses remote parent and expected_sha."
+}

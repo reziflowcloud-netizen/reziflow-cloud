@@ -1,3 +1,4 @@
+import {actualizationRef, actualizationActionable, lockActualizationCase} from './documentActualization.ts'
 import { prisma } from './prisma.ts'
 import { scheduledOccurrences } from './notificationOccurrence.ts'
 import { notificationCandidateQuery, type CandidateMode, type NotificationCandidate } from './notificationCandidates.ts'
@@ -39,10 +40,12 @@ export async function evaluateNotificationPage(cursor: EvaluationCursor = parseE
     notificationsCreated += await db.$transaction(async (tx: any) => {
       const automation = await lockedOrganizationAutomation(tx,candidate.organizationId)
       if (!automation.enabled) return 0
+      if(kind==='task'){const candidateTask=await tx.task.findFirst({where:{id:candidate.id,organizationId:candidate.organizationId}});const ref=actualizationRef(candidateTask);if(ref)await lockActualizationCase(tx,candidate.organizationId,ref.caseId)}
       const table = {task:'Task',case:'Case',lead:'Lead'}[kind]
       await tx.$queryRawUnsafe(`SELECT id FROM "${table}" WHERE id = $1 AND "organizationId" = $2 FOR UPDATE`,candidate.id,candidate.organizationId)
       const fresh = await tx[kind].findFirst({ where: {id:candidate.id,organizationId:candidate.organizationId}, ...(include ? {include} : {}) })
       if (!fresh) return 0
+      if(kind==='task'&&!await actualizationActionable(tx,fresh))return 0
       if (kind === 'case' && (fresh.customDates.length > 100 || fresh.statusHistory.length > 100)) throw new Error('Case date/history scope exceeds bounds')
       const events = scheduledOccurrences(kind,fresh,now,new Date(automation.activatedAt!)).filter(event => event.type === candidate.type && event.occurrence === candidate.occurrence)
       return emitScheduledNotifications(tx,kind,fresh,events,metrics)

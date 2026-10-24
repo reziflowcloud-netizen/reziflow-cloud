@@ -1,3 +1,4 @@
+import { actualizationFallbackSql } from './actualizationFallback.ts'
 import { Prisma } from '@prisma/client'
 import { notificationText } from './notificationI18n.ts'
 import { CASE_NOTIFICATION_DATE_FIELDS } from './notificationPolicy.ts'
@@ -21,7 +22,7 @@ function reminderInstant() {
 }
 export function notificationCandidateQuery(mode: CandidateMode, after: string, now: Date, limit = 26, overrides?: { id: string; since: Date }[]) {
   const orgs = overrides ? overrides.length ? Prisma.sql`SELECT v.id, v.since FROM (VALUES ${Prisma.join(overrides.map(o => Prisma.sql`(${o.id}::text, ${o.since}::timestamptz)`))}) v(id, since)` : Prisma.sql`SELECT id, NULL::timestamptz AS since FROM "Organization" WHERE false` : Prisma.sql`SELECT id, "notificationAutomationActivatedAt" AT TIME ZONE 'UTC' AS since FROM "Organization" WHERE "notificationAutomationEnabled" = true AND "notificationAutomationActivatedAt" IS NOT NULL`
-  const task = Prisma.sql`SELECT 'task'::text AS kind, t.id, t."organizationId", t."assignedToId", o.since,
+  const task = Prisma.sql`SELECT 'task'::text AS kind, t.id, t."organizationId", t."assignedToId", o.since, ${actualizationFallbackSql('t')} AS fallback,
     CASE WHEN (t."dueDate" AT TIME ZONE 'UTC')::date < (${now}::timestamptz AT TIME ZONE 'Europe/Warsaw')::date THEN 'task_overdue' ELSE 'task_due' END AS type,
     CASE WHEN (t."dueDate" AT TIME ZONE 'UTC')::date < (${now}::timestamptz AT TIME ZONE 'Europe/Warsaw')::date THEN ${day(Prisma.sql`t."dueDate" AT TIME ZONE 'UTC'`)}
       ELSE coalesce(${day(Prisma.sql`t."dueDate" AT TIME ZONE 'UTC'`)}, '') || ':' || coalesce(${instant(Prisma.sql`r.reminder`)}, 'default') END AS occurrence,
@@ -32,9 +33,10 @@ export function notificationCandidateQuery(mode: CandidateMode, after: string, n
     CROSS JOIN LATERAL (SELECT ${reminderInstant()} AS reminder) r
     WHERE lower(trim(t.status)) NOT IN ('done','completed','cancelled','canceled','inactive')
       AND NOT EXISTS (SELECT 1 FROM jsonb_each(CASE WHEN jsonb_typeof(m.meta) = 'object' THEN m.meta ELSE '{}'::jsonb END) a WHERE a.key IN ('leadReminder','caseImportantDate','fingerprintsAppointment','predictedDecision') AND a.value NOT IN ('null'::jsonb,'false'::jsonb,'0'::jsonb,'""'::jsonb))
+      AND (t.id NOT LIKE 'case-actualization-%' OR ${actualizationFallbackSql('t')} OR EXISTS (SELECT 1 FROM "Case" control WHERE control.id = m.meta->'documentActualization'->>'caseId' AND control."organizationId" = t."organizationId" AND control."decisionReceived" = false AND control."assignedToId" = t."assignedToId" AND EXISTS (SELECT 1 FROM "Employee" owner WHERE owner.id=control."employeeId" AND owner."organizationId"=control."organizationId" AND owner.active=true AND owner."userId"=t."assignedToId")))
       AND (t."dueDate" IS NOT NULL OR r.reminder IS NOT NULL)
       AND (r.reminder IS NOT NULL OR (t."dueDate" AT TIME ZONE 'UTC')::date <= (${now}::timestamptz AT TIME ZONE 'Europe/Warsaw')::date + 1)`
-  const lead = Prisma.sql`SELECT 'lead'::text AS kind, l.id, l."organizationId", l."assignedToId", o.since,
+  const lead = Prisma.sql`SELECT 'lead'::text AS kind, l.id, l."organizationId", l."assignedToId", o.since, false AS fallback,
     'lead_contact'::text AS type, ${instant(Prisma.sql`l."nextContactAt" AT TIME ZONE 'UTC'`)} AS occurrence,
     l."nextContactAt" AT TIME ZONE 'UTC' AS trigger FROM enabled_orgs o JOIN "Lead" l ON l."organizationId" = o.id
     WHERE l."nextContactAt" IS NOT NULL AND l."convertedAt" IS NULL AND l."convertedClientId" IS NULL
@@ -45,7 +47,7 @@ export function notificationCandidateQuery(mode: CandidateMode, after: string, n
   const builtIns = Prisma.join(CASE_NOTIFICATION_DATE_FIELDS.map(field => Prisma.sql`(${field}::text, c.${Prisma.raw('"'+field+'"')})`))
   const aliases = CASE_NOTIFICATION_DATE_FIELDS.flatMap(field => [field,...Object.values(notificationText).map(copy => copy.dates[field])].map(label => ({ field, label })))
   const aliasSql = Prisma.join(aliases.map(a => Prisma.sql`(${a.field}::text, ${a.label}::text)`))
-  const caseDates = Prisma.sql`SELECT 'case'::text AS kind, c.id, c."organizationId", c."assignedToId", o.since,
+  const caseDates = Prisma.sql`SELECT 'case'::text AS kind, c.id, c."organizationId", c."assignedToId", o.since, false AS fallback,
     'case_date'::text AS type, d.kind || ':' || ${day(Prisma.sql`d.date AT TIME ZONE 'UTC'`)} || ':' || w.period AS occurrence,
     ((d.date AT TIME ZONE 'UTC')::date - w.days)::timestamp AT TIME ZONE 'Europe/Warsaw' AS trigger
     FROM enabled_orgs o JOIN "Case" c ON c."organizationId" = o.id
@@ -67,9 +69,9 @@ export function notificationCandidateQuery(mode: CandidateMode, after: string, n
     candidates AS (
       SELECT r.*, r.kind || ':' || r.id || ':' || r.type || ':' || r.occurrence AS key
       FROM raw_events r WHERE r.trigger >= r.since AND r.trigger <= ${now} AND r.trigger >= ${new Date(now.getTime()-CANDIDATE_RECOVERY_MS)}
-        AND EXISTS (SELECT 1 FROM "User" responsible WHERE responsible.id = r."assignedToId" AND responsible."organizationId" = r."organizationId")
+        AND (r.fallback OR EXISTS (SELECT 1 FROM "User" responsible WHERE responsible.id = r."assignedToId" AND responsible."organizationId" = r."organizationId"))
         AND EXISTS (SELECT 1 FROM "User" u LEFT JOIN "NotificationPreference" p ON p."organizationId" = u."organizationId" AND p."userId" = u.id
-          WHERE u."organizationId" = r."organizationId" AND (u.id = r."assignedToId" OR (u.role IN ('owner','admin') AND u."restrictedAccess" = false AND p.scope = 'team'))
+          WHERE u."organizationId" = r."organizationId" AND (u.id = r."assignedToId" OR (u.role IN ('owner','admin') AND u."restrictedAccess" = false AND (r.fallback OR p.scope = 'team')))
             AND (p.events #> ARRAY[r.type,'inApp'] IS DISTINCT FROM 'false'::jsonb OR (p."pushEnabled" = true AND p.events #> ARRAY[r.type,'push'] IS DISTINCT FROM 'false'::jsonb))
             AND NOT EXISTS (SELECT 1 FROM "Notification" n WHERE n."organizationId" = u."organizationId" AND n."userId" = u.id
               AND n."dedupeKey" = r.type || ':' || r.kind || ':' || r.id || ':' || r.occurrence))

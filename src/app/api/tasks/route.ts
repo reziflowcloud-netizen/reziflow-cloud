@@ -1,3 +1,6 @@
+import { actualizationAdmin } from '@/lib/actualizationFallback'
+import { actualizationActionable } from '@/lib/documentActualization'
+import {actualizationRef} from '@/lib/documentActualizationPolicy'
 import { dispatchAssignmentPush } from '@/lib/assignmentDelivery'
 import { createTaskOnce, TaskCreateConflict } from '@/lib/taskCreate'
 import { assignmentEventsEnabled } from '@/lib/notificationEventGate'
@@ -19,18 +22,29 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
   const scope = await getDataAccessScope(user, organizationId)
+  const fallbackAdmin = await prisma.user.findFirst({where:{id:Number(user.id),organizationId},select:{role:true,restrictedAccess:true}})
+  const allowFallback = actualizationAdmin(fallbackAdmin)
+  let fallbackOnly = false
   let staffScope
   try {
     staffScope = await resolveStaffScope(request.nextUrl.searchParams.get('staffScope'), user, organizationId, scope)
   } catch (error) {
-    if (error instanceof StaffScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
-    throw error
+    if (error instanceof StaffScopeError && error.status === 409 && allowFallback && request.nextUrl.searchParams.get('staffScope') === 'mine') {
+      fallbackOnly = true
+      staffScope = {kind:'mine' as const,employeeId:null,userId:Number(user.id),assignedToFallback:false}
+    } else if (error instanceof StaffScopeError) return NextResponse.json({ error: error.message }, { status: error.status })
+    else throw error
   }
   const tasks = await prisma.task.findMany({
-    where: applyUserStaffScope(taskWhereForScope(scope, organizationId), staffScope),
+    where: fallbackOnly ? {organizationId,id:{in:[]}} : applyUserStaffScope(taskWhereForScope(scope, organizationId), staffScope),
     include: { assignedTo: { select: SAFE_ASSIGNEE_SELECT } },
     orderBy: { createdAt: 'desc' },
   })
+  if (allowFallback && staffScope.kind !== 'employee') {
+    const fallback = await prisma.task.findMany({where:{organizationId,assignedToId:null,id:{startsWith:'case-actualization-'},status:'todo'},include:{assignedTo:{select:SAFE_ASSIGNEE_SELECT}},orderBy:{createdAt:'desc'}})
+    const ids = new Set(tasks.map(t=>t.id))
+    for (const task of fallback) if (!ids.has(task.id) && actualizationRef(task) && await actualizationActionable(prisma,task)) tasks.push(task)
+  }
   const taskRefs = tasks.map(task => getCaseImportantDateTaskRef(task.description))
   const personalAppearCaseIds = Array.from(new Set(
     taskRefs
@@ -61,7 +75,11 @@ export async function GET(request: NextRequest) {
       .map(caseRecord => caseRecord.id)
   )
 
-  return NextResponse.json(tasks.filter((_, index) => {
+  const managedCaseIds=tasks.map(task=>actualizationRef(task)?.caseId).filter(Boolean)
+  const allowedManagedCases=await prisma.case.findMany({where:caseWhereForScope(scope,organizationId,{id:{in:managedCaseIds}}),select:{id:true}})
+  const allowed=new Set(allowedManagedCases.map(c=>c.id))
+  return NextResponse.json(tasks.filter((task, index) => {
+    const managed=actualizationRef(task);if(managed&&(task.status==='inactive'||!allowed.has(managed.caseId)))return false
     const ref = taskRefs[index]
     if (ref?.kind === 'filingDate') return false
     if (ref?.kind === 'personalAppearDate' && retiredPersonalAppearCaseIds.has(ref.caseId)) return false
@@ -75,6 +93,8 @@ export async function POST(request: NextRequest) {
   const organizationId = getOrganizationId(user)
   const scope = await getDataAccessScope(user, organizationId)
   const body = await request.json()
+  if(!body||typeof body!=='object'||Array.isArray(body))return NextResponse.json({error:'Invalid body'},{status:400})
+  try{const meta=JSON.parse(body.description||'{}');if(meta&&Object.prototype.hasOwnProperty.call(meta,'documentActualization'))return NextResponse.json({error:'Reserved automatic Task metadata'},{status:400})}catch{}
   const assignedToId = scope.restricted && scope.userId ? scope.userId : body.assignedToId ? parseInt(body.assignedToId) : null
   if (assignedToId && !await prisma.user.findFirst({ where: { id: assignedToId, organizationId }, select: { id: true } })) return NextResponse.json({ error: 'User not found' }, { status: 400 })
   const key = request.headers.get('X-LegalHub-Create-Request')

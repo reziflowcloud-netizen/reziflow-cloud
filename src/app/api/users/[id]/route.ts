@@ -1,3 +1,4 @@
+import { lockActualizationIdentity, reconcileActivatedActualizations } from '@/lib/documentActualization'
 // src/app/api/users/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -66,10 +67,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         data.sessionVersion = { increment: 1 }
       }
     }
-    const updated = await prisma.user.update({
+    const updated = await prisma.$transaction(async tx=>{
+      await lockActualizationIdentity(tx,organizationId)
+      const fresh=await tx.user.findFirstOrThrow({where:{id:targetId,organizationId}})
+      const result = await tx.user.update({
       where: { id: targetId },
       data,
       select: { id: true, name: true, email: true, role: true, restrictedAccess: true, avatarUrl: true, sessionVersion: true, createdAt: true },
+    })
+      if (result.role !== fresh.role || result.restrictedAccess !== fresh.restrictedAccess) await reconcileActivatedActualizations(tx,organizationId)
+      return result
     })
     if (isSelf) await refreshUserCookie(updated, user)
     return NextResponse.json(updated)
@@ -98,11 +105,13 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     }
 
     await prisma.$transaction(async tx => {
+      await lockActualizationIdentity(tx,organizationId)
       await (tx as any).employee.updateMany({
         where: { organizationId, userId: parseInt(params.id) },
         data: { userId: null },
       })
       await tx.user.delete({ where: { id: parseInt(params.id) } })
+      await reconcileActivatedActualizations(tx,organizationId)
     })
     await deleteCloudinaryResource((existing as any).avatarPublicId)
     return NextResponse.json({ ok: true })

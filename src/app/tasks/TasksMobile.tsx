@@ -1,4 +1,6 @@
 'use client'
+import ActualizationAssignmentBadge from '@/components/ActualizationAssignmentBadge'
+import {actualizationTaskTitle} from '@/lib/documentActualizationPolicy'
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
@@ -356,7 +358,7 @@ export default function TasksMobile(props: TasksMobileProps) {
             return (
               <article key={task.id} className={styles.taskCard} style={{ '--task-color': color } as CSSProperties}>
                 <div className={styles.cardTop}>
-                  <button type="button" className={styles.cardTitleButton} onClick={() => props.onOpenTask(task)}><strong>{task.title}</strong></button>
+                  <button type="button" className={styles.cardTitleButton} onClick={() => props.onOpenTask(task)}><strong>{actualizationTaskTitle(task,props.lang)}<ActualizationAssignmentBadge task={task} lang={props.lang} /></strong></button>
                   <button type="button" className={styles.priorityBadge} style={{ borderColor: withAlpha(color, 'c2'), background: withAlpha(color, '18'), color }} onClick={() => setPriorityMenuTaskId(value => value === task.id ? null : task.id)} aria-expanded={priorityMenuTaskId === task.id}>{task.priority}</button>
                   <button type="button" className={styles.cardMenuButton} aria-label={copy.priority} onClick={() => setPriorityMenuTaskId(value => value === task.id ? null : task.id)}><TaskIcon type="more" /></button>
                   {priorityMenuTaskId === task.id && (

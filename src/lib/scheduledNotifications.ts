@@ -1,3 +1,5 @@
+import { actualizationRef, actualizationActionable } from './documentActualization.ts'
+import { actualizationAdmin } from './actualizationFallback.ts'
 import { Prisma } from '@prisma/client'
 import { notificationEventAllowed } from './notificationEventGate.ts'
 import { canReceiveTeam, entityLink, notificationPreferences, type NotificationType } from './notificationPolicy.ts'
@@ -10,7 +12,11 @@ import { occurrenceTriggerAt } from './notificationOccurrence.ts'
 // Phase 3A's assignment emitter keeps its existing behavior.
 export type ScheduledMetrics = { skippedUnlinkedEmployees: number; duplicatesPrevented: number; deliveriesCreated: number; recipientsEvaluated: number }
 export async function emitScheduledNotifications(db: any, entityType: string, record: any, events: { type: NotificationType; occurrence: string }[], metrics?: ScheduledMetrics) {
-  if (!record.assignedToId || !events.length) return 0
+  const managed = entityType === 'task' && actualizationRef(record)
+  if (managed && !(await actualizationActionable(db,record))) return 0
+  const fallback = !!managed && record.assignedToId == null
+  if ((!record.assignedToId && !fallback) || !events.length) return 0
+  if (fallback) events = events.filter(e=>e.type==='task_due'||e.type==='task_overdue')
   const organizationId = record.organizationId
   const automation = await lockedOrganizationAutomation(db, organizationId)
   if (!automation.enabled) return 0
@@ -21,15 +27,15 @@ export async function emitScheduledNotifications(db: any, entityType: string, re
   }) : null
   if ((record.employeeId || entityType === 'lead') && linked?.userId !== record.assignedToId) { if (metrics) metrics.skippedUnlinkedEmployees++; return 0 }
   const users = await db.user.findMany({
-    where: { organizationId, OR: [{ id: record.assignedToId }, { role: { in: ['owner', 'admin'] }, notificationPreference: { scope: 'team' } }] },
+    where: { organizationId, ...(fallback ? {role:{in:['owner','admin']},restrictedAccess:false} : {OR: [{ id: record.assignedToId }, { role: { in: ['owner', 'admin'] }, notificationPreference: { scope: 'team' } }]}) },
     select: { id: true, role: true, restrictedAccess: true, notificationPreference: true }, take: 101,
   })
   if (users.length > 100) throw new Error('Scheduled recipient scope exceeds bounds')
-  const responsible = users.find((user: any) => user.id === record.assignedToId) || await db.user.findFirst({ where: { id: record.assignedToId, organizationId }, select: { id: true } })
-  if (!responsible) return 0
+  const responsible = users.find((user: any) => user.id === record.assignedToId) || (record.assignedToId ? await db.user.findFirst({ where: { id: record.assignedToId, organizationId }, select: { id: true } }) : null)
+  if (!responsible && !fallback) return 0
   const rows = users.flatMap((user: any) => {
     const preference = notificationPreferences(user.notificationPreference, canReceiveTeam(user))
-    if (user.id !== record.assignedToId && (!canReceiveTeam(user) || preference.scope !== 'team')) return []
+    if (user.id !== record.assignedToId && !(fallback && actualizationAdmin(user)) && (!canReceiveTeam(user) || preference.scope !== 'team')) return []
     return events.flatMap(event => {
       if (!notificationEventAllowed(event.type, organizationId, user.id)) return []
       const toggle = preference.events[event.type], pushRequested = toggle.push && preference.pushEnabled

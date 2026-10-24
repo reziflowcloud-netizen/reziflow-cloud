@@ -1,3 +1,4 @@
+import { actualizationFallbackSql, actualizationAdmin } from './actualizationFallback.ts'
 import { Prisma } from '@prisma/client'
 import { prisma } from './prisma.ts'
 import { assignmentOccurrence, canReceiveTeam, entityLink, notificationPreferences, type NotificationType } from './notificationPolicy.ts'
@@ -21,14 +22,16 @@ export function visibleNotificationSql(user: any, inAppOnly = true) {
   // including Employees who otherwise have unrestricted CRM entity access.
   const scheduledMine = canReceiveTeam(user) && notificationPreferences(user.notificationPreference, true).scope === 'team' ? Prisma.empty : Prisma.sql`AND e."assignedToId" = ${user.id}`
   const scheduledAccess = Prisma.sql`AND (n.type NOT IN ('task_due', 'task_overdue', 'case_date', 'lead_contact') OR (EXISTS (SELECT 1 FROM "User" responsible WHERE responsible.id = e."assignedToId" AND responsible."organizationId" = e."organizationId") ${scheduledMine}))`
+  const taskScheduledAccess = Prisma.sql`AND (n.type NOT IN ('task_due','task_overdue') OR (${actualizationAdmin(user) ? actualizationFallbackSql('e') : Prisma.sql`false`}) OR (EXISTS (SELECT 1 FROM "User" responsible WHERE responsible.id=e."assignedToId" AND responsible."organizationId"=e."organizationId") ${scheduledMine}))`
   const leadLink = Prisma.sql`AND (n.type <> 'lead_contact' OR EXISTS (SELECT 1 FROM "Employee" staff WHERE staff."organizationId" = e."organizationId" AND staff.active = true AND staff."userId" = e."assignedToId" AND (e."employeeId" IS NULL OR staff.id = e."employeeId")))`
+  const actualizationAccess = Prisma.sql`AND (e.id NOT LIKE 'case-actualization-%' OR EXISTS (SELECT 1 FROM "Case" linked WHERE linked."organizationId"=e."organizationId" AND linked.id=(CASE WHEN pg_input_is_valid(e.description,'jsonb') THEN e.description::jsonb ELSE '{}'::jsonb END)->'documentActualization'->>'caseId' ${restricted?Prisma.sql`AND linked."assignedToId"=${user.id}`:Prisma.empty}))`
   const caseLink = Prisma.sql`AND (n.type <> 'case_date' OR e."employeeId" IS NULL OR EXISTS (SELECT 1 FROM "Employee" staff WHERE staff.id = e."employeeId" AND staff."organizationId" = e."organizationId" AND staff.active = true AND staff."userId" = e."assignedToId"))`
   return Prisma.sql`n."organizationId" = ${user.organizationId} AND n."userId" = ${user.id}
     ${inAppOnly ? Prisma.sql`AND n."inApp" = true` : Prisma.empty}
     AND (
       (n."entityType" = 'lead' AND EXISTS (SELECT 1 FROM "Lead" e WHERE e.id = n."entityId" AND e."organizationId" = n."organizationId" ${access} ${scheduledAccess} ${leadLink})) OR
       (n."entityType" = 'case' AND EXISTS (SELECT 1 FROM "Case" e WHERE e.id = n."entityId" AND e."organizationId" = n."organizationId" ${access} ${scheduledAccess} ${caseLink} AND (n.type <> 'documents_ready' OR e."assignedToId" = n."userId"))) OR
-      (n."entityType" = 'task' AND EXISTS (SELECT 1 FROM "Task" e WHERE e.id = n."entityId" AND e."organizationId" = n."organizationId" ${access} ${scheduledAccess})) OR
+      (n."entityType" = 'task' AND EXISTS (SELECT 1 FROM "Task" e WHERE e.id = n."entityId" AND e."organizationId" = n."organizationId" ${access} ${taskScheduledAccess} ${actualizationAccess})) OR
       (n."type" = 'push_test' AND n."entityType" = 'push_test' AND n."entityId" = n.id AND n."deepLink" = '/dashboard' AND n."dedupeKey" ~ '^push-pilot:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
     )`
 }

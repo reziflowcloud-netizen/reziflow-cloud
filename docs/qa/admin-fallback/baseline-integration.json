@@ -1,0 +1,31 @@
+{
+  "checks": [
+    "legacy GET, no-op/unrelated autosave and MOS service add/delete never activate",
+    "new Case creates control without notification master/push; new no-date Case has none",
+    "genuine POST replay/date tie/concurrent writes serialize to one current cycle",
+    "latest correction/delete fallback and A→B→A reuse original task; completed cycle never recreated",
+    "description-only historical correction stays inactive; invalid/null/service/offsetless inputs do not mutate",
+    "stale Case and child CAS reject atomically; transaction rollback preserves dates/tasks",
+    "concurrent Case/DocUpdate mutation and completion do not deadlock or duplicate controls",
+    "managed Task metadata/date/ownership/delete cannot be forged/detached; manual Task unchanged",
+    "explicit ownership, restricted Case/Task visibility, Staff Scope and tenant isolation",
+    "task exists master OFF; scheduler does not notify or backfill legacy Cases",
+    "scheduler repeat/concurrent runs dedupe without subscriptions; no historical catchup",
+    "REAL deliverNotificationPush sends valid managed Task with scoped org, privacy and repeat protection",
+    "receipt stop/resume and reschedule cancel queued/retry outbox; real entry point never sends stale cycle",
+    "fresh completion after early delivery checks suppresses real entry point; preferences/master/push opt-out honored",
+    "personal event preferences, push opt-out and activation watermark do not suppress Task creation",
+    "a failed real provider attempt becomes retry outbox then stop cancels it permanently",
+    "locked real delivery revalidates the current notification occurrence after early checks",
+    "scheduler Organization→Case→Task races with Case stop without deadlock or queued post-stop delivery"
+  ],
+  "errors": [],
+  "source": {
+    "head": "7b12ca3f03332c96127e7fd72d72f757c6b1f289",
+    "srcTree": "7593906e1492e343d07f4c205fdcb60ba43b8bd8",
+    "sourceDigest": "86a071128eecfe019ccf81a13842aedfac2749cdd98a5de0bea6b03202aa1085",
+    "copiedSourceDigest": "86a071128eecfe019ccf81a13842aedfac2749cdd98a5de0bea6b03202aa1085"
+  },
+  "runnerSha256": "9f2eb374cc98266b859aef7cb7c0ed53d8cc68ed544b108c9a18ec4209532b12",
+  "result": "PASS"
+}

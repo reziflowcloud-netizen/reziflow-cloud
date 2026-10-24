@@ -1,3 +1,4 @@
+import { lockActualizationIdentity, reconcileActivatedActualizations } from '@/lib/documentActualization'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
@@ -63,6 +64,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
   try {
     return await prisma.$transaction(async tx => {
+      await lockActualizationIdentity(tx,organizationId)
       const employee = await tx.employee.findFirst({
         where: { id: employeeId, organizationId },
         select: { id: true, name: true, active: true, userId: true },
@@ -100,12 +102,13 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
         data: { userId: targetUserId },
       })
       if (updated.count !== 1) return NextResponse.json({ error: 'Employee link changed; refresh before saving' }, { status: 409 })
+      await reconcileActivatedActualizations(tx,organizationId)
       return NextResponse.json({ ...employee, userId: targetUserId })
     }, { isolationLevel: 'Serializable' })
   } catch (error: any) {
     if (error?.code === 'P2002') return NextResponse.json({ error: 'CRM User is already linked to another Employee' }, { status: 409 })
     if (error?.code === 'P2003') return NextResponse.json({ error: 'Cross-organization identity is not allowed' }, { status: 400 })
-    if (error?.code === 'P2034') return NextResponse.json({ error: 'Identity changed concurrently; refresh and retry' }, { status: 409 })
+    if (error?.code === 'P2034' || (error?.code === 'P2010' && error?.meta?.code === '40001')) return NextResponse.json({ error: 'Identity changed concurrently; refresh and retry' }, { status: 409 })
     return NextResponse.json({ error: 'Could not update Employee identity' }, { status: 500 })
   }
 }

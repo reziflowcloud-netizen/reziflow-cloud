@@ -1,0 +1,51 @@
+{
+  "source": {
+    "head": "7b12ca3f03332c96127e7fd72d72f757c6b1f289",
+    "srcTree": "7593906e1492e343d07f4c205fdcb60ba43b8bd8",
+    "sourceDigest": "86a071128eecfe019ccf81a13842aedfac2749cdd98a5de0bea6b03202aa1085",
+    "copiedSourceDigest": "86a071128eecfe019ccf81a13842aedfac2749cdd98a5de0bea6b03202aa1085"
+  },
+  "remoteCheckpoints": [
+    "40ae83257808fe82ad9b5e2630e1f34404eb99df",
+    "c172dc5f72fed2db1058971d0f7be3c1afb2a0c0"
+  ],
+  "fallbackIntegrationGroups": 15,
+  "baselineIntegrationGroups": 18,
+  "deterministicLockRaces": 4,
+  "postgresDeadlocks": {
+    "before": 4,
+    "after": 4,
+    "delta": 0
+  },
+  "suiteOrdering": "strictly sequential: lock races -> fallback API -> existing API -> fallback browser -> existing browser; all distinct synthetic org/Case fixtures",
+  "fallbackBrowserSamples": 18,
+  "fallbackScreensPerSample": 4,
+  "additionalMonthChipScreenshots": 9,
+  "baselineBrowserSamples": 6,
+  "baselineBrowserCorrectionJourneys": 3,
+  "portableScreenshots": 93,
+  "committedSelectedScreenshots": 18,
+  "regressions": {
+    "pass": 88,
+    "fail": 0,
+    "skip": 2,
+    "registered": 90
+  },
+  "typecheckExit": 0,
+  "buildExit": 0,
+  "existingMigrationsAppliedToSyntheticPostgres": 52,
+  "productionInventory": {
+    "status": "user-provided completed; not executed or independently verified by Codex",
+    "total": 278,
+    "dated": 56,
+    "overdue": 33,
+    "invalidOrUnlinkedResponsible": 54,
+    "automationLedger": 0
+  },
+  "schemaChanged": false,
+  "qstashCadenceChanged": false,
+  "productionAccess": false,
+  "realPushSends": 0,
+  "backfill": false,
+  "deploy": false
+}

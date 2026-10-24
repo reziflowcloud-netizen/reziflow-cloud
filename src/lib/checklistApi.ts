@@ -18,6 +18,8 @@ export async function withCaseChecklist(caseId: string, write: boolean, run: (db
   const scope = await getDataAccessScope(user, organizationId)
   try {
     const result = await prisma.$transaction(async db => {
+      // Readiness can acquire Organization SHARE; take it before the Case lock.
+      if (write) await db.$queryRaw(Prisma.sql`SELECT id FROM "Organization" WHERE id = ${organizationId} FOR SHARE`)
       if (write) await db.$queryRaw(Prisma.sql`SELECT id FROM "Case" WHERE id = ${caseId} AND "organizationId" = ${organizationId} FOR UPDATE`)
       const record = await db.case.findFirst({ where: caseWhereForScope(scope, organizationId, { id: caseId }) })
       if (!record) throw new ChecklistError('Not found', 404)

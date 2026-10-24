@@ -118,6 +118,7 @@ async function caseApi() {
   const tasks = [{ id: 1, organizationId: 'org1', title: 'Unrelated reminder', description: '{}' }]
   const history = []
   const db = {
+    docUpdate: {findMany:async()=>[]},
     service: { findFirst: async ({ where }) => where.id === 1 && where.organizationId === 'org1' ? { id: 1 } : null },
     employee: { findFirst: async ({ where }) => where.id === 1 && where.organizationId === 'org1' ? { id: 1 } : null },
     task: {
@@ -147,6 +148,10 @@ async function caseApi() {
     '@/lib/auth': { getUser: async () => authorized ? { role: 'admin' } : null, getOrganizationId: () => organizationId },
     '@/lib/apiScope': { getDataAccessScope: async () => ({}), caseWhereForScope: (_scope, org, where) => ({ ...where, organizationId: org }) },
     '@/lib/caseImportantDateTasks': { shouldRetirePersonalAppearTask },
+    // This fixture isolates the pre-existing CAS/manual/date flow. The new control
+    // is tested against real PostgreSQL and authenticated HTTP in qa-document-actualization.
+    '@/lib/documentActualization': {syncDocumentActualization:async()=>{},actualizationTasks:async()=>[]},
+    '@/lib/documentActualizationPolicy': {actualizationSummary:()=>({state:'inactive',date:null})},
     '@/lib/caseDateReminders': { syncCaseDateReminders: async () => {} },
     '@/lib/employeeSync': { resolveUserIdForEmployee: async (_org, id) => id === 1 ? 'user1' : null },
   }

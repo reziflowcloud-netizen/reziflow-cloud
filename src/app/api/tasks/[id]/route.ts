@@ -1,3 +1,5 @@
+import {actualizationRef} from '@/lib/documentActualizationPolicy'
+import {findScopedCase} from '@/lib/apiScope'
 import { dispatchAssignmentPush } from '@/lib/assignmentDelivery'
 // src/app/api/tasks/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
@@ -12,6 +14,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const task = await findScopedTask(params.id, getOrganizationId(user))
+  if(task&&actualizationRef(task)&&!await findScopedCase(actualizationRef(task).caseId,getOrganizationId(user),{id:true}))return NextResponse.json({error:'Not found'},{status:404})
   return task ? NextResponse.json(task) : NextResponse.json({ error: 'Not found' }, { status: 404 })
 }
 
@@ -24,6 +27,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const scope = await getDataAccessScope(user, organizationId)
     let assignmentIds: string[] = []
     return await entityWrite(request, 'task', body, taskWhereForScope(scope, organizationId, { id: params.id }), async (tx, existing, claim) => {
+      const managed=actualizationRef(existing)
+      if(managed){
+        if(!await tx.case.findFirst({where:{id:managed.caseId,organizationId,...(scope.restricted?{assignedToId:scope.userId}:{})},select:{id:true}}))throw new EntityWriteError(404,'Not found')
+        for(const key of ['title','description','dueDate','assignedToId','clientName'])if(key in body&&(key==='dueDate'?new Date(body[key]).getTime()!==existing.dueDate?.getTime():body[key]!==existing[key]))throw new EntityWriteError(409,'Automatic control is managed by the Case')
+        if('status' in body&&body.status!==existing.status&&!['done','completed'].includes(body.status))throw new EntityWriteError(409,'Automatic control can only be completed here')
+      }else{try{if(Object.prototype.hasOwnProperty.call(JSON.parse(body.description||'{}')||{},'documentActualization'))throw new EntityWriteError(400,'Reserved automatic Task metadata')}catch(e){if(e instanceof EntityWriteError)throw e}}
       const data: any = {}
       for (const key of ['title', 'description', 'priority', 'status', 'clientName']) if (key in body) { if (body[key] != null && typeof body[key] !== 'string') throw new EntityWriteError(400, 'Invalid field'); data[key] = body[key] }
       if ('dueDate' in body) {
@@ -51,9 +60,10 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const organizationId = getOrganizationId(user)
-  const existing = await findScopedTask(params.id, organizationId, { id: true })
+  const existing = await findScopedTask(params.id, organizationId, { id: true, description:true })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  if(actualizationRef(existing))return NextResponse.json({error:'Automatic control is managed by the Case'},{status:409})
   await prisma.task.delete({ where: { id: params.id } })
   return NextResponse.json({ success: true })
 }
