@@ -1,4 +1,5 @@
 'use client'
+import ActualizationAssignmentBadge from '@/components/ActualizationAssignmentBadge'
 import {actualizationTaskTitle} from '@/lib/documentActualizationPolicy'
 import {useLanguage} from '@/context/LanguageContext'
 
@@ -282,7 +283,7 @@ export default function CalendarMobile(props: CalendarMobileProps) {
       >
         <div className={styles.eventTime}>{eventTime(event)}</div>
         <div className={styles.eventMain}>
-          <strong className={styles.eventTitle} title={actualizationTaskTitle(event.task,lang)}>{actualizationTaskTitle(event.task,lang)}</strong>
+          <strong className={styles.eventTitle} title={actualizationTaskTitle(event.task,lang)}>{actualizationTaskTitle(event.task,lang)}<ActualizationAssignmentBadge task={event.task} lang={lang} /></strong>
           {relationClientName && (
             relations.clientId ? (
               <Link href={`/clients/${relations.clientId}`} className={styles.relation} onClick={click => click.stopPropagation()}>

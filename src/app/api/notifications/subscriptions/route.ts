@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
   const deviceLabel = /iPhone|iPad/.test(agent) ? 'iOS' : /Android/.test(agent) ? 'Android' : /Macintosh/.test(agent) ? 'Mac' : 'Desktop'
   try {
     await prisma.$transaction(async tx => {
+      await tx.$queryRawUnsafe('SELECT id FROM "User" WHERE id=$1 AND "organizationId"=$2 FOR UPDATE',user.id,user.organizationId)
       const existing = await tx.pushSubscription.findUnique({ where: { endpointHash: identity.endpointHash } })
       if (existing && (existing.userId !== user.id || existing.organizationId !== user.organizationId)) throw new Error('Subscription belongs to another account')
       if ((!existing || existing.disabledAt) && await tx.pushSubscription.count({ where: { userId: user.id, organizationId: user.organizationId, disabledAt: null } }) >= 10) throw new Error('Device limit')
@@ -44,6 +45,9 @@ export async function DELETE(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unavailable' }, { status: 401 })
   const body = await request.json().catch(() => null)
   if (typeof body?.endpoint !== 'string') return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
-  await prisma.pushSubscription.deleteMany({ where: { userId: user.id, organizationId: user.organizationId, endpointHash: endpointHash(body.endpoint) } })
+  await prisma.$transaction(async tx=>{
+    await tx.$queryRawUnsafe('SELECT id FROM "User" WHERE id=$1 AND "organizationId"=$2 FOR UPDATE',user.id,user.organizationId)
+    await tx.pushSubscription.deleteMany({ where: { userId: user.id, organizationId: user.organizationId, endpointHash: endpointHash(body.endpoint) } })
+  })
   return NextResponse.json({ ok: true })
 }

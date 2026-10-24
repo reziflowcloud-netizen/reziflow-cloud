@@ -1,3 +1,4 @@
+import { lockedOrganizationAutomation } from './notificationOrganization.ts'
 import { notificationStillActionable } from './notificationPolicy.ts'
 import { createHash } from 'node:crypto'
 import {
@@ -33,7 +34,7 @@ export async function actualizationTasks(tx: any, organizationId: string, caseId
   return tasks.filter((t: any) => actualizationRef(t)?.caseId === caseId)
 }
 export async function actualizationOwner(tx: any, record: any) {
-  if (!record.assignedToId) return null
+  if (!record.assignedToId || !record.employeeId) return null
   const user = await tx.user.findFirst({
     where: { id: record.assignedToId, organizationId: record.organizationId },
     select: { id: true },
@@ -104,7 +105,7 @@ export async function syncDocumentActualization(
     dueDate: new Date(cycle + 'T00:00:00Z'),
     description: JSON.stringify({
       reminderAt: cycle + 'T09:00',
-      documentActualization: { version: 1, caseId, caseNumber: record.caseNumber || null, cycle },
+      documentActualization: { version: 1, caseId, caseNumber: record.caseNumber || null, cycle, requiresAssignment: owner === null },
     }),
   }
   if (!existing) await tx.task.create({ data: { ...data, id } })
@@ -146,7 +147,7 @@ export async function withActualizationDelivery(
   db: any,
   task: any,
   lease: any,
-  send: () => Promise<void>,
+  send: (context?: any) => Promise<void>,
   now = new Date(),
 ) {
   const ref = actualizationRef(task)
@@ -156,6 +157,8 @@ export async function withActualizationDelivery(
   }
   return db.$transaction(
     async (tx: any) => {
+      const automation = await lockedOrganizationAutomation(tx,task.organizationId)
+      if (!automation.enabled) return false
       await lockActualizationCase(tx, task.organizationId, ref.caseId)
       await tx.$queryRawUnsafe(
         'SELECT id FROM "Task" WHERE id=$1 AND "organizationId"=$2 FOR UPDATE',
@@ -178,7 +181,22 @@ export async function withActualizationDelivery(
         !(await actualizationActionable(tx, fresh))
       )
         return false
-      await send()
+      // Serialize membership/preferences/subscription changes through provider hand-off.
+      await tx.$queryRawUnsafe('SELECT id FROM "User" WHERE id=$1 AND "organizationId"=$2 FOR SHARE',pending.userId,task.organizationId)
+      await tx.$queryRawUnsafe('SELECT id FROM "NotificationPreference" WHERE "userId"=$1 AND "organizationId"=$2 FOR SHARE',pending.userId,task.organizationId)
+      await tx.$queryRawUnsafe('SELECT id FROM "PushSubscription" WHERE id=$1 AND "organizationId"=$2 FOR SHARE',pending.subscriptionId,task.organizationId)
+      const {notificationUser, authorizedNotification, notificationsEnabled} = await import('./notifications.ts')
+      const {notificationPreferences,canReceiveTeam} = await import('./notificationPolicy.ts')
+      const {pushConfigured,pushUserAllowed} = await import('./pushSecurity.ts')
+      const {notificationEventAllowed} = await import('./notificationEventGate.ts')
+      const user = await notificationUser(pending.userId,task.organizationId,tx)
+      const notification = user && await authorizedNotification(user,pending.notificationId,tx)
+      const preferences = notificationPreferences(user?.notificationPreference,!!user && canReceiveTeam(user))
+      const subscription = await tx.pushSubscription.findFirst({where:{id:pending.subscriptionId,userId:pending.userId,organizationId:task.organizationId,disabledAt:null}})
+      if (!user || !notification || !subscription || !notificationsEnabled() || !pushConfigured() || !pushUserAllowed(user.id) ||
+          !notificationEventAllowed(notification.type,task.organizationId,user.id) || !preferences.pushEnabled || !preferences.events[notification.type as keyof typeof preferences.events]?.push ||
+          notification.createdAt.getTime() < Date.parse(automation.activatedAt!) || now.getTime()-notification.createdAt.getTime()>86400000) return false
+      await send({tx,user,notification,preferences,subscription,record:fresh})
       await tx.notificationPushDelivery.updateMany({
         where: { ...lease, terminalAt: null },
         data: { deliveredAt: new Date(), leaseUntil: null, leaseToken: null },
@@ -187,4 +205,19 @@ export async function withActualizationDelivery(
     },
     { timeout: 15000 },
   )
+}
+
+// Identity mutations alone never activate historical Cases. The Organization lock
+// serializes them with managed scheduler/delivery; Cases are locked in ID order.
+export async function lockActualizationIdentity(tx: any, organizationId: string) {
+  await tx.$queryRawUnsafe('SELECT id FROM "Organization" WHERE id=$1 FOR UPDATE',organizationId)
+}
+export async function reconcileActivatedActualizations(tx: any, organizationId: string) {
+  const ledger = await tx.task.findMany({where:{organizationId,id:{startsWith:'case-actualization-'}},select:{id:true,description:true}})
+  const ids = Array.from(new Set<string>(ledger.map((t:any)=>actualizationRef(t)?.caseId).filter(Boolean))).sort()
+  for (const id of ids) {
+    await lockActualizationCase(tx,organizationId,id)
+    const record = await tx.case.findFirst({where:{id,organizationId}})
+    if (record) await syncDocumentActualization(tx,record,false)
+  }
 }

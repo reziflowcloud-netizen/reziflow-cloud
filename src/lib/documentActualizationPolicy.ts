@@ -68,6 +68,7 @@ export function actualizationSummary(record: any, tasks: any[], now = new Date()
   const cycle = tasks.find((t) => actualizationRef(t)?.cycle === date)
   return {
     date,
+    requiresAssignment: !!cycle && cycle.assignedToId == null && !record.decisionReceived && !actualizationFinished(cycle),
     state: record.decisionReceived
       ? 'stopped'
       : !date
@@ -87,4 +88,13 @@ export function actualizationTaskTitle(task: any, language: string) {
   return actualizationRef(task)
     ? actualizationTitles[language === 'ru' || language === 'pl' ? language : 'uk']
     : task.title
+}
+
+export function actualizationNeedsAssignment(task: any) {
+  return !!actualizationRef(task) && task.assignedToId == null && !actualizationFinished(task) && task.status !== 'inactive'
+}
+export const actualizationAssignmentLabels = {
+  uk: 'Не призначено відповідального',
+  ru: 'Ответственный не назначен',
+  pl: 'Nie przypisano osoby odpowiedzialnej',
 }

@@ -1,4 +1,5 @@
 'use client'
+import ActualizationAssignmentBadge from '@/components/ActualizationAssignmentBadge'
 import {actualizationTaskTitle} from '@/lib/documentActualizationPolicy'
 import { createTaskFetch } from '@/lib/createTaskFetch'
 import NotificationBell from '@/components/NotificationBell'
@@ -799,7 +800,7 @@ export default function TasksPage() {
                       }}>
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                        <div style={{ fontWeight: 500, fontSize: 13, lineHeight: 1.4, flex: 1 }}>{actualizationTaskTitle(task,lang)}</div>
+                        <div style={{ fontWeight: 500, fontSize: 13, lineHeight: 1.4, flex: 1 }}>{actualizationTaskTitle(task,lang)}<ActualizationAssignmentBadge task={task} lang={lang} /></div>
                         <span style={{ color: '#d1d5db', fontSize: 14, marginLeft: 6, flexShrink: 0 }}>⠿</span>
                       </div>
 
@@ -889,7 +890,7 @@ export default function TasksPage() {
                       style={{ textAlign: 'left', border: '1px solid var(--border)', borderLeft: `4px solid ${prio?.color || '#6b7280'}`, cursor: 'pointer' }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>{actualizationTaskTitle(task,lang)}</div>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{actualizationTaskTitle(task,lang)}<ActualizationAssignmentBadge task={task} lang={lang} /></div>
                         <span className="badge" style={{ background: (prio?.color || '#6b7280') + '22', color: prio?.color || '#6b7280' }}>{task.priority}</span>
                       </div>
                       {task.clientName && <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>👤 {task.clientName}</div>}

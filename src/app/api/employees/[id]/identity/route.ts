@@ -1,3 +1,4 @@
+import { lockActualizationIdentity, reconcileActivatedActualizations } from '@/lib/documentActualization'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
@@ -63,6 +64,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
   try {
     return await prisma.$transaction(async tx => {
+      await lockActualizationIdentity(tx,organizationId)
       const employee = await tx.employee.findFirst({
         where: { id: employeeId, organizationId },
         select: { id: true, name: true, active: true, userId: true },
@@ -100,6 +102,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
         data: { userId: targetUserId },
       })
       if (updated.count !== 1) return NextResponse.json({ error: 'Employee link changed; refresh before saving' }, { status: 409 })
+      await reconcileActivatedActualizations(tx,organizationId)
       return NextResponse.json({ ...employee, userId: targetUserId })
     }, { isolationLevel: 'Serializable' })
   } catch (error: any) {

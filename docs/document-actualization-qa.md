@@ -27,7 +27,7 @@ Later checkpoint/report changes do not alter `src`.
 | Isolated `npm run build` | **PASS**, exit 0; Prisma generation + Next build only |
 | UI-only actual-component mock harness | **6 cases + 3 checks PASS**, errors 0 |
 | Existing empty local migration chain | **52 applied successfully**, no new migration |
-| Aggregate inventory SQL | Local synthetic READ ONLY run PASS; **Production NOT EXECUTED** |
+| Aggregate inventory SQL | Local synthetic READ ONLY run PASS; **Production completed: user-provided trusted-operator evidence** |
 
 The two skips are the pre-existing opt-in DB/API and Phase 3B pool=1/performance
 suites in `notification-organization-opt-in.test.mjs` and
@@ -154,4 +154,4 @@ validation and timestamp-preserving UI correction; immediate receipt task refres
 and current-language desktop/mobile Task/Calendar titles.
 
 [Production inventory and future activation plan](document-actualization-inventory-plan.md)
-is a separate trusted-operator gate, explicitly **NOT EXECUTED**. No merge/deploy.
+is completed based on user-provided trusted-operator evidence: total 278, dated 56, overdue 33, invalid/unlinked responsible 54, automation ledger 0. Not rerun by Codex. No activation/backfill/merge/deploy.

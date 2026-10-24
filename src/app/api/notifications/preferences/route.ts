@@ -17,6 +17,9 @@ export async function PUT(request: NextRequest) {
   if (body.scope === 'team' && !canReceiveTeam(user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const data = notificationPreferences(body, canReceiveTeam(user))
   const where = { userId: user.id, organizationId: user.organizationId }
-  await prisma.notificationPreference.upsert({ where: { userId_organizationId: where }, create: { ...where, ...data }, update: data })
+  await prisma.$transaction(async tx=>{
+    await tx.$queryRawUnsafe('SELECT id FROM "User" WHERE id=$1 AND "organizationId"=$2 FOR UPDATE',user.id,user.organizationId)
+    await tx.notificationPreference.upsert({ where: { userId_organizationId: where }, create: { ...where, ...data }, update: data })
+  })
   return NextResponse.json({ preferences: data })
 }

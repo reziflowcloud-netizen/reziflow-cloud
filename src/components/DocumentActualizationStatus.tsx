@@ -1,4 +1,5 @@
 'use client'
+import ActualizationAssignmentBadge from './ActualizationAssignmentBadge'
 const copy = {
   uk: {
     next: 'Наступна актуалізація',
@@ -29,7 +30,7 @@ export default function DocumentActualizationStatus({
   value,
   lang,
 }: {
-  value?: { date: string | null; state: string }
+  value?: { date: string | null; state: string; requiresAssignment?: boolean }
   lang: string
 }) {
   const language = lang === 'ru' || lang === 'pl' ? lang : 'uk',
@@ -52,6 +53,7 @@ export default function DocumentActualizationStatus({
       }}
     >
       {text[state as keyof typeof text] || text.inactive}
+      <ActualizationAssignmentBadge required={value?.requiresAssignment} lang={lang} />
       {date && ['next', 'overdue', 'completed'].includes(state) ? ` · ${formatted}` : ''}
     </p>
   )

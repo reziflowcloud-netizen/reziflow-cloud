@@ -1,4 +1,5 @@
 'use client'
+import ActualizationAssignmentBadge from '@/components/ActualizationAssignmentBadge'
 import {actualizationTaskTitle} from '@/lib/documentActualizationPolicy'
 import DocumentActualizationStatus from '@/components/DocumentActualizationStatus'
 import {actualizationDay,serviceDocUpdate} from '@/lib/documentActualizationPolicy'
@@ -1985,7 +1986,7 @@ export default function CaseDetailPage() {
                   {caseTasks.map((task: any) => (
                     <div key={task.id} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, lineHeight: 1.3 }}>{actualizationTaskTitle(task,lang)}</div>
+                        <div style={{ fontWeight: 600, fontSize: 13, lineHeight: 1.3 }}>{actualizationTaskTitle(task,lang)}<ActualizationAssignmentBadge task={task} lang={lang} /></div>
                         <span className="badge" style={{
                           background: task.status === 'done' ? '#dcfce7' : '#fef3c7',
                           color: task.status === 'done' ? '#166534' : '#92400e',

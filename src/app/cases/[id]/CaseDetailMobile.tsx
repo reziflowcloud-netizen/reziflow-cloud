@@ -1,4 +1,5 @@
 'use client'
+import ActualizationAssignmentBadge from '@/components/ActualizationAssignmentBadge'
 import {actualizationTaskTitle} from '@/lib/documentActualizationPolicy'
 import DocumentActualizationStatus from '@/components/DocumentActualizationStatus'
 import {actualizationDay,serviceDocUpdate} from '@/lib/documentActualizationPolicy'
@@ -258,7 +259,7 @@ export default function CaseDetailMobile(props: any) {
           </div>
 
           <MobileAccordion title={`${copy.tasks} · ${props.caseTasks.length}`} summary={props.caseTasks[0]?.title || copy.noTasks} defaultOpen>
-            {props.caseTasks.length > 0 ? <div className={styles.taskList}>{props.caseTasks.map((task: any) => <div key={task.id}><Icon name="check" /><span><strong>{actualizationTaskTitle(task,lang)}</strong>{task.dueDate && <small>{new Date(task.dueDate).toLocaleDateString(props.locale)}</small>}{task.note && <em>{task.note}</em>}</span><b className={task.status === 'done' ? styles.taskDone : styles.taskActive}>{task.status === 'done' ? copy.done : copy.active}</b></div>)}</div> : <div className={styles.emptyState}>{copy.noTasks}</div>}
+            {props.caseTasks.length > 0 ? <div className={styles.taskList}>{props.caseTasks.map((task: any) => <div key={task.id}><Icon name="check" /><span><strong>{actualizationTaskTitle(task,lang)}<ActualizationAssignmentBadge task={task} lang={lang} /></strong>{task.dueDate && <small>{new Date(task.dueDate).toLocaleDateString(props.locale)}</small>}{task.note && <em>{task.note}</em>}</span><b className={task.status === 'done' ? styles.taskDone : styles.taskActive}>{task.status === 'done' ? copy.done : copy.active}</b></div>)}</div> : <div className={styles.emptyState}>{copy.noTasks}</div>}
             <div className={styles.inlineForm}><input value={props.taskTitle} onChange={event => props.setTaskTitle(event.target.value)} placeholder={props.t('task_placeholder')} /><input type="date" value={props.taskDueDate} onChange={event => props.setTaskDueDate(event.target.value)} /><button type="button" onClick={props.onCreateTask} disabled={!props.taskTitle.trim() || props.taskSaving}>{copy.addTask}</button></div>
           </MobileAccordion>
 

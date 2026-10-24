@@ -1,22 +1,11 @@
 # Existing-Case inventory and future activation gate
 
-**Production inventory: NOT EXECUTED.** No production credentials were accessed or
-copied to Cloud. No existing-case activation/backfill was executed.
-
-Trusted operator gate, before a separately approved rollout:
-
-- Verify the intended production project/database privately using existing trusted
-  access, preferably a read-only role. No new Cloud access or secret transfer.
-- Run `scripts/inventory/document-actualization.sql` through the trusted connection:
-  `psql -X --set=ON_ERROR_STOP=1 --file=scripts/inventory/document-actualization.sql`.
-  Connection selection stays private; do not put credentials in command arguments.
-- The script begins a **REPEATABLE READ READ ONLY** transaction, sets a 30-second
-  statement timeout and fixed search path, emits one aggregate count row, then
-  rolls back. It reports total/stopped/genuine-date/fallback/no-date/managed-cycle/
-  unactivated-with-date/overdue/unlinked-owner counts. No Case IDs, names, documents,
-  credentials or customer rows are selected for output.
-- SQL syntax/execution was validated only on the isolated synthetic local DB.
-  This is not an inventory of Production and must not be described as one.
+**Production inventory: completed by trusted operator, user-provided evidence (2026-10-24).**
+Reported aggregates: total **278**, dated **56**, overdue **33**, invalid/unlinked
+responsible **54**, automation ledger **0**. Codex did not execute or independently
+verify this inventory and did not access Production credentials/data. Do not rerun.
+No activation/backfill is authorized. Inventory completion does not authorize rollout.
+The SQL remains a historical reference only; local synthetic validation is separate.
 
 Deployment, GET and scheduler do not activate historical Cases. New Cases and
 subsequent confirmed relevant user changes use the transaction path. Unrelated
