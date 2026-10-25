@@ -1,0 +1,34 @@
+{
+  "source": {
+    "srcDigest": "f53a6e2d26792bc60032830ea5cd9da59f264d11bbaf5c1ca83ea71bc54fbff1",
+    "copiedSrcDigest": "f53a6e2d26792bc60032830ea5cd9da59f264d11bbaf5c1ca83ea71bc54fbff1",
+    "head": "d043247141cab74e895fcb9ea5280a2947e8ba7e"
+  },
+  "checks": [
+    "non-Meta tenant retains polling stop gate",
+    "empty first inbox, default sound OFF",
+    "FB first, repeat, concurrent duplicate and attachment persisted once",
+    "IG bursts, provider timestamps out of order, fallback for both admins",
+    "empty snapshot never acknowledges first future event",
+    "authorized list badges independent from recipient-only global alerts",
+    "outgoing echo and manual incoming are ineligible",
+    "postback-only events persist without unread receipt",
+    "IG attachment and real send entry point use mocked provider; outgoing remains ineligible",
+    "historical sync and replay of synced message stay ineligible",
+    "fresh sync-first promotion once after earlier read; outgoing higher ID cannot swallow unseen receipt",
+    "per-user read persistence across sessions and devices; stale ACK monotonic",
+    "tampered, foreign user/tenant/lead snapshot and auth-cookie substitution rejected",
+    "latest read retains actionable older fallback unread without cursor regression",
+    "server persisted sound ON/OFF independent from push and org master",
+    "serialized eligible commit order barrier, invisible arrival ACK, duplicate race",
+    "visual revision covers accessible nonrecipient arrivals and reads outside preview",
+    "unread count SQL rechecks assignment changed after earlier Lead-list query",
+    "ACK queued behind actual role/restriction API change rejects stale snapshot",
+    "ACK waits leading Organization before User and rechecks revoked permissions",
+    "ACK versus reassignment and deletion barriers return safe status without deadlocks",
+    "actual Lead reassignment, ACK and identity three-way barrier completes without inversion",
+    "actual Lead DELETE queued before ACK returns safe not-found after cascade",
+    "unread list includes every match beyond five-item alert preview"
+  ],
+  "deadlocks": 0
+}

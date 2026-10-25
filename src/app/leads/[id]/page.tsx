@@ -1,4 +1,5 @@
 'use client'
+import { useMetaMessageAck } from '@/hooks/useMetaMessageAck'
 import NotificationBell from '@/components/NotificationBell'
 import { warsawDateTimeLocal } from '@/lib/warsawDateTime'
 import { useScreenRefresh, markScreenFetched } from '@/hooks/useScreenRefresh'
@@ -11,7 +12,7 @@ import CustomSectionsRenderer from '@/components/CustomSectionsRenderer'
 import { freshJson } from '@/lib/screenRefresh'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { DEFAULT_LEAD_STATUSES, LEAD_SOURCES, LEAD_TEMPERATURES, POLISH_VOIVODESHIPS, leadDisplayName, type LeadSourceOption } from '@/lib/leads'
 import { useLanguage } from '@/context/LanguageContext'
@@ -40,6 +41,9 @@ export default function LeadDetailPage() {
   const [leadStatuses, setLeadStatuses] = useState<any[]>([])
   const [leadSources, setLeadSources] = useState<LeadSourceOption[]>(LEAD_SOURCES.map((item, index) => ({ ...item, order: index, system: true })))
   const [messages, setMessages] = useState<any[]>([])
+  const [messageEnvelope, setMessageEnvelope] = useState<{ leadId: string; snapshot: string | null } | null>(null)
+  const messageSnapshot = messageEnvelope?.leadId === String(id) ? messageEnvelope.snapshot : null
+  const conversationSearch = useSearchParams().toString()
   const [reminders, setReminders] = useState<any[]>([])
   const [messageForm, setMessageForm] = useState({
     text: '',
@@ -211,10 +215,31 @@ export default function LeadDetailPage() {
     if (service) setConvertForm(current => ({ ...current, serviceId: String(service.id) }))
   }, [services, lead?.serviceInterest, convertForm.serviceId])
 
+  const messageLoadRef = useRef(0)
+  useMetaMessageAck(dialogRef, String(id), messageSnapshot, lead?.id === String(id))
   async function loadMessages() {
-    const data = await fetch(`/api/leads/${id}/messages`, { cache: 'no-store' }).then(r => r.json())
-    setMessages(Array.isArray(data) ? data : [])
+    const generation = ++messageLoadRef.current
+    const response = await fetch(`/api/leads/${id}/messages`, { cache: 'no-store' })
+    if (!response.ok) return
+    const data = await response.json()
+    if (generation !== messageLoadRef.current || !Array.isArray(data)) return
+    setMessages(data)
+    setMessageEnvelope({ leadId: String(id), snapshot: response.headers.get('X-Meta-Message-Snapshot') })
   }
+  useEffect(() => {
+    const refresh = () => { void loadMessages() }
+    window.addEventListener('meta-messages-changed', refresh)
+    return () => { messageLoadRef.current++; window.removeEventListener('meta-messages-changed', refresh) }
+  }, [id])
+  const conversationOpenedRef = useRef<string | null>(null)
+  useEffect(() => {
+    const navigation = `${String(id)}?${conversationSearch}`
+    if (new URLSearchParams(conversationSearch).get('conversation') !== '1') { conversationOpenedRef.current = null; return }
+    if (conversationOpenedRef.current !== navigation && messageSnapshot && dialogRef.current && window.innerWidth > 768) {
+      conversationOpenedRef.current = navigation
+      dialogRef.current.scrollIntoView({ block: 'center' })
+    }
+  }, [id, conversationSearch, messageSnapshot, lead?.id])
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -446,6 +471,7 @@ export default function LeadDetailPage() {
         leadStatuses={leadStatuses}
         leadSources={leadSources}
         messages={messages}
+        messageSnapshot={messageSnapshot}
         reminders={reminders}
         messageSources={messageSources}
         messageForm={messageForm}

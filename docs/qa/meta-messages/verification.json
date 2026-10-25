@@ -1,0 +1,24 @@
+{
+  "head": "d043247141cab74e895fcb9ea5280a2947e8ba7e",
+  "srcTree": "1dc9cff3c1c881a766df1956a3a880c8ebed52c5",
+  "sourceDigest": "f53a6e2d26792bc60032830ea5cd9da59f264d11bbaf5c1ca83ea71bc54fbff1",
+  "appDigest": "f53a6e2d26792bc60032830ea5cd9da59f264d11bbaf5c1ca83ea71bc54fbff1",
+  "buildDigest": "f53a6e2d26792bc60032830ea5cd9da59f264d11bbaf5c1ca83ea71bc54fbff1",
+  "typecheck": "PASS",
+  "optimizedBuild": "PASS",
+  "remoteSourceCommit": "f65ca0d10337903da19bc284534d7adff9558fd9",
+  "remoteSourceTree": "1dc9cff3c1c881a766df1956a3a880c8ebed52c5",
+  "focusedRegressions": {
+    "passed": 86,
+    "failed": 0,
+    "skipped": 1,
+    "skip": "Pre-existing constrained-pool webhook suite; separate LEAD_WEBHOOK_POOL_TEST_DATABASE_URL not supplied."
+  },
+  "independentWork": {
+    "source": "f65ca0d10337903da19bc284534d7adff9558fd9",
+    "passed": 125,
+    "failed": 0,
+    "optionalDbSkipped": 4,
+    "provenance": "User-reported independent Work review; separate from Cloud counts."
+  }
+}

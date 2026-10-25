@@ -1,9 +1,11 @@
 'use client'
+import { useMetaMessageAck } from '@/hooks/useMetaMessageAck'
 import NotificationBell from '@/components/NotificationBell'
 import MobileHeaderActions from '@/components/mobile/MobileHeaderActions'
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { DEFAULT_LEAD_STATUSES, LEAD_TEMPERATURES, POLISH_VOIVODESHIPS, leadDisplayName, type LeadSourceOption } from '@/lib/leads'
 import { leadSourceOptionLabel, leadStatusLabel, leadTemperatureLabel, leadText } from '@/lib/leadI18n'
 import type { ContactPhoneInput } from '@/lib/phones'
@@ -24,6 +26,7 @@ type LeadDetailMobileProps = {
   leadStatuses: any[]
   leadSources: LeadSourceOption[]
   messages: any[]
+  messageSnapshot: string | null
   reminders: any[]
   messageSources: LeadSourceOption[]
   messageForm: any
@@ -134,6 +137,9 @@ export default function LeadDetailMobile(props: LeadDetailMobileProps) {
   const [overflowOpen, setOverflowOpen] = useState(false)
   const overflowRef = useRef<HTMLDivElement>(null)
   const messageListRef = useRef<HTMLDivElement>(null)
+  useMetaMessageAck(messageListRef, props.lead.id, props.messageSnapshot, activeTab === 'dialog')
+  const conversationSearch = useSearchParams().toString()
+  useEffect(() => { setActiveTab(new URLSearchParams(conversationSearch).get('conversation') === '1' ? 'dialog' : 'overview') }, [props.lead.id, conversationSearch])
   const statuses = props.leadStatuses.length ? props.leadStatuses : DEFAULT_LEAD_STATUSES
   const statusConfig = statuses.find(status => status.name === props.form.status)
   const statusColor = statusConfig?.color || '#64748b'

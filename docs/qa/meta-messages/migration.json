@@ -1,0 +1,11 @@
+{
+  "base": "07d765e5ad16386c3fed2de806b0e25069dbe44b",
+  "oldMigrations": 52,
+  "newMigrations": 53,
+  "legacyMessages": 1000,
+  "activatedMessages": 0,
+  "soundDefaultOff": true,
+  "readRows": 0,
+  "oldInsertNullReceipt": true,
+  "migrationFileSha256": "a5a2e83b3549e63a9bc70f3b2fef0ccf7c129426da3f6474e5b4d2a39c734d17"
+}

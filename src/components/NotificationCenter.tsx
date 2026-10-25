@@ -1,4 +1,7 @@
 'use client'
+import { useSyncExternalStore } from 'react'
+import { getMetaMessageStatus, getServerMetaMessageStatus, subscribeMetaMessageStatus } from '@/lib/metaMessageStatus'
+import { metaMessageText } from '@/lib/metaMessageI18n'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
@@ -15,6 +18,7 @@ type Item = { id: string; type: NotificationType; title: string; body: string; c
 export default function NotificationCenter() {
   const { lang } = useLanguage()
   const copy = notificationText[lang]
+  const meta = useSyncExternalStore(subscribeMetaMessageStatus, getMetaMessageStatus, getServerMetaMessageStatus)
   const pathname = usePathname()
   const [available, setAvailable] = useState(false)
   const [open, setOpen] = useState(false)
@@ -99,14 +103,14 @@ export default function NotificationCenter() {
   useEffect(() => { setOpen(false); acknowledgeResume() }, [pathname, acknowledgeResume])
   useEffect(() => { centerOpen.current = open; if (open) acknowledgeResume() }, [open, acknowledgeResume])
   useEffect(() => {
-    if (!available) return
+    if (!available && !meta.length) return
     const show = (event: Event) => {
       if (open) { setOpen(false); bell.current?.focus() }
       else { acknowledgeResume(); centerOpen.current = true; bell.current = (event as CustomEvent<HTMLElement>).detail || document.activeElement as HTMLElement; setOpen(true) }
     }
     window.addEventListener('legalhub:open-notifications', show)
     return () => { window.removeEventListener('legalhub:open-notifications', show) }
-  }, [available, open, acknowledgeResume])
+  }, [available, meta.length, open, acknowledgeResume])
   useLayoutEffect(() => {
     if (!open) return
     const position = () => {
@@ -199,7 +203,7 @@ export default function NotificationCenter() {
     if (minutes < 1440) return new Intl.RelativeTimeFormat(lang, { numeric: 'auto' }).format(-Math.max(0, minutes < 60 ? minutes : Math.floor(minutes / 60)), minutes < 60 ? 'minute' : 'hour')
     return new Date(date).toLocaleString(lang, { timeZone: 'Europe/Warsaw', dateStyle: 'short', timeStyle: 'short' })
   }
-  if (!available) return null
+  if (!available && !meta.length) return null
   return <>
     {resumeBanner && !open && bannerHost && createPortal(<aside className={styles.resumeBanner} aria-label={copy.resumeTitle}>
       <div className={styles.resumeCopy}><p role="status">🔔 {copy.resumeTitle}</p><button type="button" onClick={() => {
@@ -212,10 +216,11 @@ export default function NotificationCenter() {
     {open && createPortal(<div ref={overlay} className={styles.overlay} onClick={event => { if (event.target === event.currentTarget) { setOpen(false); bell.current?.focus() } }}>
       <div ref={panel} className={styles.panel} role="dialog" aria-modal="true" aria-labelledby="notification-center-title">
         <div className={styles.panelHeader}><h2 id="notification-center-title">{copy.center}</h2><button className={styles.iconButton} aria-label={copy.close} onClick={() => { setOpen(false); bell.current?.focus() }}>×</button></div>
+        {meta.length > 0 && <section aria-label={metaMessageText[lang].unread} style={{ padding: 12, borderBottom: '1px solid var(--border)' }}><strong>{metaMessageText[lang].unread} ({meta[0].total})</strong>{meta.map(item => <Link style={{ display: 'block', padding: '8px 0', overflowWrap: 'anywhere' }} key={item.leadId} href={`/leads/${encodeURIComponent(item.leadId)}?conversation=1`} onClick={async event => { event.preventDefault(); if (await prepareScreenLeave()) window.location.assign(`/leads/${encodeURIComponent(item.leadId)}?conversation=1`) }}>{item.leadName} · {item.count}</Link>)}</section>}
         <div className={styles.toolbar}><button disabled={!unread || loading} onClick={() => void markRead()}>{copy.markAll}</button><Link href="/settings/notifications" onClick={async event => { event.preventDefault(); if (await prepareScreenLeave()) window.location.assign('/settings/notifications') }}>{copy.settings}</Link></div>
         <div className={styles.list} aria-busy={loading}>
           {error && <p role="alert" className={styles.error}>{copy.error}</p>}
-          {!items.length && <p className={styles.empty}>{loading ? copy.loading : copy.empty}</p>}
+          {!items.length && !meta.length && <p className={styles.empty}>{loading ? copy.loading : copy.empty}</p>}
           {items.map(item => <article key={item.id} className={`${styles.item} ${!item.readAt ? styles.unread : ''}`}>
             <span className={`${styles.eventIcon} ${item.type === 'task_overdue' ? styles.urgent : item.type === 'case_date' || item.type === 'task_due' ? styles.upcoming : ''}`} aria-hidden="true">{item.type.startsWith('task') ? '✓' : item.type === 'case_date' ? '◷' : '↗'}</span>
             <div className={styles.itemCopy}><a href={`/notifications/open/${item.id}`} onClick={async event => { event.preventDefault(); if (await prepareScreenLeave()) window.location.assign(`/notifications/open/${item.id}`) }}><strong>{copy.events[item.type] || item.title}</strong><p>{item.body}</p></a><time dateTime={item.createdAt} title={new Date(item.createdAt).toLocaleString(lang, { timeZone: 'Europe/Warsaw' })}>{timestamp(item.createdAt)}</time>{item.readAt ? <span className={styles.readState}> · {copy.read}</span> : <button className={styles.markRead} onClick={() => void markRead(item.id)}>{copy.markRead}</button>}</div>
