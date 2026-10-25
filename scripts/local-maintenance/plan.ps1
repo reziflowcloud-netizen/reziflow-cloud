@@ -135,6 +135,25 @@ function Mark-PlanAttempted([object]$Config, [object]$Plan) {
   Set-PrivateAcl $path
 }
 
+function Enter-TargetLock([object]$Config, [Uri]$Uri) {
+  $directory = Join-Path $Config.privateDirectory 'locks'
+  if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+    [void](New-Item -ItemType Directory -Path $directory)
+    Set-PrivateAcl $directory
+  }
+  Assert-PrivateAcl $directory
+  $identity = Get-Sha256Text ($Uri.Host.ToLowerInvariant() + '|' + $Uri.Port + '|' +
+    $Uri.AbsolutePath.TrimStart('/'))
+  $path = Join-Path $directory ($identity + '.lock')
+  try {
+    $stream = [IO.File]::Open($path, [IO.FileMode]::OpenOrCreate,
+      [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+  } catch [IO.IOException] { Stop-Maintenance 'TARGET_APPLY_ALREADY_RUNNING' }
+  try { Assert-PrivateAcl $path }
+  catch { $stream.Dispose(); throw }
+  return $stream
+}
+
 function Get-ApprovalPhrase([object]$Config, [object]$Plan) {
   return "APPLY $($Config.expectedHost) $($Plan.approvedCommit) $($Plan.runId) $($Plan.pending -join ',')"
 }

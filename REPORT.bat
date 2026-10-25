@@ -1,3 +1,4 @@
 @echo off
-call "%~dp0STATUS.bat" %*
+setlocal
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\local-maintenance\runner.ps1" -Mode Report %*
 exit /b %errorlevel%

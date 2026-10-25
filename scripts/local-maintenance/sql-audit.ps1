@@ -65,6 +65,50 @@ function Split-MigrationSql([string]$Sql) {
   return $statements
 }
 
+function Split-SafeTableItems([string]$Body) {
+  $items = @(); $start = 0; $depth = 0; $quote = [char]0
+  for ($i = 0; $i -lt $Body.Length; $i++) {
+    $c = $Body[$i]
+    if ($quote -ne [char]0) {
+      if ($c -eq $quote) { $quote = [char]0 }
+      continue
+    }
+    if ($c -eq '"' -or $c -eq "'") { $quote = $c; continue }
+    if ($c -eq '(') { $depth++; continue }
+    if ($c -eq ')') { $depth--; if ($depth -lt 0) { Stop-Maintenance 'SQL_TABLE_BODY_INVALID' }; continue }
+    if ($c -eq ',' -and $depth -eq 0) {
+      $items += $Body.Substring($start, $i - $start).Trim(); $start = $i + 1
+    }
+  }
+  if ($depth -ne 0 -or $quote -ne [char]0) { Stop-Maintenance 'SQL_TABLE_BODY_INVALID' }
+  $items += $Body.Substring($start).Trim()
+  if (@($items | Where-Object { -not $_ }).Count -gt 0) { Stop-Maintenance 'SQL_TABLE_BODY_INVALID' }
+  return $items
+}
+
+function Test-SafeCreateTable([string]$Text) {
+  $ident = '(?:"[A-Za-z_][A-Za-z0-9_]*"|[A-Za-z_][A-Za-z0-9_]*)'
+  $names = "$ident(?:\s*,\s*$ident)*"
+  if ($Text -notmatch "(?i)^CREATE\s+TABLE\s+(?<table>$ident)\s*\((?<body>.*)\)$") {
+    Stop-Maintenance 'SQL_CREATE_TABLE_UNSUPPORTED'
+  }
+  $body = $Matches.body
+  $constraints = @()
+  foreach ($item in @(Split-SafeTableItems $body)) {
+    if ($item -match "(?i)^$ident\s+(?:TEXT|INTEGER|BIGINT|BOOLEAN|TIMESTAMP(?:\s*\(\s*3\s*\))?)(?:\s+NOT\s+NULL)?(?:\s+DEFAULT\s+(?:true|false|[0-9]+|CURRENT_TIMESTAMP|'[^']*'))?$") {
+      continue
+    }
+    if ($item -match "(?i)^CONSTRAINT\s+(?<name>$ident)\s+PRIMARY\s+KEY\s*\(\s*$names\s*\)$") {
+      $constraints += $Matches.name.Trim('"'); continue
+    }
+    if ($item -match "(?i)^CONSTRAINT\s+(?<name>$ident)\s+FOREIGN\s+KEY\s*\(\s*$names\s*\)\s+REFERENCES\s+$ident\s*\(\s*$names\s*\)\s+ON\s+DELETE\s+(?:CASCADE|RESTRICT|SET\s+NULL|NO\s+ACTION)\s+ON\s+UPDATE\s+(?:CASCADE|RESTRICT|SET\s+NULL|NO\s+ACTION)$") {
+      $constraints += $Matches.name.Trim('"'); continue
+    }
+    Stop-Maintenance 'SQL_CREATE_TABLE_ITEM_UNSUPPORTED'
+  }
+  return [pscustomobject]@{ Constraints = @($constraints) }
+}
+
 function Test-MigrationSql([string]$Path) {
   try {
     $utf8 = [Text.UTF8Encoding]::new($false, $true)
@@ -74,6 +118,7 @@ function Test-MigrationSql([string]$Path) {
   $statements = @(Split-MigrationSql $sql)
   $addedColumns = @{}
   $blockingIndexes = @()
+  $createdIndexes = @(); $createdSequences = @(); $createdConstraints = @()
   $kinds = @()
   foreach ($statement in $statements) {
     $text = ($statement.Text -replace '\s+', ' ').Trim()
@@ -95,20 +140,18 @@ function Test-MigrationSql([string]$Path) {
       $addedColumns[$table] += $column
       $kinds += 'ADD_COLUMN'; continue
     }
-    if ($text -match '(?i)^CREATE\s+SEQUENCE\s+"?[A-Za-z_][A-Za-z0-9_]*"?(?:\s+AS\s+(?:INTEGER|BIGINT))?$') {
+    if ($text -match '(?i)^CREATE\s+SEQUENCE\s+"?(?<name>[A-Za-z_][A-Za-z0-9_]*)"?(?:\s+AS\s+(?:INTEGER|BIGINT))?$') {
+      $createdSequences += $Matches.name
       $kinds += 'CREATE_SEQUENCE'; continue
     }
-    if ($text -match '(?i)^CREATE\s+(?:UNIQUE\s+)?INDEX\s+"?[A-Za-z_][A-Za-z0-9_]*"?\s+ON\s+"?(?<table>[A-Za-z_][A-Za-z0-9_]*)"?\s*\(\s*"?[A-Za-z_][A-Za-z0-9_]*"?(?:\s*,\s*"?[A-Za-z_][A-Za-z0-9_]*"?)*\s*\)$') {
+    if ($text -match '(?i)^CREATE\s+(?:UNIQUE\s+)?INDEX\s+"?(?<name>[A-Za-z_][A-Za-z0-9_]*)"?\s+ON\s+"?(?<table>[A-Za-z_][A-Za-z0-9_]*)"?\s*\(\s*"?[A-Za-z_][A-Za-z0-9_]*"?(?:\s*,\s*"?[A-Za-z_][A-Za-z0-9_]*"?)*\s*\)$') {
       $blockingIndexes += $Matches.table
+      $createdIndexes += $Matches.name
       $kinds += 'CREATE_INDEX_BLOCKING'; continue
     }
-    if ($text -match '(?i)^CREATE\s+TABLE\s+"?[A-Za-z_][A-Za-z0-9_]*"?\s*\(.+\)$') {
-      if ($text -match '(?i)\bDEFAULT\s+(?!false\b|true\b|[0-9]+\b|CURRENT_TIMESTAMP\b|''[^'']*'')') {
-        Stop-Maintenance 'SQL_TABLE_DEFAULT_UNSUPPORTED'
-      }
-      if ($safeShape -match '(?i)\b(AS\s+SELECT|REFERENCES\s+pg_catalog|FOREIGN\s+TABLE)\b') {
-        Stop-Maintenance 'SQL_CREATE_TABLE_UNSUPPORTED'
-      }
+    if ($text -match '(?i)^CREATE\s+TABLE\s+') {
+      $tableResult = Test-SafeCreateTable $text
+      $createdConstraints += @($tableResult.Constraints)
       $kinds += 'CREATE_TABLE'; continue
     }
     Stop-Maintenance 'SQL_STATEMENT_UNSUPPORTED'
@@ -119,6 +162,9 @@ function Test-MigrationSql([string]$Path) {
     Kinds = @($kinds)
     AddedColumns = $addedColumns
     BlockingIndexTables = @($blockingIndexes | Select-Object -Unique)
+    CreatedIndexes = @($createdIndexes)
+    CreatedSequences = @($createdSequences)
+    CreatedConstraints = @($createdConstraints)
     Risk = if ($blockingIndexes.Count) { 'MEDIUM' } else { 'LOW' }
   }
 }

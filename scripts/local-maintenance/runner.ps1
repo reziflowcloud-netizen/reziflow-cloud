@@ -1,15 +1,20 @@
 param(
-  [Parameter(Mandatory = $true)][ValidateSet('Preflight', 'Apply', 'Status')][string]$Mode,
+  [Parameter(Mandatory = $true)][ValidateSet('Preflight', 'Apply', 'Status', 'Report')][string]$Mode,
   [string]$ApprovedCommit,
   [string[]]$ExpectedMigrations = @(),
   [string]$ConfigPath = (Join-Path $env:LOCALAPPDATA 'LegalHubMaintenance\config.json'),
   [string]$PlanPath,
   [string]$ApprovalReference,
+  [switch]$NoMigration,
   [switch]$Synthetic
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+foreach ($module in @('Microsoft.PowerShell.Management', 'Microsoft.PowerShell.Security',
+    'Microsoft.PowerShell.Utility')) {
+  Import-Module (Join-Path $PSHOME "Modules/$module/$module.psd1") -ErrorAction Stop
+}
 . (Join-Path $PSScriptRoot 'core.ps1')
 . (Join-Path $PSScriptRoot 'sql-audit.ps1')
 . (Join-Path $PSScriptRoot 'plan.ps1')
@@ -27,6 +32,10 @@ function Get-Config([string]$Repo) {
   foreach ($path in @($ConfigPath, $config.environmentFile, $config.backupDirectory,
       $config.privateDirectory)) {
     Assert-OutsideGit $Repo $path
+  }
+  if (-not $Synthetic) {
+    Assert-OutsideGit $Repo $config.tlsRootCertFile
+    Assert-PrivateAcl $config.tlsRootCertFile
   }
   Assert-PrivateAcl $ConfigPath
   Assert-PrivateAcl $config.environmentFile
@@ -51,6 +60,7 @@ function Get-CheckedState([object]$Config, [Uri]$Uri, [string]$Repo,
     [string]$Commit, [string[]]$Expected) {
   [void](Get-GitCheckpoint $Repo $Commit ([bool]$Synthetic))
   Assert-GuardedCommand $Repo
+  [void](Assert-PinnedPrismaSchema $Repo)
   $migrations = @(Get-MigrationFiles $Repo)
   $ledger = @(Get-ProductionLedger $Config $Uri)
   $ledgerResult = Compare-MigrationLedger $migrations $ledger $Expected
@@ -66,6 +76,8 @@ function Get-CheckedState([object]$Config, [Uri]$Uri, [string]$Repo,
       $snapshot.role -ne [Uri]::UnescapeDataString($Uri.UserInfo.Split(':', 2)[0])) {
     Stop-Maintenance 'CONNECTED_TARGET_MISMATCH'
   }
+  $appUri = Get-PrivateDatabaseUri $Config 'DATABASE_URL' ([bool]$Synthetic)
+  $appState = Get-ApplicationRoleState $Config $appUri $snapshot
   $indexed = @($audits | ForEach-Object { $_.audit.BlockingIndexTables })
   Assert-LockSafety $Config $Uri $snapshot $indexed
   return [pscustomobject]@{
@@ -73,12 +85,15 @@ function Get-CheckedState([object]$Config, [Uri]$Uri, [string]$Repo,
     ledger = $ledgerResult
     audits = $audits
     snapshot = $snapshot
-    fingerprint = Get-TargetFingerprint $Uri $snapshot
+    applicationRole = $appState.role
+    fingerprint = Get-Sha256Text ((Get-TargetFingerprint $Uri $snapshot) + '|' +
+      $appUri.Host + '|' + $appState.role)
   }
 }
 
 function Assert-StateEqualsPlan([object]$State, [object]$Plan) {
   if ($State.fingerprint -ne $Plan.targetFingerprint -or
+      $State.applicationRole -ne $Plan.applicationRole -or
       $State.ledger.AppliedCount -ne $Plan.appliedCount -or
       (($State.ledger.Pending | Sort-Object) -join '|') -ne
         (($Plan.pending | Sort-Object) -join '|')) {
@@ -92,61 +107,125 @@ function Assert-StateEqualsPlan([object]$State, [object]$Plan) {
   }
 }
 
-function Write-Report([object]$Config, [object]$Plan, [string]$Result,
-    [string]$Code = '', [string]$Approval = '') {
-  $directory = Get-PlanDirectory $Config
-  $path = Join-Path $directory ($Plan.runId + '.report.json')
-  $report = [ordered]@{
-    runId = $Plan.runId
-    createdUtc = [DateTime]::UtcNow.ToString('o')
-    approvedCommit = $Plan.approvedCommit
-    migrations = @($Plan.pending)
-    result = $Result
-    reasonCode = $Code
-    approvalReference = $Approval
-    productionChanged = if ($Result -eq 'APPLIED') { 'YES' } else { 'UNCONFIRMED_OR_NO' }
+function Get-ReportDirectory([object]$Config) {
+  $directory = Join-Path $Config.privateDirectory 'reports'
+  if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+    [void](New-Item -ItemType Directory -Path $directory)
+    Set-PrivateAcl $directory
   }
-  $bytes = [Text.Encoding]::UTF8.GetBytes((ConvertTo-Json $report -Depth 10))
-  [IO.File]::WriteAllBytes($path, $bytes)
-  Set-PrivateAcl $path
+  Assert-PrivateAcl $directory
+  return $directory
+}
+
+function Save-SafeReport([object]$Config, [object]$Report) {
+  if ($Report.runId -notmatch '^[0-9a-f]{12}$') { Stop-Maintenance 'REPORT_RUN_ID_INVALID' }
+  $path = Join-Path (Get-ReportDirectory $Config) ($Report.runId + '.json')
+  $temporary = Join-Path (Get-ReportDirectory $Config) ($Report.runId + '.new')
+  $bytes = [Text.Encoding]::UTF8.GetBytes((ConvertTo-Json $Report -Depth 20))
+  [IO.File]::WriteAllBytes($temporary, $bytes)
+  Set-PrivateAcl $temporary
+  if (Test-Path -LiteralPath $path) {
+    [IO.File]::Replace($temporary, $path, $null)
+  } else { [IO.File]::Move($temporary, $path) }
+  Assert-PrivateAcl $path
   return $path
+}
+
+function Get-SafeErrorCode([object]$ErrorRecord) {
+  if ($ErrorRecord.Exception.Message -match 'LMR:([A-Z0-9_]+)') { return $Matches[1] }
+  return 'UNEXPECTED_ERROR'
+}
+
+function Write-Report([object]$Config, [object]$Plan, [string]$Result,
+    [string]$Code = '', [string]$Approval = '', [object]$Observed = $null) {
+  $report = [ordered]@{
+    version = 1; runId = $Plan.runId; checkedUtc = [DateTime]::UtcNow.ToString('o')
+    approvedCommit = $Plan.approvedCommit; plannedPending = @($Plan.pending)
+    lastObservedPending = if ($Observed) { @($Observed.Pending) } else { $null }
+    lastObservedAppliedCount = if ($Observed) { $Observed.AppliedCount } else { $null }
+    lastObservedFailedCount = if ($Observed) { $Observed.FailedCount } else { $null }
+    observationUtc = if ($Observed) { [DateTime]::UtcNow.ToString('o') } else { $null }
+    preflight = 'PASS'; backup = 'PASS'; restore = $Plan.restore
+    simulation = $Plan.localMigration; structure = $Plan.structure
+    sequencePermissions = $Plan.sequencePermissions
+    oldAppCompatibility = $Plan.oldAppNewDb
+    apply = $Result; result = $Result; reasonCode = $Code
+    approvalReference = $Approval
+    nextAction = if ($Result -eq 'APPLIED') { 'APPLICATION_SMOKE_AND_INDEPENDENT_REVIEW' }
+      elseif ($Result -eq 'PREFLIGHT_ONLY') { 'SEPARATE_OWNER_DECISION_REQUIRED' }
+      else { 'DIAGNOSE_NO_RETRY_RERUN_PREFLIGHT_AFTER_REVIEW' }
+  }
+  return Save-SafeReport $Config $report
 }
 
 function Invoke-Preflight([string]$Repo) {
   $config = Get-Config $Repo
-  $expected = @(Get-Expected $ExpectedMigrations)
-  $commit = Get-GitCheckpoint $Repo $ApprovedCommit ([bool]$Synthetic)
-  $uri = Get-PrivateDatabaseUri $config 'DIRECT_URL' ([bool]$Synthetic)
-  $state = Get-CheckedState $config $uri $Repo $commit $expected
   $runId = [Guid]::NewGuid().ToString('N').Substring(0, 12)
-  $before = Get-RepresentativeFingerprints $config $uri
-  $backup = New-PrivateBackup $config $uri $runId
-  $cluster = $null
+  $state = $null
   try {
-    $cluster = New-DisposableCluster $config $runId
-    Restore-DisposableBackup $config $cluster $backup
-    $restored = Get-RepresentativeFingerprints $config $cluster.Uri
-    Compare-RepresentativeFingerprints $before $restored
-    $restoreLedger = @(Get-ProductionLedger $config $cluster.Uri)
-    [void](Compare-MigrationLedger $state.migrations $restoreLedger $expected)
-    Invoke-DisposableMigration $cluster $Repo
-    $afterLedger = @(Get-ProductionLedger $config $cluster.Uri)
-    [void](Compare-MigrationLedger $state.migrations $afterLedger @())
-    $excluded = @{}
-    foreach ($migration in $state.audits) {
-      foreach ($table in $migration.audit.AddedColumns.Keys) {
-        if (-not $excluded.ContainsKey($table)) { $excluded[$table] = @() }
-        $excluded[$table] += @($migration.audit.AddedColumns[$table])
-      }
+    if ($NoMigration) {
+      if (@($ExpectedMigrations).Count -gt 0) { Stop-Maintenance 'NO_MIGRATION_WITH_EXPECTED_SET' }
+      $expected = @()
+    } else { $expected = @(Get-Expected $ExpectedMigrations) }
+    $commit = Get-GitCheckpoint $Repo $ApprovedCommit ([bool]$Synthetic)
+    $uri = Get-PrivateDatabaseUri $config 'DIRECT_URL' ([bool]$Synthetic)
+    $state = Get-CheckedState $config $uri $Repo $commit $expected
+    if ($NoMigration) {
+      [void](Save-SafeReport $config ([ordered]@{
+        version = 1; runId = $runId; checkedUtc = [DateTime]::UtcNow.ToString('o')
+        approvedCommit = $commit; plannedPending = @(); lastObservedPending = @()
+        lastObservedAppliedCount = $state.ledger.AppliedCount
+        lastObservedFailedCount = $state.ledger.FailedCount
+        observationUtc = [DateTime]::UtcNow.ToString('o')
+        preflight = 'SKIPPED_NO_MIGRATION'; backup = 'NOT_NEEDED'; restore = 'NOT_NEEDED'
+        simulation = 'NOT_NEEDED'; structure = 'NOT_NEEDED'
+        sequencePermissions = 'NOT_NEEDED'; oldAppCompatibility = 'NOT_NEEDED'
+        apply = 'NOT_ATTEMPTED'; result = 'SKIPPED_NO_MIGRATION'; reasonCode = ''
+        approvalReference = ''; nextAction = 'NO_SCHEMA_ACTION'
+      }))
+      Write-Output "PREFLIGHT SKIPPED_NO_MIGRATION; run=$runId; observedPending=0"
+      return
     }
-    $after = Get-RepresentativeFingerprints $config $cluster.Uri $excluded
-    Compare-RepresentativeFingerprints $before $after $true
+    $snapshotHolder = $null
+    try {
+      $snapshotHolder = Start-ExportedSnapshot $config $uri
+      $before = Get-RepresentativeFingerprints $config $uri @{} $snapshotHolder.Id
+      $beforeStructure = Get-StructureFingerprint $config $uri $snapshotHolder.Id
+      $backup = New-PrivateBackup $config $uri $runId $snapshotHolder.Id
+    } finally { Stop-ExportedSnapshot $snapshotHolder }
+    $cluster = $null
+    try {
+      $cluster = New-DisposableCluster $config $runId
+      Restore-DisposableBackup $config $cluster $backup
+      $restored = Get-RepresentativeFingerprints $config $cluster.Uri
+      Compare-RepresentativeFingerprints $before $restored
+      $restoredStructure = Get-StructureFingerprint $config $cluster.Uri
+      Assert-StructureEqual $beforeStructure $restoredStructure
+      $restoreLedger = @(Get-ProductionLedger $config $cluster.Uri)
+      [void](Compare-MigrationLedger $state.migrations $restoreLedger $expected)
+      Invoke-DisposableMigration $config $cluster $Repo
+      $afterLedger = @(Get-ProductionLedger $config $cluster.Uri)
+      [void](Compare-MigrationLedger $state.migrations $afterLedger @())
+      $excluded = @{}
+      foreach ($migration in $state.audits) {
+        foreach ($table in $migration.audit.AddedColumns.Keys) {
+          if (-not $excluded.ContainsKey($table)) { $excluded[$table] = @() }
+          $excluded[$table] += @($migration.audit.AddedColumns[$table])
+        }
+      }
+      $after = Get-RepresentativeFingerprints $config $cluster.Uri $excluded
+      Compare-RepresentativeFingerprints $restored $after $true
+      Assert-CreatedObjects $config $cluster.Uri $state.audits
+      Assert-SequenceRolePermissions $config $cluster $state.audits `
+        $state.snapshot.role $state.applicationRole
+    } finally { if ($cluster) { Stop-DisposableCluster $config $cluster } }
     $plan = [ordered]@{
       version = 1
       runId = $runId
       createdUtc = [DateTime]::UtcNow.ToString('o')
       approvedCommit = $commit
       targetFingerprint = $state.fingerprint
+      applicationRole = $state.applicationRole
       appliedCount = $state.ledger.AppliedCount
       pending = @($expected)
       migrations = @($state.audits | ForEach-Object {
@@ -157,15 +236,35 @@ function Invoke-Preflight([string]$Repo) {
       restore = 'PASS'
       localMigration = 'PASS'
       dataIntegrity = 'PASS'
+      structure = 'PASS'
+      sequencePermissions = 'PASS'
+      backupScope = 'public_schema_no_owner_no_acl'
       oldAppNewDb = 'PASS_SCHEMA_ONLY'
       synthetic = [bool]$Synthetic
     }
     $planPath = Save-SealedPlan $config $plan
+    [void](Write-Report $config $plan 'PREFLIGHT_ONLY' '' '' $state.ledger)
     Write-Output "PREFLIGHT PASS; run=$runId; pending=$($expected -join ','); restore=PASS; isolatedMigration=PASS; dataIntegrity=PASS; oldAppNewDb=PASS_SCHEMA_ONLY"
     Write-Output "SEALED PLAN: $planPath"
     Write-Output 'No production migration was applied.'
-  } finally {
-    if ($cluster) { Stop-DisposableCluster $config $cluster }
+  } catch {
+    $code = Get-SafeErrorCode $_
+    try {
+      [void](Save-SafeReport $config ([ordered]@{
+        version = 1; runId = $runId; checkedUtc = [DateTime]::UtcNow.ToString('o')
+        approvedCommit = $ApprovedCommit; plannedPending = @($ExpectedMigrations)
+        lastObservedPending = if ($state) { @($state.ledger.Pending) } else { $null }
+        lastObservedAppliedCount = if ($state) { $state.ledger.AppliedCount } else { $null }
+        lastObservedFailedCount = if ($state) { $state.ledger.FailedCount } else { $null }
+        observationUtc = if ($state) { [DateTime]::UtcNow.ToString('o') } else { $null }
+        preflight = 'BLOCKED'; backup = 'UNKNOWN'; restore = 'UNKNOWN'
+        simulation = 'UNKNOWN'; structure = 'UNKNOWN'; sequencePermissions = 'UNKNOWN'
+        oldAppCompatibility = 'UNKNOWN'; apply = 'NOT_ATTEMPTED'
+        result = 'PREFLIGHT_BLOCKED'; reasonCode = $code; approvalReference = ''
+        nextAction = 'FIX_CAUSE_RERUN_PREFLIGHT'
+      }))
+    } catch { }
+    throw
   }
 }
 
@@ -180,7 +279,9 @@ function Invoke-Apply([string]$Repo) {
   $plan = Read-SealedPlan $config $actualPlanPath
   if ($plan.synthetic) { Stop-Maintenance 'SYNTHETIC_PLAN_APPLY_FORBIDDEN' }
   if ($plan.restore -ne 'PASS' -or $plan.localMigration -ne 'PASS' -or
-      $plan.dataIntegrity -ne 'PASS' -or $plan.oldAppNewDb -ne 'PASS_SCHEMA_ONLY' -or
+      $plan.dataIntegrity -ne 'PASS' -or $plan.structure -ne 'PASS' -or
+      $plan.sequencePermissions -ne 'PASS' -or
+      $plan.oldAppNewDb -ne 'PASS_SCHEMA_ONLY' -or
       @($plan.pending).Count -eq 0 -or
       @($plan.pending).Count -ne @($plan.migrations).Count) {
     Stop-Maintenance 'SEALED_PLAN_INCOMPLETE'
@@ -195,73 +296,111 @@ function Invoke-Apply([string]$Repo) {
   $state = Get-CheckedState $config $uri $Repo $plan.approvedCommit @($plan.pending)
   Assert-StateEqualsPlan $state $plan
   $phrase = Get-ApprovalPhrase $config $plan
-  Write-Output 'Separate authorization reference recorded. To apply exactly the sealed migrations, type:'
+  Write-Output 'Operator attestation reference recorded (not independently authenticated). Type:'
   Write-Output $phrase
   $typed = Read-Host 'Confirmation'
   if (-not (Test-ApprovalPhrase $config $plan $typed)) {
     Stop-Maintenance 'INTERACTIVE_CONFIRMATION_FAILED'
   }
-  # Recheck the actual database, Git tree, SQL, backup, and lock state after operator input.
-  Assert-PlanFresh $plan
-  Assert-BackupSealed $config $plan
-  $state = Get-CheckedState $config $uri $Repo $plan.approvedCommit @($plan.pending)
-  Assert-StateEqualsPlan $state $plan
-  Assert-PlanNotAttempted $config $plan | Out-Null
-  Mark-PlanAttempted $config $plan
-  $old = @{}
-  foreach ($name in @('DB_MIGRATE_TARGET', 'DB_MIGRATE_CONFIRM',
-      'DB_MIGRATE_EXPECTED_HOST', 'DIRECT_URL', 'DATABASE_URL')) {
-    $old[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
-  }
-  $oldPreference = $ErrorActionPreference
+  # The lock covers the final recheck, attempted marker, guarded command, and report.
+  $targetLock = Enter-TargetLock $config $uri
+  $databaseLock = $null
   try {
-    $env:DB_MIGRATE_TARGET = 'production'
-    $env:DB_MIGRATE_CONFIRM = 'production'
-    $env:DB_MIGRATE_EXPECTED_HOST = $config.expectedHost
-    $env:DIRECT_URL = $uri.AbsoluteUri
-    $env:DATABASE_URL = $uri.AbsoluteUri
-    # Never echo child output: scripts and database errors can contain credentials.
-    Push-Location $Repo
-    try {
-      $ErrorActionPreference = 'Continue'
-      $output = @(& npm run db:migrate:deploy 2>$null)
-      $exitCode = $LASTEXITCODE
+    $databaseLock = Start-DatabaseApplyLock $config $uri
+    Assert-PlanFresh $plan
+    Assert-BackupSealed $config $plan
+    $state = Get-CheckedState $config $uri $Repo $plan.approvedCommit @($plan.pending)
+    Assert-StateEqualsPlan $state $plan
+    if ($databaseLock.Process.HasExited) { Stop-Maintenance 'TARGET_DATABASE_LOCK_LOST' }
+    Assert-PlanNotAttempted $config $plan | Out-Null
+    Mark-PlanAttempted $config $plan
+    $boundedUri = Get-PinnedPrismaUri $config $uri $true
+    $exitCode = Invoke-WithIsolatedEnvironment $config $null @{
+      DB_MIGRATE_TARGET = 'production'
+      DB_MIGRATE_CONFIRM = 'production'
+      DB_MIGRATE_EXPECTED_HOST = $config.expectedHost
+      DIRECT_URL = $boundedUri.AbsoluteUri
+      DATABASE_URL = $boundedUri.AbsoluteUri
+    } {
+      $oldPreference = $ErrorActionPreference
+      Push-Location $Repo
+      try {
+        $ErrorActionPreference = 'Continue'
+        # This is the sole authorized production migration command; child output is never echoed.
+        $output = @(& (Join-Path $config.nodeBin 'npm.cmd') run db:migrate:deploy 2>$null)
+        return $LASTEXITCODE
+      } finally {
+        $ErrorActionPreference = $oldPreference
+        Pop-Location
+      }
     }
-    finally { Pop-Location }
     if ($exitCode -ne 0) {
       [void](Write-Report $config $plan 'APPLY_ERROR' 'GUARDED_COMMAND_FAILED' $ApprovalReference)
       Stop-Maintenance 'GUARDED_COMMAND_FAILED_DO_NOT_RETRY'
     }
-  } finally {
-    $ErrorActionPreference = $oldPreference
-    foreach ($name in $old.Keys) {
-      [Environment]::SetEnvironmentVariable($name, $old[$name], 'Process')
+    if ($databaseLock.Process.HasExited) { Stop-Maintenance 'TARGET_DATABASE_LOCK_LOST_AFTER_APPLY' }
+    try {
+      $ledger = @(Get-ProductionLedger $config $uri)
+      $observed = Compare-MigrationLedger (Get-MigrationFiles $Repo) $ledger @()
+      [void](Write-Report $config $plan 'APPLIED' '' $ApprovalReference $observed)
+      Write-Output "APPLIED; run=$($plan.runId); pending=0; failed=0"
+    } catch {
+      [void](Write-Report $config $plan 'POSTCHECK_FAILED' 'LEDGER_NOT_VERIFIED' $ApprovalReference)
+      Stop-Maintenance 'POSTCHECK_FAILED_DIAGNOSE_NO_RETRY'
     }
-  }
-  try {
-    $ledger = @(Get-ProductionLedger $config $uri)
-    [void](Compare-MigrationLedger (Get-MigrationFiles $Repo) $ledger @())
-    [void](Write-Report $config $plan 'APPLIED' '' $ApprovalReference)
-    Write-Output "APPLIED; run=$($plan.runId); pending=0; failed=0"
-  } catch {
-    [void](Write-Report $config $plan 'POSTCHECK_FAILED' 'LEDGER_NOT_VERIFIED' $ApprovalReference)
-    Stop-Maintenance 'POSTCHECK_FAILED_DIAGNOSE_NO_RETRY'
+  } finally {
+    Stop-DatabaseApplyLock $databaseLock
+    $targetLock.Dispose()
   }
 }
 
-function Invoke-Status([string]$Repo) {
+function Invoke-Status([string]$Repo, [bool]$Detailed) {
   $config = Get-Config $Repo
-  $path = if ($PlanPath) { $PlanPath } else { Get-LatestPlanPath $config }
-  $plan = Read-SealedPlan $config $path
-  $reportPath = Join-Path (Get-PlanDirectory $config) ($plan.runId + '.report.json')
-  $report = if (Test-Path -LiteralPath $reportPath) {
-    Get-Content -LiteralPath $reportPath -Raw -Encoding UTF8 | ConvertFrom-Json
-  } else { $null }
-  $attempted = Test-Path -LiteralPath (Join-Path (Get-PlanDirectory $config) ($plan.runId + '.attempted'))
-  $result = if ($report) { $report.result } elseif ($attempted) { 'ATTEMPTED_UNVERIFIED' } else { 'PREFLIGHT_ONLY' }
-  Write-Output "STATUS $result; run=$($plan.runId); commit=$($plan.approvedCommit); pending=$($plan.pending -join ',')"
-  Write-Output "Backup retained: $(Test-Path -LiteralPath $plan.backup.path)"
-  Write-Output 'This offline status does not connect to Production.'
+  $reportDir = Join-Path $config.privateDirectory 'reports'
+  $plan = $null
+  if ($PlanPath) {
+    $plan = Read-SealedPlan $config $PlanPath
+    $reportPath = Join-Path $reportDir ($plan.runId + '.json')
+  } else {
+    $latest = if (Test-Path -LiteralPath $reportDir -PathType Container) {
+      Get-ChildItem -LiteralPath $reportDir -Filter '*.json' -File |
+        Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+    } else { $null }
+    $reportPath = if ($latest) { $latest.FullName } else { $null }
+  }
+  if (-not $reportPath -or -not (Test-Path -LiteralPath $reportPath -PathType Leaf)) {
+    Write-Output 'STATUS NO_HISTORY; lastObservedPending=UNKNOWN; currentDatabaseState=UNKNOWN'
+    Write-Output 'Next: run PREFLIGHT with an approved commit and migration set.'
+    return
+  }
+  Assert-PrivateAcl $reportPath
+  $report = Get-Content -LiteralPath $reportPath -Raw -Encoding UTF8 | ConvertFrom-Json
+  if (-not $plan) {
+    $candidate = Join-Path (Get-PlanDirectory $config) ($report.runId + '.sealed.json')
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+      $plan = Read-SealedPlan $config $candidate
+    }
+  }
+  $attempted = if ($plan) {
+    Test-Path -LiteralPath (Join-Path (Get-PlanDirectory $config) ($plan.runId + '.attempted'))
+  } else { $false }
+  $result = [string]$report.result
+  if ($attempted -and $result -eq 'PREFLIGHT_ONLY') { $result = 'ATTEMPTED_UNVERIFIED' }
+  if ($plan -and -not $attempted -and $result -eq 'PREFLIGHT_ONLY') {
+    try { Assert-PlanFresh $plan }
+    catch { $result = 'PREFLIGHT_EXPIRED' }
+  }
+  $planned = if (@($report.plannedPending).Count) { $report.plannedPending -join ',' } else { 'NONE' }
+  $observed = if ($null -eq $report.lastObservedPending) { 'UNKNOWN' }
+    elseif (@($report.lastObservedPending).Count) { $report.lastObservedPending -join ',' }
+    else { 'NONE' }
+  Write-Output "STATUS $result; run=$($report.runId); commit=$($report.approvedCommit)"
+  Write-Output "Planned pending: $planned"
+  Write-Output "Last observed pending: $observed; appliedCount=$($report.lastObservedAppliedCount); failedCount=$($report.lastObservedFailedCount); observedUtc=$($report.observationUtc)"
+  Write-Output "Preflight=$($report.preflight); backup=$($report.backup); restore=$($report.restore); simulation=$($report.simulation); structure=$($report.structure); sequencePermissions=$($report.sequencePermissions); oldApp=$($report.oldAppCompatibility); apply=$($report.apply)"
+  Write-Output "Last checked UTC: $($report.checkedUtc); reason=$($report.reasonCode)"
+  Write-Output "Current database state: UNKNOWN (offline). Next: $($report.nextAction)"
+  if ($Detailed) { Write-Output "Redacted report: $reportPath" }
 }
 
 try {
@@ -269,7 +408,8 @@ try {
   switch ($Mode) {
     'Preflight' { Invoke-Preflight $repo }
     'Apply' { Invoke-Apply $repo }
-    'Status' { Invoke-Status $repo }
+    'Status' { Invoke-Status $repo $false }
+    'Report' { Invoke-Status $repo $true }
   }
 } catch {
   $message = $_.Exception.Message
@@ -277,6 +417,7 @@ try {
   [Console]::Error.WriteLine("LOCAL MAINTENANCE BLOCKED: $code")
   if ($Synthetic -and $code -eq 'UNEXPECTED_ERROR') {
     [Console]::Error.WriteLine("SYNTHETIC DIAGNOSTIC: $($_.Exception.GetType().Name) line=$($_.InvocationInfo.ScriptLineNumber)")
+    [Console]::Error.WriteLine('SYNTHETIC STACK: ' + ($_.ScriptStackTrace -replace "`r?`n", ' | '))
   }
   exit 1
 }

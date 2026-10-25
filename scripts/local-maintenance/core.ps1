@@ -78,20 +78,26 @@ function Read-MaintenanceConfig([string]$ConfigPath, [bool]$Synthetic) {
   try { $config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json }
   catch { Stop-Maintenance 'CONFIG_INVALID_JSON' }
   foreach ($name in @('targetKind', 'environmentFile', 'expectedHost', 'backupDirectory',
-      'privateDirectory', 'postgresBin')) {
+      'privateDirectory', 'postgresBin', 'nodeBin', 'applicationRole',
+      'expectedApplicationHost')) {
     if (-not $config.PSObject.Properties[$name] -or -not $config.$name) {
       Stop-Maintenance "CONFIG_MISSING_$name"
     }
   }
   if ($Synthetic) {
-    if ($config.targetKind -ne 'synthetic' -or $config.expectedHost -ne '127.0.0.1') {
+    if ($config.targetKind -ne 'synthetic' -or $config.expectedHost -ne '127.0.0.1' -or
+        $config.expectedApplicationHost -ne '127.0.0.1') {
       Stop-Maintenance 'SYNTHETIC_TARGET_INVALID'
     }
   } elseif ($config.targetKind -ne 'production' -or
-      $config.expectedHost -notmatch '(^|\.)supabase\.(co|com)$') {
+      $config.expectedHost -notmatch '(^|\.)supabase\.(co|com)$' -or
+      $config.expectedApplicationHost -notmatch '(^|\.)supabase\.(co|com)$') {
     Stop-Maintenance 'PRODUCTION_TARGET_INVALID'
   }
-  foreach ($name in @('environmentFile', 'backupDirectory', 'privateDirectory', 'postgresBin')) {
+  if ($config.applicationRole -notmatch '^[A-Za-z_][A-Za-z0-9_.-]*$') {
+    Stop-Maintenance 'APPLICATION_ROLE_INVALID'
+  }
+  foreach ($name in @('environmentFile', 'backupDirectory', 'privateDirectory', 'postgresBin', 'nodeBin')) {
     if ([string]$config.$name -notmatch '^[A-Za-z]:\\') {
       Stop-Maintenance "CONFIG_PATH_NOT_ABSOLUTE_$name"
     }
@@ -108,6 +114,19 @@ function Read-MaintenanceConfig([string]$ConfigPath, [bool]$Synthetic) {
       Stop-Maintenance "POSTGRES_TOOL_MISSING_$tool"
     }
   }
+  foreach ($tool in @('node.exe', 'npm.cmd')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $config.nodeBin $tool) -PathType Leaf)) {
+      Stop-Maintenance "NODE_TOOL_MISSING_$tool"
+    }
+  }
+  if (-not $Synthetic) {
+    if (-not $config.PSObject.Properties['tlsRootCertFile'] -or
+        [string]$config.tlsRootCertFile -notmatch '^[A-Za-z]:\\' -or
+        -not (Test-Path -LiteralPath $config.tlsRootCertFile -PathType Leaf)) {
+      Stop-Maintenance 'TLS_ROOT_CERT_REQUIRED'
+    }
+    Assert-NotReparsePoint $config.tlsRootCertFile
+  }
   Assert-PrivateAcl $config.backupDirectory
   return $config
 }
@@ -119,7 +138,8 @@ function Get-PrivateDatabaseUri([object]$Config, [string]$Key, [bool]$Synthetic)
   $value = $matches[0].Substring($Key.Length + 1).Trim().Trim('"').Trim("'")
   try { $uri = [Uri]::new($value) }
   catch { Stop-Maintenance "ENV_URL_INVALID_$Key" }
-  if ($uri.Scheme -notin @('postgres', 'postgresql') -or $uri.Host -ne $Config.expectedHost -or
+  $expectedHost = if ($Key -eq 'DATABASE_URL') { $Config.expectedApplicationHost } else { $Config.expectedHost }
+  if ($uri.Scheme -notin @('postgres', 'postgresql') -or $uri.Host -ne $expectedHost -or
       $uri.UserInfo.Split(':', 2).Count -ne 2) {
     Stop-Maintenance "ENV_TARGET_MISMATCH_$Key"
   }
@@ -133,33 +153,83 @@ function Get-PrivateDatabaseUri([object]$Config, [string]$Key, [bool]$Synthetic)
       $database -ne 'postgres') {
     Stop-Maintenance 'PRODUCTION_DB_IDENTITY_INVALID'
   }
+  foreach ($pair in @($uri.Query.TrimStart('?').Split('&') | Where-Object { $_ })) {
+    $parts = $pair.Split('=', 2)
+    $name = [Uri]::UnescapeDataString($parts[0]).ToLowerInvariant()
+    $value = if ($parts.Count -eq 2) { [Uri]::UnescapeDataString($parts[1]) } else { '' }
+    if (($name -eq 'schema' -and $value -eq 'public') -or
+        ($name -eq 'sslmode' -and $value -in @('require', 'verify-full'))) { continue }
+    Stop-Maintenance 'DATABASE_URL_QUERY_UNSAFE'
+  }
   return $uri
 }
 
-function Invoke-WithPgEnvironment([Uri]$Uri, [scriptblock]$Action) {
-  $names = @('PGHOST', 'PGPORT', 'PGUSER', 'PGPASSWORD', 'PGDATABASE', 'PGSSLMODE',
-    'PGOPTIONS', 'PGSERVICE', 'PGPASSFILE', 'DATABASE_URL', 'DIRECT_URL')
+function Get-PinnedPrismaUri([object]$Config, [Uri]$Uri, [bool]$BoundedDdl) {
+  $query = 'schema=public&connect_timeout=5'
+  if ($Uri.Host -eq '127.0.0.1') { $query += '&sslmode=disable' }
+  else {
+    $query += '&sslmode=require&sslaccept=strict&sslrootcert=' +
+      [Uri]::EscapeDataString([string]$Config.tlsRootCertFile)
+  }
+  if ($BoundedDdl) {
+    $options = '-c lock_timeout=5s -c statement_timeout=120s'
+    $query += '&options=' + [Uri]::EscapeDataString($options)
+  }
+  return [Uri]::new($Uri.GetLeftPart([UriPartial]::Path) + '?' + $query)
+}
+
+function Invoke-WithIsolatedEnvironment([object]$Config, [Uri]$Uri,
+    [hashtable]$Extra, [scriptblock]$Action) {
   $previous = @{}
-  foreach ($name in $names) { $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
-  $parts = $Uri.UserInfo.Split(':', 2)
+  foreach ($key in [Environment]::GetEnvironmentVariables('Process').Keys) {
+    $previous[[string]$key] = [Environment]::GetEnvironmentVariable([string]$key, 'Process')
+  }
+  $systemRoot = $previous['SystemRoot']
+  if (-not $systemRoot -or -not (Test-Path -LiteralPath $systemRoot -PathType Container)) {
+    Stop-Maintenance 'SYSTEM_ROOT_INVALID'
+  }
+  $safe = @{
+    SystemRoot = $systemRoot; WINDIR = $systemRoot
+    ComSpec = (Join-Path $systemRoot 'System32/cmd.exe')
+    PATH = ((Join-Path $systemRoot 'System32'), $systemRoot,
+      $Config.nodeBin, $Config.postgresBin) -join ';'
+    TEMP = $Config.privateDirectory; TMP = $Config.privateDirectory
+    USERPROFILE = $Config.privateDirectory; HOME = $Config.privateDirectory
+    APPDATA = $Config.privateDirectory; LOCALAPPDATA = $Config.privateDirectory
+    npm_config_cache = (Join-Path $Config.privateDirectory 'npm-cache')
+    npm_config_update_notifier = 'false'
+    PGPORT = '5432'
+  }
+  if ($Uri) {
+    $parts = $Uri.UserInfo.Split(':', 2)
+    $safe.PGHOST = $Uri.Host
+    $safe.PGPORT = [string]$Uri.Port
+    $safe.PGUSER = [Uri]::UnescapeDataString($parts[0])
+    $safe.PGPASSWORD = [Uri]::UnescapeDataString($parts[1])
+    $safe.PGDATABASE = $Uri.AbsolutePath.TrimStart('/')
+    $safe.PGCONNECT_TIMEOUT = '5'
+    $safe.PGOPTIONS = '-c lock_timeout=5s -c statement_timeout=120s'
+    $safe.PGGSSENCMODE = 'disable'
+    if ($Uri.Host -eq '127.0.0.1') { $safe.PGSSLMODE = 'disable' }
+    else {
+      $safe.PGSSLMODE = 'verify-full'
+      $safe.PGSSLROOTCERT = $Config.tlsRootCertFile
+    }
+  }
+  foreach ($key in $Extra.Keys) {
+    if ($key -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { Stop-Maintenance 'CHILD_ENV_KEY_INVALID' }
+    $safe[$key] = [string]$Extra[$key]
+  }
   try {
-    $env:PGHOST = $Uri.Host
-    $env:PGPORT = [string]$Uri.Port
-    $env:PGUSER = [Uri]::UnescapeDataString($parts[0])
-    $env:PGPASSWORD = [Uri]::UnescapeDataString($parts[1])
-    $env:PGDATABASE = $Uri.AbsolutePath.TrimStart('/')
-    $env:PGSSLMODE = if ($Uri.Host -eq '127.0.0.1') { 'disable' } else { 'require' }
-    foreach ($name in @('PGOPTIONS', 'PGSERVICE', 'PGPASSFILE')) {
-      [Environment]::SetEnvironmentVariable($name, $null, 'Process')
-    }
-    if ($Uri.Host -eq '127.0.0.1') {
-      [Environment]::SetEnvironmentVariable('DATABASE_URL', $null, 'Process')
-      [Environment]::SetEnvironmentVariable('DIRECT_URL', $null, 'Process')
-    }
+    foreach ($key in @($previous.Keys)) { Remove-Item -LiteralPath ("Env:$key") -ErrorAction Stop }
+    foreach ($key in $safe.Keys) { [Environment]::SetEnvironmentVariable($key, $safe[$key], 'Process') }
     return & $Action
   } finally {
-    foreach ($name in $names) {
-      [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process')
+    foreach ($key in @([Environment]::GetEnvironmentVariables('Process').Keys)) {
+      Remove-Item -LiteralPath ("Env:$key") -ErrorAction Stop
+    }
+    foreach ($key in $previous.Keys) {
+      [Environment]::SetEnvironmentVariable($key, $previous[$key], 'Process')
     }
   }
 }
@@ -167,7 +237,7 @@ function Invoke-WithPgEnvironment([Uri]$Uri, [scriptblock]$Action) {
 function Invoke-PostgresTool([object]$Config, [Uri]$Uri, [string]$Tool,
     [string[]]$Arguments, [string]$FailureCode) {
   $binary = Join-Path $Config.postgresBin $Tool
-  $result = Invoke-WithPgEnvironment $Uri {
+  $result = Invoke-WithIsolatedEnvironment $Config $Uri @{} {
     $oldPreference = $ErrorActionPreference
     try {
       $ErrorActionPreference = 'Continue'
@@ -180,9 +250,17 @@ function Invoke-PostgresTool([object]$Config, [Uri]$Uri, [string]$Tool,
 }
 
 function Invoke-ReadOnlyQuery([object]$Config, [Uri]$Uri, [string]$Query,
-    [string]$FailureCode) {
+    [string]$FailureCode, [string]$SnapshotId = '') {
+  $snapshotSql = ''
+  if ($SnapshotId) {
+    if ($SnapshotId -notmatch '^[0-9A-Fa-f]+-[0-9A-Fa-f]+-[0-9A-Fa-f]+$') {
+      Stop-Maintenance 'EXPORTED_SNAPSHOT_INVALID'
+    }
+    $snapshotSql = "SET TRANSACTION SNAPSHOT '$SnapshotId'; "
+  }
   $sql = "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY; " +
-    "SET LOCAL statement_timeout = '30s'; SET LOCAL search_path = pg_catalog, public; " +
+    $snapshotSql + "SET LOCAL statement_timeout = '30s'; " +
+    "SET LOCAL search_path = pg_catalog, public; " +
     $Query + '; ROLLBACK;'
   Assert-PrivateAcl $Config.privateDirectory
   $sqlPath = Join-Path $Config.privateDirectory ('query-' + [Guid]::NewGuid().ToString('N') + '.sql')
@@ -203,7 +281,100 @@ function Invoke-ReadOnlyQuery([object]$Config, [Uri]$Uri, [string]$Query,
   return [string]$data[0]
 }
 
+function Start-ExportedSnapshot([object]$Config, [Uri]$Uri) {
+  $process = Invoke-WithIsolatedEnvironment $Config $Uri @{} {
+    $psi = [Diagnostics.ProcessStartInfo]::new()
+    $psi.FileName = Join-Path $Config.postgresBin 'psql.exe'
+    $psi.Arguments = '-X -q -A -t -v ON_ERROR_STOP=1'
+    $psi.WorkingDirectory = $Config.privateDirectory
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardInput = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    return [Diagnostics.Process]::Start($psi)
+  }
+  try {
+    $errorDrain = $process.StandardError.ReadToEndAsync()
+    $process.StandardInput.WriteLine("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY; " +
+      "SET LOCAL idle_in_transaction_session_timeout = '180s'; " +
+      "SET LOCAL statement_timeout = '30s'; SELECT pg_export_snapshot();")
+    $process.StandardInput.Flush()
+    $lineTask = $process.StandardOutput.ReadLineAsync()
+    if (-not $lineTask.Wait(15000)) { Stop-Maintenance 'SNAPSHOT_EXPORT_TIMEOUT' }
+    $snapshotId = [string]$lineTask.Result
+    if ($snapshotId -notmatch '^[0-9A-Fa-f]+-[0-9A-Fa-f]+-[0-9A-Fa-f]+$' -or
+        $process.HasExited) { Stop-Maintenance 'SNAPSHOT_EXPORT_FAILED' }
+    return [pscustomobject]@{ Process = $process; Id = $snapshotId;
+      StartedUtc = [DateTime]::UtcNow.ToString('o'); ErrorDrain = $errorDrain }
+  } catch {
+    if (-not $process.HasExited) { $process.Kill() }
+    $process.Dispose()
+    if ($_.Exception.Message -like 'LMR:*') { throw }
+    Stop-Maintenance 'SNAPSHOT_EXPORT_FAILED'
+  }
+}
+
+function Stop-ExportedSnapshot([object]$Holder) {
+  if (-not $Holder) { return }
+  $process = $Holder.Process
+  try {
+    if (-not $process.HasExited) {
+      $process.StandardInput.WriteLine('ROLLBACK;')
+      $process.StandardInput.WriteLine('\q')
+      $process.StandardInput.Flush()
+      $process.StandardInput.Close()
+      if (-not $process.WaitForExit(10000)) { $process.Kill() }
+    }
+  } finally { $process.Dispose() }
+}
+
+function Start-DatabaseApplyLock([object]$Config, [Uri]$Uri) {
+  $process = Invoke-WithIsolatedEnvironment $Config $Uri @{} {
+    $psi = [Diagnostics.ProcessStartInfo]::new()
+    $psi.FileName = Join-Path $Config.postgresBin 'psql.exe'
+    $psi.Arguments = '-X -q -A -t -v ON_ERROR_STOP=1'
+    $psi.WorkingDirectory = $Config.privateDirectory
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardInput = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    return [Diagnostics.Process]::Start($psi)
+  }
+  try {
+    $errorDrain = $process.StandardError.ReadToEndAsync()
+    $process.StandardInput.WriteLine('SELECT pg_try_advisory_lock(20261025, 6);')
+    $process.StandardInput.Flush()
+    $lineTask = $process.StandardOutput.ReadLineAsync()
+    if (-not $lineTask.Wait(15000)) { Stop-Maintenance 'TARGET_DATABASE_LOCK_TIMEOUT' }
+    if ($lineTask.Result -ne 't' -or $process.HasExited) {
+      Stop-Maintenance 'TARGET_DATABASE_APPLY_ALREADY_RUNNING'
+    }
+    return [pscustomobject]@{ Process = $process; ErrorDrain = $errorDrain }
+  } catch {
+    if (-not $process.HasExited) { $process.Kill() }
+    $process.Dispose()
+    if ($_.Exception.Message -like 'LMR:*') { throw }
+    Stop-Maintenance 'TARGET_DATABASE_LOCK_FAILED'
+  }
+}
+
+function Stop-DatabaseApplyLock([object]$Holder) {
+  if (-not $Holder) { return }
+  $process = $Holder.Process
+  try {
+    if (-not $process.HasExited) {
+      $process.StandardInput.WriteLine('\q')
+      $process.StandardInput.Flush()
+      $process.StandardInput.Close()
+      if (-not $process.WaitForExit(10000)) { $process.Kill() }
+    }
+  } finally { $process.Dispose() }
+}
+
 function Get-GitCheckpoint([string]$Repo, [string]$ApprovedCommit, [bool]$Synthetic) {
+  Assert-NotReparsePoint $Repo
   if ($ApprovedCommit -notmatch '^[0-9a-f]{40}$') { Stop-Maintenance 'APPROVED_SHA_INVALID' }
   $head = (& git -C $Repo rev-parse HEAD 2>$null).Trim()
   if ($LASTEXITCODE -ne 0 -or $head -ne $ApprovedCommit) {
@@ -218,6 +389,26 @@ function Get-GitCheckpoint([string]$Repo, [string]$ApprovedCommit, [bool]$Synthe
     }
   }
   return $head
+}
+
+function Assert-PinnedPrismaSchema([string]$Repo) {
+  $prisma = Join-Path $Repo 'prisma'
+  $schema = Join-Path $prisma 'schema.prisma'
+  $migrations = Join-Path $prisma 'migrations'
+  foreach ($path in @($Repo, $prisma, $schema, $migrations)) { Assert-NotReparsePoint $path }
+  foreach ($name in @('prisma.config.ts', 'prisma.config.js', 'prisma.config.mjs')) {
+    if (Test-Path -LiteralPath (Join-Path $Repo $name)) {
+      Stop-Maintenance 'PRISMA_CONFIG_OVERRIDE_FORBIDDEN'
+    }
+  }
+  $source = Get-Content -LiteralPath $schema -Raw -Encoding UTF8
+  $datasources = @([regex]::Matches($source, '(?m)^\s*datasource\s+\w+\s*\{'))
+  if ($datasources.Count -ne 1 -or
+      $source -notmatch '(?s)datasource\s+db\s*\{\s*provider\s*=\s*"postgresql"\s*url\s*=\s*env\("DATABASE_URL"\)\s*\}' -or
+      $source -match '(?i)shadowDatabaseUrl|directUrl') {
+    Stop-Maintenance 'PRISMA_SCHEMA_DATASOURCE_UNSAFE'
+  }
+  return $schema
 }
 
 function Assert-GuardedCommand([string]$Repo) {
@@ -244,10 +435,13 @@ function Assert-GuardedCommand([string]$Repo) {
 function Get-MigrationFiles([string]$Repo) {
   $root = Join-Path $Repo 'prisma/migrations'
   if (-not (Test-Path -LiteralPath $root -PathType Container)) { Stop-Maintenance 'MIGRATIONS_MISSING' }
+  Assert-NotReparsePoint $root
   $result = @()
   foreach ($directory in @(Get-ChildItem -LiteralPath $root -Directory | Sort-Object Name)) {
     $file = Join-Path $directory.FullName 'migration.sql'
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { continue }
+    Assert-NotReparsePoint $directory.FullName
+    Assert-NotReparsePoint $file
     if ($directory.Name -notmatch '^[0-9]{14}_[a-z0-9_]+$') {
       Stop-Maintenance 'MIGRATION_NAME_INVALID'
     }
@@ -330,6 +524,44 @@ function Get-TargetFingerprint([Uri]$Uri, [object]$Snapshot) {
     "$($Snapshot.role)|$($Snapshot.databaseOid)|$($Snapshot.serverVersion)")
 }
 
+function Get-ApplicationRoleState([object]$Config, [Uri]$ApplicationUri,
+    [object]$DirectSnapshot) {
+  $sql = "SELECT json_build_object('database',current_database(),'role',current_user," +
+    "'databaseOid',(SELECT oid FROM pg_database WHERE datname=current_database()))::text"
+  try { $state = Invoke-ReadOnlyQuery $Config $ApplicationUri $sql 'APPLICATION_ROLE_QUERY_FAILED' | ConvertFrom-Json }
+  catch { if ($_.Exception.Message -like 'LMR:*') { throw }; Stop-Maintenance 'APPLICATION_ROLE_QUERY_INVALID' }
+  if ($state.database -ne $DirectSnapshot.database -or
+      [string]$state.databaseOid -ne [string]$DirectSnapshot.databaseOid -or
+      $state.role -ne $Config.applicationRole) {
+    Stop-Maintenance 'APPLICATION_ROLE_TARGET_MISMATCH'
+  }
+  return $state
+}
+
+function Assert-SequenceRolePermissions([object]$Config, [object]$Cluster,
+    [object[]]$Audits, [string]$MigrationRole, [string]$ApplicationRole) {
+  $sequences = @($Audits | ForEach-Object { $_.audit.CreatedSequences })
+  if ($sequences.Count -eq 0) { return }
+  if ($ApplicationRole -ne $MigrationRole) {
+    Stop-Maintenance 'SEQUENCE_PERMISSION_UNPROVEN_DIFFERENT_ROLE'
+  }
+  foreach ($sequence in $sequences) {
+    if ($sequence -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { Stop-Maintenance 'SEQUENCE_NAME_UNSAFE' }
+    $qualified = 'public."' + $sequence + '"'
+    $query = "SELECT has_sequence_privilege(current_user, '$qualified', 'USAGE')"
+    $hasUsage = Invoke-ReadOnlyQuery $Config $Cluster.Uri $query 'SEQUENCE_PRIVILEGE_CHECK_FAILED'
+    if ($hasUsage -ne 't') { Stop-Maintenance 'SEQUENCE_PERMISSION_MISSING' }
+    $sqlPath = Join-Path $Config.privateDirectory ('sequence-probe-' + [Guid]::NewGuid().ToString('N') + '.sql')
+    [IO.File]::WriteAllText($sqlPath,
+      'SELECT nextval(''' + $qualified + '''::regclass);', [Text.UTF8Encoding]::new($false))
+    Set-PrivateAcl $sqlPath
+    try {
+      [void](Invoke-PostgresTool $Config $Cluster.Uri 'psql.exe' @(
+          '-X', '-q', '-A', '-t', '-v', 'ON_ERROR_STOP=1', '-f', $sqlPath) 'SEQUENCE_NEXTVAL_FAILED')
+    } finally { [IO.File]::Delete($sqlPath) }
+  }
+}
+
 function Get-RelationSize([object]$Config, [Uri]$Uri, [string]$Table) {
   if ($Table -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { Stop-Maintenance 'INDEX_TABLE_INVALID' }
   $sql = "SELECT COALESCE(pg_total_relation_size(to_regclass('public.`"$Table`"')), 0)"
@@ -351,7 +583,7 @@ function Assert-LockSafety([object]$Config, [Uri]$Uri, [object]$Snapshot,
 }
 
 function Get-RepresentativeFingerprints([object]$Config, [Uri]$Uri,
-    [hashtable]$ExcludedColumns = @{}) {
+    [hashtable]$ExcludedColumns = @{}, [string]$SnapshotId = '') {
   $tables = @('_prisma_migrations', 'LeadMessage', 'Lead', 'Organization', 'User',
     'NotificationPreference')
   $result = [ordered]@{}
@@ -367,7 +599,7 @@ function Get-RepresentativeFingerprints([object]$Config, [Uri]$Uri,
     $sql = "SELECT json_build_object('count',count(*),'digest'," +
       "md5(COALESCE(string_agg(md5(($expression)::text), '' " +
       "ORDER BY md5(($expression)::text)),'')))::text FROM public.`"$table`" t"
-    try { $result[$table] = Invoke-ReadOnlyQuery $Config $Uri $sql 'DATA_FINGERPRINT_FAILED' | ConvertFrom-Json }
+    try { $result[$table] = Invoke-ReadOnlyQuery $Config $Uri $sql 'DATA_FINGERPRINT_FAILED' $SnapshotId | ConvertFrom-Json }
     catch { if ($_.Exception.Message -like 'LMR:*') { throw }; Stop-Maintenance 'DATA_FINGERPRINT_INVALID' }
   }
   return $result
@@ -384,18 +616,92 @@ function Compare-RepresentativeFingerprints([object]$Before, [object]$After,
   }
 }
 
-function New-PrivateBackup([object]$Config, [Uri]$SourceUri, [string]$RunId) {
+function Get-StructureFingerprint([object]$Config, [Uri]$Uri,
+    [string]$SnapshotId = '') {
+  $sql = @'
+WITH objects AS (
+  SELECT 'table' AS kind, n.nspname||'.'||c.relname AS name,
+    c.relkind::text AS definition
+  FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname='public' AND c.relkind IN ('r','p','S','v','m')
+  UNION ALL
+  SELECT 'column', n.nspname||'.'||c.relname||'.'||a.attname,
+    format_type(a.atttypid,a.atttypmod)||'|'||a.attnotnull::text||'|'||
+      COALESCE(pg_get_expr(d.adbin,d.adrelid),'')
+  FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid
+    JOIN pg_namespace n ON n.oid=c.relnamespace
+    LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
+  WHERE n.nspname='public' AND a.attnum>0 AND NOT a.attisdropped
+  UNION ALL
+  SELECT 'constraint', n.nspname||'.'||c.relname||'.'||x.conname,
+    pg_get_constraintdef(x.oid)
+  FROM pg_constraint x JOIN pg_class c ON c.oid=x.conrelid
+    JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public'
+  UNION ALL
+  SELECT 'index', n.nspname||'.'||c.relname, pg_get_indexdef(c.oid)
+  FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname='public' AND c.relkind='i'
+  UNION ALL
+  SELECT 'extension', e.extname, e.extversion
+  FROM pg_extension e
+)
+SELECT json_build_object('count',count(*),
+  'digest',md5(COALESCE(string_agg(kind||'|'||name||'|'||definition,E'\n'
+    ORDER BY kind,name,definition),'')))::text FROM objects
+'@
+  try { return Invoke-ReadOnlyQuery $Config $Uri $sql 'STRUCTURE_INVENTORY_FAILED' $SnapshotId | ConvertFrom-Json }
+  catch { if ($_.Exception.Message -like 'LMR:*') { throw }; Stop-Maintenance 'STRUCTURE_INVENTORY_INVALID' }
+}
+
+function Assert-StructureEqual([object]$Before, [object]$After) {
+  if ([long]$Before.count -ne [long]$After.count -or
+      [string]$Before.digest -ne [string]$After.digest) {
+    Stop-Maintenance 'RESTORED_STRUCTURE_MISMATCH'
+  }
+}
+
+function Assert-CreatedObjects([object]$Config, [Uri]$Uri, [object[]]$Audits) {
+  foreach ($audit in $Audits) {
+    foreach ($index in @($audit.audit.CreatedIndexes)) {
+      if ($index -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { Stop-Maintenance 'INDEX_NAME_UNSAFE' }
+      $value = Invoke-ReadOnlyQuery $Config $Uri "SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='$index' AND i.indisvalid AND i.indisready" 'CREATED_INDEX_CHECK_FAILED'
+      if ($value -ne '1') { Stop-Maintenance 'CREATED_INDEX_MISSING' }
+    }
+    foreach ($constraint in @($audit.audit.CreatedConstraints)) {
+      if ($constraint -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { Stop-Maintenance 'CONSTRAINT_NAME_UNSAFE' }
+      $value = Invoke-ReadOnlyQuery $Config $Uri "SELECT count(*) FROM pg_constraint x JOIN pg_namespace n ON n.oid=x.connamespace WHERE n.nspname='public' AND x.conname='$constraint' AND x.convalidated" 'CREATED_CONSTRAINT_CHECK_FAILED'
+      if ($value -ne '1') { Stop-Maintenance 'CREATED_CONSTRAINT_MISSING' }
+    }
+    foreach ($sequence in @($audit.audit.CreatedSequences)) {
+      if ($sequence -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { Stop-Maintenance 'SEQUENCE_NAME_UNSAFE' }
+      $value = Invoke-ReadOnlyQuery $Config $Uri "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='$sequence' AND c.relkind='S'" 'CREATED_SEQUENCE_CHECK_FAILED'
+      if ($value -ne '1') { Stop-Maintenance 'CREATED_SEQUENCE_MISSING' }
+    }
+  }
+}
+
+function New-PrivateBackup([object]$Config, [Uri]$SourceUri, [string]$RunId,
+    [string]$SnapshotId = '') {
   Assert-PrivateAcl $Config.backupDirectory
   $name = 'legalhub-maintenance-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + $RunId + '.dump'
   $path = Join-Path $Config.backupDirectory $name
   if (Test-Path -LiteralPath $path) { Stop-Maintenance 'BACKUP_COLLISION' }
-  [void](Invoke-PostgresTool $Config $SourceUri 'pg_dump.exe' @(
-      '--format=custom', '--schema=public', '--no-owner', '--no-privileges',
-      "--file=$path") 'BACKUP_FAILED')
+  $arguments = @('--format=custom', '--schema=public', '--no-owner', '--no-privileges')
+  if ($SnapshotId) { $arguments += "--snapshot=$SnapshotId" }
+  $arguments += "--file=$path"
+  [void](Invoke-PostgresTool $Config $SourceUri 'pg_dump.exe' $arguments 'BACKUP_FAILED')
   if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { Stop-Maintenance 'BACKUP_MISSING' }
   Set-PrivateAcl $path
-  $toc = @(& (Join-Path $Config.postgresBin 'pg_restore.exe') --list $path 2>&1)
-  if ($LASTEXITCODE -ne 0) { Stop-Maintenance 'BACKUP_TOC_INVALID' }
+  $tocResult = Invoke-WithIsolatedEnvironment $Config $null @{} {
+    $oldPreference = $ErrorActionPreference
+    try {
+      $ErrorActionPreference = 'Continue'
+      $lines = @(& (Join-Path $Config.postgresBin 'pg_restore.exe') --list $path 2>$null)
+      return [pscustomobject]@{ Lines = $lines; ExitCode = $LASTEXITCODE }
+    } finally { $ErrorActionPreference = $oldPreference }
+  }
+  if ($tocResult.ExitCode -ne 0) { Stop-Maintenance 'BACKUP_TOC_INVALID' }
+  $toc = @($tocResult.Lines)
   foreach ($table in @('_prisma_migrations', 'LeadMessage', 'Lead', 'Organization', 'User',
       'NotificationPreference')) {
     if (-not @($toc | Where-Object { $_ -match "TABLE DATA public $table " }).Count) {
@@ -411,7 +717,8 @@ function New-PrivateBackup([object]$Config, [Uri]$SourceUri, [string]$RunId) {
   }
 }
 
-function New-DisposableCluster([object]$Config, [string]$RunId) {
+function New-DisposableCluster([object]$Config, [string]$RunId,
+    [string]$FaultAt = '') {
   if (-not (Test-Path -LiteralPath $Config.privateDirectory -PathType Container)) {
     Stop-Maintenance 'PRIVATE_DIRECTORY_MISSING'
   }
@@ -432,48 +739,76 @@ function New-DisposableCluster([object]$Config, [string]$RunId) {
   [IO.File]::WriteAllText($marker, $RunId, [Text.UTF8Encoding]::new($false))
   Set-PrivateAcl $marker
   $cluster = Join-Path $root 'cluster'
-  $passwordFile = Join-Path $root 'initdb-password.tmp'
-  $bytes = [byte[]]::new(32)
-  [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
-  $password = [Convert]::ToBase64String($bytes)
-  [IO.File]::WriteAllText($passwordFile, $password + [Environment]::NewLine,
-    [Text.UTF8Encoding]::new($false))
-  Set-PrivateAcl $passwordFile
+  $state = [pscustomobject]@{ RunId = $RunId; Root = $root; Cluster = $cluster;
+    Port = 0; Database = ''; Uri = $null }
   try {
-    $binary = Join-Path $Config.postgresBin 'initdb.exe'
-    $output = @(& $binary '-D' $cluster '-U' 'restore_admin' '--encoding=UTF8' `
-        '--auth-host=scram-sha-256' '--auth-local=scram-sha-256' `
-        "--pwfile=$passwordFile" '--no-instructions' 2>&1)
-    if ($LASTEXITCODE -ne 0) { Stop-Maintenance 'ISOLATED_INITDB_FAILED' }
-  } finally {
-    if (Test-Path -LiteralPath $passwordFile -PathType Leaf) { [IO.File]::Delete($passwordFile) }
-  }
-  $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
-  try { $listener.Start(); $port = ([Net.IPEndPoint]$listener.LocalEndpoint).Port }
-  finally { $listener.Stop() }
-  if ($port -eq 5432) { Stop-Maintenance 'ISOLATED_PORT_UNSAFE' }
-  $log = Join-Path $root 'postgres.log'
-  $binary = Join-Path $Config.postgresBin 'pg_ctl.exe'
-  $control = Start-Process -FilePath $binary -ArgumentList @(
-    '-D', "`"$cluster`"", '-l', "`"$log`"", '-o',
-    "`"-h 127.0.0.1 -p $port`"", '-w', '-t', '45', 'start') -PassThru `
-    -WindowStyle Hidden -RedirectStandardOutput (Join-Path $root 'control.out') `
-    -RedirectStandardError (Join-Path $root 'control.err')
-  try {
-    if (-not $control.WaitForExit(50000)) { Stop-Maintenance 'LOCAL_POSTGRES_CONTROL_TIMEOUT' }
-  } finally { $control.Dispose() }
-  $ready = @(& (Join-Path $Config.postgresBin 'pg_isready.exe') '-h' '127.0.0.1' `
-      '-p' ([string]$port) '-q' 2>&1)
-  if ($LASTEXITCODE -ne 0) { Stop-Maintenance 'ISOLATED_NOT_READY' }
-  $database = 'legalhub_runner_' + $RunId.Replace('-', '_')
-  $encoded = [Uri]::EscapeDataString($password)
-  $adminUri = [Uri]::new("postgresql://restore_admin:$encoded@127.0.0.1:$port/postgres")
-  [void](Invoke-PostgresTool $Config $adminUri 'createdb.exe' @(
-      '-T', 'template0', $database) 'ISOLATED_CREATE_DB_FAILED')
-  $uri = [Uri]::new("postgresql://restore_admin:$encoded@127.0.0.1:$port/${database}?schema=public")
-  return [pscustomobject]@{
-    RunId = $RunId; Root = $root; Cluster = $cluster; Port = $port
-    Database = $database; Uri = $uri; Password = $password
+    if ($FaultAt -eq 'BeforeInitdb') { Stop-Maintenance 'TEST_INJECTED_BEFORE_INITDB' }
+    $passwordFile = Join-Path $root 'initdb-password.tmp'
+    $bytes = [byte[]]::new(32)
+    $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+    $password = [Convert]::ToBase64String($bytes)
+    [IO.File]::WriteAllText($passwordFile, $password + [Environment]::NewLine,
+      [Text.UTF8Encoding]::new($false))
+    Set-PrivateAcl $passwordFile
+    try {
+      Invoke-WithIsolatedEnvironment $Config $null @{} {
+        $binary = Join-Path $Config.postgresBin 'initdb.exe'
+        $oldPreference = $ErrorActionPreference
+        try {
+          $ErrorActionPreference = 'Continue'
+          $output = @(& $binary '-D' $cluster '-U' 'restore_admin' '--encoding=UTF8' `
+              '--auth-host=scram-sha-256' '--auth-local=scram-sha-256' `
+              "--pwfile=$passwordFile" '--no-instructions' 2>$null)
+          if ($LASTEXITCODE -ne 0) { Stop-Maintenance 'ISOLATED_INITDB_FAILED' }
+        } finally { $ErrorActionPreference = $oldPreference }
+      }
+    } finally {
+      if (Test-Path -LiteralPath $passwordFile -PathType Leaf) { [IO.File]::Delete($passwordFile) }
+    }
+    if ($FaultAt -eq 'AfterInitdb') { Stop-Maintenance 'TEST_INJECTED_AFTER_INITDB' }
+    $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+    try { $listener.Start(); $state.Port = ([Net.IPEndPoint]$listener.LocalEndpoint).Port }
+    finally { $listener.Stop() }
+    if ($state.Port -eq 5432) { Stop-Maintenance 'ISOLATED_PORT_UNSAFE' }
+    $log = Join-Path $root 'postgres.log'
+    Invoke-WithIsolatedEnvironment $Config $null @{} {
+      $binary = Join-Path $Config.postgresBin 'pg_ctl.exe'
+      $control = Start-Process -FilePath $binary -ArgumentList @(
+        '-s', '-D', "`"$cluster`"", '-l', "`"$log`"", '-o',
+        "`"-h 127.0.0.1 -p $($state.Port)`"", '-w', '-t', '45', 'start') -PassThru `
+        -WindowStyle Hidden -RedirectStandardOutput (Join-Path $root 'control.out') `
+        -RedirectStandardError (Join-Path $root 'control.err')
+      try {
+        if (-not $control.WaitForExit(50000)) { Stop-Maintenance 'LOCAL_POSTGRES_CONTROL_TIMEOUT' }
+        # pg_ctl can report a nonzero control exit even when the isolated server
+        # is accepting connections; the bounded pg_isready probe below is authoritative.
+      } finally { $control.Dispose() }
+    }
+    if ($FaultAt -eq 'AfterStart') { Stop-Maintenance 'TEST_INJECTED_AFTER_START' }
+    $ready = Invoke-WithIsolatedEnvironment $Config $null @{} {
+      $oldPreference = $ErrorActionPreference
+      try {
+        $ErrorActionPreference = 'Continue'
+        $output = @(& (Join-Path $Config.postgresBin 'pg_isready.exe') '-h' '127.0.0.1' `
+            '-p' ([string]$state.Port) '-U' 'restore_admin' '-d' 'postgres' '-q' 2>$null)
+        return $LASTEXITCODE
+      } finally { $ErrorActionPreference = $oldPreference }
+    }
+    if ($ready -ne 0) { Stop-Maintenance 'ISOLATED_NOT_READY' }
+    if ($FaultAt -eq 'AfterReady') { Stop-Maintenance 'TEST_INJECTED_AFTER_READY' }
+    $state.Database = 'legalhub_runner_' + $RunId.Replace('-', '_')
+    $encoded = [Uri]::EscapeDataString($password)
+    $adminUri = [Uri]::new("postgresql://restore_admin:$encoded@127.0.0.1:$($state.Port)/postgres")
+    [void](Invoke-PostgresTool $Config $adminUri 'createdb.exe' @(
+        '-T', 'template0', $state.Database) 'ISOLATED_CREATE_DB_FAILED')
+    if ($FaultAt -eq 'AfterCreatedb') { Stop-Maintenance 'TEST_INJECTED_AFTER_CREATEDB' }
+    $state.Uri = [Uri]::new("postgresql://restore_admin:$encoded@127.0.0.1:$($state.Port)/$($state.Database)?schema=public")
+    return $state
+  } catch {
+    $failure = $_
+    Stop-DisposableCluster $Config $state
+    throw $failure
   }
 }
 
@@ -491,7 +826,7 @@ function Restore-DisposableBackup([object]$Config, [object]$Cluster, [object]$Ba
       '--single-transaction', "--dbname=$($Cluster.Database)", $Backup.Path) 'ISOLATED_RESTORE_FAILED')
 }
 
-function Invoke-DisposableMigration([object]$Cluster, [string]$Repo) {
+function Invoke-DisposableMigration([object]$Config, [object]$Cluster, [string]$Repo) {
   if ($Cluster.Uri.Host -ne '127.0.0.1' -or $Cluster.Port -eq 5432 -or
       $Cluster.Database -notmatch '^legalhub_runner_') {
     Stop-Maintenance 'MIGRATION_SIMULATION_TARGET_UNSAFE'
@@ -500,19 +835,20 @@ function Invoke-DisposableMigration([object]$Cluster, [string]$Repo) {
   if (-not (Test-Path -LiteralPath $cli -PathType Leaf)) {
     Stop-Maintenance 'PRISMA_CLI_MISSING_RUN_NPM_CI'
   }
-  $previousDatabase = [Environment]::GetEnvironmentVariable('DATABASE_URL', 'Process')
-  $previousDirect = [Environment]::GetEnvironmentVariable('DIRECT_URL', 'Process')
-  $oldPreference = $ErrorActionPreference
-  try {
-    $env:DATABASE_URL = $Cluster.Uri.AbsoluteUri
-    $env:DIRECT_URL = $Cluster.Uri.AbsoluteUri
-    $ErrorActionPreference = 'Continue'
-    $output = @(& node $cli migrate deploy 2>$null)
-    if ($LASTEXITCODE -ne 0) { Stop-Maintenance 'ISOLATED_MIGRATION_FAILED' }
-  } finally {
-    $ErrorActionPreference = $oldPreference
-    [Environment]::SetEnvironmentVariable('DATABASE_URL', $previousDatabase, 'Process')
-    [Environment]::SetEnvironmentVariable('DIRECT_URL', $previousDirect, 'Process')
+  Assert-NotReparsePoint $cli
+  $schema = Assert-PinnedPrismaSchema $Repo
+  $url = (Get-PinnedPrismaUri $Config $Cluster.Uri $true).AbsoluteUri
+  Invoke-WithIsolatedEnvironment $Config $null @{ DATABASE_URL = $url; DIRECT_URL = $url } {
+    $oldPreference = $ErrorActionPreference
+    Push-Location $Repo
+    try {
+      $ErrorActionPreference = 'Continue'
+      $output = @(& (Join-Path $Config.nodeBin 'node.exe') $cli migrate deploy --schema $schema 2>$null)
+      if ($LASTEXITCODE -ne 0) { Stop-Maintenance 'ISOLATED_MIGRATION_FAILED' }
+    } finally {
+      $ErrorActionPreference = $oldPreference
+      Pop-Location
+    }
   }
 }
 
@@ -520,20 +856,53 @@ function Stop-DisposableCluster([object]$Config, [object]$Cluster) {
   if (-not $Cluster) { return }
   $isolatedRoot = Join-Path $Config.privateDirectory 'isolated'
   $root = Assert-ChildPath $isolatedRoot $Cluster.Root
-  foreach ($path in @($Config.privateDirectory, $isolatedRoot, $root, $Cluster.Cluster)) {
+  foreach ($path in @($Config.privateDirectory, $isolatedRoot, $root)) {
     Assert-NotReparsePoint $path
   }
+  if (Test-Path -LiteralPath $Cluster.Cluster) { Assert-NotReparsePoint $Cluster.Cluster }
   $marker = Join-Path $root 'runner-owned.txt'
   if (-not (Test-Path -LiteralPath $marker -PathType Leaf) -or
       (Get-Content -LiteralPath $marker -Raw).Trim() -ne $Cluster.RunId) {
     Stop-Maintenance 'ISOLATED_CLEANUP_MARKER_MISMATCH'
   }
-  $binary = Join-Path $Config.postgresBin 'pg_ctl.exe'
-  $output = @(& $binary '-D' $Cluster.Cluster '-m' 'fast' '-w' 'stop' 2>&1)
-  if ($LASTEXITCODE -ne 0) { Stop-Maintenance 'ISOLATED_STOP_FAILED' }
-  $ready = @(& (Join-Path $Config.postgresBin 'pg_isready.exe') '-h' '127.0.0.1' `
-      '-p' ([string]$Cluster.Port) '-q' 2>&1)
-  if ($LASTEXITCODE -eq 0) { Stop-Maintenance 'ISOLATED_STILL_RUNNING' }
+  if (Test-Path -LiteralPath $Cluster.Cluster -PathType Container) {
+    $status = Invoke-WithIsolatedEnvironment $Config $null @{} {
+      $oldPreference = $ErrorActionPreference
+      try {
+        $ErrorActionPreference = 'Continue'
+        $output = @(& (Join-Path $Config.postgresBin 'pg_ctl.exe') '-D' $Cluster.Cluster `
+            'status' 2>$null)
+        return $LASTEXITCODE
+      } finally { $ErrorActionPreference = $oldPreference }
+    }
+    if ($status -eq 0) {
+      $stopped = Invoke-WithIsolatedEnvironment $Config $null @{} {
+        $oldPreference = $ErrorActionPreference
+        try {
+          $ErrorActionPreference = 'Continue'
+          $output = @(& (Join-Path $Config.postgresBin 'pg_ctl.exe') '-D' $Cluster.Cluster `
+              '-m' 'fast' '-w' '-t' '45' 'stop' 2>$null)
+          return $LASTEXITCODE
+        } finally { $ErrorActionPreference = $oldPreference }
+      }
+      if ($stopped -ne 0) { Stop-Maintenance 'ISOLATED_STOP_FAILED' }
+    } elseif ($status -in @(1, 3, 4) -and
+        -not (Test-Path -LiteralPath (Join-Path $Cluster.Cluster 'postmaster.pid'))) {
+      # pg_ctl returns different non-running codes for an initialized cluster.
+    } else { Stop-Maintenance 'ISOLATED_STATUS_UNVERIFIED' }
+  }
+  if ($Cluster.Port -gt 0) {
+    $ready = Invoke-WithIsolatedEnvironment $Config $null @{} {
+      $oldPreference = $ErrorActionPreference
+      try {
+        $ErrorActionPreference = 'Continue'
+        $output = @(& (Join-Path $Config.postgresBin 'pg_isready.exe') '-h' '127.0.0.1' `
+            '-p' ([string]$Cluster.Port) '-q' 2>$null)
+        return $LASTEXITCODE
+      } finally { $ErrorActionPreference = $oldPreference }
+    }
+    if ($ready -eq 0) { Stop-Maintenance 'ISOLATED_STILL_RUNNING' }
+  }
   $deleted = $false
   for ($attempt = 0; $attempt -lt 8; $attempt++) {
     try { [IO.Directory]::Delete($root, $true); $deleted = $true; break }
