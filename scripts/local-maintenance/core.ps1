@@ -219,7 +219,8 @@ function Assert-GuardedCommand([string]$Repo) {
   try { $scripts = (Get-Content -LiteralPath $packagePath -Raw -Encoding UTF8 | ConvertFrom-Json).scripts }
   catch { Stop-Maintenance 'PACKAGE_INVALID' }
   if ($scripts.'db:migrate:deploy' -ne 'node scripts/vercel-migrate.js' -or
-      $scripts.'predb:migrate:deploy' -or $scripts.'postdb:migrate:deploy') {
+      $scripts.PSObject.Properties['predb:migrate:deploy'] -or
+      $scripts.PSObject.Properties['postdb:migrate:deploy']) {
     Stop-Maintenance 'GUARDED_COMMAND_CHANGED'
   }
   $source = Get-Content -LiteralPath $guardPath -Raw -Encoding UTF8
