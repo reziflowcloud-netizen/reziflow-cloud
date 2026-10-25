@@ -79,6 +79,7 @@ try {
   $head = (& git -C $repo rev-parse HEAD).Trim()
   $runner = Join-Path $repo 'scripts/local-maintenance/runner.ps1'
   $runnerErr = Join-Path $root 'runner.err'
+  $ErrorActionPreference = 'Continue'
   $result = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
       -Mode Preflight -Synthetic -ApprovedCommit $head -ExpectedMigrations $pending `
       -ConfigPath $configFile 2>$runnerErr)
@@ -102,6 +103,7 @@ try {
   if ($LASTEXITCODE -ne 0 -or ($status -join ' ') -notmatch 'PREFLIGHT_ONLY') {
     Stop-Maintenance 'OFFLINE_STATUS_FAILED'
   }
+  $ErrorActionPreference = 'Stop'
   Write-Output 'PASS offline status'
   Write-Output 'FULL WINDOWS PREFLIGHT TEST PASS'
 } finally {
