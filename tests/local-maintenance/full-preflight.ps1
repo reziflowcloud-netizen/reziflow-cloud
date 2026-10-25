@@ -84,7 +84,8 @@ try {
       -Mode Preflight -Synthetic -ApprovedCommit $head -ExpectedMigrations $pending `
       -ConfigPath $configFile 2>$runnerErr)
   if ($LASTEXITCODE -ne 0 -or ($result -join ' ') -notmatch 'PREFLIGHT PASS') {
-    $codes = @(Get-Content -LiteralPath $runnerErr | Where-Object { $_ -match 'LOCAL MAINTENANCE BLOCKED:' })
+    $codes = @(Get-Content -LiteralPath $runnerErr | Where-Object {
+        $_ -match 'LOCAL MAINTENANCE BLOCKED:|SYNTHETIC DIAGNOSTIC:' })
     Write-Output "PREFLIGHT BLOCK: $($codes -join ' ')"
     Stop-Maintenance 'FULL_SYNTHETIC_PREFLIGHT_FAILED'
   }
