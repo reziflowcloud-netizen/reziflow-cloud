@@ -205,6 +205,7 @@ function Invoke-Apply([string]$Repo) {
       'DB_MIGRATE_EXPECTED_HOST', 'DIRECT_URL', 'DATABASE_URL')) {
     $old[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
   }
+  $oldPreference = $ErrorActionPreference
   try {
     $env:DB_MIGRATE_TARGET = 'production'
     $env:DB_MIGRATE_CONFIRM = 'production'
@@ -213,13 +214,18 @@ function Invoke-Apply([string]$Repo) {
     $env:DATABASE_URL = $uri.AbsoluteUri
     # Never echo child output: scripts and database errors can contain credentials.
     Push-Location $Repo
-    try { $output = @(& npm run db:migrate:deploy 2>$null); $exitCode = $LASTEXITCODE }
+    try {
+      $ErrorActionPreference = 'Continue'
+      $output = @(& npm run db:migrate:deploy 2>$null)
+      $exitCode = $LASTEXITCODE
+    }
     finally { Pop-Location }
     if ($exitCode -ne 0) {
       [void](Write-Report $config $plan 'APPLY_ERROR' 'GUARDED_COMMAND_FAILED')
       Stop-Maintenance 'GUARDED_COMMAND_FAILED_DO_NOT_RETRY'
     }
   } finally {
+    $ErrorActionPreference = $oldPreference
     foreach ($name in $old.Keys) {
       [Environment]::SetEnvironmentVariable($name, $old[$name], 'Process')
     }

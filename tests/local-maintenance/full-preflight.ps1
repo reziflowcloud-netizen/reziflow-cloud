@@ -89,7 +89,10 @@ try {
     Write-Output "PREFLIGHT BLOCK: $($codes -join ' ')"
     Stop-Maintenance 'FULL_SYNTHETIC_PREFLIGHT_FAILED'
   }
+  $visible = ($result -join ' ') + (Get-Content -LiteralPath $runnerErr -Raw)
+  if ($visible.Contains($sourceUri.UserInfo)) { Stop-Maintenance 'SECRET_LEAK_IN_RUNNER_OUTPUT' }
   Write-Output 'PASS full synthetic preflight, backup, restore and isolated Prisma migration'
+  Write-Output 'PASS synthetic credential not emitted'
   $denied = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
       -Mode Apply -Synthetic -ConfigPath $configFile 2>$runnerErr)
   if ($LASTEXITCODE -eq 0 -or

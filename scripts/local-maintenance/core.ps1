@@ -161,8 +161,12 @@ function Invoke-PostgresTool([object]$Config, [Uri]$Uri, [string]$Tool,
     [string[]]$Arguments, [string]$FailureCode) {
   $binary = Join-Path $Config.postgresBin $Tool
   $result = Invoke-WithPgEnvironment $Uri {
-    $output = @(& $binary @Arguments 2>&1)
-    return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
+    $oldPreference = $ErrorActionPreference
+    try {
+      $ErrorActionPreference = 'Continue'
+      $output = @(& $binary @Arguments 2>$null)
+      return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
+    } finally { $ErrorActionPreference = $oldPreference }
   }
   if ($result.ExitCode -ne 0) { Stop-Maintenance $FailureCode }
   return @($result.Output)
@@ -491,12 +495,15 @@ function Invoke-DisposableMigration([object]$Cluster, [string]$Repo) {
   }
   $previousDatabase = [Environment]::GetEnvironmentVariable('DATABASE_URL', 'Process')
   $previousDirect = [Environment]::GetEnvironmentVariable('DIRECT_URL', 'Process')
+  $oldPreference = $ErrorActionPreference
   try {
     $env:DATABASE_URL = $Cluster.Uri.AbsoluteUri
     $env:DIRECT_URL = $Cluster.Uri.AbsoluteUri
+    $ErrorActionPreference = 'Continue'
     $output = @(& node $cli migrate deploy 2>$null)
     if ($LASTEXITCODE -ne 0) { Stop-Maintenance 'ISOLATED_MIGRATION_FAILED' }
   } finally {
+    $ErrorActionPreference = $oldPreference
     [Environment]::SetEnvironmentVariable('DATABASE_URL', $previousDatabase, 'Process')
     [Environment]::SetEnvironmentVariable('DIRECT_URL', $previousDirect, 'Process')
   }
