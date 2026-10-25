@@ -65,13 +65,14 @@ try {
   try {
     $env:DATABASE_URL = $sourceUri.AbsoluteUri
     $env:DIRECT_URL = $sourceUri.AbsoluteUri
-    $output = @(& node $cli migrate deploy --schema (Join-Path $fixture 'schema.prisma') 2>&1)
+    $output = @(& node $cli migrate deploy --schema (Join-Path $fixture 'schema.prisma') 2>$null)
     if ($LASTEXITCODE -ne 0) { Stop-Maintenance 'SYNTHETIC_BASE_MIGRATIONS_FAILED' }
   } finally {
     [Environment]::SetEnvironmentVariable('DATABASE_URL', $oldDatabase, 'Process')
     [Environment]::SetEnvironmentVariable('DIRECT_URL', $oldDirect, 'Process')
   }
   $ledger = @(Get-ProductionLedger $config $sourceUri)
+  Write-Output "SYNTHETIC LEDGER rows=$($ledger.Count) firstType=$($ledger[0].GetType().FullName) fields=$($ledger[0].PSObject.Properties.Name -join ',')"
   [void](Compare-MigrationLedger $all $ledger @($pending))
   Write-Output "PASS synthetic base migration chain ($($ledger.Count) migrations)"
 

@@ -213,7 +213,7 @@ function Invoke-Apply([string]$Repo) {
     $env:DATABASE_URL = $uri.AbsoluteUri
     # Never echo child output: scripts and database errors can contain credentials.
     Push-Location $Repo
-    try { $output = @(& npm run db:migrate:deploy 2>&1); $exitCode = $LASTEXITCODE }
+    try { $output = @(& npm run db:migrate:deploy 2>$null); $exitCode = $LASTEXITCODE }
     finally { Pop-Location }
     if ($exitCode -ne 0) {
       [void](Write-Report $config $plan 'APPLY_ERROR' 'GUARDED_COMMAND_FAILED')

@@ -257,7 +257,10 @@ SELECT COALESCE(json_agg(json_build_object(
   'failed', finished_at IS NULL AND rolled_back_at IS NULL
 ) ORDER BY migration_name), '[]'::json)::text FROM public."_prisma_migrations"
 '@
-  try { return @(Invoke-ReadOnlyQuery $Config $Uri $sql 'LEDGER_READ_FAILED' | ConvertFrom-Json) }
+  try {
+    $parsed = ConvertFrom-Json -InputObject (Invoke-ReadOnlyQuery $Config $Uri $sql 'LEDGER_READ_FAILED')
+    foreach ($row in $parsed) { Write-Output $row }
+  }
   catch { if ($_.Exception.Message -like 'LMR:*') { throw }; Stop-Maintenance 'LEDGER_JSON_INVALID' }
 }
 
@@ -490,7 +493,7 @@ function Invoke-DisposableMigration([object]$Cluster, [string]$Repo) {
   try {
     $env:DATABASE_URL = $Cluster.Uri.AbsoluteUri
     $env:DIRECT_URL = $Cluster.Uri.AbsoluteUri
-    $output = @(& node $cli migrate deploy 2>&1)
+    $output = @(& node $cli migrate deploy 2>$null)
     if ($LASTEXITCODE -ne 0) { Stop-Maintenance 'ISOLATED_MIGRATION_FAILED' }
   } finally {
     [Environment]::SetEnvironmentVariable('DATABASE_URL', $previousDatabase, 'Process')
