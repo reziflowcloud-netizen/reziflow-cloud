@@ -78,25 +78,27 @@ try {
 
   $head = (& git -C $repo rev-parse HEAD).Trim()
   $runner = Join-Path $repo 'scripts/local-maintenance/runner.ps1'
+  $runnerErr = Join-Path $root 'runner.err'
   $result = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
       -Mode Preflight -Synthetic -ApprovedCommit $head -ExpectedMigrations $pending `
-      -ConfigPath $configFile 2>&1)
+      -ConfigPath $configFile 2>$runnerErr)
   if ($LASTEXITCODE -ne 0 -or ($result -join ' ') -notmatch 'PREFLIGHT PASS') {
-    $codes = @($result | Where-Object { $_ -match 'LOCAL MAINTENANCE BLOCKED:' })
+    $codes = @(Get-Content -LiteralPath $runnerErr | Where-Object { $_ -match 'LOCAL MAINTENANCE BLOCKED:' })
     Write-Output "PREFLIGHT BLOCK: $($codes -join ' ')"
     Stop-Maintenance 'FULL_SYNTHETIC_PREFLIGHT_FAILED'
   }
   Write-Output 'PASS full synthetic preflight, backup, restore and isolated Prisma migration'
   $denied = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
-      -Mode Apply -Synthetic -ConfigPath $configFile 2>&1)
-  if ($LASTEXITCODE -eq 0 -or ($denied -join ' ') -notmatch 'SYNTHETIC_APPLY_FORBIDDEN') {
+      -Mode Apply -Synthetic -ConfigPath $configFile 2>$runnerErr)
+  if ($LASTEXITCODE -eq 0 -or
+      (Get-Content -LiteralPath $runnerErr -Raw) -notmatch 'SYNTHETIC_APPLY_FORBIDDEN') {
     Stop-Maintenance 'SYNTHETIC_APPLY_WAS_NOT_DENIED'
   }
   Write-Output 'PASS synthetic apply refused'
   $planPath = Get-ChildItem -LiteralPath (Join-Path $private 'plans') `
     -Filter '*.sealed.json' -File | Select-Object -First 1 -ExpandProperty FullName
   $status = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
-      -Mode Status -Synthetic -ConfigPath $configFile -PlanPath $planPath 2>&1)
+      -Mode Status -Synthetic -ConfigPath $configFile -PlanPath $planPath 2>$runnerErr)
   if ($LASTEXITCODE -ne 0 -or ($status -join ' ') -notmatch 'PREFLIGHT_ONLY') {
     Stop-Maintenance 'OFFLINE_STATUS_FAILED'
   }

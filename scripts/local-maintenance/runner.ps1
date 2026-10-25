@@ -261,5 +261,8 @@ try {
   $message = $_.Exception.Message
   $code = if ($message -match 'LMR:([A-Z0-9_]+)') { $Matches[1] } else { 'UNEXPECTED_ERROR' }
   [Console]::Error.WriteLine("LOCAL MAINTENANCE BLOCKED: $code")
+  if ($Synthetic -and $code -eq 'UNEXPECTED_ERROR') {
+    [Console]::Error.WriteLine("SYNTHETIC DIAGNOSTIC: $($_.Exception.GetType().Name) line=$($_.InvocationInfo.ScriptLineNumber)")
+  }
   exit 1
 }
