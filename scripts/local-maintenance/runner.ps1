@@ -93,7 +93,7 @@ function Assert-StateEqualsPlan([object]$State, [object]$Plan) {
 }
 
 function Write-Report([object]$Config, [object]$Plan, [string]$Result,
-    [string]$Code = '') {
+    [string]$Code = '', [string]$Approval = '') {
   $directory = Get-PlanDirectory $Config
   $path = Join-Path $directory ($Plan.runId + '.report.json')
   $report = [ordered]@{
@@ -103,6 +103,7 @@ function Write-Report([object]$Config, [object]$Plan, [string]$Result,
     migrations = @($Plan.pending)
     result = $Result
     reasonCode = $Code
+    approvalReference = $Approval
     productionChanged = if ($Result -eq 'APPLIED') { 'YES' } else { 'UNCONFIRMED_OR_NO' }
   }
   $bytes = [Text.Encoding]::UTF8.GetBytes((ConvertTo-Json $report -Depth 10))
@@ -170,13 +171,20 @@ function Invoke-Preflight([string]$Repo) {
 
 function Invoke-Apply([string]$Repo) {
   if ($Synthetic) { Stop-Maintenance 'SYNTHETIC_APPLY_FORBIDDEN' }
-  if (-not $ApprovalReference -or $ApprovalReference.Length -lt 8) {
+  if (-not $ApprovalReference -or
+      $ApprovalReference -notmatch '^[A-Za-z0-9:/._#-]{8,200}$') {
     Stop-Maintenance 'SEPARATE_APPROVAL_REFERENCE_REQUIRED'
   }
   $config = Get-Config $Repo
   $actualPlanPath = if ($PlanPath) { $PlanPath } else { Get-LatestPlanPath $config }
   $plan = Read-SealedPlan $config $actualPlanPath
   if ($plan.synthetic) { Stop-Maintenance 'SYNTHETIC_PLAN_APPLY_FORBIDDEN' }
+  if ($plan.restore -ne 'PASS' -or $plan.localMigration -ne 'PASS' -or
+      $plan.dataIntegrity -ne 'PASS' -or $plan.oldAppNewDb -ne 'PASS_SCHEMA_ONLY' -or
+      @($plan.pending).Count -eq 0 -or
+      @($plan.pending).Count -ne @($plan.migrations).Count) {
+    Stop-Maintenance 'SEALED_PLAN_INCOMPLETE'
+  }
   if ($ApprovedCommit -and $ApprovedCommit -ne $plan.approvedCommit) {
     Stop-Maintenance 'APPROVED_COMMIT_MISMATCH'
   }
@@ -221,7 +229,7 @@ function Invoke-Apply([string]$Repo) {
     }
     finally { Pop-Location }
     if ($exitCode -ne 0) {
-      [void](Write-Report $config $plan 'APPLY_ERROR' 'GUARDED_COMMAND_FAILED')
+      [void](Write-Report $config $plan 'APPLY_ERROR' 'GUARDED_COMMAND_FAILED' $ApprovalReference)
       Stop-Maintenance 'GUARDED_COMMAND_FAILED_DO_NOT_RETRY'
     }
   } finally {
@@ -233,10 +241,10 @@ function Invoke-Apply([string]$Repo) {
   try {
     $ledger = @(Get-ProductionLedger $config $uri)
     [void](Compare-MigrationLedger (Get-MigrationFiles $Repo) $ledger @())
-    [void](Write-Report $config $plan 'APPLIED')
+    [void](Write-Report $config $plan 'APPLIED' '' $ApprovalReference)
     Write-Output "APPLIED; run=$($plan.runId); pending=0; failed=0"
   } catch {
-    [void](Write-Report $config $plan 'POSTCHECK_FAILED' 'LEDGER_NOT_VERIFIED')
+    [void](Write-Report $config $plan 'POSTCHECK_FAILED' 'LEDGER_NOT_VERIFIED' $ApprovalReference)
     Stop-Maintenance 'POSTCHECK_FAILED_DIAGNOSE_NO_RETRY'
   }
 }
