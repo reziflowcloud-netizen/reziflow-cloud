@@ -24,15 +24,22 @@ function Assert-ChildPath([string]$Parent, [string]$Child) {
 }
 
 function Assert-NotReparsePoint([string]$Path) {
-  if (-not (Test-Path -LiteralPath $Path)) { Stop-Maintenance 'PATH_MISSING' }
-  if (((Get-Item -LiteralPath $Path -Force).Attributes -band
-        [IO.FileAttributes]::ReparsePoint) -ne 0) {
-    Stop-Maintenance 'REPARSE_POINT_FORBIDDEN'
+  $current = [IO.Path]::GetFullPath($Path)
+  while ($current) {
+    if (-not (Test-Path -LiteralPath $current)) { Stop-Maintenance 'PATH_MISSING' }
+    if (((Get-Item -LiteralPath $current -Force).Attributes -band
+          [IO.FileAttributes]::ReparsePoint) -ne 0) {
+      Stop-Maintenance 'REPARSE_POINT_FORBIDDEN'
+    }
+    $parent = [IO.Path]::GetDirectoryName($current.TrimEnd('\', '/'))
+    if (-not $parent -or $parent -eq $current) { break }
+    $current = $parent
   }
 }
 
 function Assert-PrivateAcl([string]$Path) {
   if (-not (Test-Path -LiteralPath $Path)) { Stop-Maintenance 'PRIVATE_PATH_MISSING' }
+  Assert-NotReparsePoint $Path
   $acl = Get-Acl -LiteralPath $Path
   $allowed = @([Security.Principal.WindowsIdentity]::GetCurrent().User.Value,
     'S-1-5-18', 'S-1-5-32-544')
@@ -206,7 +213,7 @@ function Get-GitCheckpoint([string]$Repo, [string]$ApprovedCommit, [bool]$Synthe
   if ($LASTEXITCODE -ne 0 -or $dirty.Count -gt 0) { Stop-Maintenance 'DIRTY_CHECKOUT' }
   if (-not $Synthetic) {
     $remote = (& git -C $Repo config --get remote.origin.url 2>$null).Trim()
-    if ($remote -notmatch 'reziflowcloud-netizen/reziflow-cloud(\.git)?$') {
+    if ($remote -notmatch '^(?:git@github\.com:|https://github\.com/|ssh://git@github\.com/)reziflowcloud-netizen/reziflow-cloud(?:\.git)?$') {
       Stop-Maintenance 'WRONG_REPOSITORY'
     }
   }
