@@ -78,7 +78,10 @@ try {
   foreach ($migration in $all | Where-Object Name -ne $pending) {
     $dest = Join-Path $migrationDir $migration.Name
     [void](New-Item -ItemType Directory -Path $dest)
-    [IO.File]::Copy($migration.Path, (Join-Path $dest 'migration.sql'))
+    # Apply the approved Git bytes. A Windows checkout can alter newlines inside
+    # historical SQL literals, so its working copy is not a safe fixture source.
+    [IO.File]::WriteAllBytes((Join-Path $dest 'migration.sql'),
+      (Get-ApprovedMigrationBytes $repo $migration.Name))
   }
   $cli = Join-Path $repo 'node_modules/prisma/build/index.js'
   if (-not (Test-Path -LiteralPath $cli)) { Stop-Maintenance 'PRISMA_CLI_MISSING' }
