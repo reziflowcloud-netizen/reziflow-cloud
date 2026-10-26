@@ -1,3 +1,6 @@
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+  throw 'TEST_REQUIRES_POWERSHELL_7: use pwsh -NoProfile -File tests/local-maintenance/runner-tests.ps1'
+}
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
@@ -22,6 +25,54 @@ function Expect-Block([scriptblock]$Action, [string]$Code) {
   throw "TEST FAIL: expected block $Code"
 }
 
+function Assert-TestCleanupSafe([object]$Config, [string]$Base, [string]$Root,
+    [string]$Id, [object[]]$Clusters, [string]$AllowedJunction = '') {
+  if ($Id -notmatch '^[0-9a-f]{12}$' -or
+      [IO.Path]::GetFullPath($Root) -ne [IO.Path]::GetFullPath((Join-Path $Base $Id))) {
+    Stop-Maintenance 'TEST_CLEANUP_PATH_SUBSTITUTED'
+  }
+  [void](Assert-ChildPath $Base $Root)
+  Assert-NotReparsePoint $Root
+  $marker = Join-Path $Root 'runner-test-owned.txt'
+  if (-not (Test-Path -LiteralPath $marker -PathType Leaf) -or
+      (Get-Content -LiteralPath $marker -Raw).Trim() -ne $Id) {
+    Stop-Maintenance 'TEST_CLEANUP_MARKER_MISMATCH'
+  }
+  foreach ($cluster in $Clusters) {
+    if (-not $cluster) { continue }
+    if ($cluster.Port -gt 0) {
+      $ready = Invoke-WithIsolatedEnvironment $Config $null @{} {
+        $oldPreference = $ErrorActionPreference
+        try {
+          $ErrorActionPreference = 'Continue'
+          $output = @(& (Join-Path $Config.postgresBin 'pg_isready.exe') '-h' '127.0.0.1' `
+              '-p' ([string]$cluster.Port) '-q' 2>$null)
+          return $LASTEXITCODE
+        } finally { $ErrorActionPreference = $oldPreference }
+      }
+      if ($ready -eq 0) { Stop-Maintenance 'TEST_CLUSTER_STILL_RUNNING' }
+    }
+    if (Test-Path -LiteralPath $cluster.Root) {
+      Stop-Maintenance 'TEST_CLUSTER_CLEANUP_UNVERIFIED'
+    }
+  }
+  $stack = [Collections.Generic.Stack[string]]::new()
+  $stack.Push([IO.Path]::GetFullPath($Root))
+  while ($stack.Count -gt 0) {
+    foreach ($entry in [IO.Directory]::EnumerateFileSystemEntries($stack.Pop())) {
+      $attributes = [IO.File]::GetAttributes($entry)
+      if (($attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        if ($AllowedJunction -and
+            [IO.Path]::GetFullPath($entry) -eq [IO.Path]::GetFullPath($AllowedJunction)) {
+          continue
+        }
+        Stop-Maintenance 'TEST_REPARSE_DESCENDANT_FORBIDDEN'
+      }
+      if (($attributes -band [IO.FileAttributes]::Directory) -ne 0) { $stack.Push($entry) }
+    }
+  }
+}
+
 $pgBin = 'C:\Program Files\PostgreSQL\18\bin'
 foreach ($tool in @('initdb.exe', 'pg_ctl.exe', 'createdb.exe', 'pg_dump.exe',
     'pg_restore.exe', 'psql.exe')) {
@@ -38,6 +89,8 @@ Assert-PrivateAcl $testBase
 $root = Assert-ChildPath $testBase (Join-Path $testBase $testId)
 [void](New-Item -ItemType Directory -Path $root)
 Set-PrivateAcl $root
+[IO.File]::WriteAllText((Join-Path $root 'runner-test-owned.txt'), $testId,
+  [Text.UTF8Encoding]::new($false))
 $private = Join-Path $root 'private'
 $backups = Join-Path $root 'backups'
 foreach ($path in @($private, $backups)) {
@@ -53,6 +106,8 @@ $config = [pscustomobject]@{
 }
 $source = $null
 $restore = $null
+$identityPeer = $null
+$peerConfig = $null
 $substitutePath = $null
 try {
   $migration = Join-Path $repo 'prisma/migrations/20261024160000_meta_message_reads/migration.sql'
@@ -163,6 +218,44 @@ INSERT INTO public."NotificationPreference" VALUES (1);
   [IO.File]::WriteAllText($schemaPath, $schema, [Text.UTF8Encoding]::new($false))
   [void](Invoke-PostgresTool $config $readUri 'psql.exe' @(
       '-X', '-v', 'ON_ERROR_STOP=1', '-f', $schemaPath) 'SYNTHETIC_SCHEMA_FAILED')
+  $peerPrivate = Join-Path $root 'peer-private'
+  [void](New-Item -ItemType Directory -Path $peerPrivate)
+  Set-PrivateAcl $peerPrivate
+  $peerConfig = $config | ConvertTo-Json | ConvertFrom-Json
+  $peerConfig.privateDirectory = $peerPrivate
+  $identityPeer = New-DisposableCluster $peerConfig ('source' + $testId)
+  $directIdentity = Get-DatabaseIdentityState $config $source.Uri
+  $peerIdentity = Get-DatabaseIdentityState $peerConfig $identityPeer.Uri
+  Assert ($directIdentity.database -eq $peerIdentity.database -and
+    [string]$directIdentity.databaseOid -eq [string]$peerIdentity.databaseOid -and
+    $directIdentity.role -eq $peerIdentity.role -and
+    $directIdentity.clusterIdentity -ne $peerIdentity.clusterIdentity) `
+    'distinct clusters share name/OID/role but have distinct system identifiers'
+  Expect-Block { Get-ApplicationRoleState $config $identityPeer.Uri $directIdentity } `
+    'APPLICATION_ROLE_TARGET_MISMATCH'
+  $appRole = 'identity_app_' + $testId
+  $appPassword = [Guid]::NewGuid().ToString('N')
+  $identitySql = Join-Path $root 'synthetic-identity.sql'
+  [IO.File]::WriteAllText($identitySql,
+    "CREATE ROLE `"$appRole`" LOGIN PASSWORD '$appPassword' NOSUPERUSER;" +
+    ' REVOKE EXECUTE ON FUNCTION pg_control_system() FROM PUBLIC;',
+    [Text.UTF8Encoding]::new($false))
+  [void](Invoke-PostgresTool $config $readUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', $identitySql) 'SYNTHETIC_IDENTITY_ROLE_FAILED')
+  $appUri = [Uri]::new("postgresql://${appRole}:$appPassword@127.0.0.1:$($source.Port)/${dbName}?schema=public")
+  $appConfig = $config | ConvertTo-Json | ConvertFrom-Json
+  $appConfig.applicationRole = $appRole
+  $sameDbSnapshot = Get-DatabaseSnapshot $config $readUri
+  Expect-Block { Get-ApplicationRoleState $appConfig $appUri $sameDbSnapshot } `
+    'CLUSTER_IDENTITY_UNAVAILABLE'
+  [IO.File]::WriteAllText($identitySql,
+    "GRANT EXECUTE ON FUNCTION pg_control_system() TO `"$appRole`";",
+    [Text.UTF8Encoding]::new($false))
+  [void](Invoke-PostgresTool $config $readUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', $identitySql) 'SYNTHETIC_IDENTITY_GRANT_FAILED')
+  $confirmedApp = Get-ApplicationRoleState $appConfig $appUri $sameDbSnapshot
+  Assert ($confirmedApp.clusterIdentity -eq $sameDbSnapshot.clusterIdentity -and
+    $confirmedApp.role -eq $appRole) 'two credentials reach same confirmed database cluster'
   $timeoutDb = 'legalhub_runner_synthetic_lock_' + $testId
   [void](Invoke-PostgresTool $config $source.Uri 'createdb.exe' @(
       '-T', 'template0', $timeoutDb) 'SYNTHETIC_LOCK_DB_FAILED')
@@ -264,7 +357,7 @@ datasource db {
   $snapshot = Get-DatabaseSnapshot $config $readUri
   Assert ([long]$snapshot.leadMessageRows -eq 1) 'synthetic snapshot'
   Assert-LockSafety $config $readUri $snapshot @('LeadMessage')
-  Expect-Block { Assert-SequenceRolePermissions $config $source @(
+  Expect-Block { Assert-SequenceRolePermissions $config $readUri $source @(
       [pscustomobject]@{ audit = [pscustomobject]@{ CreatedSequences = @('SyntheticSequence') } }) `
       'restore_admin' 'restricted_app' } 'SEQUENCE_PERMISSION_UNPROVEN_DIFFERENT_ROLE'
   $snapshotHolder = Start-ExportedSnapshot $config $readUri
@@ -288,6 +381,50 @@ datasource db {
   Compare-RepresentativeFingerprints $before $after
   Assert-StructureEqual $structureBefore (Get-StructureFingerprint $config $restore.Uri)
   Write-Output 'PASS synthetic isolated restore and row fingerprints under concurrent source write'
+  $sequenceAudit = @([pscustomobject]@{
+      audit = [pscustomobject]@{ CreatedSequences = @('SyntheticSequence') }
+    })
+  $sequenceSql = Join-Path $root 'synthetic-sequence.sql'
+  [IO.File]::WriteAllText($sequenceSql,
+    'CREATE SEQUENCE public."SyntheticSequence";', [Text.UTF8Encoding]::new($false))
+  [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', $sequenceSql) 'SYNTHETIC_SEQUENCE_CREATE_FAILED')
+  Assert-SequenceRolePermissions $config $readUri $restore $sequenceAudit `
+    'restore_admin' 'restore_admin'
+  Write-Output 'PASS sequence privilege model uses isolated non-superuser role'
+  Expect-Block { Assert-SequenceRolePermissions $config $null $restore $sequenceAudit `
+      'restore_admin' 'restore_admin' } 'SEQUENCE_PRIVILEGE_SOURCE_UNKNOWN'
+  [IO.File]::WriteAllText($sequenceSql,
+    "ALTER DEFAULT PRIVILEGES FOR ROLE `"restore_admin`" REVOKE USAGE, UPDATE ON SEQUENCES FROM `"restore_admin`";",
+    [Text.UTF8Encoding]::new($false))
+  [void](Invoke-PostgresTool $config $readUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', $sequenceSql) 'SYNTHETIC_DEFAULT_ACL_FAILED')
+  Assert ((Get-ApplicableSequenceDefaultAclCount $config $readUri) -gt 0) `
+    'revoked sequence default ACL detected'
+  Expect-Block { Assert-SequenceRolePermissions $config $readUri $restore $sequenceAudit `
+      'restore_admin' 'restore_admin' } 'SEQUENCE_DEFAULT_ACL_UNMODELED'
+  [IO.File]::WriteAllText($sequenceSql,
+    "GRANT USAGE, CREATE ON SCHEMA public TO `"$appRole`";",
+    [Text.UTF8Encoding]::new($false))
+  [void](Invoke-PostgresTool $config $readUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', $sequenceSql) 'SYNTHETIC_APP_SCHEMA_GRANT_FAILED')
+  [IO.File]::WriteAllText($sequenceSql,
+    'CREATE SEQUENCE public."RevokedSequence";', [Text.UTF8Encoding]::new($false))
+  [void](Invoke-PostgresTool $config $appUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', $sequenceSql) 'SYNTHETIC_APP_SEQUENCE_CREATE_FAILED')
+  Assert-NonSuperuserSequenceAccess $config $appUri 'RevokedSequence' $appRole
+  [IO.File]::WriteAllText($sequenceSql,
+    "REVOKE USAGE, UPDATE ON SEQUENCE public.`"RevokedSequence`" FROM `"$appRole`";",
+    [Text.UTF8Encoding]::new($false))
+  [void](Invoke-PostgresTool $config $appUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', $sequenceSql) 'SYNTHETIC_APP_REVOKE_FAILED')
+  Expect-Block { Assert-NonSuperuserSequenceAccess $config $appUri `
+      'RevokedSequence' $appRole } 'SEQUENCE_PERMISSION_MISSING'
+  Expect-Block { Invoke-PostgresTool $config $appUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'SELECT nextval(''public."RevokedSequence"''::regclass);') `
+      'SEQUENCE_NEXTVAL_DENIED' } 'SEQUENCE_NEXTVAL_DENIED'
+  Write-Output 'PASS revoked application USAGE/UPDATE denies nextval'
   $structureMutation = Join-Path $root 'synthetic-structure-mutation.sql'
   [IO.File]::WriteAllText($structureMutation,
     'CREATE INDEX "SyntheticProbeIndex" ON public."LeadMessage" (id);',
@@ -375,30 +512,68 @@ datasource db {
   [void](New-Item -ItemType Junction -Path $substitutePath -Target $substituteTarget)
   Expect-Block { Get-MigrationFiles $dirtyRepo } 'REPARSE_POINT_FORBIDDEN'
   Write-Output 'PASS migration path substitution refused'
+  $testMarker = Join-Path $root 'runner-test-owned.txt'
+  [IO.File]::WriteAllText($testMarker, 'wrong-owner', [Text.UTF8Encoding]::new($false))
+  Expect-Block { Assert-TestCleanupSafe $config $testBase $root $testId @() } `
+    'TEST_CLEANUP_MARKER_MISMATCH'
+  [IO.File]::WriteAllText($testMarker, $testId, [Text.UTF8Encoding]::new($false))
+  Expect-Block { Assert-TestCleanupSafe $config $testBase $root $testId @($source) } `
+    'TEST_CLUSTER_STILL_RUNNING'
+  Expect-Block { Assert-TestCleanupSafe $config $testBase $root $testId @() } `
+    'TEST_REPARSE_DESCENDANT_FORBIDDEN'
+  Expect-Block { Assert-TestCleanupSafe $config $testBase `
+      (Join-Path $root 'substituted') $testId @() } 'TEST_CLEANUP_PATH_SUBSTITUTED'
+  Assert (Test-Path -LiteralPath $testMarker) 'cleanup refusals retained owned root'
   Write-Output 'WINDOWS SYNTHETIC TESTS PASS'
 } catch {
   Write-Output "TEST ERROR: $($_.Exception.Message)"
   throw
 } finally {
-  if ($restore) { try { Stop-DisposableCluster $config $restore } catch { Write-Warning $_.Exception.Message } }
-  if ($source) { try { Stop-DisposableCluster $config $source } catch { Write-Warning $_.Exception.Message } }
-  $safeRoot = Assert-ChildPath $testBase $root
-  if ((Split-Path -Leaf $safeRoot) -eq $testId -and
-      (Test-Path -LiteralPath $safeRoot -PathType Container)) {
+  $stopFailure = $null
+  if ($identityPeer) {
+    try { Stop-DisposableCluster $peerConfig $identityPeer }
+    catch { $stopFailure = $_.Exception.Message }
+  }
+  foreach ($cluster in @($restore, $source)) {
+    if ($stopFailure) { break }
+    if (-not $cluster) { continue }
+    try { Stop-DisposableCluster $config $cluster }
+    catch { $stopFailure = $_.Exception.Message; break }
+  }
+  if ($stopFailure) {
+    Write-Output "SYNTHETIC CLEANUP FAIL; retained local path: $root"
+    throw "TEST CLEANUP FAILED: $stopFailure"
+  }
+  try {
+    Assert-TestCleanupSafe $config $testBase $root $testId `
+      @($restore, $source, $identityPeer) $substitutePath
     if ($substitutePath -and (Test-Path -LiteralPath $substitutePath)) {
-      [void](Assert-ChildPath $safeRoot $substitutePath)
+      [void](Assert-ChildPath $root $substitutePath)
       if (((Get-Item -LiteralPath $substitutePath -Force).Attributes -band
-            [IO.FileAttributes]::ReparsePoint) -ne 0) {
-        [IO.Directory]::Delete($substitutePath, $false)
+            [IO.FileAttributes]::ReparsePoint) -eq 0) {
+        Stop-Maintenance 'TEST_JUNCTION_SUBSTITUTED'
+      }
+      [IO.Directory]::Delete($substitutePath, $false)
+    }
+    Assert-TestCleanupSafe $config $testBase $root $testId @($restore, $source, $identityPeer)
+    $entries = [Collections.Generic.Stack[string]]::new()
+    $entries.Push($root)
+    while ($entries.Count -gt 0) {
+      foreach ($entry in [IO.Directory]::EnumerateFileSystemEntries($entries.Pop())) {
+        $attributes = [IO.File]::GetAttributes($entry)
+        if (($attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+          Stop-Maintenance 'TEST_REPARSE_DESCENDANT_FORBIDDEN'
+        }
+        if (($attributes -band [IO.FileAttributes]::ReadOnly) -ne 0) {
+          [IO.File]::SetAttributes($entry,
+            $attributes -band (-bnot [IO.FileAttributes]::ReadOnly))
+        }
+        if (($attributes -band [IO.FileAttributes]::Directory) -ne 0) { $entries.Push($entry) }
       }
     }
-    foreach ($file in [IO.Directory]::EnumerateFiles($safeRoot, '*',
-        [IO.SearchOption]::AllDirectories)) {
-      [IO.File]::SetAttributes($file, [IO.FileAttributes]::Normal)
-    }
-    for ($attempt = 0; $attempt -lt 8; $attempt++) {
-      try { [IO.Directory]::Delete($safeRoot, $true); break }
-      catch [IO.IOException] { Start-Sleep -Milliseconds 500 }
-    }
+    [IO.Directory]::Delete($root, $true)
+  } catch {
+    Write-Output "SYNTHETIC CLEANUP FAIL; retained local path: $root"
+    throw
   }
 }

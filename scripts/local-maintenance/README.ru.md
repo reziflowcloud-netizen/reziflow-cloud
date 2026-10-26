@@ -1,37 +1,38 @@
 # Локальный раннер миграций LegalHub
 
-Раннер работает только в Windows PowerShell из чистого checkout на утверждённом commit. Подготовка **не разрешает** применение миграции. Само применение требует отдельного решения оператора, ссылки на это решение и точного интерактивного подтверждения. Команда применения проекта: **`npm run db:migrate:deploy`**. Ни `npm run db`, ни `npm run db:migrate` в репозитории нет.
+BAT-оператор работает через **Windows PowerShell 5.1**. Синтетические тесты требуют **PowerShell 7** (`pwsh`): они проверяют версию и сразу отказывают в 5.1. Нужны Git, Node.js/npm, зависимости из `npm ci` (`node_modules`), а также PostgreSQL **18** с `initdb`, `pg_ctl`, `psql`, `pg_isready`, `createdb`, `pg_dump` и `pg_restore`. Используйте чистый отдельный checkout утверждённого commit.
 
-## Однократная настройка
+## Три действия оператора
 
-Создайте вне Git каталог `%LOCALAPPDATA%\LegalHubMaintenance` и защитите его, файл конфигурации, файл окружения и каталог копий ACL только для своего Windows-пользователя, SYSTEM и Administrators. Не храните их в репозитории. Пример `config.json` без секретов:
+1. **Подготовить закрытую локальную конфигурацию вне Git.** Файл окружения содержит по одной строке `DIRECT_URL=...` и `DATABASE_URL=...`. Каталоги, конфигурация, файл окружения и доверенный CA-сертификат должны иметь ACL только для вашего Windows-пользователя, SYSTEM и Administrators. Не отправляйте URL, пароли или backup в чат. Пример `config.json` без секретов:
 
-```json
-{
-  "targetKind": "production",
-  "environmentFile": "C:\\Users\\YOUR_NAME\\AppData\\Local\\LegalHubMaintenance\\production.env",
-  "expectedHost": "db.YOUR_PROJECT_REF.supabase.co",
-  "expectedApplicationHost": "db.YOUR_PROJECT_REF.supabase.co",
-  "applicationRole": "YOUR_APPLICATION_DB_ROLE",
-  "backupDirectory": "C:\\Users\\YOUR_NAME\\Documents\\LegalHub Private Backups",
-  "privateDirectory": "C:\\Users\\YOUR_NAME\\AppData\\Local\\LegalHubMaintenance",
-  "postgresBin": "C:\\Program Files\\PostgreSQL\\18\\bin",
-  "nodeBin": "C:\\Program Files\\nodejs",
-  "tlsRootCertFile": "C:\\Users\\YOUR_NAME\\AppData\\Local\\LegalHubMaintenance\\production-ca.pem"
-}
+   ```json
+   {
+     "targetKind": "production",
+     "environmentFile": "C:\\Users\\YOUR_NAME\\AppData\\Local\\LegalHubMaintenance\\production.env",
+     "expectedHost": "db.YOUR_PROJECT_REF.supabase.co",
+     "expectedApplicationHost": "db.YOUR_PROJECT_REF.supabase.co",
+     "applicationRole": "YOUR_APPLICATION_DB_ROLE",
+     "backupDirectory": "C:\\Users\\YOUR_NAME\\Documents\\LegalHub Private Backups",
+     "privateDirectory": "C:\\Users\\YOUR_NAME\\AppData\\Local\\LegalHubMaintenance",
+     "postgresBin": "C:\\Program Files\\PostgreSQL\\18\\bin",
+     "nodeBin": "C:\\Program Files\\nodejs",
+     "tlsRootCertFile": "C:\\Users\\YOUR_NAME\\AppData\\Local\\LegalHubMaintenance\\production-ca.pem"
+   }
+
+2. **Выполнить preflight и прочитать отчёт.** В чистом checkout: `PREFLIGHT.bat -ApprovedCommit <40-символьный SHA> -ExpectedMigrations <имя> -ConfigPath <путь>`. `STATUS.bat` и `REPORT.bat` читают только локальный отчёт; они не подтверждают текущее состояние DB. Если миграций нет, выполните `PREFLIGHT.bat -NoMigration -ApprovedCommit <SHA> -ConfigPath <путь>`: backup и симуляция будут пропущены. План действует четыре часа. Preflight создаёт приватную копию только схемы `public` без владельцев/ACL, восстанавливает её в собственном PostgreSQL на `127.0.0.1` и применяет миграцию только там. Это не полный backup ролей и других схем. Совместимость старого приложения проверяется на уровне схемы; HTTP smoke — отдельный шаг rollout.
+
+3. **Применять только после отдельного решения владельца.** `APPLY_APPROVED.bat -ApprovalReference <ссылка_на_решение> -PlanPath <путь>` требует точного интерактивного подтверждения, повторной проверки и использует план лишь один раз. `ApprovalReference` — заявление оператора, а не криптографическая проверка внешнего решения. Рабочая команда внутри раннера — существующая `npm run db:migrate:deploy`; `package.json` и guarded script не менялись. При неизвестном результате: **диагностика ledger и результата, без повтора и автоматического rollback**.
+
+Раннер блокирует неизвестные SQL/миграции, неподтверждённую общность DIRECT_URL и DATABASE_URL, недоступный read-only идентификатор кластера, отличающиеся роли приложения и миграции при создании sequence, а также нестандартные применимые default ACL для sequence. Он не выдаёт GRANT автоматически. Никакой unattended Production Apply не поддерживается; создание раннера не разрешает его Production использование.
+
+## Воспроизводимые Windows-тесты
+
+Из чистого checkout с локальными синтетическими PostgreSQL-базами:
+
+```powershell
+pwsh -NoProfile -File tests/local-maintenance/runner-tests.ps1
+pwsh -NoProfile -File tests/local-maintenance/full-preflight.ps1
 ```
 
-`production.env` должен содержать ровно по одной строке `DIRECT_URL=postgresql://...` и `DATABASE_URL=postgresql://...` с уже согласованными endpoint. `applicationRole` — точное имя роли CRM в `DATABASE_URL`. Файл `tlsRootCertFile` — доверенный корневой сертификат для проверки имени Production endpoint. Раннер не берёт URL из Git, `.env` проекта или глобальных переменных. Значения URL не выводятся. При подозрении на нарушение ACL раннер останавливается. Не создавайте эти файлы из чата и не передавайте их Codex Cloud.
-
-## Операторский порядок
-
-1. Получите отдельное утверждение commit SHA и точных имён миграций. В чистом checkout этого commit запустите `PREFLIGHT.bat -ApprovedCommit <40-символьный SHA> -ExpectedMigrations <имя_миграции>`. Для нескольких миграций передайте `-ExpectedMigrations имя1,имя2`. При необходимости добавьте `-ConfigPath <абсолютный путь>`.
-2. Проверьте итоговый `PREFLIGHT PASS` и файл плана в приватном каталоге. Раннер сравнивает Git/ledger/checksums, проверяет разрешённые виды SQL и нагрузку, создаёт новую приватную `pg_dump` копию из одного экспортированного read-only snapshot, восстанавливает её в собственный кластер на 127.0.0.1 и свободном порту, применяет миграцию **только там**, сравнивает данные и структуру, проверяет объекты и доступ роли приложения к новым sequence и сохраняет подписанный локальным HMAC план. Кластер удаляется после проверки. План действует четыре часа. Копия охватывает `public` без владельцев и ACL; её нельзя считать полной копией ролей, прав и других схем. Схемная совместимость старого приложения отмечается как `PASS_SCHEMA_ONLY`; runtime HTTP smoke выполняется отдельно.
-3. Только после **отдельного** согласования выполните `APPLY_APPROVED.bat -ApprovalReference <номер_или_ссылка_на_разрешение> [-PlanPath <путь>]`. `ApprovalReference` — запись заявления оператора, а не автоматическая или криптографическая проверка внешнего согласования. Оператор вручную вводит показанную полную фразу. После ввода раннер удерживает локальную файловую блокировку и advisory lock внутри целевой базы, повторяет проверки Git, SQL, ledger, endpoint, backup и блокировок, затем атомарно помечает план использованным. DDL имеет ограничение ожидания блокировки и времени выполнения. При ошибке повтор с тем же планом запрещён: требуется диагностика и новый preflight, без автоматического rollback.
-4. `STATUS.bat` и `REPORT.bat` показывают последний локальный отчёт **без подключения к Production**: плановые и наблюдаемые counts, состояние этапов, время и следующее действие. Для актуального состояния DB нужен новый preflight. Если миграций нет, используйте `PREFLIGHT.bat -NoMigration -ApprovedCommit <SHA>`; он записывает пропуск без backup и симуляции.
-
-`APPLY_APPROVED.bat` никогда не работает с `-Synthetic`. Синтетическая конфигурация допускает только `127.0.0.1`, отдельное имя базы `legalhub_runner_synthetic_*` и отдельный приватный каталог. **Создание и проверка этого раннера не даёт разрешения применять его к Production.**
-
-Раннер останавливается при неизвестной или изменённой миграции, несовпадении SHA/checkout, опасном или неподдерживаемом SQL, плохом backup/restore, изменении данных при симуляции, неожиданном endpoint, долгих транзакциях/ожидании блокировки или таблице для обычного индексирования больше 64 MiB. Большие таблицы и сложные миграции требуют отдельного ручного плана; раннер не обходит запрет.
-
-Если миграция создаёт sequence, а роль приложения отличается от роли миграции, автоматический preflight блокируется: копия `public` без ACL не доказывает будущие права `USAGE` на новую sequence. Нужен отдельный проверенный план прав и новое согласование. Раннер не выполняет `GRANT` автоматически.
+BAT запускает Windows PowerShell 5.1; полный синтетический тест вызывает настоящий `PREFLIGHT.bat` из другой рабочей папки. Production Apply тестами не вызывается.

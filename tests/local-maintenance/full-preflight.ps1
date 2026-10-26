@@ -1,3 +1,6 @@
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+  throw 'TEST_REQUIRES_POWERSHELL_7: use pwsh -NoProfile -File tests/local-maintenance/full-preflight.ps1'
+}
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
@@ -16,6 +19,8 @@ Assert-PrivateAcl $testBase
 $root = Assert-ChildPath $testBase (Join-Path $testBase $testId)
 [void](New-Item -ItemType Directory -Path $root)
 Set-PrivateAcl $root
+[IO.File]::WriteAllText((Join-Path $root 'runner-test-owned.txt'), $testId,
+  [Text.UTF8Encoding]::new($false))
 $private = Join-Path $root 'private'
 $backups = Join-Path $root 'backups'
 foreach ($path in @($private, $backups)) {
@@ -154,6 +159,44 @@ datasource db {
   $planForStatus = Read-SealedPlan $config $planPath
   $reportPath = Join-Path $private "reports/$($planForStatus.runId).json"
   $originalReport = Get-Content -LiteralPath $reportPath -Raw -Encoding UTF8
+  $crashScript = Join-Path $root 'synthetic-abrupt-stop.ps1'
+  [IO.File]::WriteAllText($crashScript, @'
+param([string]$Repo, [string]$ConfigPath, [string]$PlanPath)
+. (Join-Path $Repo 'scripts/local-maintenance/core.ps1')
+. (Join-Path $Repo 'scripts/local-maintenance/plan.ps1')
+$config = Read-MaintenanceConfig $ConfigPath $true
+$plan = Read-SealedPlan $config $PlanPath
+Mark-PlanAttempted $config $plan
+[Diagnostics.Process]::GetCurrentProcess().Kill()
+'@, [Text.UTF8Encoding]::new($false))
+  $crashResult = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $crashScript `
+      -Repo $repo -ConfigPath $configFile -PlanPath $planPath 2>$runnerErr)
+  $attemptedMarker = Join-Path $private "plans/$($planForStatus.runId).attempted"
+  if ($LASTEXITCODE -eq 0 -or -not (Test-Path -LiteralPath $attemptedMarker)) {
+    Stop-Maintenance 'ABRUPT_ATTEMPT_MARKER_TEST_FAILED'
+  }
+  foreach ($mode in @('Status', 'Report')) {
+    $interrupted = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
+        -Mode $mode -Synthetic -ConfigPath $configFile -PlanPath $planPath 2>$runnerErr)
+    $text = $interrupted -join ' '
+    if ($LASTEXITCODE -ne 0 -or $text -notmatch 'STATUS ATTEMPTED_UNVERIFIED' -or
+        $text -notmatch 'Apply=ATTEMPTED_UNVERIFIED' -or
+        $text -notmatch 'Outcome=UNKNOWN' -or
+        $text -notmatch 'DIAGNOSE_LEDGER_AND_OUTCOME_NO_RETRY' -or
+        $text -match 'SEPARATE_OWNER_DECISION_REQUIRED') {
+      Stop-Maintenance 'INTERRUPTED_APPLY_REPORT_UNSAFE'
+    }
+  }
+  $hiddenReport = $reportPath + '.held'
+  [IO.File]::Move($reportPath, $hiddenReport)
+  try {
+    $missingReport = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
+        -Mode Status -Synthetic -ConfigPath $configFile -PlanPath $planPath 2>$runnerErr)
+    if ($LASTEXITCODE -ne 0 -or ($missingReport -join ' ') -notmatch 'ATTEMPTED_UNVERIFIED') {
+      Stop-Maintenance 'MISSING_INTERRUPTED_REPORT_UNSAFE'
+    }
+  } finally { [IO.File]::Move($hiddenReport, $reportPath) }
+  Write-Output 'PASS abrupt attempted-marker termination and offline recovery'
   try {
     foreach ($resultName in @('APPLIED', 'APPLY_ERROR')) {
       $reportState = $originalReport | ConvertFrom-Json
@@ -197,13 +240,33 @@ datasource db {
   Write-Output 'PASS REPORT.bat shows skipped no-migration state'
   Write-Output 'FULL WINDOWS PREFLIGHT TEST PASS'
 } finally {
-  if ($source) { Stop-DisposableCluster $config $source }
-  $safeRoot = Assert-ChildPath $testBase $root
-  if ((Split-Path -Leaf $safeRoot) -eq $testId -and
-      (Test-Path -LiteralPath $safeRoot -PathType Container)) {
-    for ($attempt = 0; $attempt -lt 8; $attempt++) {
-      try { [IO.Directory]::Delete($safeRoot, $true); break }
-      catch [IO.IOException] { Start-Sleep -Milliseconds 500 }
+  try {
+    if ($source) { Stop-DisposableCluster $config $source }
+    $safeRoot = Assert-ChildPath $testBase $root
+    if ([IO.Path]::GetFullPath($safeRoot) -ne
+        [IO.Path]::GetFullPath((Join-Path $testBase $testId))) {
+      Stop-Maintenance 'TEST_CLEANUP_PATH_SUBSTITUTED'
     }
+    Assert-NotReparsePoint $safeRoot
+    $marker = Join-Path $safeRoot 'runner-test-owned.txt'
+    if (-not (Test-Path -LiteralPath $marker -PathType Leaf) -or
+        (Get-Content -LiteralPath $marker -Raw).Trim() -ne $testId) {
+      Stop-Maintenance 'TEST_CLEANUP_MARKER_MISMATCH'
+    }
+    $stack = [Collections.Generic.Stack[string]]::new()
+    $stack.Push($safeRoot)
+    while ($stack.Count -gt 0) {
+      foreach ($entry in [IO.Directory]::EnumerateFileSystemEntries($stack.Pop())) {
+        $attributes = [IO.File]::GetAttributes($entry)
+        if (($attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+          Stop-Maintenance 'TEST_REPARSE_DESCENDANT_FORBIDDEN'
+        }
+        if (($attributes -band [IO.FileAttributes]::Directory) -ne 0) { $stack.Push($entry) }
+      }
+    }
+    [IO.Directory]::Delete($safeRoot, $true)
+  } catch {
+    Write-Output "SYNTHETIC CLEANUP FAIL; retained local path: $root"
+    throw
   }
 }

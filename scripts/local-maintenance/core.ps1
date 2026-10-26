@@ -236,7 +236,9 @@ function Invoke-WithIsolatedEnvironment([object]$Config, [Uri]$Uri,
 
 function Invoke-PostgresTool([object]$Config, [Uri]$Uri, [string]$Tool,
     [string[]]$Arguments, [string]$FailureCode) {
+  if (-not $Uri) { Stop-Maintenance 'DATABASE_URI_REQUIRED' }
   $binary = Join-Path $Config.postgresBin $Tool
+  if ($Tool -eq 'psql.exe') { $Arguments = @('-w') + $Arguments }
   $result = Invoke-WithIsolatedEnvironment $Config $Uri @{} {
     $oldPreference = $ErrorActionPreference
     try {
@@ -251,6 +253,7 @@ function Invoke-PostgresTool([object]$Config, [Uri]$Uri, [string]$Tool,
 
 function Invoke-ReadOnlyQuery([object]$Config, [Uri]$Uri, [string]$Query,
     [string]$FailureCode, [string]$SnapshotId = '') {
+  if (-not $Uri) { Stop-Maintenance 'READ_ONLY_URI_REQUIRED' }
   $snapshotSql = ''
   if ($SnapshotId) {
     if ($SnapshotId -notmatch '^[0-9A-Fa-f]+-[0-9A-Fa-f]+-[0-9A-Fa-f]+$') {
@@ -285,7 +288,7 @@ function Start-ExportedSnapshot([object]$Config, [Uri]$Uri) {
   $process = Invoke-WithIsolatedEnvironment $Config $Uri @{} {
     $psi = [Diagnostics.ProcessStartInfo]::new()
     $psi.FileName = Join-Path $Config.postgresBin 'psql.exe'
-    $psi.Arguments = '-X -q -A -t -v ON_ERROR_STOP=1'
+    $psi.Arguments = '-w -X -q -A -t -v ON_ERROR_STOP=1'
     $psi.WorkingDirectory = $Config.privateDirectory
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
@@ -333,7 +336,7 @@ function Start-DatabaseApplyLock([object]$Config, [Uri]$Uri) {
   $process = Invoke-WithIsolatedEnvironment $Config $Uri @{} {
     $psi = [Diagnostics.ProcessStartInfo]::new()
     $psi.FileName = Join-Path $Config.postgresBin 'psql.exe'
-    $psi.Arguments = '-X -q -A -t -v ON_ERROR_STOP=1'
+    $psi.Arguments = '-w -X -q -A -t -v ON_ERROR_STOP=1'
     $psi.WorkingDirectory = $Config.privateDirectory
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
@@ -515,50 +518,155 @@ SELECT json_build_object(
     AND state='idle in transaction' AND pid<>pg_backend_pid())
 )::text
 '@
-  try { return Invoke-ReadOnlyQuery $Config $Uri $sql 'TARGET_SNAPSHOT_FAILED' | ConvertFrom-Json }
+  try {
+    $snapshot = Invoke-ReadOnlyQuery $Config $Uri $sql 'TARGET_SNAPSHOT_FAILED' | ConvertFrom-Json
+    $identity = Get-DatabaseIdentityState $Config $Uri
+    if ($snapshot.database -ne $identity.database -or
+        [string]$snapshot.databaseOid -ne [string]$identity.databaseOid -or
+        $snapshot.role -ne $identity.role) { Stop-Maintenance 'TARGET_IDENTITY_CHANGED' }
+    $snapshot | Add-Member -NotePropertyName clusterIdentity -NotePropertyValue $identity.clusterIdentity
+    return $snapshot
+  }
   catch { if ($_.Exception.Message -like 'LMR:*') { throw }; Stop-Maintenance 'TARGET_SNAPSHOT_INVALID' }
+}
+
+function Get-DatabaseIdentityState([object]$Config, [Uri]$Uri) {
+  $sql = "SELECT json_build_object('database',current_database(),'role',current_user," +
+    "'databaseOid',(SELECT oid FROM pg_database WHERE datname=current_database())," +
+    "'clusterIdentity',(SELECT system_identifier::text FROM pg_control_system()))::text"
+  try {
+    $state = Invoke-ReadOnlyQuery $Config $Uri $sql 'CLUSTER_IDENTITY_UNAVAILABLE' | ConvertFrom-Json
+    if ($state.clusterIdentity -notmatch '^[0-9]{10,20}$' -or
+        $state.databaseOid -notmatch '^\d+$') { Stop-Maintenance 'CLUSTER_IDENTITY_UNVERIFIABLE' }
+    return $state
+  } catch {
+    if ($_.Exception.Message -like 'LMR:*') { throw }
+    Stop-Maintenance 'CLUSTER_IDENTITY_UNVERIFIABLE'
+  }
 }
 
 function Get-TargetFingerprint([Uri]$Uri, [object]$Snapshot) {
   return Get-Sha256Text ("$($Uri.Host.ToLowerInvariant())|$($Uri.Port)|$($Snapshot.database)|" +
-    "$($Snapshot.role)|$($Snapshot.databaseOid)|$($Snapshot.serverVersion)")
+    "$($Snapshot.role)|$($Snapshot.databaseOid)|$($Snapshot.clusterIdentity)|$($Snapshot.serverVersion)")
 }
 
 function Get-ApplicationRoleState([object]$Config, [Uri]$ApplicationUri,
     [object]$DirectSnapshot) {
-  $sql = "SELECT json_build_object('database',current_database(),'role',current_user," +
-    "'databaseOid',(SELECT oid FROM pg_database WHERE datname=current_database()))::text"
-  try { $state = Invoke-ReadOnlyQuery $Config $ApplicationUri $sql 'APPLICATION_ROLE_QUERY_FAILED' | ConvertFrom-Json }
-  catch { if ($_.Exception.Message -like 'LMR:*') { throw }; Stop-Maintenance 'APPLICATION_ROLE_QUERY_INVALID' }
+  if (-not $DirectSnapshot.PSObject.Properties['clusterIdentity'] -or
+      $DirectSnapshot.clusterIdentity -notmatch '^[0-9]{10,20}$') {
+    Stop-Maintenance 'DIRECT_CLUSTER_IDENTITY_UNVERIFIABLE'
+  }
+  $state = Get-DatabaseIdentityState $Config $ApplicationUri
   if ($state.database -ne $DirectSnapshot.database -or
       [string]$state.databaseOid -ne [string]$DirectSnapshot.databaseOid -or
+      $state.clusterIdentity -ne $DirectSnapshot.clusterIdentity -or
       $state.role -ne $Config.applicationRole) {
     Stop-Maintenance 'APPLICATION_ROLE_TARGET_MISMATCH'
   }
   return $state
 }
 
-function Assert-SequenceRolePermissions([object]$Config, [object]$Cluster,
-    [object[]]$Audits, [string]$MigrationRole, [string]$ApplicationRole) {
+function Get-ApplicableSequenceDefaultAclCount([object]$Config, [Uri]$SourceUri) {
+  if (-not $SourceUri) { Stop-Maintenance 'SEQUENCE_PRIVILEGE_SOURCE_UNKNOWN' }
+  $sql = "SELECT count(*) FROM pg_default_acl d WHERE d.defaclrole=" +
+    "(SELECT oid FROM pg_roles WHERE rolname=current_user) AND d.defaclobjtype='S' " +
+    "AND (d.defaclnamespace=0 OR d.defaclnamespace='public'::regnamespace)"
+  $count = Invoke-ReadOnlyQuery $Config $SourceUri $sql 'SEQUENCE_DEFAULT_ACL_UNKNOWN'
+  if ($count -notmatch '^\d+$') { Stop-Maintenance 'SEQUENCE_DEFAULT_ACL_UNKNOWN' }
+  return [int]$count
+}
+
+function Assert-NonSuperuserSequenceAccess([object]$Config, [Uri]$ProbeUri,
+    [string]$Sequence, [string]$ExpectedRole) {
+  if ($Sequence -notmatch '^[A-Za-z_][A-Za-z0-9_]*$' -or
+      $ExpectedRole -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
+    Stop-Maintenance 'SEQUENCE_PROBE_IDENTITY_INVALID'
+  }
+  $identity = Invoke-ReadOnlyQuery $Config $ProbeUri `
+    "SELECT current_user||'|'||rolsuper::text FROM pg_roles WHERE rolname=current_user" `
+    'SEQUENCE_PROBE_ROLE_UNKNOWN'
+  if ($identity -ne "$ExpectedRole|false") { Stop-Maintenance 'SEQUENCE_PROBE_NOT_APP_EQUIVALENT' }
+  $qualified = 'public."' + $Sequence + '"'
+  $hasUsage = Invoke-ReadOnlyQuery $Config $ProbeUri `
+    "SELECT has_sequence_privilege(current_user, '$qualified', 'USAGE')" `
+    'SEQUENCE_PRIVILEGE_CHECK_FAILED'
+  if ($hasUsage -ne 't') { Stop-Maintenance 'SEQUENCE_PERMISSION_MISSING' }
+  $sqlPath = Join-Path $Config.privateDirectory ('sequence-nextval-' + [Guid]::NewGuid().ToString('N') + '.sql')
+  [IO.File]::WriteAllText($sqlPath,
+    'SELECT nextval(''' + $qualified + '''::regclass);', [Text.UTF8Encoding]::new($false))
+  Set-PrivateAcl $sqlPath
+  try {
+    [void](Invoke-PostgresTool $Config $ProbeUri 'psql.exe' @(
+        '-X', '-q', '-A', '-t', '-v', 'ON_ERROR_STOP=1', '-f', $sqlPath) 'SEQUENCE_NEXTVAL_FAILED')
+  } finally { [IO.File]::Delete($sqlPath) }
+}
+
+function Assert-SequenceRolePermissions([object]$Config, [Uri]$SourceUri,
+    [object]$Cluster, [object[]]$Audits, [string]$MigrationRole,
+    [string]$ApplicationRole) {
   $sequences = @($Audits | ForEach-Object { $_.audit.CreatedSequences })
   if ($sequences.Count -eq 0) { return }
   if ($ApplicationRole -ne $MigrationRole) {
     Stop-Maintenance 'SEQUENCE_PERMISSION_UNPROVEN_DIFFERENT_ROLE'
   }
+  if (-not $SourceUri -or ($SourceUri.Host -eq '127.0.0.1' -and
+      $Config.targetKind -ne 'synthetic')) {
+    Stop-Maintenance 'SEQUENCE_PRIVILEGE_SOURCE_UNKNOWN'
+  }
+  $sourceRole = Invoke-ReadOnlyQuery $Config $SourceUri 'SELECT current_user' `
+    'SEQUENCE_PRIVILEGE_SOURCE_UNKNOWN'
+  if ($sourceRole -ne $MigrationRole) { Stop-Maintenance 'SEQUENCE_PRIVILEGE_SOURCE_UNKNOWN' }
+  if ((Get-ApplicableSequenceDefaultAclCount $Config $SourceUri) -ne 0) {
+    Stop-Maintenance 'SEQUENCE_DEFAULT_ACL_UNMODELED'
+  }
+  if ($Cluster.Uri.Host -ne '127.0.0.1' -or $Cluster.Database -notmatch '^legalhub_runner_') {
+    Stop-Maintenance 'SEQUENCE_PROBE_TARGET_UNSAFE'
+  }
   foreach ($sequence in $sequences) {
     if ($sequence -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { Stop-Maintenance 'SEQUENCE_NAME_UNSAFE' }
-    $qualified = 'public."' + $sequence + '"'
-    $query = "SELECT has_sequence_privilege(current_user, '$qualified', 'USAGE')"
-    $hasUsage = Invoke-ReadOnlyQuery $Config $Cluster.Uri $query 'SEQUENCE_PRIVILEGE_CHECK_FAILED'
-    if ($hasUsage -ne 't') { Stop-Maintenance 'SEQUENCE_PERMISSION_MISSING' }
-    $sqlPath = Join-Path $Config.privateDirectory ('sequence-probe-' + [Guid]::NewGuid().ToString('N') + '.sql')
-    [IO.File]::WriteAllText($sqlPath,
-      'SELECT nextval(''' + $qualified + '''::regclass);', [Text.UTF8Encoding]::new($false))
-    Set-PrivateAcl $sqlPath
+    $exists = Invoke-ReadOnlyQuery $Config $Cluster.Uri `
+      "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='$sequence' AND c.relkind='S'" `
+      'SEQUENCE_PROBE_TARGET_UNKNOWN'
+    if ($exists -ne '1') { Stop-Maintenance 'SEQUENCE_PROBE_TARGET_MISSING' }
+  }
+  $probeRole = 'runner_probe_' + [Guid]::NewGuid().ToString('N').Substring(0, 12)
+  $passwordBytes = [byte[]]::new(32)
+  $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+  try { $rng.GetBytes($passwordBytes) } finally { $rng.Dispose() }
+  $password = [Convert]::ToBase64String($passwordBytes)
+  $setupPath = Join-Path $Config.privateDirectory ('sequence-role-' + [Guid]::NewGuid().ToString('N') + '.sql')
+  [IO.File]::WriteAllText($setupPath,
+    "CREATE ROLE `"$probeRole`" LOGIN PASSWORD '$password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;" +
+    " GRANT USAGE, CREATE ON SCHEMA public TO `"$probeRole`";", [Text.UTF8Encoding]::new($false))
+  Set-PrivateAcl $setupPath
+  try {
+    [void](Invoke-PostgresTool $Config $Cluster.Uri 'psql.exe' @(
+        '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', $setupPath) 'SEQUENCE_PROBE_ROLE_CREATE_FAILED')
+  } finally { [IO.File]::Delete($setupPath) }
+  $probeUri = [Uri]::new("postgresql://${probeRole}:$([Uri]::EscapeDataString($password))@127.0.0.1:$($Cluster.Port)/$($Cluster.Database)?schema=public")
+  try {
+    foreach ($sequence in $sequences) {
+      if ($sequence -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { Stop-Maintenance 'SEQUENCE_NAME_UNSAFE' }
+      $probeSequence = 'RunnerProbe_' + [Guid]::NewGuid().ToString('N').Substring(0, 12)
+      $sqlPath = Join-Path $Config.privateDirectory ('sequence-create-' + [Guid]::NewGuid().ToString('N') + '.sql')
+      [IO.File]::WriteAllText($sqlPath, "CREATE SEQUENCE public.`"$probeSequence`";",
+        [Text.UTF8Encoding]::new($false))
+      Set-PrivateAcl $sqlPath
+      try {
+        [void](Invoke-PostgresTool $Config $probeUri 'psql.exe' @(
+            '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', $sqlPath) 'SEQUENCE_PROBE_CREATE_FAILED')
+      } finally { [IO.File]::Delete($sqlPath) }
+      Assert-NonSuperuserSequenceAccess $Config $probeUri $probeSequence $probeRole
+    }
+  } finally {
+    $cleanupPath = Join-Path $Config.privateDirectory ('sequence-cleanup-' + [Guid]::NewGuid().ToString('N') + '.sql')
+    [IO.File]::WriteAllText($cleanupPath,
+      "DROP OWNED BY `"$probeRole`"; DROP ROLE `"$probeRole`";", [Text.UTF8Encoding]::new($false))
+    Set-PrivateAcl $cleanupPath
     try {
       [void](Invoke-PostgresTool $Config $Cluster.Uri 'psql.exe' @(
-          '-X', '-q', '-A', '-t', '-v', 'ON_ERROR_STOP=1', '-f', $sqlPath) 'SEQUENCE_NEXTVAL_FAILED')
-    } finally { [IO.File]::Delete($sqlPath) }
+          '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', $cleanupPath) 'SEQUENCE_PROBE_CLEANUP_FAILED')
+    } finally { [IO.File]::Delete($cleanupPath) }
   }
 }
 

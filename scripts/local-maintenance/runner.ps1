@@ -150,9 +150,12 @@ function Write-Report([object]$Config, [object]$Plan, [string]$Result,
     sequencePermissions = $Plan.sequencePermissions
     oldAppCompatibility = $Plan.oldAppNewDb
     apply = $Result; result = $Result; reasonCode = $Code
+    outcome = if ($Result -eq 'APPLIED') { 'VERIFIED_APPLIED' }
+      elseif ($Result -eq 'PREFLIGHT_ONLY') { 'NOT_ATTEMPTED' } else { 'UNKNOWN' }
     approvalReference = $Approval
     nextAction = if ($Result -eq 'APPLIED') { 'APPLICATION_SMOKE_AND_INDEPENDENT_REVIEW' }
       elseif ($Result -eq 'PREFLIGHT_ONLY') { 'SEPARATE_OWNER_DECISION_REQUIRED' }
+      elseif ($Result -eq 'ATTEMPTED_UNVERIFIED') { 'DIAGNOSE_LEDGER_AND_OUTCOME_NO_RETRY' }
       else { 'DIAGNOSE_NO_RETRY_RERUN_PREFLIGHT_AFTER_REVIEW' }
   }
   return Save-SafeReport $Config $report
@@ -216,7 +219,7 @@ function Invoke-Preflight([string]$Repo) {
       $after = Get-RepresentativeFingerprints $config $cluster.Uri $excluded
       Compare-RepresentativeFingerprints $restored $after $true
       Assert-CreatedObjects $config $cluster.Uri $state.audits
-      Assert-SequenceRolePermissions $config $cluster $state.audits `
+      Assert-SequenceRolePermissions $config $uri $cluster $state.audits `
         $state.snapshot.role $state.applicationRole
     } finally { if ($cluster) { Stop-DisposableCluster $config $cluster } }
     $plan = [ordered]@{
@@ -314,6 +317,8 @@ function Invoke-Apply([string]$Repo) {
     if ($databaseLock.Process.HasExited) { Stop-Maintenance 'TARGET_DATABASE_LOCK_LOST' }
     Assert-PlanNotAttempted $config $plan | Out-Null
     Mark-PlanAttempted $config $plan
+    [void](Write-Report $config $plan 'ATTEMPTED_UNVERIFIED' `
+      'AWAITING_GUARDED_COMMAND' $ApprovalReference)
     $boundedUri = Get-PinnedPrismaUri $config $uri $true
     $exitCode = Invoke-WithIsolatedEnvironment $config $null @{
       DB_MIGRATE_TARGET = 'production'
@@ -368,7 +373,16 @@ function Invoke-Status([string]$Repo, [bool]$Detailed) {
     } else { $null }
     $reportPath = if ($latest) { $latest.FullName } else { $null }
   }
+  $attempted = if ($plan) {
+    Test-Path -LiteralPath (Join-Path (Get-PlanDirectory $config) ($plan.runId + '.attempted'))
+  } else { $false }
   if (-not $reportPath -or -not (Test-Path -LiteralPath $reportPath -PathType Leaf)) {
+    if ($attempted) {
+      Write-Output "STATUS ATTEMPTED_UNVERIFIED; run=$($plan.runId); commit=$($plan.approvedCommit)"
+      Write-Output 'Apply=ATTEMPTED_UNVERIFIED; Outcome=UNKNOWN; currentDatabaseState=UNKNOWN'
+      Write-Output 'Next: DIAGNOSE_LEDGER_AND_OUTCOME_NO_RETRY'
+      return
+    }
     Write-Output 'STATUS NO_HISTORY; lastObservedPending=UNKNOWN; currentDatabaseState=UNKNOWN'
     Write-Output 'Next: run PREFLIGHT with an approved commit and migration set.'
     return
@@ -381,11 +395,21 @@ function Invoke-Status([string]$Repo, [bool]$Detailed) {
       $plan = Read-SealedPlan $config $candidate
     }
   }
-  $attempted = if ($plan) {
-    Test-Path -LiteralPath (Join-Path (Get-PlanDirectory $config) ($plan.runId + '.attempted'))
-  } else { $false }
+  if (-not $attempted -and $plan) {
+    $attempted = Test-Path -LiteralPath (Join-Path (Get-PlanDirectory $config) ($plan.runId + '.attempted'))
+  }
   $result = [string]$report.result
-  if ($attempted -and $result -eq 'PREFLIGHT_ONLY') { $result = 'ATTEMPTED_UNVERIFIED' }
+  $effectiveApply = [string]$report.apply
+  $effectiveOutcome = if ($report.PSObject.Properties['outcome']) {
+    [string]$report.outcome
+  } else { 'UNKNOWN' }
+  $effectiveNext = [string]$report.nextAction
+  if ($attempted -and $result -in @('PREFLIGHT_ONLY', 'ATTEMPTED_UNVERIFIED')) {
+    $result = 'ATTEMPTED_UNVERIFIED'
+    $effectiveApply = 'ATTEMPTED_UNVERIFIED'
+    $effectiveOutcome = 'UNKNOWN'
+    $effectiveNext = 'DIAGNOSE_LEDGER_AND_OUTCOME_NO_RETRY'
+  }
   if ($plan -and -not $attempted -and $result -eq 'PREFLIGHT_ONLY') {
     try { Assert-PlanFresh $plan }
     catch { $result = 'PREFLIGHT_EXPIRED' }
@@ -397,9 +421,9 @@ function Invoke-Status([string]$Repo, [bool]$Detailed) {
   Write-Output "STATUS $result; run=$($report.runId); commit=$($report.approvedCommit)"
   Write-Output "Planned pending: $planned"
   Write-Output "Last observed pending: $observed; appliedCount=$($report.lastObservedAppliedCount); failedCount=$($report.lastObservedFailedCount); observedUtc=$($report.observationUtc)"
-  Write-Output "Preflight=$($report.preflight); backup=$($report.backup); restore=$($report.restore); simulation=$($report.simulation); structure=$($report.structure); sequencePermissions=$($report.sequencePermissions); oldApp=$($report.oldAppCompatibility); apply=$($report.apply)"
+  Write-Output "Preflight=$($report.preflight); backup=$($report.backup); restore=$($report.restore); simulation=$($report.simulation); structure=$($report.structure); sequencePermissions=$($report.sequencePermissions); oldApp=$($report.oldAppCompatibility); Apply=$effectiveApply; Outcome=$effectiveOutcome"
   Write-Output "Last checked UTC: $($report.checkedUtc); reason=$($report.reasonCode)"
-  Write-Output "Current database state: UNKNOWN (offline). Next: $($report.nextAction)"
+  Write-Output "Current database state: UNKNOWN (offline). Next: $effectiveNext"
   if ($Detailed) { Write-Output "Redacted report: $reportPath" }
 }
 
