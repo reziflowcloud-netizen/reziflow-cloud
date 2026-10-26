@@ -298,6 +298,7 @@ function Invoke-Apply([string]$Repo) {
   $uri = Get-PrivateDatabaseUri $config 'DIRECT_URL' $false
   $state = Get-CheckedState $config $uri $Repo $plan.approvedCommit @($plan.pending)
   Assert-StateEqualsPlan $state $plan
+  Assert-FinalSequencePermissions $config $uri $state
   $phrase = Get-ApprovalPhrase $config $plan
   Write-Output 'Operator attestation reference recorded (not independently authenticated). Type:'
   Write-Output $phrase
@@ -314,6 +315,7 @@ function Invoke-Apply([string]$Repo) {
     Assert-BackupSealed $config $plan
     $state = Get-CheckedState $config $uri $Repo $plan.approvedCommit @($plan.pending)
     Assert-StateEqualsPlan $state $plan
+    Assert-FinalSequencePermissions $config $uri $state
     if ($databaseLock.Process.HasExited) { Stop-Maintenance 'TARGET_DATABASE_LOCK_LOST' }
     Assert-PlanNotAttempted $config $plan | Out-Null
     Mark-PlanAttempted $config $plan

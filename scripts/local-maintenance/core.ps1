@@ -576,6 +576,26 @@ function Get-ApplicableSequenceDefaultAclCount([object]$Config, [Uri]$SourceUri)
   return [int]$count
 }
 
+function Assert-SequencePermissionAssumptions([object]$Config, [Uri]$SourceUri,
+    [object[]]$Audits, [string]$MigrationRole, [string]$ApplicationRole) {
+  $sequences = @($Audits | ForEach-Object { $_.audit.CreatedSequences })
+  if ($sequences.Count -eq 0) { return }
+  if (-not $MigrationRole -or -not $ApplicationRole -or
+      $ApplicationRole -ne $MigrationRole) {
+    Stop-Maintenance 'SEQUENCE_PERMISSION_UNPROVEN_DIFFERENT_ROLE'
+  }
+  if (-not $SourceUri -or ($SourceUri.Host -eq '127.0.0.1' -and
+      $Config.targetKind -ne 'synthetic')) {
+    Stop-Maintenance 'SEQUENCE_PRIVILEGE_SOURCE_UNKNOWN'
+  }
+  $sourceRole = Invoke-ReadOnlyQuery $Config $SourceUri 'SELECT current_user' `
+    'SEQUENCE_PRIVILEGE_SOURCE_UNKNOWN'
+  if ($sourceRole -ne $MigrationRole) { Stop-Maintenance 'SEQUENCE_PRIVILEGE_SOURCE_UNKNOWN' }
+  if ((Get-ApplicableSequenceDefaultAclCount $Config $SourceUri) -ne 0) {
+    Stop-Maintenance 'SEQUENCE_DEFAULT_ACL_UNMODELED'
+  }
+}
+
 function Assert-NonSuperuserSequenceAccess([object]$Config, [Uri]$ProbeUri,
     [string]$Sequence, [string]$ExpectedRole) {
   if ($Sequence -notmatch '^[A-Za-z_][A-Za-z0-9_]*$' -or
@@ -606,19 +626,8 @@ function Assert-SequenceRolePermissions([object]$Config, [Uri]$SourceUri,
     [string]$ApplicationRole) {
   $sequences = @($Audits | ForEach-Object { $_.audit.CreatedSequences })
   if ($sequences.Count -eq 0) { return }
-  if ($ApplicationRole -ne $MigrationRole) {
-    Stop-Maintenance 'SEQUENCE_PERMISSION_UNPROVEN_DIFFERENT_ROLE'
-  }
-  if (-not $SourceUri -or ($SourceUri.Host -eq '127.0.0.1' -and
-      $Config.targetKind -ne 'synthetic')) {
-    Stop-Maintenance 'SEQUENCE_PRIVILEGE_SOURCE_UNKNOWN'
-  }
-  $sourceRole = Invoke-ReadOnlyQuery $Config $SourceUri 'SELECT current_user' `
-    'SEQUENCE_PRIVILEGE_SOURCE_UNKNOWN'
-  if ($sourceRole -ne $MigrationRole) { Stop-Maintenance 'SEQUENCE_PRIVILEGE_SOURCE_UNKNOWN' }
-  if ((Get-ApplicableSequenceDefaultAclCount $Config $SourceUri) -ne 0) {
-    Stop-Maintenance 'SEQUENCE_DEFAULT_ACL_UNMODELED'
-  }
+  Assert-SequencePermissionAssumptions $Config $SourceUri $Audits `
+    $MigrationRole $ApplicationRole
   if ($Cluster.Uri.Host -ne '127.0.0.1' -or $Cluster.Database -notmatch '^legalhub_runner_') {
     Stop-Maintenance 'SEQUENCE_PROBE_TARGET_UNSAFE'
   }
@@ -668,6 +677,12 @@ function Assert-SequenceRolePermissions([object]$Config, [Uri]$SourceUri,
           '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', $cleanupPath) 'SEQUENCE_PROBE_CLEANUP_FAILED')
     } finally { [IO.File]::Delete($cleanupPath) }
   }
+}
+
+function Assert-FinalSequencePermissions([object]$Config, [Uri]$SourceUri,
+    [object]$State) {
+  Assert-SequencePermissionAssumptions $Config $SourceUri $State.audits `
+    $State.snapshot.role $State.applicationRole
 }
 
 function Get-RelationSize([object]$Config, [Uri]$Uri, [string]$Table) {
@@ -825,8 +840,33 @@ function New-PrivateBackup([object]$Config, [Uri]$SourceUri, [string]$RunId,
   }
 }
 
+function Save-DisposableClusterLifecycle([object]$State, [string]$Phase) {
+  $path = Join-Path $State.Root 'runner-lifecycle.json'
+  $existing = Test-Path -LiteralPath $path -PathType Leaf
+  if ($existing) { Assert-PrivateAcl $path }
+  $record = [ordered]@{
+    runId = $State.RunId; root = $State.Root; cluster = $State.Cluster
+    port = $State.Port; database = $State.Database; phase = $Phase
+  }
+  [IO.File]::WriteAllText($path, (ConvertTo-Json -InputObject $record -Compress),
+    [Text.UTF8Encoding]::new($false))
+  if (-not $existing) { Set-PrivateAcl $path }
+}
+
+function Assert-NoUnverifiedDisposableClusters([object]$Config) {
+  $isolatedRoot = Join-Path $Config.privateDirectory 'isolated'
+  if (-not (Test-Path -LiteralPath $isolatedRoot)) { return }
+  Assert-NotReparsePoint $isolatedRoot
+  if (@(Get-ChildItem -LiteralPath $isolatedRoot -Force).Count -ne 0) {
+    Stop-Maintenance 'TEST_PARTIAL_CLUSTER_UNVERIFIED'
+  }
+}
+
 function New-DisposableCluster([object]$Config, [string]$RunId,
     [string]$FaultAt = '') {
+  if ($FaultAt -and $Config.targetKind -ne 'synthetic') {
+    Stop-Maintenance 'TEST_FAULT_UNAVAILABLE'
+  }
   if (-not (Test-Path -LiteralPath $Config.privateDirectory -PathType Container)) {
     Stop-Maintenance 'PRIVATE_DIRECTORY_MISSING'
   }
@@ -849,6 +889,7 @@ function New-DisposableCluster([object]$Config, [string]$RunId,
   $cluster = Join-Path $root 'cluster'
   $state = [pscustomobject]@{ RunId = $RunId; Root = $root; Cluster = $cluster;
     Port = 0; Database = ''; Uri = $null }
+  Save-DisposableClusterLifecycle $state 'OWNED'
   try {
     if ($FaultAt -eq 'BeforeInitdb') { Stop-Maintenance 'TEST_INJECTED_BEFORE_INITDB' }
     $passwordFile = Join-Path $root 'initdb-password.tmp'
@@ -874,11 +915,13 @@ function New-DisposableCluster([object]$Config, [string]$RunId,
     } finally {
       if (Test-Path -LiteralPath $passwordFile -PathType Leaf) { [IO.File]::Delete($passwordFile) }
     }
+    Save-DisposableClusterLifecycle $state 'INITIALIZED'
     if ($FaultAt -eq 'AfterInitdb') { Stop-Maintenance 'TEST_INJECTED_AFTER_INITDB' }
     $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
     try { $listener.Start(); $state.Port = ([Net.IPEndPoint]$listener.LocalEndpoint).Port }
     finally { $listener.Stop() }
     if ($state.Port -eq 5432) { Stop-Maintenance 'ISOLATED_PORT_UNSAFE' }
+    Save-DisposableClusterLifecycle $state 'STARTING'
     $log = Join-Path $root 'postgres.log'
     Invoke-WithIsolatedEnvironment $Config $null @{} {
       $binary = Join-Path $Config.postgresBin 'pg_ctl.exe'
@@ -893,6 +936,10 @@ function New-DisposableCluster([object]$Config, [string]$RunId,
         # is accepting connections; the bounded pg_isready probe below is authoritative.
       } finally { $control.Dispose() }
     }
+    Save-DisposableClusterLifecycle $state 'STARTED_UNKNOWN'
+    if ($FaultAt -eq 'AfterStartStopFailure') {
+      Stop-Maintenance 'TEST_INJECTED_AFTER_START'
+    }
     if ($FaultAt -eq 'AfterStart') { Stop-Maintenance 'TEST_INJECTED_AFTER_START' }
     $ready = Invoke-WithIsolatedEnvironment $Config $null @{} {
       $oldPreference = $ErrorActionPreference
@@ -904,18 +951,26 @@ function New-DisposableCluster([object]$Config, [string]$RunId,
       } finally { $ErrorActionPreference = $oldPreference }
     }
     if ($ready -ne 0) { Stop-Maintenance 'ISOLATED_NOT_READY' }
+    Save-DisposableClusterLifecycle $state 'RUNNING'
     if ($FaultAt -eq 'AfterReady') { Stop-Maintenance 'TEST_INJECTED_AFTER_READY' }
     $state.Database = 'legalhub_runner_' + $RunId.Replace('-', '_')
     $encoded = [Uri]::EscapeDataString($password)
     $adminUri = [Uri]::new("postgresql://restore_admin:$encoded@127.0.0.1:$($state.Port)/postgres")
     [void](Invoke-PostgresTool $Config $adminUri 'createdb.exe' @(
         '-T', 'template0', $state.Database) 'ISOLATED_CREATE_DB_FAILED')
+    Save-DisposableClusterLifecycle $state 'DATABASE_CREATED'
     if ($FaultAt -eq 'AfterCreatedb') { Stop-Maintenance 'TEST_INJECTED_AFTER_CREATEDB' }
     $state.Uri = [Uri]::new("postgresql://restore_admin:$encoded@127.0.0.1:$($state.Port)/$($state.Database)?schema=public")
     return $state
   } catch {
     $failure = $_
-    Stop-DisposableCluster $Config $state
+    try {
+      $stopFault = if ($FaultAt -eq 'AfterStartStopFailure') { 'BeforeStatus' } else { '' }
+      Stop-DisposableCluster $Config $state $stopFault
+    } catch {
+      Save-DisposableClusterLifecycle $state 'STOP_UNVERIFIED'
+      throw
+    }
     throw $failure
   }
 }
@@ -960,8 +1015,12 @@ function Invoke-DisposableMigration([object]$Config, [object]$Cluster, [string]$
   }
 }
 
-function Stop-DisposableCluster([object]$Config, [object]$Cluster) {
+function Stop-DisposableCluster([object]$Config, [object]$Cluster,
+    [string]$FaultAt = '') {
   if (-not $Cluster) { return }
+  if ($FaultAt -and $Config.targetKind -ne 'synthetic') {
+    Stop-Maintenance 'TEST_FAULT_UNAVAILABLE'
+  }
   $isolatedRoot = Join-Path $Config.privateDirectory 'isolated'
   $root = Assert-ChildPath $isolatedRoot $Cluster.Root
   foreach ($path in @($Config.privateDirectory, $isolatedRoot, $root)) {
@@ -973,6 +1032,7 @@ function Stop-DisposableCluster([object]$Config, [object]$Cluster) {
       (Get-Content -LiteralPath $marker -Raw).Trim() -ne $Cluster.RunId) {
     Stop-Maintenance 'ISOLATED_CLEANUP_MARKER_MISMATCH'
   }
+  if ($FaultAt -eq 'BeforeStatus') { Stop-Maintenance 'TEST_INJECTED_STOP_FAILED' }
   if (Test-Path -LiteralPath $Cluster.Cluster -PathType Container) {
     $status = Invoke-WithIsolatedEnvironment $Config $null @{} {
       $oldPreference = $ErrorActionPreference

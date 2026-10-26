@@ -1,3 +1,7 @@
+param(
+  [switch]$InjectPartialStartStopFailure,
+  [string]$InjectedTestId
+)
 if ($PSVersionTable.PSVersion.Major -lt 7) {
   throw 'TEST_REQUIRES_POWERSHELL_7: use pwsh -NoProfile -File tests/local-maintenance/full-preflight.ps1'
 }
@@ -5,11 +9,16 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 . (Join-Path $repo 'scripts/local-maintenance/core.ps1')
+. (Join-Path $repo 'scripts/local-maintenance/sql-audit.ps1')
 . (Join-Path $repo 'scripts/local-maintenance/plan.ps1')
 
 $pending = '20261024160000_meta_message_reads'
 $pgBin = 'C:\Program Files\PostgreSQL\18\bin'
-$testId = [Guid]::NewGuid().ToString('N').Substring(0, 12)
+if ($InjectPartialStartStopFailure -and $InjectedTestId -notmatch '^[0-9a-f]{12}$') {
+  throw 'TEST_INJECTED_ID_INVALID'
+}
+$testId = if ($InjectPartialStartStopFailure) { $InjectedTestId }
+  else { [Guid]::NewGuid().ToString('N').Substring(0, 12) }
 $testBase = Join-Path $env:LOCALAPPDATA 'LegalHubMaintenanceRunnerTests'
 if (-not (Test-Path -LiteralPath $testBase)) {
   [void](New-Item -ItemType Directory -Path $testBase)
@@ -21,6 +30,10 @@ $root = Assert-ChildPath $testBase (Join-Path $testBase $testId)
 Set-PrivateAcl $root
 [IO.File]::WriteAllText((Join-Path $root 'runner-test-owned.txt'), $testId,
   [Text.UTF8Encoding]::new($false))
+if ($InjectPartialStartStopFailure) {
+  [IO.File]::WriteAllText((Join-Path $root 'cleanup-sentinel.txt'), 'retain-on-failure',
+    [Text.UTF8Encoding]::new($false))
+}
 $private = Join-Path $root 'private'
 $backups = Join-Path $root 'backups'
 foreach ($path in @($private, $backups)) {
@@ -36,7 +49,8 @@ $config = [pscustomobject]@{
 }
 $source = $null
 try {
-  $source = New-DisposableCluster $config ('source' + $testId)
+  $fault = if ($InjectPartialStartStopFailure) { 'AfterStartStopFailure' } else { '' }
+  $source = New-DisposableCluster $config ('source' + $testId) $fault
   $dbName = 'legalhub_runner_synthetic_' + $testId
   [void](Invoke-PostgresTool $config $source.Uri 'createdb.exe' @(
       '-T', 'template0', $dbName) 'SYNTHETIC_CREATE_FAILED')
@@ -157,6 +171,49 @@ datasource db {
   $ErrorActionPreference = 'Stop'
   Write-Output 'PASS offline status'
   $planForStatus = Read-SealedPlan $config $planPath
+  $sequenceState = [pscustomobject]@{
+    audits = @([pscustomobject]@{
+        audit = Test-MigrationSql (Join-Path $repo "prisma/migrations/$pending/migration.sql")
+      })
+    snapshot = [pscustomobject]@{ role = 'restore_admin' }
+    applicationRole = 'restore_admin'
+  }
+  $targetLock = Enter-TargetLock $config $sourceUri
+  $databaseLock = $null
+  try {
+    $databaseLock = Start-DatabaseApplyLock $config $sourceUri
+    Assert-FinalSequencePermissions $config $sourceUri $sequenceState
+  } finally {
+    if ($databaseLock) { Stop-DatabaseApplyLock $databaseLock }
+    $targetLock.Dispose()
+  }
+  Write-Output 'PASS unchanged sequence ACL under final Apply locks'
+  $aclSql = Join-Path $root 'sequence-default-acl-drift.sql'
+  [IO.File]::WriteAllText($aclSql,
+    'ALTER DEFAULT PRIVILEGES FOR ROLE "restore_admin" REVOKE USAGE, UPDATE ON SEQUENCES FROM "restore_admin";',
+    [Text.UTF8Encoding]::new($false))
+  [void](Invoke-PostgresTool $config $sourceUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', $aclSql) 'SYNTHETIC_ACL_DRIFT_FAILED')
+  $targetLock = Enter-TargetLock $config $sourceUri
+  $databaseLock = $null
+  $migrationCommandStarted = $false
+  try {
+    $databaseLock = Start-DatabaseApplyLock $config $sourceUri
+    try {
+      Assert-FinalSequencePermissions $config $sourceUri $sequenceState
+      $migrationCommandStarted = $true
+    } catch {
+      if ($_.Exception.Message -ne 'LMR:SEQUENCE_DEFAULT_ACL_UNMODELED') { throw }
+    }
+  } finally {
+    if ($databaseLock) { Stop-DatabaseApplyLock $databaseLock }
+    $targetLock.Dispose()
+  }
+  $preAttemptMarker = Join-Path $private "plans/$($planForStatus.runId).attempted"
+  if ($migrationCommandStarted -or (Test-Path -LiteralPath $preAttemptMarker)) {
+    Stop-Maintenance 'ACL_DRIFT_DID_NOT_BLOCK_BEFORE_ATTEMPT'
+  }
+  Write-Output 'PASS default ACL drift blocked under final Apply locks before marker/npm'
   $reportPath = Join-Path $private "reports/$($planForStatus.runId).json"
   $originalReport = Get-Content -LiteralPath $reportPath -Raw -Encoding UTF8
   $crashScript = Join-Path $root 'synthetic-abrupt-stop.ps1'
@@ -242,6 +299,7 @@ Mark-PlanAttempted $config $plan
 } finally {
   try {
     if ($source) { Stop-DisposableCluster $config $source }
+    Assert-NoUnverifiedDisposableClusters $config
     $safeRoot = Assert-ChildPath $testBase $root
     if ([IO.Path]::GetFullPath($safeRoot) -ne
         [IO.Path]::GetFullPath((Join-Path $testBase $testId))) {

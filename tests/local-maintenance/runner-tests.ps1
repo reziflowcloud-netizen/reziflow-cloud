@@ -71,6 +71,7 @@ function Assert-TestCleanupSafe([object]$Config, [string]$Base, [string]$Root,
       if (($attributes -band [IO.FileAttributes]::Directory) -ne 0) { $stack.Push($entry) }
     }
   }
+  Assert-NoUnverifiedDisposableClusters $Config
 }
 
 $pgBin = 'C:\Program Files\PostgreSQL\18\bin'
@@ -139,6 +140,54 @@ try {
     Assert (-not (Test-Path -LiteralPath (Join-Path $private "isolated/$faultId"))) `
       "partial cluster cleanup $stage"
   }
+
+  $childId = [Guid]::NewGuid().ToString('N').Substring(0, 12)
+  $childRoot = Join-Path $testBase $childId
+  $childError = Join-Path $root 'partial-stop-child.err'
+  $childOutputPath = Join-Path $root 'partial-stop-child.out'
+  $child = Start-Process -FilePath (Get-Command pwsh).Source -ArgumentList @(
+      '-NoProfile', '-File',
+      ('"' + (Join-Path $repo 'tests/local-maintenance/full-preflight.ps1') + '"'),
+      '-InjectPartialStartStopFailure', '-InjectedTestId', $childId) `
+    -PassThru -WindowStyle Hidden -RedirectStandardOutput $childOutputPath `
+    -RedirectStandardError $childError
+  try {
+    if (-not $child.WaitForExit(90000)) {
+      $child.Kill($true)
+      Stop-Maintenance 'PARTIAL_STOP_CHILD_TIMEOUT'
+    }
+    $childExit = $child.ExitCode
+  } finally { $child.Dispose() }
+  $childOutput = Get-Content -LiteralPath $childOutputPath -Raw
+  $sentinel = Join-Path $childRoot 'cleanup-sentinel.txt'
+  $lifecyclePath = Join-Path $childRoot `
+    "private/isolated/source$childId/runner-lifecycle.json"
+  Assert ($childExit -ne 0 -and (Test-Path -LiteralPath $sentinel) -and
+    (Test-Path -LiteralPath $lifecyclePath) -and
+    ((($childOutput -join ' ') + (Get-Content -LiteralPath $childError -Raw)) -match
+      'TEST_PARTIAL_CLUSTER_UNVERIFIED')) `
+    'outer finally refused recursive cleanup after partial-start/failed-stop'
+  $lifecycle = Get-Content -LiteralPath $lifecyclePath -Raw | ConvertFrom-Json
+  Assert ($lifecycle.phase -eq 'STOP_UNVERIFIED' -and $lifecycle.port -gt 0) `
+    'partial cluster lifecycle retained before constructor return'
+  $childConfig = [pscustomobject]@{
+    targetKind = 'synthetic'; privateDirectory = (Join-Path $childRoot 'private')
+    postgresBin = $pgBin; nodeBin = 'C:\Program Files\nodejs'
+  }
+  $live = Invoke-WithIsolatedEnvironment $childConfig $null @{} {
+    $oldPreference = $ErrorActionPreference
+    try {
+      $ErrorActionPreference = 'Continue'
+      $output = @(& (Join-Path $pgBin 'pg_isready.exe') '-h' '127.0.0.1' `
+          '-p' ([string]$lifecycle.port) '-q' 2>$null)
+      return $LASTEXITCODE
+    } finally { $ErrorActionPreference = $oldPreference }
+  }
+  Assert ($live -eq 0) 'post-start injection left a real isolated server for guarded recovery'
+  Stop-DisposableCluster $childConfig $lifecycle
+  Assert ((Test-Path -LiteralPath $sentinel) -and (Test-Path -LiteralPath $childRoot)) `
+    'failed outer cleanup retained sentinel and local test root'
+  Write-Output "PASS partial-start/failed-stop regression; retained local path: $childRoot"
 
   $canaries = @{
     PGHOSTADDR = '198.51.100.99'; PGSERVICEFILE = 'CANARY_SERVICE_FILE'
@@ -392,6 +441,21 @@ datasource db {
   Assert-SequenceRolePermissions $config $readUri $restore $sequenceAudit `
     'restore_admin' 'restore_admin'
   Write-Output 'PASS sequence privilege model uses isolated non-superuser role'
+  $finalState = [pscustomobject]@{
+    audits = $sequenceAudit; snapshot = [pscustomobject]@{ role = 'restore_admin' }
+    applicationRole = 'restore_admin'
+  }
+  $targetLock = Enter-TargetLock $config $readUri
+  $databaseLock = $null
+  try {
+    $databaseLock = Start-DatabaseApplyLock $config $readUri
+    Assert-FinalSequencePermissions $config $readUri $finalState
+    Assert (-not $databaseLock.Process.HasExited) `
+      'unchanged sequence ACL passed under both Apply locks'
+  } finally {
+    if ($databaseLock) { Stop-DatabaseApplyLock $databaseLock }
+    $targetLock.Dispose()
+  }
   Expect-Block { Assert-SequenceRolePermissions $config $null $restore $sequenceAudit `
       'restore_admin' 'restore_admin' } 'SEQUENCE_PRIVILEGE_SOURCE_UNKNOWN'
   [IO.File]::WriteAllText($sequenceSql,
@@ -403,6 +467,26 @@ datasource db {
     'revoked sequence default ACL detected'
   Expect-Block { Assert-SequenceRolePermissions $config $readUri $restore $sequenceAudit `
       'restore_admin' 'restore_admin' } 'SEQUENCE_DEFAULT_ACL_UNMODELED'
+  $targetLock = Enter-TargetLock $config $readUri
+  $databaseLock = $null
+  $migrationCommandStarted = $false
+  $attemptMarker = Join-Path $root 'synthetic-attempted.marker'
+  try {
+    $databaseLock = Start-DatabaseApplyLock $config $readUri
+    Expect-Block {
+      Assert-FinalSequencePermissions $config $readUri $finalState
+      $migrationCommandStarted = $true
+      [IO.File]::WriteAllText($attemptMarker, 'attempted')
+    } 'SEQUENCE_DEFAULT_ACL_UNMODELED'
+    Expect-Block { Assert-FinalSequencePermissions $config $null $finalState } `
+      'SEQUENCE_PRIVILEGE_SOURCE_UNKNOWN'
+    Assert (-not $migrationCommandStarted -and
+      -not (Test-Path -LiteralPath $attemptMarker)) `
+      'ACL drift and unavailable source blocked before attempted marker and command'
+  } finally {
+    if ($databaseLock) { Stop-DatabaseApplyLock $databaseLock }
+    $targetLock.Dispose()
+  }
   [IO.File]::WriteAllText($sequenceSql,
     "GRANT USAGE, CREATE ON SCHEMA public TO `"$appRole`";",
     [Text.UTF8Encoding]::new($false))
