@@ -435,12 +435,6 @@ function Assert-GuardedCommand([string]$Repo) {
   }
 }
 
-function Get-Sha256Bytes([byte[]]$Bytes) {
-  $hasher = [Security.Cryptography.SHA256]::Create()
-  try { return [BitConverter]::ToString($hasher.ComputeHash($Bytes)).Replace('-', '').ToLowerInvariant() }
-  finally { $hasher.Dispose() }
-}
-
 function Get-ApprovedMigrationBytes([string]$Repo, [string]$Name) {
   if ($Name -notmatch '^[0-9]{14}_[a-z0-9_]+$') { Stop-Maintenance 'MIGRATION_NAME_INVALID' }
   $processInfo = [Diagnostics.ProcessStartInfo]::new()
@@ -524,9 +518,10 @@ function Test-MigrationEolConversionSafe([string]$Text) {
     if ($c -eq '"') { $state = 'double'; continue }
     if ($c -eq '$') {
       $match = [regex]::Match($Text.Substring($i), '^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$')
-      if ($match.Success) {
-        $tag = $match.Value; $state = 'dollar'; $i += $tag.Length - 1
-      }
+      # PostgreSQL permits non-ASCII dollar tags. If this deliberately narrow
+      # recognizer cannot prove the token's bounds, refuse EOL conversion.
+      if (-not $match.Success) { return $false }
+      $tag = $match.Value; $state = 'dollar'; $i += $tag.Length - 1
     }
   }
   return $state -in @('normal', 'line')

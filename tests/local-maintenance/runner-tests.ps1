@@ -784,6 +784,91 @@ datasource db {
       [Text.UTF8Encoding]::new($false))
     Expect-Block { Get-MigrationFiles $eolRepo } 'MIGRATION_CHECKOUT_BYTES_MISMATCH'
   } finally { [IO.File]::WriteAllBytes($lfFile, $originalCheckout) }
+  $coreSource = Get-Content -LiteralPath (Join-Path $repo 'scripts/local-maintenance/core.ps1') -Raw
+  Assert (@([regex]::Matches($coreSource, '(?m)^function Get-Sha256Bytes\(')).Count -eq 1) `
+    'single SHA-256 implementation'
+  Assert ((Get-Sha256Bytes ([Text.Encoding]::ASCII.GetBytes('abc'))) -eq
+      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad') `
+    'SHA-256 known-byte vector'
+
+  $lexRepo = Join-Path $root 'lexical-repo'
+  [void](New-Item -ItemType Directory -Path $lexRepo)
+  [void](& git -C $lexRepo init -q)
+  [void](& git -C $lexRepo config user.name 'Synthetic Test')
+  [void](& git -C $lexRepo config user.email 'synthetic@example.invalid')
+  [void](& git -C $lexRepo config core.autocrlf false)
+  $lexCases = [ordered]@{
+    '20260101000000_unicode_lf' = ('SELECT $тег$first' + "`n" + 'second$тег$;' + "`n")
+    '20260102000000_unicode_crlf' = ('SELECT $тег$first' + "`r`n" + 'second$тег$;' + "`r`n")
+    '20260103000000_ascii_dollar' = ('SELECT $tag$first' + "`n" + 'second$tag$;' + "`n")
+    '20260104000000_quoted_identifier' = ('CREATE TABLE "first' + "`n" + 'second" ("id" INTEGER);' + "`n")
+    '20260105000000_copy' = ("COPY public.synthetic FROM STDIN;`n1`n\\.`n")
+    '20260106000000_nested_comments' = ('/* outer' + "`n" +
+      '/* inner $тег$ */' + "`n" + 'still outer */' + "`n" +
+      'CREATE TABLE "Safe" ("id" INTEGER);' + "`n")
+    '20260107000000_unterminated_dollar' = ('SELECT $tag$first' + "`n" + 'second;' + "`n")
+    '20260108000000_unterminated_comment' = ('/* outer' + "`n" + '/* inner */' + "`n")
+    '20260109000000_unterminated_string' = ("SELECT 'first`nsecond;`n")
+    '20260110000000_ordinary' = ("CREATE TABLE `"Ordinary`" (`"id`" INTEGER);`n")
+  }
+  foreach ($name in $lexCases.Keys) {
+    $directory = Join-Path $lexRepo "prisma/migrations/$name"
+    [void](New-Item -ItemType Directory -Path $directory -Force)
+    [IO.File]::WriteAllText((Join-Path $directory 'migration.sql'), $lexCases[$name],
+      [Text.UTF8Encoding]::new($false))
+  }
+  [void](& git -C $lexRepo add .)
+  [void](& git -C $lexRepo commit -qm 'Synthetic lexical EOL cases')
+  foreach ($name in $lexCases.Keys) {
+    $file = Join-Path $lexRepo "prisma/migrations/$name/migration.sql"
+    $converted = if ($name -eq '20260102000000_unicode_crlf') {
+      $lexCases[$name].Replace("`r`n", "`n")
+    } else { $lexCases[$name].Replace("`n", "`r`n") }
+    [IO.File]::WriteAllText($file, $converted, [Text.UTF8Encoding]::new($false))
+  }
+  $lexFiles = @(Get-MigrationFiles $lexRepo)
+  $unsafeNames = @('20260101000000_unicode_lf', '20260102000000_unicode_crlf',
+    '20260103000000_ascii_dollar', '20260104000000_quoted_identifier',
+    '20260105000000_copy', '20260107000000_unterminated_dollar',
+    '20260108000000_unterminated_comment', '20260109000000_unterminated_string')
+  foreach ($name in $unsafeNames) {
+    $migration = @($lexFiles | Where-Object Name -eq $name)[0]
+    Assert (-not $migration.PendingExecutableSafe -and
+        $migration.Sha256 -notin $migration.AllowedAppliedSha256) "unsafe EOL excluded $name"
+  }
+  foreach ($name in @('20260106000000_nested_comments', '20260110000000_ordinary')) {
+    $migration = @($lexFiles | Where-Object Name -eq $name)[0]
+    Assert ($migration.PendingExecutableSafe -and
+        $migration.Sha256 -in $migration.AllowedAppliedSha256) "safe EOL retained $name"
+  }
+  $lexLedger = @($lexFiles | ForEach-Object {
+    $hash = if ($_.Name -in $unsafeNames) { $_.ApprovedSha256 } else { $_.Sha256 }
+    [pscustomobject]@{ name = $_.Name; checksum = $hash; applied = $true; failed = $false }
+  })
+  $lexCompared = Compare-MigrationLedger $lexFiles $lexLedger @()
+  Assert ($lexCompared.AppliedCount -eq $lexCases.Count) 'approved lexical Git hashes accepted'
+  foreach ($name in $unsafeNames) {
+    $migration = @($lexFiles | Where-Object Name -eq $name)[0]
+    $changedLedger = @($lexLedger | ForEach-Object { $_.PSObject.Copy() })
+    @($changedLedger | Where-Object name -eq $name)[0].checksum = $migration.Sha256
+    Expect-Block { Compare-MigrationLedger $lexFiles $changedLedger @() } `
+      'APPLIED_CHECKSUM_MISMATCH'
+    $pendingLedger = @($lexLedger | Where-Object name -ne $name)
+    Expect-Block { Compare-MigrationLedger $lexFiles $pendingLedger @($name) } `
+      'PENDING_SQL_EOL_UNSAFE'
+  }
+  $unicodeFile = Join-Path $lexRepo 'prisma/migrations/20260101000000_unicode_lf/migration.sql'
+  $convertedUnicode = [IO.File]::ReadAllBytes($unicodeFile)
+  try {
+    [IO.File]::WriteAllBytes($unicodeFile,
+      (Get-ApprovedMigrationBytes $lexRepo '20260101000000_unicode_lf'))
+    $exactUnicode = @((Get-MigrationFiles $lexRepo) |
+        Where-Object Name -eq '20260101000000_unicode_lf')[0]
+    Assert ($exactUnicode.PendingExecutableSafe -and
+        $exactUnicode.Sha256 -eq $exactUnicode.ApprovedSha256) `
+      'exact approved Unicode literal bytes remain accepted'
+  } finally { [IO.File]::WriteAllBytes($unicodeFile, $convertedUnicode) }
+
   $productionFiles = @(Get-MigrationFiles $repo)
   $historical = @($productionFiles | Where-Object Name -eq '20261011180000_document_checklist_v2')[0]
   Assert ('95254cd60c62e2013b2f92696a012ab6698bfd0452b272f6d22049bcbdcbbe0b' -in
