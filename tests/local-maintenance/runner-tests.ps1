@@ -698,6 +698,199 @@ datasource db {
     [Text.UTF8Encoding]::new($false))
   Expect-Block { Read-SealedPlan $config $planPath } 'PLAN_SEAL_MISMATCH'
   Expect-Block { Get-GitCheckpoint $repo ('0' * 40) $true } 'APPROVED_COMMIT_MISMATCH'
+
+  $eolRepo = Join-Path $root 'eol-repo'
+  [void](New-Item -ItemType Directory -Path $eolRepo)
+  [void](& git -C $eolRepo init -q)
+  [void](& git -C $eolRepo config user.name 'Synthetic Test')
+  [void](& git -C $eolRepo config user.email 'synthetic@example.invalid')
+  [void](& git -C $eolRepo config core.autocrlf false)
+  $eolCases = [ordered]@{
+    '20260101000000_lf_source' = "CREATE TABLE `"LfSource`" (`"id`" INTEGER);`n"
+    '20260102000000_crlf_source' = "CREATE TABLE `"CrlfSource`" (`"id`" INTEGER);`r`n"
+    '20260103000000_literal' = "SELECT 'first`nsecond';`n"
+    '20260104000000_pending' = "CREATE TABLE `"Pending`" (`"id`" INTEGER);`n"
+  }
+  foreach ($name in $eolCases.Keys) {
+    $directory = Join-Path $eolRepo "prisma/migrations/$name"
+    [void](New-Item -ItemType Directory -Path $directory -Force)
+    [IO.File]::WriteAllText((Join-Path $directory 'migration.sql'), $eolCases[$name],
+      [Text.UTF8Encoding]::new($false))
+  }
+  [void](& git -C $eolRepo add .)
+  [void](& git -C $eolRepo commit -qm 'Synthetic EOL sources')
+  foreach ($name in @('20260101000000_lf_source', '20260103000000_literal',
+      '20260104000000_pending')) {
+    $file = Join-Path $eolRepo "prisma/migrations/$name/migration.sql"
+    [IO.File]::WriteAllText($file, $eolCases[$name].Replace("`n", "`r`n"),
+      [Text.UTF8Encoding]::new($false))
+  }
+  $crlfFile = Join-Path $eolRepo 'prisma/migrations/20260102000000_crlf_source/migration.sql'
+  [IO.File]::WriteAllText($crlfFile, $eolCases['20260102000000_crlf_source'].Replace("`r`n", "`n"),
+    [Text.UTF8Encoding]::new($false))
+  $eolFiles = @(Get-MigrationFiles $eolRepo)
+  $lfSource = @($eolFiles | Where-Object Name -eq '20260101000000_lf_source')[0]
+  $crlfSource = @($eolFiles | Where-Object Name -eq '20260102000000_crlf_source')[0]
+  $literal = @($eolFiles | Where-Object Name -eq '20260103000000_literal')[0]
+  $pendingName = '20260104000000_pending'
+  Assert ($lfSource.Sha256 -ne $lfSource.ApprovedSha256 -and
+      $lfSource.Sha256 -in $lfSource.AllowedAppliedSha256) 'LF Git / CRLF checkout exact variant'
+  Assert ($crlfSource.Sha256 -ne $crlfSource.ApprovedSha256 -and
+      $crlfSource.Sha256 -in $crlfSource.AllowedAppliedSha256) 'CRLF Git / LF checkout exact variant'
+  Assert (-not $literal.PendingExecutableSafe -and
+      $literal.Sha256 -notin $literal.AllowedAppliedSha256) 'literal line break rejects EOL variant'
+  $eolLedger = @(
+    [pscustomobject]@{ name = $lfSource.Name; checksum = $lfSource.Sha256; applied = $true; failed = $false }
+    [pscustomobject]@{ name = $crlfSource.Name; checksum = $crlfSource.Sha256; applied = $true; failed = $false }
+    [pscustomobject]@{ name = $literal.Name; checksum = $literal.ApprovedSha256; applied = $true; failed = $false }
+  )
+  $eolCompared = Compare-MigrationLedger $eolFiles $eolLedger @($pendingName)
+  Assert ($eolCompared.AppliedCount -eq 3 -and
+      @($eolCompared.Pending).Count -eq 1) 'pending migration exact set preserved'
+  Assert (@($eolFiles | Where-Object Name -eq $pendingName)[0].Sha256 -eq
+      (Get-FileHash -LiteralPath (Join-Path $eolRepo "prisma/migrations/$pendingName/migration.sql") `
+        -Algorithm SHA256).Hash.ToLowerInvariant()) 'pending raw checksum preserved'
+  Expect-Block { Compare-MigrationLedger $eolFiles $eolLedger @() } 'PENDING_SET_MISMATCH'
+  $withoutLiteral = @($eolLedger | Where-Object name -ne $literal.Name)
+  Expect-Block { Compare-MigrationLedger $eolFiles $withoutLiteral @($literal.Name, $pendingName) } `
+    'PENDING_SQL_EOL_UNSAFE'
+  $badLedger = @($eolLedger | ForEach-Object { $_.PSObject.Copy() })
+  $badLedger[0].checksum = ('0' * 64)
+  Expect-Block { Compare-MigrationLedger $eolFiles $badLedger @($pendingName) } `
+    'APPLIED_CHECKSUM_MISMATCH'
+  $badLedger[0].checksum = (Get-Sha256Bytes ([Text.Encoding]::UTF8.GetBytes(
+        "CREATE TABLE `"Altered`" (`"id`" INTEGER);`r`n")))
+  Expect-Block { Compare-MigrationLedger $eolFiles $badLedger @($pendingName) } `
+    'APPLIED_CHECKSUM_MISMATCH'
+  $badLedger[0].checksum = Get-Sha256Bytes ([byte[]](@(239, 187, 191) +
+      @([Text.Encoding]::UTF8.GetBytes($eolCases['20260101000000_lf_source']))))
+  Expect-Block { Compare-MigrationLedger $eolFiles $badLedger @($pendingName) } `
+    'APPLIED_CHECKSUM_MISMATCH'
+  $badLedger[0].checksum = $lfSource.Sha256
+  $badLedger[2].checksum = $literal.Sha256
+  Expect-Block { Compare-MigrationLedger $eolFiles $badLedger @($pendingName) } `
+    'APPLIED_CHECKSUM_MISMATCH'
+  $lfFile = Join-Path $eolRepo 'prisma/migrations/20260101000000_lf_source/migration.sql'
+  $originalCheckout = [IO.File]::ReadAllBytes($lfFile)
+  try {
+    [IO.File]::WriteAllBytes($lfFile, [byte[]](@(239, 187, 191) + @($originalCheckout)))
+    Expect-Block { Get-MigrationFiles $eolRepo } 'MIGRATION_BOM_FORBIDDEN'
+    [IO.File]::WriteAllBytes($lfFile, [byte[]](@($originalCheckout) + @(10)))
+    Expect-Block { Get-MigrationFiles $eolRepo } 'MIGRATION_CHECKOUT_BYTES_MISMATCH'
+    [IO.File]::WriteAllText($lfFile, "CREATE TABLE `"LfSource`" (`"id`"  INTEGER);`r`n",
+      [Text.UTF8Encoding]::new($false))
+    Expect-Block { Get-MigrationFiles $eolRepo } 'MIGRATION_CHECKOUT_BYTES_MISMATCH'
+    [IO.File]::WriteAllText($lfFile, "CREATE TABLE `"Changed`" (`"id`" INTEGER);`r`n",
+      [Text.UTF8Encoding]::new($false))
+    Expect-Block { Get-MigrationFiles $eolRepo } 'MIGRATION_CHECKOUT_BYTES_MISMATCH'
+  } finally { [IO.File]::WriteAllBytes($lfFile, $originalCheckout) }
+  $coreSource = Get-Content -LiteralPath (Join-Path $repo 'scripts/local-maintenance/core.ps1') -Raw
+  Assert (@([regex]::Matches($coreSource, '(?m)^function Get-Sha256Bytes\(')).Count -eq 1) `
+    'single SHA-256 implementation'
+  Assert ((Get-Sha256Bytes ([Text.Encoding]::ASCII.GetBytes('abc'))) -eq
+      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad') `
+    'SHA-256 known-byte vector'
+
+  $lexRepo = Join-Path $root 'lexical-repo'
+  [void](New-Item -ItemType Directory -Path $lexRepo)
+  [void](& git -C $lexRepo init -q)
+  [void](& git -C $lexRepo config user.name 'Synthetic Test')
+  [void](& git -C $lexRepo config user.email 'synthetic@example.invalid')
+  [void](& git -C $lexRepo config core.autocrlf false)
+  $lexCases = [ordered]@{
+    '20260101000000_unicode_lf' = ('SELECT $тег$first' + "`n" + 'second$тег$;' + "`n")
+    '20260102000000_unicode_crlf' = ('SELECT $тег$first' + "`r`n" + 'second$тег$;' + "`r`n")
+    '20260103000000_ascii_dollar' = ('SELECT $tag$first' + "`n" + 'second$tag$;' + "`n")
+    '20260104000000_quoted_identifier' = ('CREATE TABLE "first' + "`n" + 'second" ("id" INTEGER);' + "`n")
+    '20260105000000_copy' = ("COPY public.synthetic FROM STDIN;`n1`n\\.`n")
+    '20260106000000_nested_comments' = ('/* outer' + "`n" +
+      '/* inner $тег$ */' + "`n" + 'still outer */' + "`n" +
+      'CREATE TABLE "Safe" ("id" INTEGER);' + "`n")
+    '20260107000000_unterminated_dollar' = ('SELECT $tag$first' + "`n" + 'second;' + "`n")
+    '20260108000000_unterminated_comment' = ('/* outer' + "`n" + '/* inner */' + "`n")
+    '20260109000000_unterminated_string' = ("SELECT 'first`nsecond;`n")
+    '20260110000000_ordinary' = ("CREATE TABLE `"Ordinary`" (`"id`" INTEGER);`n")
+  }
+  foreach ($name in $lexCases.Keys) {
+    $directory = Join-Path $lexRepo "prisma/migrations/$name"
+    [void](New-Item -ItemType Directory -Path $directory -Force)
+    [IO.File]::WriteAllText((Join-Path $directory 'migration.sql'), $lexCases[$name],
+      [Text.UTF8Encoding]::new($false))
+  }
+  [void](& git -C $lexRepo add .)
+  [void](& git -C $lexRepo commit -qm 'Synthetic lexical EOL cases')
+  foreach ($name in $lexCases.Keys) {
+    $file = Join-Path $lexRepo "prisma/migrations/$name/migration.sql"
+    $converted = if ($name -eq '20260102000000_unicode_crlf') {
+      $lexCases[$name].Replace("`r`n", "`n")
+    } else { $lexCases[$name].Replace("`n", "`r`n") }
+    [IO.File]::WriteAllText($file, $converted, [Text.UTF8Encoding]::new($false))
+  }
+  $lexFiles = @(Get-MigrationFiles $lexRepo)
+  $unsafeNames = @('20260101000000_unicode_lf', '20260102000000_unicode_crlf',
+    '20260103000000_ascii_dollar', '20260104000000_quoted_identifier',
+    '20260105000000_copy', '20260107000000_unterminated_dollar',
+    '20260108000000_unterminated_comment', '20260109000000_unterminated_string')
+  foreach ($name in $unsafeNames) {
+    $migration = @($lexFiles | Where-Object Name -eq $name)[0]
+    Assert (-not $migration.PendingExecutableSafe -and
+        $migration.Sha256 -notin $migration.AllowedAppliedSha256) "unsafe EOL excluded $name"
+  }
+  foreach ($name in @('20260106000000_nested_comments', '20260110000000_ordinary')) {
+    $migration = @($lexFiles | Where-Object Name -eq $name)[0]
+    Assert ($migration.PendingExecutableSafe -and
+        $migration.Sha256 -in $migration.AllowedAppliedSha256) "safe EOL retained $name"
+  }
+  $lexLedger = @($lexFiles | ForEach-Object {
+    $hash = if ($_.Name -in $unsafeNames) { $_.ApprovedSha256 } else { $_.Sha256 }
+    [pscustomobject]@{ name = $_.Name; checksum = $hash; applied = $true; failed = $false }
+  })
+  $lexCompared = Compare-MigrationLedger $lexFiles $lexLedger @()
+  Assert ($lexCompared.AppliedCount -eq $lexCases.Count) 'approved lexical Git hashes accepted'
+  foreach ($name in $unsafeNames) {
+    $migration = @($lexFiles | Where-Object Name -eq $name)[0]
+    $changedLedger = @($lexLedger | ForEach-Object { $_.PSObject.Copy() })
+    @($changedLedger | Where-Object name -eq $name)[0].checksum = $migration.Sha256
+    Expect-Block { Compare-MigrationLedger $lexFiles $changedLedger @() } `
+      'APPLIED_CHECKSUM_MISMATCH'
+    $pendingLedger = @($lexLedger | Where-Object name -ne $name)
+    Expect-Block { Compare-MigrationLedger $lexFiles $pendingLedger @($name) } `
+      'PENDING_SQL_EOL_UNSAFE'
+  }
+  $unicodeFile = Join-Path $lexRepo 'prisma/migrations/20260101000000_unicode_lf/migration.sql'
+  $convertedUnicode = [IO.File]::ReadAllBytes($unicodeFile)
+  try {
+    [IO.File]::WriteAllBytes($unicodeFile,
+      (Get-ApprovedMigrationBytes $lexRepo '20260101000000_unicode_lf'))
+    $exactUnicode = @((Get-MigrationFiles $lexRepo) |
+        Where-Object Name -eq '20260101000000_unicode_lf')[0]
+    Assert ($exactUnicode.PendingExecutableSafe -and
+        $exactUnicode.Sha256 -eq $exactUnicode.ApprovedSha256) `
+      'exact approved Unicode literal bytes remain accepted'
+  } finally { [IO.File]::WriteAllBytes($unicodeFile, $convertedUnicode) }
+
+  $productionFiles = @(Get-MigrationFiles $repo)
+  $historical = @($productionFiles | Where-Object Name -eq '20261011180000_document_checklist_v2')[0]
+  Assert ('95254cd60c62e2013b2f92696a012ab6698bfd0452b272f6d22049bcbdcbbe0b' -in
+      $historical.AllowedAppliedSha256) 'historical mixed-EOL exact checksum'
+  Assert ('e46065067be1b22c70e88b04b9b4f2becbec33e30e12d8aaabe1c65c6b24e179' -notin
+      $historical.AllowedAppliedSha256) 'historical extra LF rejected'
+  $productionShapeLedger = @($productionFiles | ForEach-Object {
+    $hash = if ($_.Name -eq $historical.Name) {
+      '95254cd60c62e2013b2f92696a012ab6698bfd0452b272f6d22049bcbdcbbe0b'
+    } elseif ($_.Name -in @('20261023120000_case_decision_received',
+        '20261024160000_meta_message_reads')) { $_.Sha256 }
+    else { $_.ApprovedSha256 }
+    [pscustomobject]@{ name = $_.Name; checksum = $hash; applied = $true; failed = $false }
+  })
+  $productionShape = Compare-MigrationLedger $productionFiles $productionShapeLedger @()
+  Assert ($productionShape.AppliedCount -eq 53) 'offline reconstructed 53-row checksum pattern'
+  $extraLfLedger = @($productionShapeLedger | ForEach-Object { $_.PSObject.Copy() })
+  @($extraLfLedger | Where-Object name -eq $historical.Name)[0].checksum =
+    'e46065067be1b22c70e88b04b9b4f2becbec33e30e12d8aaabe1c65c6b24e179'
+  Expect-Block { Compare-MigrationLedger $productionFiles $extraLfLedger @() } `
+    'APPLIED_CHECKSUM_MISMATCH'
+
   $dirtyRepo = Join-Path $root 'dirty-repo'
   [void](New-Item -ItemType Directory -Path $dirtyRepo)
   [void](& git -C $dirtyRepo init -q)
@@ -713,9 +906,11 @@ datasource db {
   $head = (& git -C $dirtyRepo rev-parse HEAD).Trim()
   $originalHash = (Get-MigrationFiles $dirtyRepo)[0].Sha256
   [IO.File]::AppendAllText($migrationPath, "`n-- changed after approval")
-  $changedHash = (Get-MigrationFiles $dirtyRepo)[0].Sha256
-  Assert ($originalHash -ne $changedHash) 'changed SQL checksum detected'
+  Expect-Block { Get-MigrationFiles $dirtyRepo } 'MIGRATION_CHECKOUT_BYTES_MISMATCH'
+  Write-Output 'PASS changed SQL checksum refused against Git blob'
   Expect-Block { Get-GitCheckpoint $dirtyRepo $head $true } 'DIRTY_CHECKOUT'
+  [IO.File]::WriteAllText($migrationPath,
+    'CREATE TABLE "Synthetic" ("id" INTEGER);', [Text.UTF8Encoding]::new($false))
   Expect-Block { Assert-ChildPath $private (Join-Path $root 'outside-private') } `
     'PATH_OUTSIDE_PRIVATE_ROOT'
   $substituteTarget = Join-Path $root 'substitute-target'

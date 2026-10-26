@@ -435,6 +435,98 @@ function Assert-GuardedCommand([string]$Repo) {
   }
 }
 
+function Get-ApprovedMigrationBytes([string]$Repo, [string]$Name) {
+  if ($Name -notmatch '^[0-9]{14}_[a-z0-9_]+$') { Stop-Maintenance 'MIGRATION_NAME_INVALID' }
+  $processInfo = [Diagnostics.ProcessStartInfo]::new()
+  $processInfo.FileName = 'git.exe'
+  $processInfo.Arguments = "cat-file blob HEAD:prisma/migrations/$Name/migration.sql"
+  $processInfo.WorkingDirectory = $Repo
+  $processInfo.UseShellExecute = $false
+  $processInfo.CreateNoWindow = $true
+  $processInfo.RedirectStandardOutput = $true
+  $processInfo.RedirectStandardError = $true
+  $process = [Diagnostics.Process]::Start($processInfo)
+  $output = [IO.MemoryStream]::new()
+  try {
+    $errorDrain = $process.StandardError.ReadToEndAsync()
+    $process.StandardOutput.BaseStream.CopyTo($output)
+    $process.WaitForExit()
+    [void]$errorDrain.GetAwaiter().GetResult()
+    if ($process.ExitCode -ne 0) { Stop-Maintenance 'APPROVED_MIGRATION_BLOB_MISSING' }
+    return ,$output.ToArray()
+  } finally { $output.Dispose(); $process.Dispose() }
+}
+
+function Get-MigrationUtf8([byte[]]$Bytes) {
+  if ($Bytes.Length -ge 3 -and $Bytes[0] -eq 239 -and $Bytes[1] -eq 187 -and
+      $Bytes[2] -eq 191) { Stop-Maintenance 'MIGRATION_BOM_FORBIDDEN' }
+  try { $text = [Text.UTF8Encoding]::new($false, $true).GetString($Bytes) }
+  catch { Stop-Maintenance 'MIGRATION_INVALID_UTF8' }
+  if ($text.Contains([char]0)) { Stop-Maintenance 'MIGRATION_NUL_BYTE' }
+  return $text
+}
+
+function Get-MigrationEolStyle([string]$Text) {
+  if ([regex]::IsMatch($Text, "`r(?!`n)")) { return 'MIXED' }
+  $crlf = $Text.Contains("`r`n")
+  $lf = [regex]::IsMatch($Text, "(?<!`r)`n")
+  if ($crlf -and $lf) { return 'MIXED' }
+  if ($crlf) { return 'CRLF' }
+  if ($lf) { return 'LF' }
+  return 'NONE'
+}
+
+function Test-MigrationEolConversionSafe([string]$Text) {
+  # A newline inside a SQL string, quoted identifier, or dollar body can be data.
+  # Refuse cross-platform checksum variants in that case, even if the bytes differ
+  # only by line endings. This check does not parse or approve migration SQL.
+  if ($Text -match '(?i)\bCOPY\b' -or $Text -match '(?m)^\s*\\') { return $false }
+  $state = 'normal'; $depth = 0; $tag = ''
+  for ($i = 0; $i -lt $Text.Length; $i++) {
+    $c = $Text[$i]
+    $next = if ($i + 1 -lt $Text.Length) { $Text[$i + 1] } else { [char]0 }
+    if ($state -eq 'line') {
+      if ($c -eq "`n") { $state = 'normal' }
+      continue
+    }
+    if ($state -eq 'block') {
+      if ($c -eq '/' -and $next -eq '*') { $depth++; $i++ }
+      elseif ($c -eq '*' -and $next -eq '/') {
+        $depth--; $i++
+        if ($depth -eq 0) { $state = 'normal' }
+      }
+      continue
+    }
+    if ($state -in @('single', 'double', 'dollar')) {
+      if ($c -eq "`r" -or $c -eq "`n" -or $c -eq '\') { return $false }
+      if ($state -eq 'dollar') {
+        if ($i + $tag.Length -le $Text.Length -and
+            $Text.Substring($i, $tag.Length) -ceq $tag) {
+          $i += $tag.Length - 1; $state = 'normal'
+        }
+        continue
+      }
+      $quote = if ($state -eq 'single') { "'" } else { '"' }
+      if ($c -eq $quote) {
+        if ($next -eq $quote) { $i++ } else { $state = 'normal' }
+      }
+      continue
+    }
+    if ($c -eq '-' -and $next -eq '-') { $state = 'line'; $i++; continue }
+    if ($c -eq '/' -and $next -eq '*') { $state = 'block'; $depth = 1; $i++; continue }
+    if ($c -eq "'") { $state = 'single'; continue }
+    if ($c -eq '"') { $state = 'double'; continue }
+    if ($c -eq '$') {
+      $match = [regex]::Match($Text.Substring($i), '^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$')
+      # PostgreSQL permits non-ASCII dollar tags. If this deliberately narrow
+      # recognizer cannot prove the token's bounds, refuse EOL conversion.
+      if (-not $match.Success) { return $false }
+      $tag = $match.Value; $state = 'dollar'; $i += $tag.Length - 1
+    }
+  }
+  return $state -in @('normal', 'line')
+}
+
 function Get-MigrationFiles([string]$Repo) {
   $root = Join-Path $Repo 'prisma/migrations'
   if (-not (Test-Path -LiteralPath $root -PathType Container)) { Stop-Maintenance 'MIGRATIONS_MISSING' }
@@ -448,10 +540,46 @@ function Get-MigrationFiles([string]$Repo) {
     if ($directory.Name -notmatch '^[0-9]{14}_[a-z0-9_]+$') {
       Stop-Maintenance 'MIGRATION_NAME_INVALID'
     }
+    $approvedBytes = Get-ApprovedMigrationBytes $Repo $directory.Name
+    $approvedText = Get-MigrationUtf8 $approvedBytes
+    $workingBytes = [IO.File]::ReadAllBytes($file)
+    [void](Get-MigrationUtf8 $workingBytes)
+    $approvedHash = Get-Sha256Bytes $approvedBytes
+    $workingHash = Get-Sha256Bytes $workingBytes
+    $checkoutHashes = @($approvedHash)
+    $appliedHashes = @($approvedHash)
+    $safeConversion = Test-MigrationEolConversionSafe $approvedText
+    $style = Get-MigrationEolStyle $approvedText
+    if ($style -in @('LF', 'CRLF')) {
+      $otherText = if ($style -eq 'LF') { $approvedText.Replace("`n", "`r`n") }
+        else { $approvedText.Replace("`r`n", "`n") }
+      $otherHash = Get-Sha256Bytes ([Text.Encoding]::UTF8.GetBytes($otherText))
+      $checkoutHashes += $otherHash
+      if ($safeConversion) { $appliedHashes += $otherHash }
+    }
+    if ($workingHash -notin $checkoutHashes) {
+      Stop-Maintenance 'MIGRATION_CHECKOUT_BYTES_MISMATCH'
+    }
+    if ($directory.Name -eq '20261011180000_document_checklist_v2') {
+      if ($approvedHash -ne '61a95d4365feb4f40967158653bb5ed63803ebd7eb669bcd47f47d6b3185cfa3' -or
+          $style -ne 'LF' -or -not $approvedText.EndsWith("`n") -or
+          -not $safeConversion) {
+        Stop-Maintenance 'HISTORICAL_MIGRATION_PROVENANCE_CHANGED'
+      }
+      $mixedText = $approvedText.Substring(0, $approvedText.Length - 1).Replace("`n", "`r`n") + "`n"
+      $mixedHash = Get-Sha256Bytes ([Text.Encoding]::UTF8.GetBytes($mixedText))
+      if ($mixedHash -ne '95254cd60c62e2013b2f92696a012ab6698bfd0452b272f6d22049bcbdcbbe0b') {
+        Stop-Maintenance 'HISTORICAL_MIGRATION_PROVENANCE_CHANGED'
+      }
+      $appliedHashes += $mixedHash
+    }
     $result += [pscustomobject]@{
       Name = $directory.Name
       Path = $file
-      Sha256 = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+      Sha256 = $workingHash
+      ApprovedSha256 = $approvedHash
+      AllowedAppliedSha256 = @($appliedHashes | Select-Object -Unique)
+      PendingExecutableSafe = ($workingHash -eq $approvedHash -or $safeConversion)
     }
   }
   return $result
@@ -486,7 +614,9 @@ function Compare-MigrationLedger([object[]]$Migrations, [object[]]$Ledger,
     if (-not $row.applied) { Stop-Maintenance 'UNFINISHED_MIGRATION' }
     if ($applied.ContainsKey($row.name)) { Stop-Maintenance 'DUPLICATE_LEDGER_ROW' }
     if (-not $files.ContainsKey($row.name)) { Stop-Maintenance 'UNKNOWN_APPLIED_MIGRATION' }
-    if ($files[$row.name].Sha256 -ne [string]$row.checksum) {
+    if (-not $files[$row.name].PSObject.Properties['AllowedAppliedSha256'] -or
+        [string]$row.checksum -notmatch '^[0-9a-fA-F]{64}$' -or
+        [string]$row.checksum -notin @($files[$row.name].AllowedAppliedSha256)) {
       Stop-Maintenance 'APPLIED_CHECKSUM_MISMATCH'
     }
     $applied[$row.name] = $true
@@ -496,6 +626,11 @@ function Compare-MigrationLedger([object[]]$Migrations, [object[]]$Ledger,
   if (@($pending).Count -ne @($ExpectedPending).Count -or
       (($pending | Sort-Object) -join '|') -ne (($ExpectedPending | Sort-Object) -join '|')) {
     Stop-Maintenance 'PENDING_SET_MISMATCH'
+  }
+  foreach ($name in $pending) {
+    if (-not $files[$name].PendingExecutableSafe) {
+      Stop-Maintenance 'PENDING_SQL_EOL_UNSAFE'
+    }
   }
   return [pscustomobject]@{ AppliedCount = $applied.Count; Pending = @($pending); FailedCount = 0 }
 }
