@@ -1,3 +1,7 @@
+param(
+  [switch]$InjectPeerPartialStopFailure,
+  [string]$InjectedTestId
+)
 if ($PSVersionTable.PSVersion.Major -lt 7) {
   throw 'TEST_REQUIRES_POWERSHELL_7: use pwsh -NoProfile -File tests/local-maintenance/runner-tests.ps1'
 }
@@ -25,8 +29,42 @@ function Expect-Block([scriptblock]$Action, [string]$Code) {
   throw "TEST FAIL: expected block $Code"
 }
 
-function Assert-TestCleanupSafe([object]$Config, [string]$Base, [string]$Root,
+function Assert-RegisteredDisposableRoots([object[]]$Configs, [string]$Root,
+    [object[]]$Clusters, [bool]$RequireEmpty) {
+  if (@($Configs).Count -eq 0) { Stop-Maintenance 'TEST_PRIVATE_ROOT_REGISTRY_EMPTY' }
+  $seen = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::OrdinalIgnoreCase)
+  foreach ($registered in $Configs) {
+    if (-not $registered -or -not $registered.privateDirectory) {
+      Stop-Maintenance 'TEST_PRIVATE_ROOT_REGISTRY_INVALID'
+    }
+    $privateRoot = Assert-ChildPath $Root $registered.privateDirectory
+    if (-not $seen.Add([IO.Path]::GetFullPath($privateRoot))) {
+      Stop-Maintenance 'TEST_PRIVATE_ROOT_DUPLICATE'
+    }
+    Assert-NotReparsePoint $privateRoot
+    Assert-PrivateAcl $privateRoot
+    $isolatedRoot = Join-Path $privateRoot 'isolated'
+    if (-not (Test-Path -LiteralPath $isolatedRoot)) { continue }
+    Assert-NotReparsePoint $isolatedRoot
+    foreach ($entry in @(Get-ChildItem -LiteralPath $isolatedRoot -Force)) {
+      if ($RequireEmpty) { Stop-Maintenance 'TEST_PARTIAL_CLUSTER_UNVERIFIED' }
+      if (-not $entry.PSIsContainer -or
+          ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        Stop-Maintenance 'TEST_PARTIAL_CLUSTER_UNVERIFIED'
+      }
+      $match = @($Clusters | Where-Object {
+          $_ -and [IO.Path]::GetFullPath($_.Root) -eq
+            [IO.Path]::GetFullPath($entry.FullName)
+        })
+      if ($match.Count -ne 1) { Stop-Maintenance 'TEST_PARTIAL_CLUSTER_UNVERIFIED' }
+    }
+  }
+}
+
+function Assert-TestCleanupSafe([object[]]$Configs, [string]$Base, [string]$Root,
     [string]$Id, [object[]]$Clusters, [string]$AllowedJunction = '') {
+  $Config = $Configs[0]
   if ($Id -notmatch '^[0-9a-f]{12}$' -or
       [IO.Path]::GetFullPath($Root) -ne [IO.Path]::GetFullPath((Join-Path $Base $Id))) {
     Stop-Maintenance 'TEST_CLEANUP_PATH_SUBSTITUTED'
@@ -71,7 +109,7 @@ function Assert-TestCleanupSafe([object]$Config, [string]$Base, [string]$Root,
       if (($attributes -band [IO.FileAttributes]::Directory) -ne 0) { $stack.Push($entry) }
     }
   }
-  Assert-NoUnverifiedDisposableClusters $Config
+  Assert-RegisteredDisposableRoots $Configs $Root $Clusters $true
 }
 
 $pgBin = 'C:\Program Files\PostgreSQL\18\bin'
@@ -80,7 +118,11 @@ foreach ($tool in @('initdb.exe', 'pg_ctl.exe', 'createdb.exe', 'pg_dump.exe',
   Assert (Test-Path -LiteralPath (Join-Path $pgBin $tool)) "PostgreSQL 18 $tool"
 }
 
-$testId = [Guid]::NewGuid().ToString('N').Substring(0, 12)
+if ($InjectPeerPartialStopFailure -and $InjectedTestId -notmatch '^[0-9a-f]{12}$') {
+  throw 'TEST_INJECTED_ID_INVALID'
+}
+$testId = if ($InjectPeerPartialStopFailure) { $InjectedTestId }
+  else { [Guid]::NewGuid().ToString('N').Substring(0, 12) }
 $testBase = Join-Path $env:LOCALAPPDATA 'LegalHubMaintenanceRunnerTests'
 if (-not (Test-Path -LiteralPath $testBase)) {
   [void](New-Item -ItemType Directory -Path $testBase)
@@ -92,6 +134,10 @@ $root = Assert-ChildPath $testBase (Join-Path $testBase $testId)
 Set-PrivateAcl $root
 [IO.File]::WriteAllText((Join-Path $root 'runner-test-owned.txt'), $testId,
   [Text.UTF8Encoding]::new($false))
+if ($InjectPeerPartialStopFailure) {
+  [IO.File]::WriteAllText((Join-Path $root 'cleanup-sentinel.txt'), 'retain-on-failure',
+    [Text.UTF8Encoding]::new($false))
+}
 $private = Join-Path $root 'private'
 $backups = Join-Path $root 'backups'
 foreach ($path in @($private, $backups)) {
@@ -105,12 +151,28 @@ $config = [pscustomobject]@{
   nodeBin = 'C:\Program Files\nodejs'
   applicationRole = 'restore_admin'; expectedApplicationHost = '127.0.0.1'
 }
+$registeredConfigs = [Collections.Generic.List[object]]::new()
+[void]$registeredConfigs.Add($config)
 $source = $null
 $restore = $null
 $identityPeer = $null
 $peerConfig = $null
 $substitutePath = $null
 try {
+  if ($InjectPeerPartialStopFailure) {
+    $source = New-DisposableCluster $config ('source' + $testId)
+    $peerPrivate = Join-Path $root 'peer-private'
+    [void](New-Item -ItemType Directory -Path $peerPrivate)
+    Set-PrivateAcl $peerPrivate
+    [IO.File]::WriteAllText((Join-Path $peerPrivate 'peer-sentinel.txt'),
+      'retain-on-failure', [Text.UTF8Encoding]::new($false))
+    $peerConfig = $config | ConvertTo-Json | ConvertFrom-Json
+    $peerConfig.privateDirectory = $peerPrivate
+    [void]$registeredConfigs.Add($peerConfig)
+    $identityPeer = New-DisposableCluster $peerConfig ('source' + $testId) `
+      'AfterStartStopFailure'
+    Stop-Maintenance 'TEST_PEER_FAULT_DID_NOT_BLOCK'
+  }
   $migration = Join-Path $repo 'prisma/migrations/20261024160000_meta_message_reads/migration.sql'
   $audit = Test-MigrationSql $migration
   Assert ($audit.StatementCount -eq 8 -and $audit.Risk -eq 'MEDIUM') 'approved additive SQL audit'
@@ -188,6 +250,73 @@ try {
   Assert ((Test-Path -LiteralPath $sentinel) -and (Test-Path -LiteralPath $childRoot)) `
     'failed outer cleanup retained sentinel and local test root'
   Write-Output "PASS partial-start/failed-stop regression; retained local path: $childRoot"
+
+  $peerChildId = [Guid]::NewGuid().ToString('N').Substring(0, 12)
+  $peerChildRoot = Join-Path $testBase $peerChildId
+  $peerChildOut = Join-Path $root 'peer-partial-child.out'
+  $peerChildErr = Join-Path $root 'peer-partial-child.err'
+  $peerChild = Start-Process -FilePath (Get-Command pwsh).Source -ArgumentList @(
+      '-NoProfile', '-File',
+      ('"' + (Join-Path $repo 'tests/local-maintenance/runner-tests.ps1') + '"'),
+      '-InjectPeerPartialStopFailure', '-InjectedTestId', $peerChildId) `
+    -PassThru -WindowStyle Hidden -RedirectStandardOutput $peerChildOut `
+    -RedirectStandardError $peerChildErr
+  try {
+    if (-not $peerChild.WaitForExit(90000)) {
+      $peerChild.Kill($true)
+      Stop-Maintenance 'PEER_PARTIAL_STOP_CHILD_TIMEOUT'
+    }
+    $peerChildExit = $peerChild.ExitCode
+  } finally { $peerChild.Dispose() }
+  $peerChildText = (Get-Content -LiteralPath $peerChildOut -Raw) +
+    (Get-Content -LiteralPath $peerChildErr -Raw)
+  $peerPrivateRoot = Join-Path $peerChildRoot 'peer-private'
+  $peerLifecyclePath = Join-Path $peerPrivateRoot `
+    "isolated/source$peerChildId/runner-lifecycle.json"
+  $primaryLifecyclePath = Join-Path $peerChildRoot `
+    "private/isolated/source$peerChildId/runner-lifecycle.json"
+  $peerSentinel = Join-Path $peerPrivateRoot 'peer-sentinel.txt'
+  $parentSentinel = Join-Path $peerChildRoot 'cleanup-sentinel.txt'
+  Assert ($peerChildExit -ne 0 -and
+    $peerChildText -match 'TEST_PARTIAL_CLUSTER_UNVERIFIED' -and
+    $peerChildText -match 'identityPeer=NULL' -and
+    (Test-Path -LiteralPath $peerLifecyclePath) -and
+    (Test-Path -LiteralPath $primaryLifecyclePath) -and
+    (Test-Path -LiteralPath $peerSentinel) -and
+    (Test-Path -LiteralPath $parentSentinel)) `
+    'runner-tests outer finally blocked peer partial-start/failed-stop before deletion'
+  $peerLifecycle = Get-Content -LiteralPath $peerLifecyclePath -Raw | ConvertFrom-Json
+  $primaryLifecycle = Get-Content -LiteralPath $primaryLifecyclePath -Raw | ConvertFrom-Json
+  Assert ($peerLifecycle.phase -eq 'STOP_UNVERIFIED' -and
+    $primaryLifecycle.phase -eq 'DATABASE_CREATED' -and
+    $peerLifecycle.port -gt 0 -and $primaryLifecycle.port -gt 0) `
+    'peer and primary lifecycle records retained intact'
+  foreach ($candidate in @($peerLifecycle, $primaryLifecycle)) {
+    $candidateConfig = [pscustomobject]@{
+      targetKind = 'synthetic'
+      privateDirectory = if ($candidate.runId -eq ('source' + $peerChildId) -and
+          $candidate.root.StartsWith($peerPrivateRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        $peerPrivateRoot
+      } else { Join-Path $peerChildRoot 'private' }
+      postgresBin = $pgBin; nodeBin = 'C:\Program Files\nodejs'
+    }
+    $live = Invoke-WithIsolatedEnvironment $candidateConfig $null @{} {
+      $oldPreference = $ErrorActionPreference
+      try {
+        $ErrorActionPreference = 'Continue'
+        $output = @(& (Join-Path $pgBin 'pg_isready.exe') '-h' '127.0.0.1' `
+            '-p' ([string]$candidate.port) '-q' 2>$null)
+        return $LASTEXITCODE
+      } finally { $ErrorActionPreference = $oldPreference }
+    }
+    Assert ($live -eq 0) 'injected peer case retained live owned server before recovery'
+    Stop-DisposableCluster $candidateConfig $candidate
+  }
+  Assert ((Test-Path -LiteralPath $peerSentinel) -and
+    (Test-Path -LiteralPath $parentSentinel) -and
+    (Test-Path -LiteralPath $peerChildRoot)) `
+    'peer failed cleanup retained parent root and both sentinels'
+  Write-Output "PASS peer-private partial-start/failed-stop regression; retained local path: $peerChildRoot"
 
   $canaries = @{
     PGHOSTADDR = '198.51.100.99'; PGSERVICEFILE = 'CANARY_SERVICE_FILE'
@@ -272,6 +401,7 @@ INSERT INTO public."NotificationPreference" VALUES (1);
   Set-PrivateAcl $peerPrivate
   $peerConfig = $config | ConvertTo-Json | ConvertFrom-Json
   $peerConfig.privateDirectory = $peerPrivate
+  [void]$registeredConfigs.Add($peerConfig)
   $identityPeer = New-DisposableCluster $peerConfig ('source' + $testId)
   $directIdentity = Get-DatabaseIdentityState $config $source.Uri
   $peerIdentity = Get-DatabaseIdentityState $peerConfig $identityPeer.Uri
@@ -598,14 +728,14 @@ datasource db {
   Write-Output 'PASS migration path substitution refused'
   $testMarker = Join-Path $root 'runner-test-owned.txt'
   [IO.File]::WriteAllText($testMarker, 'wrong-owner', [Text.UTF8Encoding]::new($false))
-  Expect-Block { Assert-TestCleanupSafe $config $testBase $root $testId @() } `
+  Expect-Block { Assert-TestCleanupSafe @($registeredConfigs) $testBase $root $testId @() } `
     'TEST_CLEANUP_MARKER_MISMATCH'
   [IO.File]::WriteAllText($testMarker, $testId, [Text.UTF8Encoding]::new($false))
-  Expect-Block { Assert-TestCleanupSafe $config $testBase $root $testId @($source) } `
+  Expect-Block { Assert-TestCleanupSafe @($registeredConfigs) $testBase $root $testId @($source) } `
     'TEST_CLUSTER_STILL_RUNNING'
-  Expect-Block { Assert-TestCleanupSafe $config $testBase $root $testId @() } `
+  Expect-Block { Assert-TestCleanupSafe @($registeredConfigs) $testBase $root $testId @() } `
     'TEST_REPARSE_DESCENDANT_FORBIDDEN'
-  Expect-Block { Assert-TestCleanupSafe $config $testBase `
+  Expect-Block { Assert-TestCleanupSafe @($registeredConfigs) $testBase `
       (Join-Path $root 'substituted') $testId @() } 'TEST_CLEANUP_PATH_SUBSTITUTED'
   Assert (Test-Path -LiteralPath $testMarker) 'cleanup refusals retained owned root'
   Write-Output 'WINDOWS SYNTHETIC TESTS PASS'
@@ -613,6 +743,17 @@ datasource db {
   Write-Output "TEST ERROR: $($_.Exception.Message)"
   throw
 } finally {
+  if ($InjectPeerPartialStopFailure) {
+    if ($identityPeer) { Stop-Maintenance 'TEST_PEER_IDENTITY_WAS_RETURNED' }
+    Write-Output 'identityPeer=NULL'
+  }
+  try {
+    Assert-RegisteredDisposableRoots @($registeredConfigs) $root `
+      @($restore, $source, $identityPeer) $false
+  } catch {
+    Write-Output "SYNTHETIC CLEANUP FAIL; retained local path: $root"
+    throw
+  }
   $stopFailure = $null
   if ($identityPeer) {
     try { Stop-DisposableCluster $peerConfig $identityPeer }
@@ -629,7 +770,7 @@ datasource db {
     throw "TEST CLEANUP FAILED: $stopFailure"
   }
   try {
-    Assert-TestCleanupSafe $config $testBase $root $testId `
+    Assert-TestCleanupSafe @($registeredConfigs) $testBase $root $testId `
       @($restore, $source, $identityPeer) $substitutePath
     if ($substitutePath -and (Test-Path -LiteralPath $substitutePath)) {
       [void](Assert-ChildPath $root $substitutePath)
@@ -639,7 +780,8 @@ datasource db {
       }
       [IO.Directory]::Delete($substitutePath, $false)
     }
-    Assert-TestCleanupSafe $config $testBase $root $testId @($restore, $source, $identityPeer)
+    Assert-TestCleanupSafe @($registeredConfigs) $testBase $root $testId `
+      @($restore, $source, $identityPeer)
     $entries = [Collections.Generic.Stack[string]]::new()
     $entries.Push($root)
     while ($entries.Count -gt 0) {
@@ -656,6 +798,7 @@ datasource db {
       }
     }
     [IO.Directory]::Delete($root, $true)
+    Write-Output 'PASS normal primary and peer private-root cleanup'
   } catch {
     Write-Output "SYNTHETIC CLEANUP FAIL; retained local path: $root"
     throw
