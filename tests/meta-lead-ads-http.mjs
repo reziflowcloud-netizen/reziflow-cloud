@@ -30,6 +30,11 @@ const liveEmployee = await db.employee.create({ data: { organizationId: live.id,
 await db.leadChannelRoute.create({ data: { organizationId: live.id, sourceKey: 'facebook_lead_ads', employeeId: liveEmployee.id } })
 const employeeUserA = await db.user.create({ data: { organizationId: org.id, email: `a-${suffix}@example.invalid`, password: 'synthetic', name: 'A', role: 'employee' } })
 const employeeUserB = await db.user.create({ data: { organizationId: org.id, email: `b-${suffix}@example.invalid`, password: 'synthetic', name: 'B', role: 'employee' } })
+await db.notificationPreference.create({ data: { organizationId: org.id, userId: employeeUserA.id,
+  pushEnabled: true, events: { lead_assigned: { inApp: true, push: true } } } })
+await db.pushSubscription.create({ data: { organizationId: org.id, userId: employeeUserA.id,
+  endpointHash: createHash('sha256').update(`synthetic-push-${suffix}`).digest('hex'),
+  encryptedSubscription: 'synthetic-encrypted-placeholder-not-dispatched', deviceLabel: 'Synthetic QA' } })
 await db.notificationPreference.create({ data: { organizationId: org.id, userId: employeeUserB.id,
   events: { lead_assigned: { inApp: false, push: false } } } })
 const employeeA = await db.employee.create({ data: { organizationId: org.id, userId: employeeUserA.id, name: 'A' } })
@@ -140,7 +145,7 @@ try {
   assert.equal((await bindings('PUT', otherToken, { id: authorizedBindingId, mode: 'pilot', enabled: true, pilotLeadIds: ['995'] })).status, 404)
   assert.equal((await bindings('PUT', ownerToken, { id: authorizedBindingId, mode: 'pilot', enabled: true, pilotLeadIds: ['995'] })).status, 200)
   const raceCreate = await bindings('POST', ownerToken, { pageId: '111', formId: '227', mode: 'pilot', enabled: true,
-    pilotLeadIds: ['9981', '9982'] })
+    pilotLeadIds: ['9981', '9982', '9983'] })
   assert.equal(raceCreate.status, 200)
   const raceBindingId = (await raceCreate.json()).id
   const liveCreate = await bindings('POST', liveToken, { pageId: '111', formId: '225', mode: 'live', enabled: true, pilotLeadIds: [] })
@@ -149,9 +154,40 @@ try {
   const liveResponse = await webhook(event('997', '111', '225'))
   assert.equal(liveResponse.status, 200)
   const liveReceipt = await liveResponse.json()
+  assert.equal((await worker()).status, 200)
   const liveLead = await db.lead.findFirst({ where: { organizationId: live.id, messengerId: 'meta-lead-ads:997' } })
   assert.equal(liveLead?.assignedToId, liveOwner.id, `Live Lead status: ${JSON.stringify({ response: liveReceipt, delivery: await db.metaLeadAdsDelivery.findFirst({ where: { bindingId: liveBindingId }, select: { status: true, attempts: true, lastErrorCode: true, nextAttemptAt: true } }) })}`)
   assert.equal(await db.notification.count({ where: { organizationId: live.id, entityId: liveLead.id } }), 0)
+  const largeIds = Array.from({ length: 600 }, (_, index) => String(5000 + index))
+  const liveBatch = ids => ({ object: 'page', entry: ids.map(leadgenId => ({ id: '111',
+    changes: [{ field: 'leadgen', value: { page_id: '111', form_id: '225', leadgen_id: leadgenId } }] })) })
+  await db.$executeRawUnsafe(`CREATE FUNCTION meta_qa_slow_receipt() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(0.005); RETURN NEW; END $$`)
+  await db.$executeRawUnsafe('CREATE TRIGGER meta_qa_slow_receipt BEFORE INSERT ON "MetaLeadAdsDelivery" FOR EACH ROW EXECUTE FUNCTION meta_qa_slow_receipt()')
+  try {
+    const hundred = await webhook(JSON.stringify(liveBatch(largeIds.slice(0, 100))))
+    assert.equal(hundred.status, 200)
+    assert.equal((await hundred.json()).accepted, 100)
+    const payload = liveBatch(largeIds)
+    const baseSize = Buffer.byteLength(JSON.stringify(payload))
+    payload.padding = 'x'.repeat(Math.max(0, 64500 - baseSize - 15))
+    const largeBody = JSON.stringify(payload)
+    assert.ok(Buffer.byteLength(largeBody) > 60000 && Buffer.byteLength(largeBody) < 65536)
+    const largeStart = Date.now()
+    const concurrentBatches = await Promise.all([webhook(largeBody), webhook(largeBody)])
+    assert.ok(concurrentBatches.some(response => response.status === 200))
+    assert.ok(concurrentBatches.every(response => [200, 503].includes(response.status)))
+    if (concurrentBatches.some(response => response.status === 503)) {
+      assert.equal((await webhook(largeBody)).status, 200, 'Retry after bounded concurrent lock failure')
+    }
+    assert.ok(Date.now() - largeStart < 45000, 'Near-limit webhook exceeded admission budget')
+    assert.equal(await db.metaLeadAdsDelivery.count({ where: { bindingId: liveBindingId,
+      leadgenId: { in: largeIds } } }), 600)
+    await db.metaLeadAdsDelivery.updateMany({ where: { bindingId: liveBindingId, leadgenId: { in: largeIds } },
+      data: { nextAttemptAt: new Date(Date.now() + 86400000) } })
+  } finally {
+    await db.$executeRawUnsafe('DROP TRIGGER meta_qa_slow_receipt ON "MetaLeadAdsDelivery"')
+    await db.$executeRawUnsafe('DROP FUNCTION meta_qa_slow_receipt()')
+  }
   assert.equal((await webhook(event('333'), 'wrong-app-secret')).status, 401)
   assert.equal((await webhook(event('333', '999'))).status, 200)
   assert.equal(await db.metaLeadAdsDelivery.count({ where: { bindingId: binding.id } }), 0)
@@ -162,17 +198,23 @@ try {
   const first = await webhook(event('333'))
   assert.equal(first.status, 200)
   assert.equal((await first.json()).accepted, 1)
+  assert.equal((await worker()).status, 200)
   const firstLead = await db.lead.findFirst({ where: { organizationId: org.id, messengerId: 'meta-lead-ads:333' } })
   assert.equal(firstLead?.source, 'facebook_lead_ads', `First Lead status: ${JSON.stringify(await db.metaLeadAdsDelivery.findFirst({ where: { bindingId: binding.id }, select: { status: true, lastErrorCode: true } }))}`)
   assert.equal(firstLead?.employeeId, employeeA.id)
   assert.equal(firstLead?.assignedToId, employeeUserA.id)
   assert.equal(await db.notification.count({ where: { organizationId: org.id, entityType: 'lead', entityId: firstLead.id } }), 1)
+  const durablePush = await db.notificationPushDelivery.findFirst({ where: { organizationId: org.id,
+    notification: { entityType: 'lead', entityId: firstLead.id } }, select: { attempts: true, deliveredAt: true } })
+  assert.equal(durablePush?.attempts, 0)
+  assert.equal(durablePush?.deliveredAt, null)
   const replays = await Promise.all(Array.from({ length: 8 }, () => webhook(event('333'))))
   assert.ok(replays.every(response => response.status === 200))
   assert.equal(await db.lead.count({ where: { organizationId: org.id, messengerId: 'meta-lead-ads:333' } }), 1)
   assert.equal(await db.notification.count({ where: { organizationId: org.id, entityType: 'lead', entityId: firstLead.id } }), 1)
   const second = await webhook(event('334'))
   assert.equal(second.status, 200)
+  assert.equal((await worker()).status, 200)
   const secondLead = await db.lead.findFirst({ where: { organizationId: org.id, messengerId: 'meta-lead-ads:334' } })
   assert.equal(secondLead?.source, 'instagram_lead_ads')
   assert.equal(secondLead?.employeeId, employeeB.id)
@@ -182,31 +224,39 @@ try {
   assert.equal((await db.leadChannelRoute.findUnique({ where: { id: route.id } })).nextPosition, 1)
   const concurrent = await Promise.all(Array.from({ length: 8 }, () => webhook(event('556'))))
   assert.ok(concurrent.every(response => response.status === 200))
+  assert.equal((await worker()).status, 200)
   assert.equal(await db.lead.count({ where: { organizationId: org.id, messengerId: 'meta-lead-ads:556' } }), 1)
   assert.equal((await db.leadChannelRoute.findUnique({ where: { id: route.id } })).nextPosition, 2)
   for (const id of ['429', '500']) {
     assert.equal((await webhook(event(id))).status, 200)
     const row = await db.metaLeadAdsDelivery.findFirst({ where: { appId: '123', leadgenId: id } })
     assert.equal(row?.status, 'pending')
-    await db.metaLeadAdsDelivery.update({ where: { id: row.id }, data: { nextAttemptAt: new Date(Date.now() - 1000) } })
   }
   assert.equal((await worker('wrong')).status, 401)
+  assert.equal((await worker()).status, 200)
+  for (const id of ['429', '500']) {
+    const row = await db.metaLeadAdsDelivery.findFirst({ where: { appId: '123', leadgenId: id } })
+    assert.equal(row?.status, 'pending')
+    await db.metaLeadAdsDelivery.update({ where: { id: row.id }, data: { nextAttemptAt: new Date(Date.now() - 1000) } })
+  }
   assert.equal((await worker()).status, 200)
   for (const id of ['429', '500']) {
     assert.equal((await db.metaLeadAdsDelivery.findFirst({ where: { appId: '123', leadgenId: id } }))?.status, 'complete')
     assert.equal(await db.lead.count({ where: { organizationId: org.id, messengerId: `meta-lead-ads:${id}` } }), 1)
   }
   assert.equal((await webhook(event('404'))).status, 200)
+  assert.equal((await worker()).status, 200)
   const missingGraphLead = await db.metaLeadAdsDelivery.findFirst({ where: { appId: '123', leadgenId: '404' }, select: { status: true, lastErrorCode: true } })
   if (missingGraphLead?.status !== 'blocked') console.error('GRAPH_404_STATUS', missingGraphLead)
   assert.equal(missingGraphLead?.status, 'blocked')
   assert.equal((await webhook(event('555'))).status, 200)
+  assert.equal((await worker()).status, 200)
   const unknownPlatformLead = await db.lead.findFirst({ where: { organizationId: org.id, messengerId: 'meta-lead-ads:555' } })
   if (!unknownPlatformLead) console.error('UNKNOWN_PLATFORM_STATUS', await db.metaLeadAdsDelivery.findFirst({ where: { appId: '123', leadgenId: '555' }, select: { status: true, lastErrorCode: true } }))
   assert.equal(unknownPlatformLead?.source, 'meta_lead_ads_unknown')
   const batchIds = Array.from({ length: 30 }, (_, index) => String(1001 + index))
   await db.metaLeadAdsBinding.update({ where: { id: binding.id }, data: {
-    pilotLeadIds: ['333', '334', '429', '500', '404', '555', '556', ...batchIds, '2001', '2002', '2003', '4001', '4002', '4003', '4004'],
+    pilotLeadIds: ['333', '334', '429', '500', '404', '555', '556', ...batchIds, '2001', '2002', '2003', '4001', '4002', '4003', '4004', '4005', '4006'],
   } })
   const twentyOne = await webhook(batch(batchIds.slice(0, 21)))
   assert.equal(twentyOne.status, 200)
@@ -223,6 +273,14 @@ try {
   assert.equal(mixedResponse.status, 200)
   assert.ok((await mixedResponse.json()).rejected >= 2)
   assert.equal(await db.metaLeadAdsDelivery.count({ where: { bindingId: binding.id, leadgenId: { in: batchIds } } }), 30)
+  assert.equal((await webhook(batch(['2001', '2002']))).status, 200)
+  await db.$executeRawUnsafe(`CREATE FUNCTION meta_qa_no_prefix_reinsert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'replayed prefix reached INSERT'; END $$`)
+  await db.$executeRawUnsafe('CREATE TRIGGER meta_qa_no_prefix_reinsert BEFORE INSERT ON "MetaLeadAdsDelivery" FOR EACH ROW EXECUTE FUNCTION meta_qa_no_prefix_reinsert()')
+  const prefixReplay = await webhook(batch(['2001', '2002']))
+  assert.equal(prefixReplay.status, 200)
+  assert.equal((await prefixReplay.json()).replayed, 2)
+  await db.$executeRawUnsafe('DROP TRIGGER meta_qa_no_prefix_reinsert ON "MetaLeadAdsDelivery"')
+  await db.$executeRawUnsafe('DROP FUNCTION meta_qa_no_prefix_reinsert()')
   await db.$executeRawUnsafe(`CREATE FUNCTION meta_qa_fail_delivery() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW."leadgenId" = '2003' THEN RAISE EXCEPTION 'synthetic failure'; END IF; RETURN NEW; END $$`)
   await db.$executeRawUnsafe('CREATE TRIGGER meta_qa_fail_delivery BEFORE INSERT ON "MetaLeadAdsDelivery" FOR EACH ROW EXECUTE FUNCTION meta_qa_fail_delivery()')
   assert.equal((await webhook(batch(['2001', '2002', '2003']))).status, 503)
@@ -271,15 +329,45 @@ try {
   assert.ok(await db.notification.count({ where: { organizationId: org.id, entityId: concurrentLead.id } }) <= 1)
   assert.equal((await db.leadChannelRoute.findUnique({ where: { id: route.id } })).nextPosition,
     beforeConcurrentWorkers === 1 ? 2 : 1)
-  await db.metaLeadAdsDelivery.create({ data: { organizationId: org.id, bindingId: binding.id,
-    appId: '123', leadgenId: '4004', eventFingerprint: receiptFingerprint('4004'), acceptedMode: 'pilot' } })
+  for (const id of ['4004', '4005', '4006']) {
+    await db.metaLeadAdsDelivery.create({ data: { organizationId: org.id, bindingId: binding.id,
+      appId: '123', leadgenId: id, eventFingerprint: receiptFingerprint(id), acceptedMode: 'pilot' } })
+  }
+  const timeoutStart = Date.now()
   const timeoutWorker = await worker()
   assert.equal(timeoutWorker.status, 200)
+  assert.ok(Date.now() - timeoutStart < 45000, 'Worker exceeded bounded execution budget')
   assert.ok((await timeoutWorker.json()).pending >= 1)
-  assert.equal((await db.metaLeadAdsDelivery.findFirst({ where: { bindingId: binding.id, leadgenId: '4004' } })).status, 'pending')
+  assert.equal(await db.metaLeadAdsDelivery.count({ where: { bindingId: binding.id,
+    leadgenId: { in: ['4004', '4005', '4006'] }, status: 'pending' } }), 3)
+  const deadlineRows = await db.metaLeadAdsDelivery.findMany({ where: { bindingId: binding.id,
+    leadgenId: { in: ['4004', '4005', '4006'] } }, select: { attempts: true } })
+  assert.ok(deadlineRows.some(row => row.attempts > 0) && deadlineRows.some(row => row.attempts === 0),
+    'Worker must leave later slow receipts recoverable when budget is exhausted')
+  await db.metaLeadAdsDelivery.updateMany({ where: { bindingId: binding.id,
+    leadgenId: { in: ['4004', '4005', '4006'] } }, data: { nextAttemptAt: new Date(Date.now() + 86400000) } })
   assert.equal((await webhook(event('995', '111', '223'))).status, 200)
   const queuedForRevoke = await db.metaLeadAdsDelivery.findFirst({ where: { bindingId: authorizedBindingId, leadgenId: '995' } })
   assert.equal(queuedForRevoke?.status, 'pending')
+  let lockReady, releaseLock
+  const readyForLock = new Promise(resolve => { lockReady = resolve })
+  const holdLock = new Promise(resolve => { releaseLock = resolve })
+  const heldBinding = db.$transaction(async tx => {
+    await tx.$queryRawUnsafe('SELECT id FROM "MetaLeadAdsBinding" WHERE id = $1 FOR UPDATE', authorizedBindingId)
+    lockReady()
+    await holdLock
+  }, { timeout: 10000 })
+  await readyForLock
+  try {
+    const busyStart = Date.now()
+    const busyDisable = await bindings('DELETE', ownerToken, { id: authorizedBindingId })
+    assert.equal(busyDisable.status, 503)
+    assert.ok(Date.now() - busyStart < 5000)
+    assert.equal((await db.metaLeadAdsBinding.findUnique({ where: { id: authorizedBindingId } })).enabled, true)
+  } finally {
+    releaseLock()
+    await heldBinding
+  }
   assert.equal((await bindings('DELETE', ownerToken, { id: authorizedBindingId })).status, 200)
   await db.metaLeadAdsDelivery.update({ where: { id: queuedForRevoke.id }, data: { nextAttemptAt: new Date(Date.now() - 1000) } })
   assert.equal((await worker()).status, 200)
@@ -287,22 +375,48 @@ try {
   assert.equal(await db.lead.count({ where: { organizationId: org.id, messengerId: 'meta-lead-ads:995' } }), 0)
   assert.equal((await webhook(event('995', '111', '223'))).status, 200)
   assert.equal(await db.metaLeadAdsDelivery.count({ where: { bindingId: authorizedBindingId } }), 1)
-  const inFlight = webhook(event('9981', '111', '227'))
+  assert.equal((await webhook(event('9981', '111', '227'))).status, 200)
+  assert.equal((await webhook(event('9983', '111', '227'))).status, 200)
+  const inFlight = worker()
+  const inFlightPeer = worker()
   let processingSeen = false
   for (let attempt = 0; attempt < 300; attempt++) {
-    const row = await db.metaLeadAdsDelivery.findFirst({ where: { bindingId: raceBindingId, leadgenId: '9981' }, select: { status: true } })
-    if (row?.status === 'processing') { processingSeen = true; break }
+    const rows = await db.metaLeadAdsDelivery.findMany({ where: { bindingId: raceBindingId,
+      leadgenId: { in: ['9981', '9983'] } }, select: { status: true } })
+    if (rows.length === 2 && rows.every(row => row.status === 'processing')) { processingSeen = true; break }
     await new Promise(resolve => setTimeout(resolve, 50))
   }
   if (!processingSeen) console.error('RACE_RECEIPT', await db.metaLeadAdsDelivery.findFirst({ where: {
     bindingId: raceBindingId, leadgenId: '9981' }, select: { status: true, lastErrorCode: true } }))
   assert.equal(processingSeen, true)
+  const cursorBeforeRevoke = (await db.leadChannelRoute.findUnique({ where: { id: route.id } })).nextPosition
+  const legacyStart = Date.now()
+  const legacyDuringGraph = await fetch(`${base}/api/webhooks/leads/${org.slug}`, { method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Reziflow-Key': 'synthetic-legacy-webhook-key',
+      'Idempotency-Key': 'synthetic-google-sheets-during-graph' },
+    body: JSON.stringify({ fullName: 'Synthetic Concurrent Legacy Lead', source: 'google_sheets' }) })
+  assert.equal(legacyDuringGraph.status, 201)
+  assert.ok(Date.now() - legacyStart < 3500, 'Legacy ingestion was blocked by Graph latency')
+  const otherStart = Date.now()
+  await db.organization.update({ where: { id: other.id }, data: { name: 'Synthetic Other Still Available' } })
+  assert.ok(Date.now() - otherStart < 2000, 'Another tenant was blocked by Graph latency')
+  const revokeStart = Date.now()
   const revokeDuringGraph = bindings('DELETE', ownerToken, { id: raceBindingId })
-  assert.equal((await inFlight).status, 200)
   assert.equal((await revokeDuringGraph).status, 200)
+  assert.ok(Date.now() - revokeStart < 3500, 'Binding disable waited for Graph response')
+  assert.equal((await inFlight).status, 200)
+  assert.equal((await inFlightPeer).status, 200)
+  assert.equal(await db.metaLeadAdsDelivery.count({ where: { bindingId: raceBindingId,
+    leadgenId: { in: ['9981', '9983'] }, status: 'blocked' } }), 2)
   const atRevocationCommit = await db.lead.count({ where: { organizationId: org.id, messengerId: 'meta-lead-ads:9981' } })
+  assert.equal(atRevocationCommit, 0)
+  assert.equal(await db.lead.count({ where: { organizationId: org.id, messengerId: 'meta-lead-ads:9983' } }), 0)
   await new Promise(resolve => setTimeout(resolve, 200))
   assert.equal(await db.lead.count({ where: { organizationId: org.id, messengerId: 'meta-lead-ads:9981' } }), atRevocationCommit)
+  assert.equal((await db.leadChannelRoute.findUnique({ where: { id: route.id } })).nextPosition, cursorBeforeRevoke)
+  assert.equal(await db.notification.count({ where: { organizationId: org.id, entityType: 'lead',
+    entityId: { in: (await db.lead.findMany({ where: { organizationId: org.id,
+      messengerId: 'meta-lead-ads:9981' }, select: { id: true } })).map(row => row.id) } } }), 0)
   assert.equal((await webhook(event('9982', '111', '227'))).status, 200)
   assert.equal(await db.metaLeadAdsDelivery.count({ where: { bindingId: raceBindingId, leadgenId: '9982' } }), 0)
   assert.equal((await webhook(event('996', '111', '225'))).status, 200)
@@ -347,6 +461,7 @@ try {
   assert.equal((await webhook(event('3001'))).status, 200)
   assert.equal(await db.metaLeadAdsDelivery.count({ where: { appId: '123', eventFingerprint: fingerprint('3001') } }), 1)
   assert.equal((await webhook(event('3002'))).status, 200)
+  assert.equal((await worker()).status, 200)
   assert.equal((await db.metaLeadAdsDelivery.findFirst({ where: { appId: '123', leadgenId: '3002' } }))?.status, 'blocked')
   assert.equal(await db.lead.count({ where: { organizationId: org.id, messengerId: 'meta-lead-ads:3002' } }), 0)
   assert.equal((await webhook(event('999', '777', '888'))).status, 200)
@@ -369,7 +484,8 @@ try {
     body: JSON.stringify({ fullName: 'Synthetic Legacy Lead', source: 'google_sheets' }) })
   assert.equal((await legacy()).status, 201)
   assert.equal((await legacy()).status, 201)
-  assert.equal(await db.lead.count({ where: { organizationId: org.id, source: 'google_sheets' } }), 1)
+  assert.equal(await db.lead.count({ where: { organizationId: org.id, source: 'google_sheets' } }), 2)
+  assert.doesNotMatch(serverError, /P2024|P2028|deadlock detected/i)
   passed = true
   console.log('SYNTHETIC_HTTP PASS: HMAC, tenant binding, pilot, concurrent replay, routing, 429/5xx retry, 404, OFF, shadow, admin diagnostics')
 } catch (error) {
