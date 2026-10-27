@@ -57,6 +57,13 @@ try {
     $env:DATABASE_URL = $currentUrl
     Remove-Item Env:META_LEAD_ADS_SYNTHETIC_OLD_DB_TEST -ErrorAction SilentlyContinue
   }
+  try {
+    & node tests\meta-lead-ads-old-app.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'Old application + new database compatibility failed' }
+  } finally {
+    & .\node_modules\.bin\prisma.cmd generate
+    if ($LASTEXITCODE -ne 0) { throw 'Prisma Client regeneration failed after old app check' }
+  }
   $exitCode = 0
 } catch {
   Write-Error $_.Exception.Message -ErrorAction Continue
