@@ -99,6 +99,7 @@ async function save(request: NextRequest, create: boolean) {
   try {
     const binding = await db.$transaction(async (tx: any) => {
       // Serialize OFF/activation against inboundLeadOnce's tenant lock.
+      await tx.$executeRawUnsafe("SET LOCAL lock_timeout = '2000ms'")
       await tx.$queryRawUnsafe('SELECT id FROM "Organization" WHERE id = $1 FOR UPDATE', context.organizationId)
       const latest = create ? null : await tx.metaLeadAdsBinding.findFirst({ where: {
         id, organizationId: context.organizationId, appId: config.appId,
@@ -110,10 +111,13 @@ async function save(request: NextRequest, create: boolean) {
       return create
         ? tx.metaLeadAdsBinding.create({ data: { ...data, organizationId: context.organizationId, appId: config.appId, pageId, formId }, select: { id: true } })
         : tx.metaLeadAdsBinding.update({ where: { id, organizationId: context.organizationId }, data, select: { id: true } })
-    }, { timeout: 10000 })
+    }, { timeout: 8000, maxWait: 2000 })
     return NextResponse.json({ ok: true, id: binding.id })
   } catch (error: any) {
     if (error?.code === 'P2002') return NextResponse.json({ error: 'Page/Form already bound' }, { status: 409 })
+    if (error?.code === 'P2024' || error?.code === 'P2028' || error?.meta?.code === '55P03') {
+      return NextResponse.json({ error: 'BINDING_BUSY_RETRY' }, { status: 503, headers: { 'Retry-After': '3' } })
+    }
     return NextResponse.json({ error: 'Binding save failed' }, { status: 500 })
   }
 }
@@ -129,10 +133,16 @@ export async function DELETE(request: NextRequest) {
   if (context.error) return context.error
   const body = await request.json().catch(() => null)
   if (typeof body?.id !== 'string') return NextResponse.json({ error: 'Invalid binding' }, { status: 400 })
-  const result = await db.$transaction(async (tx: any) => {
-    await tx.$queryRawUnsafe('SELECT id FROM "Organization" WHERE id = $1 FOR UPDATE', context.organizationId)
-    return tx.metaLeadAdsBinding.updateMany({ where: { id: body.id, organizationId: context.organizationId },
-      data: { enabled: false, mode: 'off', activatedAt: null, pilotLeadIds: [] } })
-  }, { timeout: 10000 })
-  return NextResponse.json({ ok: result.count === 1 }, { status: result.count === 1 ? 200 : 404 })
+  try {
+    const result = await db.$transaction(async (tx: any) => {
+      await tx.$executeRawUnsafe("SET LOCAL lock_timeout = '2000ms'")
+      await tx.$queryRawUnsafe('SELECT id FROM "Organization" WHERE id = $1 FOR UPDATE', context.organizationId)
+      return tx.metaLeadAdsBinding.updateMany({ where: { id: body.id, organizationId: context.organizationId },
+        data: { enabled: false, mode: 'off', activatedAt: null, pilotLeadIds: [] } })
+    }, { timeout: 8000, maxWait: 2000 })
+    return NextResponse.json({ ok: result.count === 1 }, { status: result.count === 1 ? 200 : 404 })
+  } catch {
+    // A failed disable is never reported as confirmed. The owner can retry.
+    return NextResponse.json({ error: 'BINDING_BUSY_RETRY' }, { status: 503, headers: { 'Retry-After': '3' } })
+  }
 }

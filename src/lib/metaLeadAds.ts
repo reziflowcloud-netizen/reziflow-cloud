@@ -37,44 +37,73 @@ function receiptFingerprint(receiptKey: string, appId: string, leadgenId: string
   return createHmac('sha256', receiptKey).update(`${appId}:${leadgenId}`).digest('hex')
 }
 
-export async function acceptLeadAdsEvent(event: MetaLeadAdsEvent, appId: string, receiptKey: string) {
-  const candidate = await db.metaLeadAdsBinding.findUnique({
-    where: { appId_pageId_formId: { appId, pageId: event.pageId, formId: event.formId } },
-    select: { id: true, organizationId: true },
-  })
-  if (!candidate) return { accepted: false, reason: 'UNBOUND_OR_OFF' }
-  // Shadow stores only an HMAC of the signed event's ID. It never calls Graph.
-  const eventFingerprint = receiptFingerprint(receiptKey, appId, event.leadgenId)
-  try {
-    return await db.$transaction(async (tx: any) => {
-      await tx.$queryRawUnsafe('SELECT id FROM "Organization" WHERE id = $1 FOR SHARE', candidate.organizationId)
-      const binding = await tx.metaLeadAdsBinding.findFirst({ where: {
-        id: candidate.id, organizationId: candidate.organizationId, appId, pageId: event.pageId, formId: event.formId,
-      }, select: { id: true, organizationId: true, enabled: true, mode: true, pilotLeadIds: true, activatedAt: true } })
-      if (!binding?.enabled || !binding.activatedAt || binding.mode === 'off') return { accepted: false, reason: 'UNBOUND_OR_OFF' }
-      if (!leadAdsTupleAuthorized({ appId, pageId: event.pageId, formId: event.formId,
-        organizationId: binding.organizationId, mode: binding.mode, pageToken: pageToken(event.pageId) })) {
-        return { accepted: false, reason: 'AUTHORIZATION_REVOKED' }
+export async function acceptLeadAdsEvents(events: MetaLeadAdsEvent[], appId: string, receiptKey: string) {
+  if (!events.length) return { accepted: 0, shadow: 0, replayed: 0, rejected: 0 }
+  // The signed HTTP body is already bounded to 64 KiB. One short transaction
+  // locks only the referenced bindings and accounts for the entire package.
+  // A DB error rolls back all new receipts and the caller returns 503.
+  return db.$transaction(async (tx: any) => {
+    await tx.$executeRawUnsafe("SET LOCAL lock_timeout = '1500ms'")
+    await tx.$executeRawUnsafe("SET LOCAL statement_timeout = '5000ms'")
+    const tuples = new Map(events.map(event => [`${event.pageId}:${event.formId}`, {
+      pageId: event.pageId, formId: event.formId,
+    }]))
+    const candidates = await tx.metaLeadAdsBinding.findMany({ where: {
+      appId, OR: Array.from(tuples.values()),
+    }, select: { id: true } })
+    const ids = candidates.map((row: any) => row.id)
+    if (ids.length) await tx.$queryRawUnsafe(
+      'SELECT id FROM "MetaLeadAdsBinding" WHERE id = ANY($1::text[]) ORDER BY id FOR SHARE', ids)
+    const bindings = ids.length ? await tx.metaLeadAdsBinding.findMany({ where: { id: { in: ids }, appId },
+      select: { id: true, organizationId: true, pageId: true, formId: true,
+        enabled: true, mode: true, pilotLeadIds: true, activatedAt: true } }) : []
+    const byTuple = new Map<string, any>(bindings.map((row: any) => [`${row.pageId}:${row.formId}`, row]))
+    const pending = new Map<string, any>()
+    let rejected = 0, replayed = 0
+    for (const event of events) {
+      const binding = byTuple.get(`${event.pageId}:${event.formId}`)
+      if (!binding?.enabled || !binding.activatedAt || binding.mode === 'off' ||
+          !leadAdsTupleAuthorized({ appId, pageId: event.pageId, formId: event.formId,
+            organizationId: binding.organizationId, mode: binding.mode, pageToken: pageToken(event.pageId) }) ||
+          (binding.mode !== 'shadow' && !pilotAllows(binding.mode, event.leadgenId, binding.pilotLeadIds))) {
+        rejected++; continue
       }
-      if (binding.mode !== 'shadow' && !pilotAllows(binding.mode, event.leadgenId, binding.pilotLeadIds)) {
-        return { accepted: false, reason: 'PILOT_LEAD_NOT_ALLOWED' }
+      const eventFingerprint = receiptFingerprint(receiptKey, appId, event.leadgenId)
+      const existing = pending.get(eventFingerprint)
+      if (existing) {
+        if (existing.bindingId === binding.id) replayed++
+        else rejected++
+        continue
       }
-      const leadgenId = binding.mode === 'shadow' ? `shadow:${eventFingerprint}` : event.leadgenId
-      const delivery = await tx.metaLeadAdsDelivery.create({ data: {
-        organizationId: binding.organizationId, bindingId: binding.id, appId, leadgenId, eventFingerprint,
-        acceptedMode: binding.mode, status: binding.mode === 'shadow' ? 'shadow' : 'pending',
-      }, select: { id: true } })
-      return { accepted: true, reason: binding.mode === 'shadow' ? 'SHADOW' : 'QUEUED', deliveryId: delivery.id }
-    }, { timeout: 10000 })
-  } catch (error: any) {
-    if (error?.code !== 'P2002') throw error
-    const existing = await db.metaLeadAdsDelivery.findUnique({
-      where: { appId_eventFingerprint: { appId, eventFingerprint } }, select: { bindingId: true },
-    })
-    return existing?.bindingId === candidate.id
-      ? { accepted: true, reason: 'REPLAY' }
-      : { accepted: false, reason: 'CROSS_BINDING_REPLAY' }
-  }
+      pending.set(eventFingerprint, { organizationId: binding.organizationId, bindingId: binding.id,
+        appId, eventFingerprint, leadgenId: binding.mode === 'shadow' ? `shadow:${eventFingerprint}` : event.leadgenId,
+        acceptedMode: binding.mode, status: binding.mode === 'shadow' ? 'shadow' : 'pending' })
+    }
+    const values = Array.from(pending.values())
+    if (!values.length) return { accepted: 0, shadow: 0, replayed, rejected }
+    const fingerprints = values.map(row => row.eventFingerprint)
+    const before = await tx.metaLeadAdsDelivery.findMany({ where: { appId, eventFingerprint: { in: fingerprints } },
+      select: { eventFingerprint: true, bindingId: true } })
+    const known = new Map(before.map((row: any) => [row.eventFingerprint, row.bindingId]))
+    // A retried envelope skips its already committed prefix. Only unfamiliar
+    // fingerprints reach INSERT; concurrent duplicates still use the unique
+    // key and are verified against their binding after commit contention.
+    const missing = values.filter(row => !known.has(row.eventFingerprint))
+    for (let offset = 0; offset < missing.length; offset += 150) {
+      await tx.metaLeadAdsDelivery.createMany({ data: missing.slice(offset, offset + 150), skipDuplicates: true })
+    }
+    const after = await tx.metaLeadAdsDelivery.findMany({ where: { appId, eventFingerprint: { in: fingerprints } },
+      select: { eventFingerprint: true, bindingId: true } })
+    const stored = new Map(after.map((row: any) => [row.eventFingerprint, row.bindingId]))
+    let accepted = 0, shadow = 0
+    for (const row of values) {
+      if (stored.get(row.eventFingerprint) !== row.bindingId) { rejected++; continue }
+      if (known.has(row.eventFingerprint)) { replayed++; continue }
+      if (row.status === 'shadow') shadow++
+      else accepted++
+    }
+    return { accepted, shadow, replayed, rejected }
+  }, { timeout: 40000, maxWait: 2000 })
 }
 
 class GraphFailure extends Error {
@@ -118,7 +147,7 @@ function fieldsToPayload(metaLead: any): Record<string, string> {
 }
 
 export async function processLeadAdsDelivery(id: string, appId: string, secret: string, activationTime: Date,
-  deadline = Date.now() + 15000) {
+  deadline = Date.now() + 45000) {
   // Prisma defaults use PostgreSQL time with microsecond precision. A newly
   // inserted receipt can be later than the same-millisecond JavaScript clock.
   // Use the database clock for due and lease comparisons.
@@ -131,7 +160,7 @@ export async function processLeadAdsDelivery(id: string, appId: string, secret: 
   const eligible = current.status === 'pending' && current.nextAttemptAt <= now ||
     current.status === 'processing' && current.leaseUntil && current.leaseUntil <= now
   if (!eligible) return 'skipped'
-  if (Date.now() + 12000 >= deadline) return 'skipped'
+  if (Date.now() + 35000 >= deadline) return 'skipped'
   if (current.attempts >= 8) {
     const eventKey = inboundEventKey('meta-lead-ads', {}, `${appId}:${current.leadgenId}`)
     const prior = await db.leadWebhookLog.findFirst({ where: { organizationId: current.organizationId,
@@ -151,11 +180,14 @@ export async function processLeadAdsDelivery(id: string, appId: string, secret: 
   const attempts = current.attempts + 1
   try {
     if (current.createdAt < activationTime) throw new GraphFailure('GLOBAL_ACTIVATION_EXPIRED', false)
-    // Hold a tenant lock while authorizing and starting Graph retrieval.
-    // A tenant-local revocation takes the conflicting FOR UPDATE lock and
-    // becomes effective only after this bounded in-flight request completes.
-    const graphResult = await db.$transaction(async (tx: any) => {
-      await tx.$queryRawUnsafe('SELECT id FROM "Organization" WHERE id = $1 FOR SHARE', current.organizationId)
+    // Start fetch under a short binding-row lock, then commit before waiting
+    // on Graph. DELETE/PUT update that same row. Once disable commits, no new
+    // request can be initiated; an already started response must still pass
+    // the final tenant-locked authorization check before a Lead is created.
+    const graphStart = await db.$transaction(async (tx: any) => {
+      await tx.$executeRawUnsafe("SET LOCAL lock_timeout = '1500ms'")
+      const locked = await tx.$queryRawUnsafe('SELECT id FROM "MetaLeadAdsBinding" WHERE id = $1 AND "organizationId" = $2 FOR SHARE', current.bindingId, current.organizationId)
+      if (!locked.length) return { failure: { code: 'BINDING_DISABLED', retryable: false } }
       const active = await tx.metaLeadAdsBinding.findFirst({ where: {
         id: current.bindingId, organizationId: current.organizationId, appId, enabled: true,
       }, select: { id: true, pageId: true, formId: true, mode: true, pilotLeadIds: true, activatedAt: true } })
@@ -165,17 +197,15 @@ export async function processLeadAdsDelivery(id: string, appId: string, secret: 
             organizationId: current.organizationId, mode: active.mode, pageToken: pageToken(active.pageId) })) {
         return { failure: { code: 'BINDING_DISABLED', retryable: false } }
       }
-      try {
-        return { binding: active, metaLead: await fetchLead(current.leadgenId, active.pageId, secret, deadline) }
-      } catch (error) {
-        if (error instanceof GraphFailure) return { failure: {
-          code: error.code, retryable: error.retryable, retryAfter: error.retryAfter } }
-        throw error
-      }
-    }, { timeout: 15000 })
-    if (graphResult.failure) throw new GraphFailure(graphResult.failure.code,
-      graphResult.failure.retryable, graphResult.failure.retryAfter)
-    const { binding, metaLead } = graphResult
+      const request = fetchLead(current.leadgenId, active.pageId, secret, deadline)
+        .then(value => ({ value }), error => ({ error }))
+      return { binding: active, request }
+    }, { timeout: 4000, maxWait: 1000 })
+    if (graphStart.failure) throw new GraphFailure(graphStart.failure.code, graphStart.failure.retryable)
+    const graphResult = await graphStart.request
+    if (graphResult.error) throw graphResult.error
+    const binding = graphStart.binding
+    const metaLead = graphResult.value
     if (metaNumericId(metaLead?.id) !== current.leadgenId || metaNumericId(metaLead?.form_id) !== binding.formId) {
       throw new GraphFailure('GRAPH_IDENTITY_MISMATCH', false)
     }
@@ -183,6 +213,7 @@ export async function processLeadAdsDelivery(id: string, appId: string, secret: 
     if (!Number.isFinite(createdAt) || createdAt > Date.now() + 300000 || Date.now() - createdAt > 365 * 86400000) {
       throw new GraphFailure('LEAD_AGE_UNVERIFIED', false)
     }
+    if (Date.now() + 23000 >= deadline) throw new GraphFailure('DEADLINE_RETRY', true)
     const source = leadAdsSource(metaLead.platform)
     const settingsRow = await db.organization.findUnique({ where: { id: current.organizationId }, select: { settings: true } })
     if (!settingsRow) throw new GraphFailure('ORGANIZATION_MISSING', false)
@@ -190,6 +221,7 @@ export async function processLeadAdsDelivery(id: string, appId: string, secret: 
     const mapped = applyLeadWebhookMapping(fieldsToPayload(metaLead), settings.leadWebhookFieldMap || [])
     const data = normalizeLeadBody({ ...mapped, source, messengerId: `meta-lead-ads:${current.leadgenId}` })
     if (!data.fullName && !data.phone && !data.email && !data.instagram && !data.facebook) throw new GraphFailure('EMPTY_CONTACT', false)
+    if (Date.now() + 23000 >= deadline) throw new GraphFailure('DEADLINE_RETRY', true)
     let diagnosticCode: string | null = null
     const lead = await inboundLeadOnce(db, current.organizationId,
       inboundEventKey('meta-lead-ads', {}, `${appId}:${current.leadgenId}`),
@@ -224,7 +256,8 @@ export async function processLeadAdsDelivery(id: string, appId: string, secret: 
         } })
         await notifyAssignment(tx, 'lead', created)
         return created
-      }, { pushOnReplay: false })
+      }, { pushOnReplay: false, dispatchPush: false, shortLockWait: true,
+        transactionTimeoutMs: Math.min(15000, Math.max(1000, deadline - Date.now() - 7000)) })
     await db.metaLeadAdsDelivery.updateMany({ where: { id, status: 'processing', attempts }, data: {
       status: 'complete', leadId: lead?.id || null, leaseUntil: null, lastErrorCode: diagnosticCode,
     } })
@@ -242,15 +275,15 @@ export async function processLeadAdsDelivery(id: string, appId: string, secret: 
 }
 
 export async function processDueLeadAdsDeliveries(appId: string, secret: string, activationTime: Date,
-  deadline = Date.now() + 45000, limit = 3) {
+  deadline = Date.now() + 45000, limit = 20) {
   const now = new Date()
   const rows = await db.metaLeadAdsDelivery.findMany({ where: {
     appId,
     OR: [{ status: 'pending', nextAttemptAt: { lte: now } }, { status: 'processing', leaseUntil: { lte: now } }],
-  }, select: { id: true }, orderBy: [{ nextAttemptAt: 'asc' }, { id: 'asc' }], take: Math.min(limit, 3) })
+  }, select: { id: true }, orderBy: [{ nextAttemptAt: 'asc' }, { id: 'asc' }], take: Math.min(limit, 20) })
   const result = { complete: 0, retry: 0, blocked: 0, skipped: 0 }
   for (const row of rows) {
-    if (Date.now() + 15000 >= deadline) break
+    if (Date.now() + 35000 >= deadline) break
     result[await processLeadAdsDelivery(row.id, appId, secret, activationTime, deadline) as keyof typeof result]++
   }
   const oldest = await db.metaLeadAdsDelivery.findFirst({ where: { appId, status: 'pending' },
