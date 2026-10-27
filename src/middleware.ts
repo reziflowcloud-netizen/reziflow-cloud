@@ -33,6 +33,8 @@ const PUBLIC_PATHS = [
   '/manifest.json',
   '/notification-sw.js',
   '/api/internal/notifications',
+  '/api/internal/meta-lead-ads',
+  '/api/webhooks/meta/lead-ads',
   '/api/auth/login',
   '/api/auth/register',
   '/api/auth/forgot-password',
@@ -98,5 +100,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static(?:/|$)|_next/image(?:/|$)|favicon\\.ico$|manifest\\.json$|notification-sw\\.js$|assets(?:/|$)|api/auth(?:/|$)|api/webhooks/leads(?:/|$)|api/webhooks/meta/leads(?:/|$)|api/webhooks/meta/messages(?:/|$)|api/webhooks/telegram/leads(?:/|$)|api/internal/notifications(?:/|$)).*)'],
+  matcher: ['/((?!_next/static(?:/|$)|_next/image(?:/|$)|favicon\\.ico$|manifest\\.json$|notification-sw\\.js$|assets(?:/|$)|api/auth(?:/|$)|api/webhooks/leads(?:/|$)|api/webhooks/meta/leads(?:/|$)|api/webhooks/meta/lead-ads(?:/|$)|api/webhooks/meta/messages(?:/|$)|api/webhooks/telegram/leads(?:/|$)|api/internal/notifications(?:/|$)|api/internal/meta-lead-ads(?:/|$)).*)'],
 }

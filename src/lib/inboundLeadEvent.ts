@@ -14,15 +14,15 @@ export function inboundEventKey(source: string, payload: any, explicit?: unknown
 export async function lockInboundLead(tx: any, organizationId: string) {
   await tx.$queryRawUnsafe('SELECT id FROM "Organization" WHERE id = $1 FOR UPDATE', organizationId)
 }
-export async function inboundLeadOnce(db: any, organizationId: string, eventKey: string, metadata: any, work: (tx: any) => Promise<any>) {
+export async function inboundLeadOnce(db: any, organizationId: string, eventKey: string, metadata: any, work: (tx: any) => Promise<any>, options: { pushOnReplay?: boolean } = {}) {
   const result = await db.$transaction(async (tx: any) => {
     await lockInboundLead(tx, organizationId)
     const replay = await tx.leadWebhookLog.findFirst({ where: { organizationId, status: 'created', payload: { path: ['assignmentEventKey'], equals: eventKey } } })
-    if (replay) return replay.leadId ? tx.lead.findFirst({ where: { id: replay.leadId, organizationId } }) : null
+    if (replay) return { lead: replay.leadId ? await tx.lead.findFirst({ where: { id: replay.leadId, organizationId } }) : null, created: false }
     const lead = await work(tx)
     await tx.leadWebhookLog.create({ data: { organizationId, leadId: lead.id, status: 'created', source: metadata.source, payload: { ...metadata.payload, assignmentEventKey: eventKey } } })
-    return lead
+    return { lead, created: true }
   }, { timeout: 15000 })
-  if (result) await dispatchAssignmentPush(organizationId, [result.id], db)
-  return result
+  if (result.lead && (result.created || options.pushOnReplay !== false)) await dispatchAssignmentPush(organizationId, [result.lead.id], db)
+  return result.lead
 }
