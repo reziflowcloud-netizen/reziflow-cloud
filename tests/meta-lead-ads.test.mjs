@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { createHmac } from 'node:crypto'
+import { createHash, createHmac } from 'node:crypto'
 import { collectMetaLeadAdsEvents, leadAdsSource, metaNumericId, metaRetryDelay, pilotAllows } from '../src/lib/metaLeadAdsPolicy.ts'
+import { leadAdsTupleAuthorized } from '../src/lib/metaLeadAdsAuthorization.ts'
 import { verifyMetaWebhookSignature } from '../src/lib/metaWebhookSecurity.ts'
 
 const event = (page = '111', form = '222', lead = '333') => ({ object: 'page', entry: [{ id: page,
@@ -23,6 +24,44 @@ test('signed Page/Form/Lead IDs must be coherent and bounded', () => {
   assert.equal(collectMetaLeadAdsEvents(event('111', '222', 'x')).events.length, 0)
   assert.equal(metaNumericId('01'), null)
   assert.equal(metaNumericId('1'.repeat(32)), null)
+})
+
+test('bounded webhook body is never silently sliced at 20 entries or changes', () => {
+  const changes = Array.from({ length: 30 }, (_, index) => ({ field: 'leadgen', value: {
+    page_id: '111', form_id: '222', leadgen_id: String(1001 + index) } }))
+  assert.equal(collectMetaLeadAdsEvents({ object: 'page', entry: [{ id: '111', changes }] }).events.length, 30)
+  assert.equal(collectMetaLeadAdsEvents({ object: 'page', entry: changes.map(change => ({ id: '111', changes: [change] })) }).events.length, 30)
+})
+
+test('operator tuple provenance and current mode allowlist fail closed', () => {
+  const names = ['META_LEAD_ADS_APPROVED_TUPLES', 'META_LEAD_ADS_PILOT_ORGANIZATION_ID',
+    'META_LEAD_ADS_SHADOW_ORGANIZATION_IDS', 'META_LEAD_ADS_LIVE_ORGANIZATION_IDS']
+  const old = Object.fromEntries(names.map(name => [name, process.env[name]]))
+  try {
+    const token = 'synthetic-high-entropy-page-token'
+    const tuple = { appId: '123', pageId: '111', formId: '222', organizationId: 'org-a',
+      tokenSha256: createHash('sha256').update(token).digest('hex'), tokenAppId: '123', tokenPageId: '111',
+      formPageId: '111', verifiedAt: new Date().toISOString() }
+    process.env.META_LEAD_ADS_APPROVED_TUPLES = JSON.stringify([tuple])
+    process.env.META_LEAD_ADS_PILOT_ORGANIZATION_ID = 'org-a'
+    process.env.META_LEAD_ADS_SHADOW_ORGANIZATION_IDS = 'org-a'
+    process.env.META_LEAD_ADS_LIVE_ORGANIZATION_IDS = 'org-a'
+    const input = { appId: '123', pageId: '111', formId: '222', organizationId: 'org-a', mode: 'pilot', pageToken: token }
+    assert.equal(leadAdsTupleAuthorized(input), true)
+    assert.equal(leadAdsTupleAuthorized({ ...input, organizationId: 'org-b', mode: 'off' }), false)
+    assert.equal(leadAdsTupleAuthorized({ ...input, pageToken: 'rotated-token' }), false)
+    assert.equal(leadAdsTupleAuthorized({ ...input, mode: 'live' }), true)
+    delete process.env.META_LEAD_ADS_LIVE_ORGANIZATION_IDS
+    assert.equal(leadAdsTupleAuthorized({ ...input, mode: 'live' }), false)
+    delete process.env.META_LEAD_ADS_SHADOW_ORGANIZATION_IDS
+    assert.equal(leadAdsTupleAuthorized({ ...input, mode: 'shadow' }), false)
+    delete process.env.META_LEAD_ADS_PILOT_ORGANIZATION_ID
+    assert.equal(leadAdsTupleAuthorized(input), false)
+    process.env.META_LEAD_ADS_APPROVED_TUPLES = JSON.stringify([{ ...tuple, formPageId: '999' }])
+    assert.equal(leadAdsTupleAuthorized({ ...input, mode: 'off' }), false)
+  } finally {
+    for (const name of names) old[name] === undefined ? delete process.env[name] : process.env[name] = old[name]
+  }
 })
 
 test('pilot blocks unknown IDs; shadow is not a fetchable mode', () => {

@@ -11,20 +11,20 @@ export function collectMetaLeadAdsEvents(body: unknown): { events: MetaLeadAdsEv
   if (input.object !== 'page' || !Array.isArray(input.entry)) return { events: [], rejected: 1 }
   const events: MetaLeadAdsEvent[] = []
   let rejected = 0
-  for (const entry of input.entry.slice(0, 20)) {
+  // The raw webhook body is capped at 64 KiB by the route. Inspect every
+  // element inside that bound; acknowledging a sliced batch loses leads.
+  for (const entry of input.entry) {
     const pageId = metaNumericId(entry?.id)
     if (!Array.isArray(entry?.changes)) { rejected++; continue }
-    for (const change of entry.changes.slice(0, 20)) {
+    for (const change of entry.changes) {
       if (change?.field !== 'leadgen') continue
       const formId = metaNumericId(change?.value?.form_id)
       const leadgenId = metaNumericId(change?.value?.leadgen_id)
       const claimedPage = change?.value?.page_id == null ? pageId : metaNumericId(change.value.page_id)
       if (!pageId || !formId || !leadgenId || claimedPage !== pageId) { rejected++; continue }
-      if (events.length < 20) events.push({ pageId, formId, leadgenId })
-      else rejected++
+      events.push({ pageId, formId, leadgenId })
     }
   }
-  if (input.entry.length > 20) rejected += input.entry.length - 20
   return { events, rejected }
 }
 
