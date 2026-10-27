@@ -1,4 +1,4 @@
-param([string]$PgBin = 'C:\Program Files\PostgreSQL\18\bin')
+param([string]$PgBin = 'C:\Program Files\PostgreSQL\18\bin', [switch]$SkipVisual)
 $ErrorActionPreference = 'Stop'
 $root = Join-Path $env:TEMP ('legalhub-meta-lead-ads-qa-' + [guid]::NewGuid().ToString('N'))
 $data = Join-Path $root 'cluster'
@@ -29,10 +29,34 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Schema drift detected' }
   & node tests\meta-lead-ads-db.mjs
   if ($LASTEXITCODE -ne 0) { throw 'Synthetic DB assertions failed' }
-  & node tests\meta-lead-ads-visual.mjs
-  if ($LASTEXITCODE -ne 0) { throw 'Synthetic visual assertions failed' }
+  if (-not $SkipVisual) {
+    & node tests\meta-lead-ads-visual.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'Synthetic visual assertions failed' }
+  }
   & node tests\meta-lead-ads-http.mjs
   if ($LASTEXITCODE -ne 0) { throw 'Synthetic HTTP assertions failed' }
+  & (Join-Path $PgBin 'createdb.exe') -h 127.0.0.1 -p $port -U meta_qa meta_lead_ads_old_qa
+  if ($LASTEXITCODE -ne 0) { throw 'Old-schema disposable database creation failed' }
+  $oldFixture = Join-Path $root 'old-schema-fixture'
+  $oldMigrations = Join-Path $oldFixture 'migrations'
+  New-Item -ItemType Directory -Path $oldMigrations | Out-Null
+  Copy-Item -LiteralPath prisma\schema.prisma -Destination (Join-Path $oldFixture 'schema.prisma')
+  Copy-Item -LiteralPath prisma\migrations\migration_lock.toml -Destination $oldMigrations
+  foreach ($migration in @(Get-ChildItem -LiteralPath prisma\migrations -Directory | Where-Object Name -ne '20261027120000_meta_lead_ads_multitenant')) {
+    Copy-Item -LiteralPath $migration.FullName -Destination $oldMigrations -Recurse
+  }
+  $currentUrl = $env:DATABASE_URL
+  try {
+    $env:DATABASE_URL = "postgresql://meta_qa@127.0.0.1:$port/meta_lead_ads_old_qa?schema=public"
+    & .\node_modules\.bin\prisma.cmd migrate deploy --schema (Join-Path $oldFixture 'schema.prisma')
+    if ($LASTEXITCODE -ne 0) { throw 'Old-schema migration chain failed' }
+    $env:META_LEAD_ADS_SYNTHETIC_OLD_DB_TEST = '1'
+    & node tests\meta-lead-ads-old-db.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'New application + old database compatibility failed' }
+  } finally {
+    $env:DATABASE_URL = $currentUrl
+    Remove-Item Env:META_LEAD_ADS_SYNTHETIC_OLD_DB_TEST -ErrorAction SilentlyContinue
+  }
   $exitCode = 0
 } catch {
   Write-Error $_.Exception.Message -ErrorAction Continue

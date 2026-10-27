@@ -192,7 +192,7 @@ try {
   }
   [IO.File]::WriteAllText($badSql, 'CREATE TABLE "Probe" ("id" INTEGER CHECK (id > 0));',
     [Text.UTF8Encoding]::new($false))
-  Expect-Block { Test-MigrationSql $badSql } 'SQL_DESTRUCTIVE_OR_UNSUPPORTED'
+  Expect-Block { Test-MigrationSql $badSql } 'SQL_CREATE_TABLE_ITEM_UNSUPPORTED'
 
   foreach ($stage in @('BeforeInitdb', 'AfterInitdb', 'AfterStart',
       'AfterReady', 'AfterCreatedb')) {
@@ -875,7 +875,8 @@ datasource db {
       $historical.AllowedAppliedSha256) 'historical mixed-EOL exact checksum'
   Assert ('e46065067be1b22c70e88b04b9b4f2becbec33e30e12d8aaabe1c65c6b24e179' -notin
       $historical.AllowedAppliedSha256) 'historical extra LF rejected'
-  $productionShapeLedger = @($productionFiles | ForEach-Object {
+  $pendingLeadAds = '20261027120000_meta_lead_ads_multitenant'
+  $productionShapeLedger = @($productionFiles | Where-Object Name -ne $pendingLeadAds | ForEach-Object {
     $hash = if ($_.Name -eq $historical.Name) {
       '95254cd60c62e2013b2f92696a012ab6698bfd0452b272f6d22049bcbdcbbe0b'
     } elseif ($_.Name -in @('20261023120000_case_decision_received',
@@ -883,12 +884,13 @@ datasource db {
     else { $_.ApprovedSha256 }
     [pscustomobject]@{ name = $_.Name; checksum = $hash; applied = $true; failed = $false }
   })
-  $productionShape = Compare-MigrationLedger $productionFiles $productionShapeLedger @()
-  Assert ($productionShape.AppliedCount -eq 53) 'offline reconstructed 53-row checksum pattern'
+  $productionShape = Compare-MigrationLedger $productionFiles $productionShapeLedger @($pendingLeadAds)
+  Assert ($productionShape.AppliedCount -eq 53 -and @($productionShape.Pending).Count -eq 1) `
+    'offline reconstructed 53-row checksum pattern with new pending migration'
   $extraLfLedger = @($productionShapeLedger | ForEach-Object { $_.PSObject.Copy() })
   @($extraLfLedger | Where-Object name -eq $historical.Name)[0].checksum =
     'e46065067be1b22c70e88b04b9b4f2becbec33e30e12d8aaabe1c65c6b24e179'
-  Expect-Block { Compare-MigrationLedger $productionFiles $extraLfLedger @() } `
+  Expect-Block { Compare-MigrationLedger $productionFiles $extraLfLedger @($pendingLeadAds) } `
     'APPLIED_CHECKSUM_MISMATCH'
 
   $dirtyRepo = Join-Path $root 'dirty-repo'

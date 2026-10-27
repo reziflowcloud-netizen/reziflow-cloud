@@ -4,6 +4,7 @@ import { getOrganizationId, getUser } from '@/lib/auth'
 import { isSameOriginRequest } from '@/lib/requestSecurity'
 import { leadAdsAppConfig, pageToken } from '@/lib/metaLeadAds'
 import { metaNumericId } from '@/lib/metaLeadAdsPolicy'
+import { leadAdsTupleAuthorized } from '@/lib/metaLeadAdsAuthorization'
 
 export const dynamic = 'force-dynamic'
 const db = prisma as any
@@ -11,7 +12,7 @@ const db = prisma as any
 async function ownerContext() {
   const user = await getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  if (user.role !== 'owner' && user.role !== 'admin') return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  if ((user.role !== 'owner' && user.role !== 'admin') || user.restrictedAccess === true) return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   return { organizationId: getOrganizationId(user) }
 }
 
@@ -19,16 +20,22 @@ export async function GET() {
   const context = await ownerContext()
   if (context.error) return context.error
   const config = leadAdsAppConfig()
-  const bindings = await db.metaLeadAdsBinding.findMany({ where: { organizationId: context.organizationId },
+  let bindings: any[], counts: any[], diagnostics: any[]
+  try {
+    bindings = await db.metaLeadAdsBinding.findMany({ where: { organizationId: context.organizationId },
     select: { id: true, pageId: true, formId: true, enabled: true, mode: true, pilotLeadIds: true, updatedAt: true },
-    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-  })
-  const counts = await db.metaLeadAdsDelivery.groupBy({ by: ['bindingId', 'status'],
-    where: { organizationId: context.organizationId }, _count: { id: true },
-  })
-  const diagnostics = await db.metaLeadAdsDelivery.groupBy({ by: ['bindingId', 'lastErrorCode'],
-    where: { organizationId: context.organizationId, lastErrorCode: { not: null } }, _count: { id: true },
-  })
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    })
+    counts = await db.metaLeadAdsDelivery.groupBy({ by: ['bindingId', 'status'],
+      where: { organizationId: context.organizationId }, _count: { id: true },
+    })
+    diagnostics = await db.metaLeadAdsDelivery.groupBy({ by: ['bindingId', 'lastErrorCode'],
+      where: { organizationId: context.organizationId, lastErrorCode: { not: null } }, _count: { id: true },
+    })
+  } catch (error: any) {
+    if (error?.code === 'P2021' || error?.code === 'P2022') return NextResponse.json({ error: 'SCHEMA_NOT_READY' }, { status: 503 })
+    throw error
+  }
   return NextResponse.json({
     appConfigured: Boolean(config), globallyEnabled: process.env.META_LEAD_ADS_ENABLED === 'true',
     callbackPath: '/api/webhooks/meta/lead-ads',
@@ -72,6 +79,10 @@ async function save(request: NextRequest, create: boolean) {
     pageId = existing.pageId; formId = existing.formId
   }
   if (!pageId || !formId) return NextResponse.json({ error: 'Invalid Page or Form ID' }, { status: 400 })
+  if (!leadAdsTupleAuthorized({ appId: config.appId, pageId, formId,
+    organizationId: context.organizationId!, mode: mode as 'off' | 'pilot' | 'live' | 'shadow', pageToken: pageToken(pageId) })) {
+    return NextResponse.json({ error: 'Binding authorization unavailable' }, { status: 403 })
+  }
   if (enabled) {
     if (mode === 'pilot' && (context.organizationId !== process.env.META_LEAD_ADS_PILOT_ORGANIZATION_ID ||
       !pilotLeadIds.length || !pageToken(pageId))) {
@@ -109,3 +120,19 @@ async function save(request: NextRequest, create: boolean) {
 
 export async function POST(request: NextRequest) { return save(request, true) }
 export async function PUT(request: NextRequest) { return save(request, false) }
+
+// Emergency tenant-local disable remains available after server authorization is
+// withdrawn. The Organization lock is shared with Lead creation's final check.
+export async function DELETE(request: NextRequest) {
+  if (!isSameOriginRequest(request)) return NextResponse.json({ error: 'Cross-origin request blocked' }, { status: 403 })
+  const context = await ownerContext()
+  if (context.error) return context.error
+  const body = await request.json().catch(() => null)
+  if (typeof body?.id !== 'string') return NextResponse.json({ error: 'Invalid binding' }, { status: 400 })
+  const result = await db.$transaction(async (tx: any) => {
+    await tx.$queryRawUnsafe('SELECT id FROM "Organization" WHERE id = $1 FOR UPDATE', context.organizationId)
+    return tx.metaLeadAdsBinding.updateMany({ where: { id: body.id, organizationId: context.organizationId },
+      data: { enabled: false, mode: 'off', activatedAt: null, pilotLeadIds: [] } })
+  }, { timeout: 10000 })
+  return NextResponse.json({ ok: result.count === 1 }, { status: result.count === 1 ? 200 : 404 })
+}

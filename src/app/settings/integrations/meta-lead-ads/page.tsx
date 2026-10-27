@@ -10,9 +10,9 @@ type Binding = { id: string; pageId: string; formId: string; mode: string; enabl
 type Result = { appConfigured: boolean; globallyEnabled: boolean; callbackPath: string; bindings: Binding[] }
 
 const copy = {
-  ru: { title: 'Meta Lead Ads — отдельная интеграция', back: 'Назад к интеграциям', intro: 'Привязка Page и Form к этой организации. Токены хранятся только в защищённой конфигурации сервера. Новая привязка выключена по умолчанию.', callback: 'Callback URL', app: 'Отдельное приложение', global: 'Глобальный приём', ready: 'настроено', missing: 'не настроено', page: 'Page ID', form: 'Form ID', ids: 'Разрешённые test Lead ID (через запятую)', add: 'Создать выключенную привязку', save: 'Сохранить', mode: 'Режим', off: 'Выключено', pilot: 'Пилот', shadow: 'Теневой режим', live: 'Рабочий режим', enabled: 'Приём включён', token: 'Page token', counts: 'Доставка', error: 'Не удалось сохранить. Проверьте права и разрешения пилота.', empty: 'Привязок пока нет.', pilotHint: 'Пилот принимает только перечисленные test Lead ID. Теневой режим не запрашивает Graph и не создаёт лиды.' },
-  uk: { title: 'Meta Lead Ads — окрема інтеграція', back: 'Назад до інтеграцій', intro: 'Прив’язка Page і Form до цієї організації. Токени зберігаються лише у захищеній конфігурації сервера. Нова прив’язка вимкнена за замовчуванням.', callback: 'Callback URL', app: 'Окремий застосунок', global: 'Глобальний прийом', ready: 'налаштовано', missing: 'не налаштовано', page: 'Page ID', form: 'Form ID', ids: 'Дозволені test Lead ID (через кому)', add: 'Створити вимкнену прив’язку', save: 'Зберегти', mode: 'Режим', off: 'Вимкнено', pilot: 'Пілот', shadow: 'Тіньовий режим', live: 'Робочий режим', enabled: 'Прийом увімкнено', token: 'Page token', counts: 'Доставка', error: 'Не вдалося зберегти. Перевірте права та дозволи пілота.', empty: 'Прив’язок ще немає.', pilotHint: 'Пілот приймає лише перелічені test Lead ID. Тіньовий режим не запитує Graph і не створює ліди.' },
-  pl: { title: 'Meta Lead Ads — osobna integracja', back: 'Wróć do integracji', intro: 'Powiązanie Page i Form z tą organizacją. Tokeny są przechowywane tylko w bezpiecznej konfiguracji serwera. Nowe powiązanie jest domyślnie wyłączone.', callback: 'Callback URL', app: 'Osobna aplikacja', global: 'Globalny odbiór', ready: 'skonfigurowano', missing: 'brak konfiguracji', page: 'Page ID', form: 'Form ID', ids: 'Dozwolone test Lead ID (oddzielone przecinkami)', add: 'Utwórz wyłączone powiązanie', save: 'Zapisz', mode: 'Tryb', off: 'Wyłączone', pilot: 'Pilot', shadow: 'Tryb obserwacji', live: 'Tryb produkcyjny', enabled: 'Odbiór włączony', token: 'Page token', counts: 'Dostawa', error: 'Nie udało się zapisać. Sprawdź uprawnienia i zgodę na pilotaż.', empty: 'Brak powiązań.', pilotHint: 'Pilot przyjmuje tylko wymienione test Lead ID. Tryb obserwacji nie pobiera danych z Graph i nie tworzy leadów.' },
+  ru: { title: 'Meta Lead Ads — отдельная интеграция', back: 'Назад к интеграциям', intro: 'Привязка Page и Form к этой организации. Токены хранятся только в защищённой конфигурации сервера. Новая привязка выключена по умолчанию.', callback: 'Callback URL', app: 'Отдельное приложение', global: 'Глобальный приём', ready: 'настроено', missing: 'не настроено', page: 'Page ID', form: 'Form ID', ids: 'Разрешённые test Lead ID (через запятую)', add: 'Создать выключенную привязку', save: 'Сохранить', revoke: 'Отключить привязку', mode: 'Режим', off: 'Выключено', pilot: 'Пилот', shadow: 'Теневой режим', live: 'Рабочий режим', enabled: 'Приём включён', token: 'Page token', counts: 'Доставка', error: 'Не удалось сохранить. Проверьте права и разрешения пилота.', empty: 'Привязок пока нет.', pilotHint: 'Пилот принимает только перечисленные test Lead ID. Теневой режим не запрашивает Graph и не создаёт лиды.' },
+  uk: { title: 'Meta Lead Ads — окрема інтеграція', back: 'Назад до інтеграцій', intro: 'Прив’язка Page і Form до цієї організації. Токени зберігаються лише у захищеній конфігурації сервера. Нова прив’язка вимкнена за замовчуванням.', callback: 'Callback URL', app: 'Окремий застосунок', global: 'Глобальний прийом', ready: 'налаштовано', missing: 'не налаштовано', page: 'Page ID', form: 'Form ID', ids: 'Дозволені test Lead ID (через кому)', add: 'Створити вимкнену прив’язку', save: 'Зберегти', revoke: 'Вимкнути прив’язку', mode: 'Режим', off: 'Вимкнено', pilot: 'Пілот', shadow: 'Тіньовий режим', live: 'Робочий режим', enabled: 'Прийом увімкнено', token: 'Page token', counts: 'Доставка', error: 'Не вдалося зберегти. Перевірте права та дозволи пілота.', empty: 'Прив’язок ще немає.', pilotHint: 'Пілот приймає лише перелічені test Lead ID. Тіньовий режим не запитує Graph і не створює ліди.' },
+  pl: { title: 'Meta Lead Ads — osobna integracja', back: 'Wróć do integracji', intro: 'Powiązanie Page i Form z tą organizacją. Tokeny są przechowywane tylko w bezpiecznej konfiguracji serwera. Nowe powiązanie jest domyślnie wyłączone.', callback: 'Callback URL', app: 'Osobna aplikacja', global: 'Globalny odbiór', ready: 'skonfigurowano', missing: 'brak konfiguracji', page: 'Page ID', form: 'Form ID', ids: 'Dozwolone test Lead ID (oddzielone przecinkami)', add: 'Utwórz wyłączone powiązanie', save: 'Zapisz', revoke: 'Wyłącz powiązanie', mode: 'Tryb', off: 'Wyłączone', pilot: 'Pilot', shadow: 'Tryb obserwacji', live: 'Tryb produkcyjny', enabled: 'Odbiór włączony', token: 'Page token', counts: 'Dostawa', error: 'Nie udało się zapisać. Sprawdź uprawnienia i zgodę na pilotaż.', empty: 'Brak powiązań.', pilotHint: 'Pilot przyjmuje tylko wymienione test Lead ID. Tryb obserwacji nie pobiera danych z Graph i nie tworzy leadów.' },
 }
 
 export default function MetaLeadAdsPage() {
@@ -40,6 +40,15 @@ export default function MetaLeadAdsPage() {
     try {
       const response = await fetch('/api/meta-lead-ads/bindings', { method,
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (!response.ok) throw new Error()
+      await load()
+    } catch { setError(t.error) } finally { setBusy(false) }
+  }
+  async function revoke(id: string) {
+    setBusy(true); setError('')
+    try {
+      const response = await fetch('/api/meta-lead-ads/bindings', { method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
       if (!response.ok) throw new Error()
       await load()
     } catch { setError(t.error) } finally { setBusy(false) }
@@ -73,6 +82,7 @@ export default function MetaLeadAdsPage() {
         </div>
         <label className={styles.check}><input type="checkbox" checked={draft.enabled} onChange={event => update(item.id, { enabled: event.target.checked })} />{t.enabled}</label>
         <button disabled={busy} onClick={() => void save({ id: item.id, mode: draft.mode, enabled: draft.enabled, pilotLeadIds: draft.pilotLeadIds }, 'PUT')}>{t.save}</button>
+        <button disabled={busy || !item.enabled} onClick={() => void revoke(item.id)}>{t.revoke}</button>
         <p>{t.counts}: {Object.entries(item.counts).map(([status, count]) => `${status} ${count}`).join(' · ') || '0'}</p>
         {Object.keys(item.diagnostics || {}).length > 0 && <p role="status">{Object.entries(item.diagnostics).map(([code, count]) => `${code} ${count}`).join(' · ')}</p>}
       </section>
