@@ -380,13 +380,13 @@ try {
   $schema = @'
 CREATE TABLE public."_prisma_migrations" (migration_name text PRIMARY KEY, checksum text NOT NULL,
   started_at timestamptz DEFAULT now(), finished_at timestamptz DEFAULT now(), rolled_back_at timestamptz);
-CREATE TABLE public."LeadMessage" (id integer PRIMARY KEY, body text);
+CREATE TABLE public."LeadMessage" (id integer PRIMARY KEY, body text, payload jsonb);
 CREATE TABLE public."Lead" (id integer PRIMARY KEY);
 CREATE TABLE public."Organization" (id integer PRIMARY KEY);
 CREATE TABLE public."User" (id integer PRIMARY KEY);
 CREATE TABLE public."NotificationPreference" (id integer PRIMARY KEY);
 INSERT INTO public."_prisma_migrations"(migration_name, checksum) VALUES ('20260101000000_synthetic_init', 'abc');
-INSERT INTO public."LeadMessage" VALUES (1, 'SYNTHETIC ONLY');
+INSERT INTO public."LeadMessage" VALUES (1, 'SYNTHETIC ONLY', '{"kind":"synthetic"}'::jsonb);
 INSERT INTO public."Lead" VALUES (1);
 INSERT INTO public."Organization" VALUES (1);
 INSERT INTO public."User" VALUES (1);
@@ -396,6 +396,13 @@ INSERT INTO public."NotificationPreference" VALUES (1);
   [IO.File]::WriteAllText($schemaPath, $schema, [Text.UTF8Encoding]::new($false))
   [void](Invoke-PostgresTool $config $readUri 'psql.exe' @(
       '-X', '-v', 'ON_ERROR_STOP=1', '-f', $schemaPath) 'SYNTHETIC_SCHEMA_FAILED')
+  [void](Invoke-PostgresTool $config $readUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      "ALTER DATABASE `"$dbName`" SET TimeZone = 'Europe/Warsaw';") `
+    'SYNTHETIC_TIMEZONE_SET_FAILED')
+  Assert ((Invoke-ReadOnlyQuery $config $readUri 'SHOW TimeZone' `
+      'SYNTHETIC_TIMEZONE_READ_FAILED') -eq 'Europe/Warsaw') `
+    'source session uses Warsaw before canonical fingerprint'
   $peerPrivate = Join-Path $root 'peer-private'
   [void](New-Item -ItemType Directory -Path $peerPrivate)
   Set-PrivateAcl $peerPrivate
@@ -542,6 +549,11 @@ datasource db {
   $snapshotHolder = Start-ExportedSnapshot $config $readUri
   try {
     $before = Get-RepresentativeFingerprints $config $readUri @{} $snapshotHolder.Id
+    $expectedTables = @('_prisma_migrations', 'LeadMessage', 'Lead', 'Organization',
+      'User', 'NotificationPreference')
+    Assert (@($before.Keys).Count -eq 6 -and
+        @($expectedTables | Where-Object { -not $before.Contains($_) }).Count -eq 0) `
+      'all six representative tables fingerprinted'
     $structureBefore = Get-StructureFingerprint $config $readUri $snapshotHolder.Id
     $concurrentWrite = Join-Path $root 'synthetic-concurrent-write.sql'
     [IO.File]::WriteAllText($concurrentWrite,
@@ -556,8 +568,16 @@ datasource db {
   Assert ($backup.Bytes -gt 0 -and $backup.TocEntries -gt 6) 'private synthetic backup'
   $restore = New-DisposableCluster $config ('restore' + $testId)
   Restore-DisposableBackup $config $restore $backup
+  [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      "ALTER DATABASE `"$($restore.Database)`" SET TimeZone = 'UTC';") `
+    'SYNTHETIC_RESTORE_TIMEZONE_SET_FAILED')
+  Assert ((Invoke-ReadOnlyQuery $config $restore.Uri 'SHOW TimeZone' `
+      'SYNTHETIC_RESTORE_TIMEZONE_READ_FAILED') -eq 'UTC') `
+    'restore session uses UTC before canonical fingerprint'
   $after = Get-RepresentativeFingerprints $config $restore.Uri
   Compare-RepresentativeFingerprints $before $after
+  Write-Output 'PASS canonical fingerprint across Warsaw source and UTC restore'
   Assert-StructureEqual $structureBefore (Get-StructureFingerprint $config $restore.Uri)
   Write-Output 'PASS synthetic isolated restore and row fingerprints under concurrent source write'
   $sequenceAudit = @([pscustomobject]@{
@@ -658,6 +678,74 @@ datasource db {
   }
   Compare-RepresentativeFingerprints $before $afterMigration
   Write-Output 'PASS synthetic isolated additive migration integrity'
+  $diagnostic = @{}
+  [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'UPDATE public."_prisma_migrations" SET finished_at = finished_at + interval ''1 hour'';') `
+    'SYNTHETIC_TIME_MUTATION_FAILED')
+  $timeChanged = Get-RepresentativeFingerprints $config $restore.Uri @{
+    LeadMessage = @('liveReceipt')
+  }
+  Expect-Block { Compare-RepresentativeFingerprints $before $timeChanged $false `
+      'RESTORE' $diagnostic } 'RESTORED_DATA_MISMATCH'
+  Assert ($diagnostic.stage -eq 'RESTORE' -and
+      $diagnostic.table -eq '_prisma_migrations' -and
+      $diagnostic.difference -eq 'DIGEST' -and $diagnostic.Count -eq 3) `
+    'TIMESTAMPTZ mutation produces safe stage/table/digest diagnostic'
+  $reportDetail = Get-SafeFingerprintMismatch 'RESTORED_DATA_MISMATCH' $diagnostic
+  Assert ($reportDetail.stage -eq 'RESTORE' -and
+      $reportDetail.table -eq '_prisma_migrations' -and
+      $reportDetail.difference -eq 'DIGEST' -and $reportDetail.Count -eq 3) `
+    'private report detail contains only safe allowlisted fields'
+  $forgedDetail = @{ stage = 'RESTORE'; table = 'Client'; difference = 'DIGEST' }
+  Assert ($null -eq (Get-SafeFingerprintMismatch 'RESTORED_DATA_MISMATCH' `
+        $forgedDetail)) 'unsafe report table refused'
+  Assert ($null -eq (Get-SafeFingerprintMismatch 'OTHER_ERROR' $diagnostic)) `
+    'unrelated error cannot inherit integrity detail'
+  [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'UPDATE public."_prisma_migrations" SET finished_at = finished_at - interval ''1 hour'';') `
+    'SYNTHETIC_TIME_RESTORE_FAILED')
+  Compare-RepresentativeFingerprints $before `
+    (Get-RepresentativeFingerprints $config $restore.Uri @{ LeadMessage = @('liveReceipt') })
+  Write-Output 'PASS changed TIMESTAMPTZ detected without count change'
+  [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'UPDATE public."LeadMessage" SET payload = ''{"kind":"changed"}''::jsonb WHERE id = 1;') `
+    'SYNTHETIC_JSON_MUTATION_FAILED')
+  $jsonChanged = Get-RepresentativeFingerprints $config $restore.Uri @{
+    LeadMessage = @('liveReceipt')
+  }
+  Expect-Block { Compare-RepresentativeFingerprints $before $jsonChanged $true `
+      'POST_MIGRATION' $diagnostic } 'RESTORED_DATA_MISMATCH'
+  Assert ($diagnostic.stage -eq 'POST_MIGRATION' -and
+      $diagnostic.table -eq 'LeadMessage' -and
+      $diagnostic.difference -eq 'DIGEST') 'JSONB mutation produces safe diagnostic'
+  [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'UPDATE public."LeadMessage" SET payload = ''{"kind":"synthetic"}''::jsonb WHERE id = 1;') `
+    'SYNTHETIC_JSON_RESTORE_FAILED')
+  [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'INSERT INTO public."Lead" VALUES (2);') 'SYNTHETIC_COUNT_MUTATION_FAILED')
+  $countChanged = Get-RepresentativeFingerprints $config $restore.Uri @{
+    LeadMessage = @('liveReceipt')
+  }
+  Expect-Block { Compare-RepresentativeFingerprints $before $countChanged $false `
+      'RESTORE' $diagnostic } 'RESTORED_DATA_MISMATCH'
+  Assert ($diagnostic.table -eq 'Lead' -and $diagnostic.difference -eq 'COUNT') `
+    'count mismatch blocks with safe diagnostic'
+  [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'DELETE FROM public."Lead" WHERE id = 2;') 'SYNTHETIC_COUNT_RESTORE_FAILED')
+  $missing = [ordered]@{}
+  foreach ($key in $before.Keys) {
+    if ($key -ne 'User') { $missing[$key] = $before[$key] }
+  }
+  Expect-Block { Compare-RepresentativeFingerprints $before $missing $false `
+      'RESTORE' $diagnostic } 'RESTORED_DATA_MISMATCH'
+  Assert ($diagnostic.table -eq 'User' -and $diagnostic.difference -eq 'MISSING') `
+    'incomplete fingerprint set blocks with safe diagnostic'
   $mutationPath = Join-Path $root 'synthetic-mutation.sql'
   [IO.File]::WriteAllText($mutationPath,
     'UPDATE public."LeadMessage" SET body=''CHANGED'' WHERE id=1;',
