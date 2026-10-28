@@ -40,7 +40,7 @@ function receiptFingerprint(receiptKey: string, appId: string, leadgenId: string
 export async function acceptLeadAdsEvents(events: MetaLeadAdsEvent[], appId: string, receiptKey: string) {
   if (!events.length) return { accepted: 0, shadow: 0, replayed: 0, rejected: 0 }
   // The signed HTTP body is already bounded to 64 KiB. One short transaction
-  // locks only the referenced bindings and accounts for the entire package.
+  // locks referenced tenants before their bindings and accounts for the package.
   // A DB error rolls back all new receipts and the caller returns 503.
   return db.$transaction(async (tx: any) => {
     await tx.$executeRawUnsafe("SET LOCAL lock_timeout = '1500ms'")
@@ -50,10 +50,21 @@ export async function acceptLeadAdsEvents(events: MetaLeadAdsEvent[], appId: str
     }]))
     const candidates = await tx.metaLeadAdsBinding.findMany({ where: {
       appId, OR: Array.from(tuples.values()),
-    }, select: { id: true } })
-    const ids = candidates.map((row: any) => row.id)
-    if (ids.length) await tx.$queryRawUnsafe(
-      'SELECT id FROM "MetaLeadAdsBinding" WHERE id = ANY($1::text[]) ORDER BY id FOR SHARE', ids)
+    }, select: { id: true, organizationId: true } })
+    // Delivery INSERT takes an implicit Organization FOR KEY SHARE for its FK.
+    // Take that lock first, in a stable order, so an Organization FOR UPDATE
+    // followed by Binding UPDATE (disable/save/retention) cannot form a cycle.
+    // Lock one row per query: the order is independent of the query planner.
+    const organizationIds = Array.from(new Set(candidates.map((row: any) => row.organizationId))) as string[]
+    for (const organizationId of organizationIds.sort()) {
+      await tx.$queryRawUnsafe('SELECT id FROM "Organization" WHERE id = $1 FOR KEY SHARE', organizationId)
+    }
+    const ids = candidates.map((row: any) => row.id).sort() as string[]
+    for (const id of ids) {
+      await tx.$queryRawUnsafe('SELECT id FROM "MetaLeadAdsBinding" WHERE id = $1 FOR SHARE', id)
+    }
+    // The discovery query is never an authorization decision. A concurrent
+    // disable/save may have committed while tenant locks were acquired.
     const bindings = ids.length ? await tx.metaLeadAdsBinding.findMany({ where: { id: { in: ids }, appId },
       select: { id: true, organizationId: true, pageId: true, formId: true,
         enabled: true, mode: true, pilotLeadIds: true, activatedAt: true } }) : []
