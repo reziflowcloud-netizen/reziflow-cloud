@@ -252,7 +252,8 @@ function Invoke-PostgresTool([object]$Config, [Uri]$Uri, [string]$Tool,
 }
 
 function Invoke-ReadOnlyQuery([object]$Config, [Uri]$Uri, [string]$Query,
-    [string]$FailureCode, [string]$SnapshotId = '') {
+    [string]$FailureCode, [string]$SnapshotId = '',
+    [bool]$CanonicalFingerprint = $false) {
   if (-not $Uri) { Stop-Maintenance 'READ_ONLY_URI_REQUIRED' }
   $snapshotSql = ''
   if ($SnapshotId) {
@@ -261,9 +262,17 @@ function Invoke-ReadOnlyQuery([object]$Config, [Uri]$Uri, [string]$Query,
     }
     $snapshotSql = "SET TRANSACTION SNAPSHOT '$SnapshotId'; "
   }
+  # SET LOCAL affects only this read-only transaction. Exported snapshots must
+  # be imported before these settings and do not carry session GUCs themselves.
+  $fingerprintSettings = if ($CanonicalFingerprint) {
+    "SET LOCAL TimeZone = 'UTC'; SET LOCAL DateStyle = 'ISO, YMD'; " +
+      "SET LOCAL IntervalStyle = 'postgres'; SET LOCAL extra_float_digits = 1; " +
+      "SET LOCAL bytea_output = 'hex'; "
+  } else { '' }
   $sql = "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY; " +
     $snapshotSql + "SET LOCAL statement_timeout = '30s'; " +
     "SET LOCAL search_path = pg_catalog, public; " +
+    $fingerprintSettings +
     $Query + '; ROLLBACK;'
   Assert-PrivateAcl $Config.privateDirectory
   $sqlPath = Join-Path $Config.privateDirectory ('query-' + [Guid]::NewGuid().ToString('N') + '.sql')
@@ -856,22 +865,52 @@ function Get-RepresentativeFingerprints([object]$Config, [Uri]$Uri,
     }
     $sql = "SELECT json_build_object('count',count(*),'digest'," +
       "md5(COALESCE(string_agg(md5(($expression)::text), '' " +
-      "ORDER BY md5(($expression)::text)),'')))::text FROM public.`"$table`" t"
-    try { $result[$table] = Invoke-ReadOnlyQuery $Config $Uri $sql 'DATA_FINGERPRINT_FAILED' $SnapshotId | ConvertFrom-Json }
+      "ORDER BY decode(md5(($expression)::text), 'hex')),'')))::text FROM public.`"$table`" t"
+    try { $result[$table] = Invoke-ReadOnlyQuery $Config $Uri $sql 'DATA_FINGERPRINT_FAILED' $SnapshotId $true | ConvertFrom-Json }
     catch { if ($_.Exception.Message -like 'LMR:*') { throw }; Stop-Maintenance 'DATA_FINGERPRINT_INVALID' }
   }
   return $result
 }
 
 function Compare-RepresentativeFingerprints([object]$Before, [object]$After,
-    [bool]$SkipLedger = $false) {
-  foreach ($key in $Before.Keys) {
+    [bool]$SkipLedger = $false, [string]$Stage = 'UNSPECIFIED',
+    [hashtable]$Diagnostic = $null) {
+  if ($Stage -notin @('UNSPECIFIED', 'RESTORE', 'POST_MIGRATION')) {
+    Stop-Maintenance 'FINGERPRINT_STAGE_INVALID'
+  }
+  if ($null -ne $Diagnostic) { $Diagnostic.Clear() }
+  foreach ($key in @('_prisma_migrations', 'LeadMessage', 'Lead', 'Organization',
+      'User', 'NotificationPreference')) {
     if ($SkipLedger -and $key -eq '_prisma_migrations') { continue }
-    if (-not $After.Contains($key) -or [long]$Before[$key].count -ne [long]$After[$key].count -or
-        [string]$Before[$key].digest -ne [string]$After[$key].digest) {
+    $difference = if (-not $Before.Contains($key) -or -not $After.Contains($key)) {
+      'MISSING'
+    } elseif ([long]$Before[$key].count -ne [long]$After[$key].count) {
+      'COUNT'
+    } elseif ([string]$Before[$key].digest -ne [string]$After[$key].digest) {
+      'DIGEST'
+    } else { '' }
+    if ($difference) {
+      if ($null -ne $Diagnostic) {
+        $Diagnostic.stage = $Stage
+        $Diagnostic.table = $key
+        $Diagnostic.difference = $difference
+      }
       Stop-Maintenance 'RESTORED_DATA_MISMATCH'
     }
   }
+}
+
+function Get-SafeFingerprintMismatch([string]$ReasonCode, [hashtable]$Diagnostic) {
+  if ($ReasonCode -ne 'RESTORED_DATA_MISMATCH' -or $null -eq $Diagnostic -or
+      $Diagnostic.Count -ne 3 -or
+      $Diagnostic.stage -notin @('RESTORE', 'POST_MIGRATION') -or
+      $Diagnostic.table -notin @('_prisma_migrations', 'LeadMessage', 'Lead',
+        'Organization', 'User', 'NotificationPreference') -or
+      $Diagnostic.difference -notin @('COUNT', 'DIGEST', 'MISSING')) {
+    return $null
+  }
+  return [ordered]@{ stage = $Diagnostic.stage; table = $Diagnostic.table
+    difference = $Diagnostic.difference }
 }
 
 function Get-StructureFingerprint([object]$Config, [Uri]$Uri,
