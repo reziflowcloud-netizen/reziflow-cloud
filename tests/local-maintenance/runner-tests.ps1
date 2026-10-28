@@ -380,14 +380,19 @@ try {
   $schema = @'
 CREATE TABLE public."_prisma_migrations" (migration_name text PRIMARY KEY, checksum text NOT NULL,
   started_at timestamptz DEFAULT now(), finished_at timestamptz DEFAULT now(), rolled_back_at timestamptz);
-CREATE TABLE public."LeadMessage" (id integer PRIMARY KEY, body text, payload jsonb);
 CREATE TABLE public."Lead" (id integer PRIMARY KEY);
+CREATE TABLE public."LeadMessage" (id integer PRIMARY KEY,
+  lead_id integer REFERENCES public."Lead"(id),
+  body text DEFAULT 'SYNTHETIC', payload jsonb,
+  CONSTRAINT "SyntheticLeadMessagePositive" CHECK (id > 0));
+CREATE INDEX "SyntheticLeadMessageBody" ON public."LeadMessage" (body);
 CREATE TABLE public."Organization" (id integer PRIMARY KEY);
 CREATE TABLE public."User" (id integer PRIMARY KEY);
 CREATE TABLE public."NotificationPreference" (id integer PRIMARY KEY);
 INSERT INTO public."_prisma_migrations"(migration_name, checksum) VALUES ('20260101000000_synthetic_init', 'abc');
-INSERT INTO public."LeadMessage" VALUES (1, 'SYNTHETIC ONLY', '{"kind":"synthetic"}'::jsonb);
 INSERT INTO public."Lead" VALUES (1);
+INSERT INTO public."LeadMessage"(id, lead_id, body, payload)
+  VALUES (1, 1, 'SYNTHETIC ONLY', '{"kind":"synthetic"}'::jsonb);
 INSERT INTO public."Organization" VALUES (1);
 INSERT INTO public."User" VALUES (1);
 INSERT INTO public."NotificationPreference" VALUES (1);
@@ -396,6 +401,33 @@ INSERT INTO public."NotificationPreference" VALUES (1);
   [IO.File]::WriteAllText($schemaPath, $schema, [Text.UTF8Encoding]::new($false))
   [void](Invoke-PostgresTool $config $readUri 'psql.exe' @(
       '-X', '-v', 'ON_ERROR_STOP=1', '-f', $schemaPath) 'SYNTHETIC_SCHEMA_FAILED')
+  [void](Invoke-PostgresTool $config $readUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'CREATE SCHEMA runner_external; CREATE EXTENSION hstore SCHEMA runner_external;') `
+    'SYNTHETIC_EXTERNAL_EXTENSION_FAILED')
+  [void](Get-StructureFingerprint $config $readUri)
+  Write-Output 'PASS unrelated extension outside public does not alter dump-scope fingerprint'
+  [void](Invoke-PostgresTool $config $readUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'CREATE TABLE public."SyntheticExtensionDependency" (attributes runner_external.hstore);') `
+    'SYNTHETIC_EXTENSION_DEPENDENCY_FAILED')
+  Expect-Block { Get-StructureFingerprint $config $readUri } `
+    'STRUCTURE_EXTENSION_DEPENDENCY_UNPROVEN'
+  [void](Invoke-PostgresTool $config $readUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'DROP TABLE public."SyntheticExtensionDependency";') `
+    'SYNTHETIC_EXTENSION_DEPENDENCY_REPAIR_FAILED')
+  [void](Invoke-PostgresTool $config $readUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'CREATE FUNCTION public."SyntheticOpaque"() RETURNS text LANGUAGE plpgsql AS $$ BEGIN RETURN ''synthetic''; END; $$;') `
+    'SYNTHETIC_OPAQUE_FUNCTION_FAILED')
+  Expect-Block { Get-StructureFingerprint $config $readUri } `
+    'STRUCTURE_EXTENSION_DEPENDENCY_UNPROVEN'
+  [void](Invoke-PostgresTool $config $readUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'DROP FUNCTION public."SyntheticOpaque"();') `
+    'SYNTHETIC_OPAQUE_FUNCTION_REPAIR_FAILED')
+  Write-Output 'PASS public extension dependency and opaque behavior fail closed'
   [void](Invoke-PostgresTool $config $readUri 'psql.exe' @(
       '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
       "ALTER DATABASE `"$dbName`" SET TimeZone = 'Europe/Warsaw';") `
@@ -566,6 +598,10 @@ datasource db {
     $backup = New-PrivateBackup $config $readUri $testId $snapshotHolder.Id
   } finally { Stop-ExportedSnapshot $snapshotHolder }
   Assert ($backup.Bytes -gt 0 -and $backup.TocEntries -gt 6) 'private synthetic backup'
+  $extensionToc = @(& (Join-Path $config.postgresBin 'pg_restore.exe') `
+      --list $backup.Path | Where-Object { $_ -match 'EXTENSION.*hstore' })
+  Assert ($extensionToc.Count -eq 0) `
+    'public-only backup excludes unrelated external extension'
   $restore = New-DisposableCluster $config ('restore' + $testId)
   Restore-DisposableBackup $config $restore $backup
   [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
@@ -580,6 +616,68 @@ datasource db {
   Write-Output 'PASS canonical fingerprint across Warsaw source and UTC restore'
   Assert-StructureEqual $structureBefore (Get-StructureFingerprint $config $restore.Uri)
   Write-Output 'PASS synthetic isolated restore and row fingerprints under concurrent source write'
+  $structureCases = @(
+    @('ALTER TABLE public."_prisma_migrations" ALTER COLUMN checksum DROP NOT NULL;',
+      'ALTER TABLE public."_prisma_migrations" ALTER COLUMN checksum SET NOT NULL;', 'NOT NULL to nullable'),
+    @('ALTER TABLE public."LeadMessage" ALTER COLUMN body SET NOT NULL;',
+      'ALTER TABLE public."LeadMessage" ALTER COLUMN body DROP NOT NULL;', 'nullable to NOT NULL'),
+    @('ALTER TABLE public."LeadMessage" DROP CONSTRAINT "SyntheticLeadMessagePositive";',
+      'ALTER TABLE public."LeadMessage" ADD CONSTRAINT "SyntheticLeadMessagePositive" CHECK (id > 0);', 'removed CHECK'),
+    @('ALTER TABLE public."LeadMessage" DROP CONSTRAINT "LeadMessage_lead_id_fkey";',
+      'ALTER TABLE public."LeadMessage" ADD CONSTRAINT "LeadMessage_lead_id_fkey" FOREIGN KEY (lead_id) REFERENCES public."Lead"(id);', 'removed FOREIGN KEY'),
+    @('DROP INDEX public."SyntheticLeadMessageBody"; CREATE INDEX "SyntheticLeadMessageBody" ON public."LeadMessage" (lower(body));',
+      'DROP INDEX public."SyntheticLeadMessageBody"; CREATE INDEX "SyntheticLeadMessageBody" ON public."LeadMessage" (body);', 'changed index'),
+    @('ALTER TABLE public."LeadMessage" ALTER COLUMN body SET DEFAULT ''CHANGED'';',
+      'ALTER TABLE public."LeadMessage" ALTER COLUMN body SET DEFAULT ''SYNTHETIC'';', 'changed column default'),
+    @('ALTER TABLE public."LeadMessage" ADD COLUMN "synthetic_extra" text;',
+      'ALTER TABLE public."LeadMessage" DROP COLUMN "synthetic_extra";', 'changed table structure')
+  )
+  foreach ($case in $structureCases) {
+    [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
+        '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c', $case[0]) 'SYNTHETIC_STRUCTURE_MUTATION_FAILED')
+    Expect-Block { Assert-StructureEqual $structureBefore `
+        (Get-StructureFingerprint $config $restore.Uri) } 'RESTORED_STRUCTURE_MISMATCH'
+    [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
+        '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c', $case[1]) 'SYNTHETIC_STRUCTURE_REPAIR_FAILED')
+    Assert-StructureEqual $structureBefore (Get-StructureFingerprint $config $restore.Uri)
+    Write-Output "PASS structural mutation detected and repaired: $($case[2])"
+  }
+  [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'ALTER TABLE public."LeadMessage" ADD CONSTRAINT "SyntheticNamedNotNull" NOT NULL body NOT VALID;') `
+    'SYNTHETIC_SPECIAL_NOT_NULL_FAILED')
+  Expect-Block { Get-StructureFingerprint $config $restore.Uri } 'STRUCTURE_NOT_NULL_UNMODELED'
+  [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'ALTER TABLE public."LeadMessage" DROP CONSTRAINT "SyntheticNamedNotNull";') `
+    'SYNTHETIC_SPECIAL_NOT_NULL_REPAIR_FAILED')
+  Assert-StructureEqual $structureBefore (Get-StructureFingerprint $config $restore.Uri)
+  Write-Output 'PASS special PostgreSQL 18 NOT NULL form blocked'
+  [void](Invoke-PostgresTool $config $readUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'ALTER EXTENSION hstore SET SCHEMA public; CREATE TABLE public."SyntheticRequiredExtension" (attributes hstore);') `
+    'SYNTHETIC_REQUIRED_EXTENSION_SOURCE_FAILED')
+  $requiredSource = Get-StructureFingerprint $config $readUri
+  Expect-Block { Assert-StructureEqual $requiredSource `
+      (Get-StructureFingerprint $config $restore.Uri) } 'RESTORED_STRUCTURE_MISMATCH'
+  Write-Output 'PASS missing required public extension blocked'
+  [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'CREATE EXTENSION hstore VERSION ''1.4'' SCHEMA public; CREATE TABLE public."SyntheticRequiredExtension" (attributes hstore);') `
+    'SYNTHETIC_REQUIRED_EXTENSION_TARGET_FAILED')
+  $sourceVersion = Invoke-ReadOnlyQuery $config $readUri `
+    "SELECT extversion FROM pg_extension WHERE extname='hstore'" 'SYNTHETIC_EXTENSION_VERSION_SOURCE_FAILED'
+  $targetVersion = Invoke-ReadOnlyQuery $config $restore.Uri `
+    "SELECT extversion FROM pg_extension WHERE extname='hstore'" 'SYNTHETIC_EXTENSION_VERSION_TARGET_FAILED'
+  Assert ($sourceVersion -ne $targetVersion) 'synthetic extension versions differ'
+  Expect-Block { Assert-StructureEqual $requiredSource `
+      (Get-StructureFingerprint $config $restore.Uri) } 'RESTORED_STRUCTURE_MISMATCH'
+  [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'DROP TABLE public."SyntheticRequiredExtension"; DROP EXTENSION hstore;') `
+    'SYNTHETIC_REQUIRED_EXTENSION_TARGET_REPAIR_FAILED')
+  Assert-StructureEqual $structureBefore (Get-StructureFingerprint $config $restore.Uri)
+  Write-Output 'PASS required extension version mismatch blocked'
   $sequenceAudit = @([pscustomobject]@{
       audit = [pscustomobject]@{ CreatedSequences = @('SyntheticSequence') }
     })
