@@ -135,6 +135,44 @@ try {
     } finally { Pop-Location }
   }
   if ($migrationExit -ne 0) { Stop-Maintenance 'PG17_SYNTHETIC_MIGRATIONS_FAILED' }
+  $fixtureSql = Join-Path $root 'synthetic-representative-data.sql'
+  [IO.File]::WriteAllText($fixtureSql, @'
+ALTER TABLE public."LeadMessage"
+  ADD COLUMN "qaFloat" double precision,
+  ADD COLUMN "qaNumeric" numeric,
+  ADD COLUMN "qaBytes" bytea,
+  ADD COLUMN "qaInterval" interval,
+  ADD COLUMN "qaInstant" timestamptz;
+INSERT INTO public."Organization" ("id","name","slug","settings","createdAt","updatedAt") VALUES
+  ('synthetic-org-a','Synthetic A','synthetic-a','{"nested":{"numbers":[1,2.5],"label":"Żółć"}}'::jsonb,'2026-01-15 10:00:00','2026-01-15 10:00:00'),
+  ('synthetic-org-b','Synthetic B','synthetic-b','{"nested":{"numbers":[3,4.75],"label":"Тест"}}'::jsonb,'2026-07-15 10:00:00','2026-07-15 10:00:00');
+INSERT INTO public."User" ("id","email","password","name","organizationId","preferences") VALUES
+  (1001,'synthetic-a@example.invalid','synthetic-only','Synthetic A','synthetic-org-a','{"locale":"pl","nested":{"enabled":true}}'::jsonb),
+  (1002,'synthetic-b@example.invalid','synthetic-only','Synthetic B','synthetic-org-b','{"locale":"uk","nested":{"enabled":false}}'::jsonb);
+INSERT INTO public."Lead" ("id","organizationId","assignedToId","fullName","updatedAt") VALUES
+  ('synthetic-lead-a','synthetic-org-a',1001,'Synthetic A','2026-01-15 11:00:00'),
+  ('synthetic-lead-b','synthetic-org-b',1002,'Synthetic B','2026-07-15 11:00:00');
+INSERT INTO public."LeadMessage" ("id","organizationId","leadId","authorId","text","payload","sentAt","qaFloat","qaNumeric","qaBytes","qaInterval","qaInstant") VALUES
+  (1001,'synthetic-org-a','synthetic-lead-a',1001,'Synthetic winter Żółć','{"nested":{"items":[1,null,{"ok":true}]}}'::jsonb,'2026-01-15 12:00:00',1.23456789012345,123456.789012,E'\\x00aaff'::bytea,interval '1 day 2 hours 3.456 seconds','2026-01-15 12:00:00.123456+01'),
+  (1002,'synthetic-org-b','synthetic-lead-b',1002,'Synthetic summer Тест','{"nested":{"items":[2,null,{"ok":false}]}}'::jsonb,'2026-07-15 12:00:00',-0.000000123456789,-987.654321,E'\\x1234'::bytea,interval '2 months 4 minutes','2026-07-15 12:00:00.654321+02');
+INSERT INTO public."NotificationPreference" ("id","organizationId","userId","events","updatedAt") VALUES
+  ('synthetic-pref-a','synthetic-org-a',1001,'{"channels":{"mail":false},"levels":[1,2]}'::jsonb,'2026-01-15 13:00:00'),
+  ('synthetic-pref-b','synthetic-org-b',1002,'{"channels":{"mail":true},"levels":[3,4]}'::jsonb,'2026-07-15 13:00:00');
+UPDATE public."_prisma_migrations" SET finished_at = CASE
+  WHEN migration_name < '20260901000000' THEN '2026-01-15 14:00:00.123456+01'::timestamptz
+  ELSE '2026-07-15 14:00:00.654321+02'::timestamptz END;
+'@, [Text.UTF8Encoding]::new($false))
+  Set-PrivateAcl $fixtureSql
+  [void](Invoke-PostgresTool $config $sourceUri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', $fixtureSql) 'PG17_SYNTHETIC_ROWS_FAILED')
+  foreach ($setting in @(
+      "TimeZone='Europe/Warsaw'", "DateStyle='SQL, DMY'",
+      "IntervalStyle='sql_standard'", 'extra_float_digits=0',
+      "bytea_output='escape'")) {
+    [void](Invoke-PostgresTool $config $sourceUri 'psql.exe' @(
+        '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+        "ALTER DATABASE `"$dbName`" SET $setting;") 'PG17_SESSION_DEFAULTS_FAILED')
+  }
   $ledgerSource = Invoke-ReadOnlyQuery $config $sourceUri `
     'SELECT count(*) FROM public."_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL' `
     'PG17_LEDGER_FAILED'
@@ -144,6 +182,25 @@ try {
   try {
     $sourceData = Get-RepresentativeFingerprints $config $sourceUri @{} $snapshot.Id
     $sourceStructure = Get-StructureFingerprint $config $sourceUri $snapshot.Id
+    foreach ($table in @('LeadMessage','Lead','Organization','User','NotificationPreference')) {
+      if ([int]$sourceData[$table].count -lt 2) {
+        Write-Output "SYNTHETIC COUNT $table=$($sourceData[$table].count)"
+        Stop-Maintenance 'SYNTHETIC_REPRESENTATIVE_COUNT_UNEXPECTED'
+      }
+    }
+    [void](Invoke-PostgresTool $config $sourceUri 'psql.exe' @(
+        '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+        'UPDATE public."LeadMessage" SET "text"=''Synthetic concurrent change'' WHERE "id"=1001;') `
+      'PG17_CONCURRENT_MUTATION_FAILED')
+    $mutationBlocked = $false
+    try {
+      Compare-RepresentativeFingerprints $sourceData `
+        (Get-RepresentativeFingerprints $config $sourceUri) $false 'RESTORE' @{}
+    } catch {
+      if ($_.Exception.Message -ne 'LMR:RESTORED_DATA_MISMATCH') { throw }
+      $mutationBlocked = $true
+    }
+    if (-not $mutationBlocked) { Stop-Maintenance 'PG17_CONCURRENT_MUTATION_UNDETECTED' }
     $backup = New-PrivateBackup $config $sourceUri $id $snapshot.Id
   } finally { Stop-ExportedSnapshot $snapshot }
   Write-Output 'PASS source fingerprints and pg_dump share exported snapshot'
@@ -151,6 +208,14 @@ try {
   $targetVersion = Invoke-ReadOnlyQuery $config $target.Uri 'SHOW server_version' 'PG18_VERSION_UNKNOWN'
   if ($targetVersion -notmatch '^18\.6(?:\.|$)') { Stop-Maintenance 'PG18_VERSION_UNEXPECTED' }
   Restore-DisposableBackup $config $target $backup
+  foreach ($setting in @(
+      "TimeZone='UTC'", "DateStyle='ISO, YMD'", "IntervalStyle='postgres'",
+      'extra_float_digits=1', "bytea_output='hex'")) {
+    [void](Invoke-PostgresTool $config $target.Uri 'psql.exe' @(
+        '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+        "ALTER DATABASE `"$($target.Database)`" SET $setting;") `
+      'PG18_SESSION_DEFAULTS_FAILED')
+  }
   $targetData = Get-RepresentativeFingerprints $config $target.Uri
   Compare-RepresentativeFingerprints $sourceData $targetData
   Write-Output 'PASS six representative data fingerprints, including Prisma ledger'
@@ -176,6 +241,20 @@ try {
   Compare-RepresentativeFingerprints $sourceData `
     (Get-RepresentativeFingerprints $config $target.Uri)
   Write-Output 'PASS PR #9 approved additive SQL guard, isolated migration and old data'
+  [void](Invoke-PostgresTool $config $target.Uri 'psql.exe' @(
+      '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+      'UPDATE public."LeadMessage" SET "payload"='' {"changed":true} ''::jsonb WHERE "id"=1001;') `
+    'PG18_JSONB_MUTATION_FAILED')
+  $jsonBlocked = $false
+  try {
+    Compare-RepresentativeFingerprints $sourceData `
+      (Get-RepresentativeFingerprints $config $target.Uri) $false 'RESTORE' @{}
+  } catch {
+    if ($_.Exception.Message -ne 'LMR:RESTORED_DATA_MISMATCH') { throw }
+    $jsonBlocked = $true
+  }
+  if (-not $jsonBlocked) { Stop-Maintenance 'PG18_JSONB_MUTATION_UNDETECTED' }
+  Write-Output 'PASS cross-version concurrent text and JSONB mutation detection'
   Write-Output 'CROSS_VERSION_GATE_PASS'
 } finally {
   $cleanupSafe = $true
