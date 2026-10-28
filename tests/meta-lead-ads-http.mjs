@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
-import { createHash, createHmac, randomUUID } from 'node:crypto'
+import { createECDH, createHash, createHmac, randomBytes, randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:net'
 import { fileURLToPath } from 'node:url'
 import { PrismaClient } from '@prisma/client'
 import { SignJWT } from 'jose'
+import { encryptSubscription, endpointHash, subscriptionAAD } from '../src/lib/pushSecurity.ts'
+import { deliverNotificationPush } from '../src/lib/notificationPush.ts'
 
 if (!process.env.META_LEAD_ADS_SYNTHETIC_DB_TEST || !/^postgresql:\/\/[^@]+@127\.0\.0\.1:\d+\/meta_lead_ads_qa\?schema=public$/.test(process.env.DATABASE_URL || '')) {
   throw new Error('Synthetic localhost database guard failed')
@@ -23,6 +25,33 @@ const org = await db.organization.create({ data: { name: 'Synthetic Lead Ads HTT
   settings: { leadWebhookKey: 'synthetic-legacy-webhook-key', leadWebhookEnabled: true } } })
 const other = await db.organization.create({ data: { name: 'Synthetic Lead Ads Other', slug: `synthetic-lead-other-${suffix}` } })
 const live = await db.organization.create({ data: { name: 'Synthetic Lead Ads Live', slug: `synthetic-lead-live-${suffix}` } })
+const sheets = await db.organization.create({ data: { name: 'Synthetic Google Sheets Isolation', slug: `synthetic-sheets-${suffix}`,
+  notificationAutomationEnabled: true, notificationAutomationActivatedAt: new Date(0),
+  settings: { leadWebhookKey: 'synthetic-sheets-only-key', leadWebhookEnabled: true } } })
+const sheetsUserA = await db.user.create({ data: { organizationId: sheets.id, email: `sheets-a-${suffix}@example.invalid`,
+  password: 'synthetic', name: 'Sheets A', role: 'employee' } })
+const sheetsUserB = await db.user.create({ data: { organizationId: sheets.id, email: `sheets-b-${suffix}@example.invalid`,
+  password: 'synthetic', name: 'Sheets B', role: 'employee' } })
+const sheetsEmployeeA = await db.employee.create({ data: { organizationId: sheets.id, userId: sheetsUserA.id, name: 'Sheets A' } })
+const sheetsEmployeeB = await db.employee.create({ data: { organizationId: sheets.id, userId: sheetsUserB.id, name: 'Sheets B' } })
+const sheetsRoute = await db.leadChannelRoute.create({ data: { organizationId: sheets.id,
+  sourceKey: 'google_sheets', employeeId: sheetsEmployeeA.id } })
+await db.leadChannelRouteMember.create({ data: { organizationId: sheets.id,
+  routeId: sheetsRoute.id, employeeId: sheetsEmployeeB.id, position: 1 } })
+await db.notificationPreference.create({ data: { organizationId: sheets.id, userId: sheetsUserA.id,
+  pushEnabled: true, events: { lead_assigned: { inApp: true, push: true } } } })
+await db.notificationPreference.create({ data: { organizationId: sheets.id, userId: sheetsUserB.id,
+  pushEnabled: true, events: { lead_assigned: { inApp: true, push: false } } } })
+const pushPair = createECDH('prime256v1'); pushPair.generateKeys()
+const pushKey = randomBytes(32).toString('hex')
+const sheetsEndpoint = `https://web.push.apple.com/${randomUUID()}`
+const sheetsSubscription = { endpoint: sheetsEndpoint,
+  keys: { p256dh: pushPair.getPublicKey().toString('base64url'), auth: randomBytes(16).toString('base64url') } }
+const sheetsSubscriptionFields = { organizationId: sheets.id, userId: sheetsUserA.id,
+  endpointHash: endpointHash(sheetsEndpoint), deviceLabel: 'Synthetic Sheets Only' }
+process.env.PUSH_SUBSCRIPTION_ENCRYPTION_KEY = pushKey
+await db.pushSubscription.create({ data: { ...sheetsSubscriptionFields,
+  encryptedSubscription: encryptSubscription(sheetsSubscription, subscriptionAAD(sheetsSubscriptionFields)) } })
 const owner = await db.user.create({ data: { organizationId: org.id, email: `owner-${suffix}@example.invalid`, password: 'synthetic', name: 'Owner', role: 'owner' } })
 const otherOwner = await db.user.create({ data: { organizationId: other.id, email: `other-${suffix}@example.invalid`, password: 'synthetic', name: 'Other Owner', role: 'owner' } })
 const liveOwner = await db.user.create({ data: { organizationId: live.id, email: `live-${suffix}@example.invalid`, password: 'synthetic', name: 'Live Owner', role: 'owner' } })
@@ -73,6 +102,7 @@ const child = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev',
     META_LEAD_ADS_APPROVED_TUPLES: JSON.stringify([approved('111', '222', org.id, token111),
       approved('111', '223', org.id, token111),
       approved('111', '227', org.id, token111),
+      approved('111', '228', org.id, token111),
       approved('111', '225', live.id, token111),
       { ...approved('111', '224', org.id, token111), tokenAppId: '999' },
       approved('777', '888', other.id, token777)]),
@@ -119,6 +149,12 @@ async function retention(body, confirm = false) {
       ...(confirm ? { 'X-Meta-Lead-Ads-Retention-Confirm': 'APPLY_TERMINAL_RETENTION' } : {}) },
     body: JSON.stringify(body) })
 }
+async function sheetsWebhook(id, source = 'google_sheets') {
+  return fetch(`${base}/api/webhooks/leads/${sheets.slug}`, { method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Reziflow-Key': 'synthetic-sheets-only-key',
+      'Idempotency-Key': id },
+    body: JSON.stringify({ fullName: `Synthetic Sheets ${id}`, source }) })
+}
 let passed = false
 try {
   let ready = false
@@ -151,6 +187,162 @@ try {
   const liveCreate = await bindings('POST', liveToken, { pageId: '111', formId: '225', mode: 'live', enabled: true, pilotLeadIds: [] })
   assert.equal(liveCreate.status, 200)
   const liveBindingId = (await liveCreate.json()).id
+  // Real legacy Google Sheets HTTP handler, independent of the Meta tenant.
+  const firstSheets = await sheetsWebhook('sheets-primary-1')
+  assert.equal(firstSheets.status, 201)
+  const firstSheetsLead = await db.lead.findFirst({ where: { organizationId: sheets.id,
+    source: 'google_sheets' }, orderBy: { createdAt: 'asc' } })
+  assert.equal(await db.lead.count({ where: { organizationId: sheets.id } }), 1)
+  assert.equal(firstSheetsLead.employeeId, sheetsEmployeeA.id)
+  assert.equal(firstSheetsLead.assignedToId, sheetsUserA.id)
+  assert.equal((await db.leadChannelRoute.findUnique({ where: { id: sheetsRoute.id } })).nextPosition, 1)
+  const firstSheetsNotification = await db.notification.findFirst({ where: { organizationId: sheets.id,
+    entityId: firstSheetsLead.id, type: 'lead_assigned', userId: sheetsUserA.id } })
+  assert.equal(firstSheetsNotification?.pushRequested, true)
+  assert.equal(await db.notification.count({ where: { organizationId: sheets.id, entityId: firstSheetsLead.id } }), 1)
+  const firstSheetsOutbox = await db.notificationPushDelivery.findFirst({ where: { organizationId: sheets.id,
+    notificationId: firstSheetsNotification.id } })
+  assert.equal(firstSheetsOutbox?.attempts, 0)
+  assert.equal(firstSheetsOutbox?.deliveredAt, null)
+  // The HTTP server has no Push transport configured. Exercise its durable
+  // outbox with the actual existing sender and an injected local mock provider.
+  process.env.NOTIFICATIONS_ENABLED = 'true'
+  process.env.NOTIFICATION_EVENTS_ENABLED = 'true'
+  process.env.WEB_PUSH_ENABLED = 'true'
+  process.env.VERCEL_ENV = 'development'
+  process.env.PUSH_ENVIRONMENT = 'development'
+  process.env.VAPID_PUBLIC_KEY = pushPair.getPublicKey().toString('base64url')
+  process.env.VAPID_PRIVATE_KEY = pushPair.getPrivateKey().toString('base64url')
+  process.env.VAPID_SUBJECT = 'https://qa.example.invalid/contact'
+  const sentSheetsPush = []
+  const mockPush = async (subscription, payload) => {
+    assert.equal(subscription.endpoint, sheetsEndpoint)
+    sentSheetsPush.push(JSON.parse(payload))
+  }
+  const sentFirst = await deliverNotificationPush(db, mockPush, new Date(), undefined,
+    { organizationId: sheets.id, entityIds: [firstSheetsLead.id] })
+  assert.equal(sentFirst.delivered, 1)
+  assert.equal(sentSheetsPush.length, 1)
+  assert.equal(sentSheetsPush[0].url, `/notifications/open/${firstSheetsNotification.id}`)
+  assert.ok((await db.notificationPushDelivery.findUnique({ where: { id: firstSheetsOutbox.id } })).deliveredAt)
+  assert.equal((await sheetsWebhook('sheets-primary-1')).status, 201)
+  assert.equal(await db.lead.count({ where: { organizationId: sheets.id } }), 1)
+  assert.equal((await db.leadChannelRoute.findUnique({ where: { id: sheetsRoute.id } })).nextPosition, 1)
+  assert.equal(await db.notification.count({ where: { organizationId: sheets.id } }), 1)
+  assert.equal(await db.notificationPushDelivery.count({ where: { organizationId: sheets.id } }), 1)
+  assert.equal((await deliverNotificationPush(db, mockPush, new Date(), undefined,
+    { organizationId: sheets.id, entityIds: [firstSheetsLead.id] })).delivered, 0)
+  assert.equal(sentSheetsPush.length, 1)
+  assert.equal((await sheetsWebhook('sheets-primary-2')).status, 201)
+  const secondSheetsLead = await db.lead.findFirst({ where: { organizationId: sheets.id,
+    fullName: 'Synthetic Sheets sheets-primary-2' } })
+  assert.equal(secondSheetsLead.employeeId, sheetsEmployeeB.id)
+  assert.equal(secondSheetsLead.assignedToId, sheetsUserB.id)
+  assert.equal((await db.leadChannelRoute.findUnique({ where: { id: sheetsRoute.id } })).nextPosition, 2)
+  assert.equal((await db.notification.findFirst({ where: { organizationId: sheets.id,
+    entityId: secondSheetsLead.id } }))?.pushRequested, false, 'Recipient Push preference is preserved')
+  assert.equal(await db.notificationPushDelivery.count({ where: { organizationId: sheets.id } }), 1)
+  await db.organization.update({ where: { id: sheets.id }, data: { notificationAutomationEnabled: false } })
+  assert.equal((await sheetsWebhook('sheets-master-off')).status, 201)
+  const offLead = await db.lead.findFirst({ where: { organizationId: sheets.id,
+    fullName: 'Synthetic Sheets sheets-master-off' } })
+  assert.ok(offLead)
+  assert.equal(await db.notification.count({ where: { organizationId: sheets.id, entityId: offLead.id } }), 0)
+  await db.organization.update({ where: { id: sheets.id }, data: { notificationAutomationEnabled: true } })
+  assert.equal(await db.lead.count({ where: { organizationId: other.id } }), 0)
+  const lockCreate = await bindings('POST', ownerToken, { pageId: '111', formId: '228', mode: 'pilot',
+    enabled: true, pilotLeadIds: ['7001', '7002'] })
+  assert.equal(lockCreate.status, 200)
+  const lockBindingId = (await lockCreate.json()).id
+  const routingBeforeBindingRace = (await db.leadChannelRoute.findUnique({ where: { id: route.id } })).nextPosition
+  const noticesBeforeBindingRace = await db.notification.count({ where: { organizationId: org.id } })
+  // Force the exact old cycle: acceptance already holds binding locks, INSERT
+  // pauses before its implicit Organization FK check, while DELETE/PUT starts.
+  // With Organization-first locking, both operations finish after release.
+  await db.$executeRawUnsafe(`CREATE FUNCTION meta_qa_receipt_barrier() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN IF NEW."leadgenId" IN ('7001','7002') THEN PERFORM pg_advisory_xact_lock(742, 91); END IF;
+    RETURN NEW; END $$`)
+  await db.$executeRawUnsafe('CREATE TRIGGER meta_qa_receipt_barrier BEFORE INSERT ON "MetaLeadAdsDelivery" FOR EACH ROW EXECUTE FUNCTION meta_qa_receipt_barrier()')
+  async function controlledBindingRace(leadgenId, mutation, includePeer = false) {
+    let lockReady, releaseBarrier
+    const ready = new Promise(resolve => { lockReady = resolve })
+    const hold = new Promise(resolve => { releaseBarrier = resolve })
+    const holder = db.$transaction(async tx => {
+      await tx.$queryRawUnsafe('SELECT 1 AS held FROM pg_advisory_xact_lock(742, 91)')
+      lockReady()
+      await hold
+    }, { timeout: 10000 })
+    await ready
+    try {
+      const body = includePeer ? JSON.stringify({ object: 'page', entry: [
+        { id: '111', changes: [
+          { field: 'leadgen', value: { page_id: '111', form_id: '228', leadgen_id: leadgenId } },
+          { field: 'leadgen', value: { page_id: '111', form_id: '225', leadgen_id: '7003' } },
+        ] },
+      ] }) : event(leadgenId, '111', '228')
+      const accepted = webhook(body)
+      let waiting = false
+      for (let n = 0; n < 70; n++) {
+        const rows = await db.$queryRawUnsafe("SELECT COUNT(*)::int AS count FROM pg_locks WHERE locktype='advisory' AND NOT granted")
+        if (rows[0].count > 0) { waiting = true; break }
+        await new Promise(resolve => setTimeout(resolve, 15))
+      }
+      assert.equal(waiting, true, 'Receipt INSERT must reach the PostgreSQL barrier')
+      const mutating = mutation()
+      const mutationWaitingOnTenant = (async () => {
+        for (let n = 0; n < 50; n++) {
+          const rows = await db.$queryRawUnsafe(`SELECT COUNT(*)::int AS count FROM pg_stat_activity
+            WHERE wait_event_type='Lock' AND query LIKE '%"Organization"%' AND query LIKE '%FOR UPDATE%'`)
+          if (rows[0].count > 0) return true
+          await new Promise(resolve => setTimeout(resolve, 10))
+        }
+        return false
+      })()
+      // The separate Sheets tenant must keep ingesting while the Meta INSERT
+      // is paused. This is the real legacy HTTP route, not a simulated copy.
+      const sheetsStart = Date.now()
+      const sheetsResult = await sheetsWebhook(`sheets-during-meta-${leadgenId}`)
+      assert.equal(sheetsResult.status, 201)
+      assert.ok(Date.now() - sheetsStart < 1200, 'Sheets ingestion blocked by Meta acceptance')
+      assert.equal(await mutationWaitingOnTenant, true,
+        'DELETE/PUT must wait for the tenant row before attempting the binding row')
+      releaseBarrier()
+      await holder
+      const [receiptResponse, mutationResponse] = await Promise.all([accepted, mutating])
+      assert.equal(receiptResponse.status, 200, 'Receipt acceptance must finish without deadlock or lock timeout')
+      assert.equal(mutationResponse.status, 200, 'Binding mutation must finish without deadlock or lock timeout')
+    } finally {
+      releaseBarrier()
+      await holder
+    }
+  }
+  try {
+    await controlledBindingRace('7001', () => bindings('DELETE', ownerToken, { id: lockBindingId }), true)
+    assert.equal(await db.metaLeadAdsDelivery.count({ where: { bindingId: lockBindingId, leadgenId: '7001' } }), 1)
+    assert.equal(await db.metaLeadAdsDelivery.count({ where: { bindingId: liveBindingId, leadgenId: '7003' } }), 1)
+    assert.equal((await db.metaLeadAdsBinding.findUnique({ where: { id: lockBindingId } })).enabled, false)
+    assert.equal((await bindings('PUT', ownerToken, { id: lockBindingId, mode: 'pilot', enabled: true,
+      pilotLeadIds: ['7002'] })).status, 200)
+    await controlledBindingRace('7002', () => bindings('PUT', ownerToken, { id: lockBindingId,
+      mode: 'off', enabled: false, pilotLeadIds: [] }))
+    assert.equal(await db.metaLeadAdsDelivery.count({ where: { bindingId: lockBindingId, leadgenId: '7002' } }), 1)
+    assert.equal((await db.metaLeadAdsBinding.findUnique({ where: { id: lockBindingId } })).enabled, false)
+    assert.equal((await worker()).status, 200)
+    assert.equal(await db.lead.count({ where: { organizationId: org.id,
+      messengerId: { in: ['meta-lead-ads:7001', 'meta-lead-ads:7002'] } } }), 0)
+    assert.equal(await db.metaLeadAdsDelivery.count({ where: { bindingId: lockBindingId, status: 'blocked' } }), 2)
+    assert.equal((await db.leadChannelRoute.findUnique({ where: { id: route.id } })).nextPosition,
+      routingBeforeBindingRace, 'Disabled binding must not advance routing')
+    assert.equal(await db.notification.count({ where: { organizationId: org.id } }),
+      noticesBeforeBindingRace, 'Disabled binding must not create notifications')
+    assert.equal((await webhook(event('7002', '111', '228'))).status, 200)
+    assert.equal(await db.metaLeadAdsDelivery.count({ where: { bindingId: lockBindingId } }), 2)
+    assert.equal((await sheetsWebhook('sheets-after-meta-disable')).status, 201)
+    assert.equal(await db.lead.count({ where: { organizationId: sheets.id } }), 6)
+  } finally {
+    await db.$executeRawUnsafe('DROP TRIGGER meta_qa_receipt_barrier ON "MetaLeadAdsDelivery"')
+    await db.$executeRawUnsafe('DROP FUNCTION meta_qa_receipt_barrier()')
+  }
   const liveResponse = await webhook(event('997', '111', '225'))
   assert.equal(liveResponse.status, 200)
   const liveReceipt = await liveResponse.json()
@@ -397,6 +589,9 @@ try {
     body: JSON.stringify({ fullName: 'Synthetic Concurrent Legacy Lead', source: 'google_sheets' }) })
   assert.equal(legacyDuringGraph.status, 201)
   assert.ok(Date.now() - legacyStart < 3500, 'Legacy ingestion was blocked by Graph latency')
+  const sheetsDuringGraphStart = Date.now()
+  assert.equal((await sheetsWebhook('sheets-during-slow-graph')).status, 201)
+  assert.ok(Date.now() - sheetsDuringGraphStart < 3500, 'Google Sheets ingestion was blocked by Graph latency')
   const otherStart = Date.now()
   await db.organization.update({ where: { id: other.id }, data: { name: 'Synthetic Other Still Available' } })
   assert.ok(Date.now() - otherStart < 2000, 'Another tenant was blocked by Graph latency')
@@ -477,7 +672,7 @@ try {
   assert.equal(await db.lead.count({ where: { organizationId: org.id, messengerId: 'meta-lead-ads:999' } }), 0)
   const settings = await fetch(`${base}/api/meta-lead-ads/bindings`, { headers: { Cookie: `auth-token=${ownerToken}` } })
   assert.equal(settings.status, 200)
-  assert.equal((await settings.json()).bindings.length, 4)
+  assert.equal((await settings.json()).bindings.length, 5)
   const legacy = () => fetch(`${base}/api/webhooks/leads/${org.slug}`, { method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Reziflow-Key': 'synthetic-legacy-webhook-key',
       'Idempotency-Key': 'synthetic-google-sheets-event-1' },
