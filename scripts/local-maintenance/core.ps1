@@ -252,7 +252,8 @@ function Invoke-PostgresTool([object]$Config, [Uri]$Uri, [string]$Tool,
 }
 
 function Invoke-ReadOnlyQuery([object]$Config, [Uri]$Uri, [string]$Query,
-    [string]$FailureCode, [string]$SnapshotId = '') {
+    [string]$FailureCode, [string]$SnapshotId = '',
+    [bool]$CanonicalFingerprint = $false) {
   if (-not $Uri) { Stop-Maintenance 'READ_ONLY_URI_REQUIRED' }
   $snapshotSql = ''
   if ($SnapshotId) {
@@ -261,9 +262,17 @@ function Invoke-ReadOnlyQuery([object]$Config, [Uri]$Uri, [string]$Query,
     }
     $snapshotSql = "SET TRANSACTION SNAPSHOT '$SnapshotId'; "
   }
+  # SET LOCAL affects only this read-only transaction. Exported snapshots must
+  # be imported before these settings and do not carry session GUCs themselves.
+  $fingerprintSettings = if ($CanonicalFingerprint) {
+    "SET LOCAL TimeZone = 'UTC'; SET LOCAL DateStyle = 'ISO, YMD'; " +
+      "SET LOCAL IntervalStyle = 'postgres'; SET LOCAL extra_float_digits = 1; " +
+      "SET LOCAL bytea_output = 'hex'; "
+  } else { '' }
   $sql = "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY; " +
     $snapshotSql + "SET LOCAL statement_timeout = '30s'; " +
     "SET LOCAL search_path = pg_catalog, public; " +
+    $fingerprintSettings +
     $Query + '; ROLLBACK;'
   Assert-PrivateAcl $Config.privateDirectory
   $sqlPath = Join-Path $Config.privateDirectory ('query-' + [Guid]::NewGuid().ToString('N') + '.sql')
@@ -856,26 +865,130 @@ function Get-RepresentativeFingerprints([object]$Config, [Uri]$Uri,
     }
     $sql = "SELECT json_build_object('count',count(*),'digest'," +
       "md5(COALESCE(string_agg(md5(($expression)::text), '' " +
-      "ORDER BY md5(($expression)::text)),'')))::text FROM public.`"$table`" t"
-    try { $result[$table] = Invoke-ReadOnlyQuery $Config $Uri $sql 'DATA_FINGERPRINT_FAILED' $SnapshotId | ConvertFrom-Json }
+      "ORDER BY decode(md5(($expression)::text), 'hex')),'')))::text FROM public.`"$table`" t"
+    try { $result[$table] = Invoke-ReadOnlyQuery $Config $Uri $sql 'DATA_FINGERPRINT_FAILED' $SnapshotId $true | ConvertFrom-Json }
     catch { if ($_.Exception.Message -like 'LMR:*') { throw }; Stop-Maintenance 'DATA_FINGERPRINT_INVALID' }
   }
   return $result
 }
 
 function Compare-RepresentativeFingerprints([object]$Before, [object]$After,
-    [bool]$SkipLedger = $false) {
-  foreach ($key in $Before.Keys) {
+    [bool]$SkipLedger = $false, [string]$Stage = 'UNSPECIFIED',
+    [hashtable]$Diagnostic = $null) {
+  if ($Stage -notin @('UNSPECIFIED', 'RESTORE', 'POST_MIGRATION')) {
+    Stop-Maintenance 'FINGERPRINT_STAGE_INVALID'
+  }
+  if ($null -ne $Diagnostic) { $Diagnostic.Clear() }
+  foreach ($key in @('_prisma_migrations', 'LeadMessage', 'Lead', 'Organization',
+      'User', 'NotificationPreference')) {
     if ($SkipLedger -and $key -eq '_prisma_migrations') { continue }
-    if (-not $After.Contains($key) -or [long]$Before[$key].count -ne [long]$After[$key].count -or
-        [string]$Before[$key].digest -ne [string]$After[$key].digest) {
+    $difference = if (-not $Before.Contains($key) -or -not $After.Contains($key)) {
+      'MISSING'
+    } elseif ([long]$Before[$key].count -ne [long]$After[$key].count) {
+      'COUNT'
+    } elseif ([string]$Before[$key].digest -ne [string]$After[$key].digest) {
+      'DIGEST'
+    } else { '' }
+    if ($difference) {
+      if ($null -ne $Diagnostic) {
+        $Diagnostic.stage = $Stage
+        $Diagnostic.table = $key
+        $Diagnostic.difference = $difference
+      }
       Stop-Maintenance 'RESTORED_DATA_MISMATCH'
     }
   }
 }
 
+function Get-SafeFingerprintMismatch([string]$ReasonCode, [hashtable]$Diagnostic) {
+  if ($ReasonCode -ne 'RESTORED_DATA_MISMATCH' -or $null -eq $Diagnostic -or
+      $Diagnostic.Count -ne 3 -or
+      $Diagnostic.stage -notin @('RESTORE', 'POST_MIGRATION') -or
+      $Diagnostic.table -notin @('_prisma_migrations', 'LeadMessage', 'Lead',
+        'Organization', 'User', 'NotificationPreference') -or
+      $Diagnostic.difference -notin @('COUNT', 'DIGEST', 'MISSING')) {
+    return $null
+  }
+  return [ordered]@{ stage = $Diagnostic.stage; table = $Diagnostic.table
+    difference = $Diagnostic.difference }
+}
+
 function Get-StructureFingerprint([object]$Config, [Uri]$Uri,
     [string]$SnapshotId = '') {
+  # PostgreSQL 18 records ordinary column NOT NULL declarations twice: in
+  # attnotnull and as pg_constraint rows. PostgreSQL 17 has only attnotnull.
+  # Suppress the duplicate catalog row only for the ordinary generated form.
+  # Named, unvalidated, inherited, or otherwise special forms fail closed.
+  $unmodeledNotNull = Invoke-ReadOnlyQuery $Config $Uri @'
+SELECT count(*) FROM pg_constraint x
+JOIN pg_class c ON c.oid=x.conrelid
+JOIN pg_namespace n ON n.oid=c.relnamespace
+LEFT JOIN pg_attribute a ON a.attrelid=c.oid
+  AND a.attnum=x.conkey[1]
+WHERE n.nspname='public' AND x.contype='n' AND NOT (
+  current_setting('server_version_num')::integer >= 180000
+  AND x.convalidated AND x.conislocal AND x.coninhcount=0
+  AND NOT x.connoinherit AND x.conparentid=0
+  AND COALESCE((to_jsonb(x)->>'conenforced')::boolean,true)
+  AND cardinality(x.conkey)=1 AND a.attnotnull
+  AND x.conname=(c.relname||'_'||a.attname||'_not_null')
+)
+'@ 'STRUCTURE_NOT_NULL_CHECK_FAILED' $SnapshotId
+  if ($unmodeledNotNull -ne '0') { Stop-Maintenance 'STRUCTURE_NOT_NULL_UNMODELED' }
+
+  # A public-only dump does not promise to include extensions in other schemas
+  # or their dependencies. Such dependencies cannot be safely inferred from
+  # extension namespace alone. Block when catalog dependencies or opaque
+  # public function bodies could depend on an external extension.
+  $externalDependency = Invoke-ReadOnlyQuery $Config $Uri @'
+WITH external_extensions AS (
+  SELECT e.oid FROM pg_extension e
+  JOIN pg_namespace n ON n.oid=e.extnamespace
+  WHERE n.nspname <> 'public' AND e.extname <> 'plpgsql'
+), public_functions AS (
+  SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname='public' LIMIT 1
+), public_dependencies AS (
+  SELECT 1 FROM pg_depend d
+  LEFT JOIN pg_depend member ON member.classid=d.refclassid
+    AND member.objid=d.refobjid AND member.objsubid=0
+    AND member.deptype='e' AND member.refclassid='pg_extension'::regclass
+  JOIN external_extensions e ON e.oid=member.refobjid OR
+    (d.refclassid='pg_extension'::regclass AND d.refobjid=e.oid)
+  LEFT JOIN pg_depend owned ON owned.classid=d.classid
+    AND owned.objid=d.objid AND owned.deptype='e'
+    AND owned.refclassid='pg_extension'::regclass
+  CROSS JOIN LATERAL pg_identify_object(d.classid,d.objid,d.objsubid) identified
+  LEFT JOIN pg_class c ON d.classid='pg_class'::regclass AND c.oid=d.objid
+  LEFT JOIN pg_attrdef ad ON d.classid='pg_attrdef'::regclass AND ad.oid=d.objid
+  LEFT JOIN pg_constraint co ON d.classid='pg_constraint'::regclass AND co.oid=d.objid
+  LEFT JOIN pg_rewrite rw ON d.classid='pg_rewrite'::regclass AND rw.oid=d.objid
+  LEFT JOIN pg_trigger tr ON d.classid='pg_trigger'::regclass AND tr.oid=d.objid
+  LEFT JOIN pg_proc p ON d.classid='pg_proc'::regclass AND p.oid=d.objid
+  LEFT JOIN pg_cast ca ON d.classid='pg_cast'::regclass AND ca.oid=d.objid
+  LEFT JOIN pg_type cast_source ON cast_source.oid=ca.castsource
+  LEFT JOIN pg_type cast_target ON cast_target.oid=ca.casttarget
+  LEFT JOIN pg_namespace source_ns ON source_ns.oid=cast_source.typnamespace
+  LEFT JOIN pg_namespace target_ns ON target_ns.oid=cast_target.typnamespace
+  LEFT JOIN pg_namespace n ON n.oid=COALESCE(c.relnamespace,
+    (SELECT relnamespace FROM pg_class WHERE oid=ad.adrelid),
+    co.connamespace,
+    (SELECT relnamespace FROM pg_class WHERE oid=rw.ev_class),
+    (SELECT relnamespace FROM pg_class WHERE oid=tr.tgrelid),
+    p.pronamespace)
+  WHERE d.deptype <> 'e' AND owned.objid IS NULL
+    AND (n.nspname='public' OR identified.schema='public' OR
+      source_ns.nspname='public' OR target_ns.nspname='public')
+  LIMIT 1
+)
+SELECT CASE WHEN EXISTS (SELECT 1 FROM external_extensions)
+  AND (EXISTS (SELECT 1 FROM public_functions)
+       OR EXISTS (SELECT 1 FROM public_dependencies))
+  THEN 1 ELSE 0 END
+'@ 'STRUCTURE_EXTENSION_CHECK_FAILED' $SnapshotId
+  if ($externalDependency -ne '0') {
+    Stop-Maintenance 'STRUCTURE_EXTENSION_DEPENDENCY_UNPROVEN'
+  }
   $sql = @'
 WITH objects AS (
   SELECT 'table' AS kind, n.nspname||'.'||c.relname AS name,
@@ -894,14 +1007,16 @@ WITH objects AS (
   SELECT 'constraint', n.nspname||'.'||c.relname||'.'||x.conname,
     pg_get_constraintdef(x.oid)
   FROM pg_constraint x JOIN pg_class c ON c.oid=x.conrelid
-    JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public'
+    JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname='public' AND x.contype <> 'n'
   UNION ALL
   SELECT 'index', n.nspname||'.'||c.relname, pg_get_indexdef(c.oid)
   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
   WHERE n.nspname='public' AND c.relkind='i'
   UNION ALL
   SELECT 'extension', e.extname, e.extversion
-  FROM pg_extension e
+  FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace
+  WHERE n.nspname='public'
 )
 SELECT json_build_object('count',count(*),
   'digest',md5(COALESCE(string_agg(kind||'|'||name||'|'||definition,E'\n'
