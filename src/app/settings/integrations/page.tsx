@@ -1613,6 +1613,7 @@ ${samplePayload}`}
         {!loading && settings && (
           <div className="card" style={{ marginTop: 16 }}>
             <div className="section-title" style={{ marginBottom: 4 }}><span>📣</span>{text.facebookTitle}</div>
+            <p><Link href="/settings/integrations/meta-lead-ads">{lang === 'pl' ? 'Osobna integracja Meta Lead Ads →' : lang === 'uk' ? 'Окрема інтеграція Meta Lead Ads →' : 'Отдельная интеграция Meta Lead Ads →'}</Link></p>
             <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
               {text.facebookHint}
             </div>

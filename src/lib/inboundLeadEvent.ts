@@ -14,15 +14,19 @@ export function inboundEventKey(source: string, payload: any, explicit?: unknown
 export async function lockInboundLead(tx: any, organizationId: string) {
   await tx.$queryRawUnsafe('SELECT id FROM "Organization" WHERE id = $1 FOR UPDATE', organizationId)
 }
-export async function inboundLeadOnce(db: any, organizationId: string, eventKey: string, metadata: any, work: (tx: any) => Promise<any>) {
+export async function inboundLeadOnce(db: any, organizationId: string, eventKey: string, metadata: any, work: (tx: any) => Promise<any>, options: { pushOnReplay?: boolean; dispatchPush?: boolean; transactionTimeoutMs?: number; shortLockWait?: boolean } = {}) {
   const result = await db.$transaction(async (tx: any) => {
+    if (options.shortLockWait) await tx.$executeRawUnsafe("SET LOCAL lock_timeout = '1500ms'")
     await lockInboundLead(tx, organizationId)
     const replay = await tx.leadWebhookLog.findFirst({ where: { organizationId, status: 'created', payload: { path: ['assignmentEventKey'], equals: eventKey } } })
-    if (replay) return replay.leadId ? tx.lead.findFirst({ where: { id: replay.leadId, organizationId } }) : null
+    if (replay) return { lead: replay.leadId ? await tx.lead.findFirst({ where: { id: replay.leadId, organizationId } }) : null, created: false }
     const lead = await work(tx)
     await tx.leadWebhookLog.create({ data: { organizationId, leadId: lead.id, status: 'created', source: metadata.source, payload: { ...metadata.payload, assignmentEventKey: eventKey } } })
-    return lead
-  }, { timeout: 15000 })
-  if (result) await dispatchAssignmentPush(organizationId, [result.id], db)
-  return result
+    return { lead, created: true }
+  }, { timeout: options.transactionTimeoutMs || 15000, maxWait: 2000 })
+  // Notification and push-delivery rows are committed by work(tx). Lead Ads
+  // relies on the existing durable notification sender instead of waiting for
+  // an external push cycle inside its bounded worker invocation.
+  if (options.dispatchPush !== false && result.lead && (result.created || options.pushOnReplay !== false)) await dispatchAssignmentPush(organizationId, [result.lead.id], db)
+  return result.lead
 }
