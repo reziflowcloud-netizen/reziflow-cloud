@@ -63,8 +63,9 @@
 }
 
 .secondary {
+  background: #ffffff;
   border-color: rgba(255, 255, 255, 0.4);
-  color: #fff;
+  color: #08264a;
 }
 
 .primary:focus-visible,
