@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useMarketingLanguage } from '@/hooks/useMarketingLanguage'
 import { getConferenceCopy } from '@/lib/conferenceI18n'
 import { trackConferenceEvent } from '@/lib/conferenceTrackingClient'
@@ -17,14 +16,20 @@ export default function ConferenceDemoBar() {
         <span>{copy.text}</span>
       </div>
       <div className={styles.actions}>
-        <Link
-          href="/register?plan=free"
-          className={styles.primary}
-          onClick={() => trackConferenceEvent('conference_register_click', { language: lang, ctaLocation: 'demo_bar' })}
-        >
-          {copy.register}
-        </Link>
-        <Link href="/login" className={styles.secondary}>{copy.login}</Link>
+        <form action="/api/conference/demo/exit" method="post">
+          <button
+            type="submit"
+            name="intent"
+            value="register"
+            className={styles.primary}
+            onClick={() => trackConferenceEvent('conference_register_click', { language: lang, ctaLocation: 'demo_bar' })}
+          >
+            {copy.register}
+          </button>
+        </form>
+        <form action="/api/conference/demo/exit" method="post">
+          <button type="submit" name="intent" value="login" className={styles.secondary}>{copy.login}</button>
+        </form>
       </div>
     </aside>
   )

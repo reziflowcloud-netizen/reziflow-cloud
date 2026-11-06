@@ -38,6 +38,7 @@ const PUBLIC_PATHS = [
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
   '/api/conference/events',
+  '/api/conference/demo/exit',
   '/api/contact',
   '/api/partner/referrals',
   '/api/meta/data-deletion',
@@ -64,12 +65,8 @@ export async function middleware(request: NextRequest) {
     // If logged in and on public entry pages, continue to the app.
     if (token && (pathname === '/login' || pathname === '/register')) {
       const payload = await verifyToken(token)
-      if (payload && isConferenceDemoSession(payload)) {
-        const response = NextResponse.next()
-        response.cookies.delete('auth-token')
-        return addConferenceAttribution(response)
-      }
-      if (payload && safeNotificationReturn(request.nextUrl.searchParams.get('next')) === '/dashboard') return addConferenceAttribution(NextResponse.redirect(new URL('/dashboard', request.url)))
+      // Public page reads (including prefetch, RSC and HEAD) must never end a demo session.
+      if (payload && !isConferenceDemoSession(payload) && safeNotificationReturn(request.nextUrl.searchParams.get('next')) === '/dashboard') return addConferenceAttribution(NextResponse.redirect(new URL('/dashboard', request.url)))
     }
     return addConferenceAttribution(NextResponse.next())
   }
