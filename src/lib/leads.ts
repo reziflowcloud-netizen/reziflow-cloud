@@ -26,6 +26,9 @@ export const LEAD_SOURCES = [
   { value: 'facebook', label: 'Facebook' },
   { value: 'quiz', label: 'Квиз' },
   { value: 'target', label: 'Meta Ads' },
+  { value: 'facebook_lead_ads', label: 'Facebook Lead Ads' },
+  { value: 'instagram_lead_ads', label: 'Instagram Lead Ads' },
+  { value: 'meta_lead_ads_unknown', label: 'Meta Lead Ads (unknown)' },
   { value: 'website', label: 'Сайт' },
 ]
 
@@ -61,9 +64,11 @@ export function normalizeLeadSources(value: unknown): LeadSourceOption[] {
     })
     .filter(Boolean) as LeadSourceOption[]
 
-  return sources.length
-    ? sources.sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
-    : DEFAULT_LEAD_SOURCES
+  if (!sources.length) return DEFAULT_LEAD_SOURCES
+  for (const source of DEFAULT_LEAD_SOURCES.filter(item => item.value.endsWith('_lead_ads') || item.value === 'meta_lead_ads_unknown')) {
+    if (!seen.has(source.value)) sources.push({ ...source, order: sources.length, system: true })
+  }
+  return sources.sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
 }
 
 export const LEAD_TEMPERATURES = [

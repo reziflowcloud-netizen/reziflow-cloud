@@ -104,6 +104,8 @@ model Organization {
   leadContactHistory    LeadContactHistory[]
   leadMessages          LeadMessage[]
   leadWebhookLogs       LeadWebhookLog[]
+  metaLeadAdsBindings   MetaLeadAdsBinding[]
+  metaLeadAdsDeliveries MetaLeadAdsDelivery[]
   leadPhones            LeadPhone[]
   clientPhones          ClientPhone[]
   referralAttribution   ReferralAttribution?
@@ -296,6 +298,53 @@ model LeadWebhookLog {
   @@index([organizationId, createdAt])
   @@index([organizationId, status])
   @@index([leadId])
+}
+
+// Separate Lead Ads app. No token, app secret or contact fields are persisted here.
+model MetaLeadAdsBinding {
+  id             String                @id @default(cuid())
+  organizationId String
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  appId          String
+  pageId         String
+  formId         String
+  enabled        Boolean               @default(false)
+  mode           String                @default("off")
+  activatedAt    DateTime?
+  pilotLeadIds   String[]              @default([])
+  deliveries     MetaLeadAdsDelivery[]
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@unique([appId, pageId, formId])
+  @@unique([id, organizationId])
+  @@index([organizationId, enabled])
+}
+
+// Durable receipt and retry state. A shadow receipt stores an HMAC, never a raw lead ID.
+model MetaLeadAdsDelivery {
+  id             String             @id @default(cuid())
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bindingId      String
+  binding        MetaLeadAdsBinding @relation(fields: [bindingId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  appId          String
+  eventFingerprint String
+  leadgenId      String
+  acceptedMode   String
+  status         String             @default("pending")
+  attempts       Int                @default(0)
+  nextAttemptAt  DateTime           @default(now())
+  leaseUntil     DateTime?
+  lastErrorCode  String?
+  leadId         String?
+  purgedAt       DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([appId, eventFingerprint])
+  @@index([status, nextAttemptAt])
+  @@index([organizationId, status])
 }
 
 model LeadContactHistory {

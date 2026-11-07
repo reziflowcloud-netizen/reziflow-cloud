@@ -1,0 +1,15 @@
+.page { max-width: 920px; margin: 0 auto; padding: 24px 16px 72px; color: var(--text); overflow-wrap: anywhere; }
+.page h1 { font-size: clamp(1.4rem, 4vw, 2rem); margin: 20px 0 8px; }
+.page h2 { font-size: 1.08rem; margin: 0 0 12px; }
+.page p { color: var(--muted); }
+.page label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; min-width: 0; }
+.page input, .page select { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--input-border); border-radius: 8px; background: var(--input-bg); color: var(--text); }
+.page button { min-height: 42px; padding: 8px 16px; margin-top: 14px; border-radius: 8px; color: white; background: #2563eb; font-weight: 700; }
+.page button:disabled { opacity: .5; cursor: not-allowed; }
+.card { border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin: 18px 0; background: var(--surface); min-width: 0; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.info { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 12px 0; }
+.check { flex-direction: row !important; align-items: center; margin-top: 12px; }
+.check input { width: auto; }
+.error { color: #b91c1c !important; }
+@media (max-width: 600px) { .grid { grid-template-columns: minmax(0, 1fr); } .card { padding: 14px; } .page { padding-inline: 12px; } }
