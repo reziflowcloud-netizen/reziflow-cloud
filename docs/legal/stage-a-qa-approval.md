@@ -4,7 +4,7 @@
 
 ## The proposed decision
 
-Approve the three QA texts and adopt the operating conditions and manual cleanup procedure below for the owner's one synthetic test only. Confirm the operator/contact, the QA computer/copies location in Poland and authority to use the provider processing/transfer terms for these services. Authorise a named operator (the owner, or a specifically designated internal operator) to execute the manual deadlines. These are proposed operating commitments; they are not represented as already implemented automated retention.
+Approve the three QA texts and adopt the operating conditions and manual cleanup procedure below for the owner's one synthetic test only. Confirm only the operator/contact, physical country and cloud/synchronised copies, and accept responsibility for the adopted manual deadlines. Provider-contract coverage is an engineering/legal verification task, not an owner attestation substituted for evidence. Authorise a named operator (the owner, or a specifically designated internal operator) to execute the manual deadlines. These are proposed operating commitments; they are not represented as already implemented automated retention.
 
 This decision is about documents and operating conditions. Publication and the later QA Live experiment require separately scoped authorisation. It is not a signed SL DPA or an acceptance of third-party terms by this PR.
 
@@ -24,8 +24,8 @@ The previous broad Privacy/Deletion proposals remain only in [the general-page d
 
 1. **Operator/contact:** reuse the existing public operator LegalHub CRM JDG Valentyn Verbelchuk, NIP 9512609364, Warsaw address and office@legalhubcrm.com; owner confirms current accuracy and access to the mailbox.
 2. **Local location/copies:** the proposed notice commits to an operator-managed QA computer in Poland and cleanup of operator-held QA copies. Physical location and any automatic cloud-sync copies were not proved by the timezone or code. Owner confirms this narrow scope; otherwise revise the location/copy description before publication.
-3. **Actual provider coverage:** Meta supplies its own platform; Cloudflare carries the temporary webhook; Vercel serves the static notice. Public Vercel Pro DPA includes SCCs. Cloudflare Self-Serve terms section 6.1 incorporates its DPA for covered personal-data services, but accountless Quick Tunnel coverage is not independently established by the existence of that DPA. Owner's applicable account/agreement records or provider confirmation must support the proposed concrete transfer paragraph before publication/use; do not assert signed coverage from a generic link. This narrow QA provider fact is not a demand for SL contracts or a full CRM provider audit.
-4. **Adopt the deadline and responsibility:** owner adopts the procedure, names who will actually perform it and signs off the limited legitimate-interest assessment below. Preparation alone does not turn it into an existing policy.
+3. **Copies:** confirm whether QA data/evidence exists in cloud sync, backup tools, shared folders, exports or other chats/systems. Give locations and responsible person without sending file contents, secrets or client records. No assertion of zero cloud copies is inferred from a local path.
+4. **Responsibility:** owner adopts the manual deadlines and limited legitimate-interest assessment and names who will execute and verify cleanup. Preparation alone is not execution.
 
 No Production database binding, paid backup plan, SL contract, complete customer retention schedule or client-data inventory is needed merely to approve this own-QA scope.
 
@@ -41,16 +41,26 @@ No Production database binding, paid backup plan, SL contract, complete customer
 
 ## Manual cleanup procedure for approval
 
+The operational authority is [the executable manual runbook](stage-a-qa-cleanup.md), including earlier artifacts, the actual private QA PostgreSQL cluster, generated caches and sync/version-history copies. Only its read-only inventory helper was executed. No deletion or database connection was made.
+
+The private local cluster contains authentication/configuration material: the default procedure removes the whole disposable private QA tree by T0 + 24 hours after shutdown and isolation checks, thereby also meeting the 7-day dataset ceiling. Other QA evidence and copies have the 7-day deadline. Do not keep the database another week while deleting only its runtime credentials file.
+
 **T0** is closure or cancellation of the one controlled test, regardless of PASS/BLOCKED. Do not postpone T0 because Pending persists. If the test is not authorised, close/cancel preparation explicitly rather than retain earlier QA evidence indefinitely.
 
 1. **At T0:** close gate release, binding enabled=false/mode=off and test Lead allowlist; stop intake/worker and temporary relay. A later authorised shutdown also removes only the QA leadgen subscription/callback. No Meta mutation is authorised now.
-2. **By T0 + 24 hours:** remove transient local QA Page-token/secret copies and test process environments from the approved QA locations; do not rotate shared credentials, reveal values or delete unrelated application configuration. Owner separately controls Meta-side authorisations and App resources.
+2. **By T0 + 24 hours:** after stopping QA services and validating the isolated cluster and absolute root, remove the disposable private QA tree including the local QA database, runtime config, temporary credentials, PostgreSQL auth/config material and private logs. Do not read secret values, rotate shared credentials or delete unrelated configuration. Owner separately controls Meta-side authorisations and App resources.
 3. **By T0 + 7 calendar days:** inventory only the isolated QA dataset and operator-held QA copies. Remove QA Leads/assignments, receipts including pending/tombstone/dedupe, Notifications/outbox, QA logs, screenshots and QA DB dumps/snapshots, with no reliance on Lead DELETE cascades or the 30/366-day maintenance job. Include earlier pilot files within 7 days of adoption of this procedure. Do not sweep a shared backup directory or modify Production.
 4. **Execute and verify:** before any destruction, verify absolute QA targets and isolation, stop writers, identify copies/cloud-sync locations, and apply the separately authorised QA-only deletion. If practical, reset/delete the disposable isolated QA database after evidence extraction rather than claim selective cascade completeness. Verify absence of targeted records/files and check each copy separately; record category, date, actor and counts without personal/lead/account IDs. No deletion is performed in this preparation task.
 5. **Provider/platform records:** review the continued need for the QA App/Page/Form by T0 + 7 days. Do not remove these resources, revoke Meta grants or demand deletion of provider records without appropriate separate authorisation. Identify independently retained provider information and direct rights requests appropriately. Do not claim local erasure removes it.
 6. **By T0 + 30 days:** manually remove the remaining QA result summary. Until then it may contain only test date, aggregate counts, PASS/BLOCKED and non-identifying errors; no names, contacts, credentials, account/lead/user/device IDs, body digests that can be linked to people or raw screenshots. Legal obligations require a documented category-specific exception, not indefinite generic retention.
 
 This is a deliberately shorter QA policy. Stage B retention is not borrowed from these periods. Automation is not added. The 7/30-day values are proposed operator choices, not statutory or Meta deadlines.
+
+## Relay and publication gates
+
+The blanket DPA/SCC assertion for the old accountless Quick Tunnel is removed from the public QA Privacy. See [relay decision and publication gate](stage-a-publication-gate.md). The next relay is only a proposed account-managed Cloudflare Tunnel; no account, DNS, tunnel, callback, subscription or paid service is created here. Verified applicable terms and a free/no-charge setup are prerequisites for the later relay test, not assertions the owner must personally certify now.
+
+Publishing truthful static notices while the pilot remains disabled is separate from authorising that relay or Live test. The actual owner facts and independent review must pass before a publication permission request is presented.
 
 ## Meta Basic Settings prepared values
 
@@ -84,15 +94,15 @@ Read-only check 9 November 2026: App remains Unpublished; Privacy/Deletion/Terms
 This is a plan only. The new hypothesis is whether publication changes automatic webhook dispatch for this exact App; Live is not a guaranteed Pending fix.
 
 1. Obtain separate authorisations for publication, QA Basic fields and then the bounded Live test, including restoration and removal of only QA callback/leadgen subscription. All current prohibitions continue until those actions are authorised.
-2. Publish only the QA static notices after the four narrow confirmations above; leave general production legal drafts and Stage B DPA unpublished. Read back all three URLs anonymously over HTTPS, inspect redirects/content and the icon file.
+2. Publish only the QA static notices after the narrow owner confirmations and successful independent review; leave general production legal drafts and Stage B DPA unpublished. Read back all three URLs anonymously over HTTPS, inspect redirects/content and the icon file.
 3. Fill verified QA Basic fields, then inspect the actual validator. No permissions expansion, ads, Review submission or new resources. Stop for an actual Review/BV requirement.
 4. Before any test, verify the isolated local DB, QA tenant, private current token issued by this App for this Page, no Production settings, appsecret/HMAC checks, existing local gates/switches and original App/Page/Form tuple. No secrets in logs. Leave email, external push, document storage and production QStash off.
-5. With separately authorised Live/callback actions, start the existing local QA gateway/CRM/worker/PG and temporary HTTPS relay for one bounded session. Expose only the existing webhook gateway; no broad CRM/admin route. Verify challenge/HMAC and read back only QA Page leadgen subscriptions. No messages/message_echoes.
+5. With separately authorised Live/callback actions, start the existing local QA gateway/CRM/worker/PG and the separately approved, contract-verified managed HTTPS relay for one bounded session. Expose only the existing webhook gateway; no broad CRM/admin route. Verify challenge/HMAC and read back only QA Page leadgen subscriptions. No messages/message_echoes.
 6. Create exactly one synthetic lead with the official Lead Ads Testing Tool. If an earlier own test blocks creation, record its safe technical result and remove only that test when separately authorised. Do not call test_leads repeatedly as another Development test.
 7. Handle the unknown-first-ID race with the existing closed first-event gate/503 retry behaviour: approve only the newly observed exact Lead ID privately, then permit original Meta bytes/HMAC. Do not release a broad Page/Form-only intake or invent a local signature.
 8. Observe for at most 10 minutes after creation. Record Meta Track Status and original HTTP receipt/status/HMAC, Graph form/id match, automatic receipt/Lead in QA tenant, staff assignment and one in-app notification. Deduplication was already tested; inspect counts or natural retries, no repeated synthetic test is required.
 9. PASS only for original Meta → webhook → QA receipt → Graph → Lead → Staff → Notification. If no Meta event arrives, report Pending/no HTTP and stop; if it arrives and fails, classify the actual endpoint/worker error. Do not infer the cause from mode alone.
-10. Close binding/gate/worker, remove only the authorised QA subscriptions/callback, stop tunnel and runtime, dispose transient local credentials and execute the adopted manual schedule. App-mode rollback or deletion/revocation of Meta resources is included only if separately authorised; local OFF remains the immediate kill switch.
+10. Close binding/gate/worker, remove only the authorised QA subscriptions/callback, stop tunnel and runtime, dispose of the private QA cluster/configuration within 24 hours and execute the adopted manual schedule. App-mode rollback or deletion/revocation of Meta resources is included only if separately authorised; local OFF remains the immediate kill switch.
 
 ## Evidence and sources
 
@@ -108,3 +118,4 @@ No new Development test, Meta mutation, Production operation, credential inspect
 - [Cloudflare Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/) for testing, temporary URL and no uptime guarantee
 
 Production changed: NO. Meta App mode changed: NO. RAM Company affected: NO. SL affected: NO.
+
