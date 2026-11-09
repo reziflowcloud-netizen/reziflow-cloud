@@ -1,6 +1,6 @@
 # LegalHub Legal Pages Approval Drafts
 
-These proposed texts update the existing Privacy Policy and Data Deletion Instructions. They are not published. Reconcile the proposed update date with the actual future publication date. See [factual review and stage requirements](stage-a-stage-b-readiness.md) for the remaining owner/legal confirmations.
+**Stage B / general-service drafts only.** PR #14 now prepares separate [Stage A QA documents and approval](stage-a-qa-approval.md). These broader texts are preserved for later review; they are not deployed by the current PR, and the executable /privacy and /data-deletion pages match main. They are not approved or published. Reconcile the proposed update date with the actual future publication date. See [factual review and stage requirements](stage-a-stage-b-readiness.md) for the remaining owner/legal confirmations.
 
 ## Privacy Policy
 

@@ -1,5 +1,7 @@
 # LegalHub Stage A and Stage B Factual Review
 
+**Publication proposal superseded for Stage A:** use [Stage A QA approval and one test plan](stage-a-qa-approval.md). The general legal-page rewrite remains an unpublished document draft; the current PR restores its executable routes to main and adds only standalone static QA notices. The factual findings below remain available for Stage B and do not impose the general production-release gate on the limited QA documents.
+
 9 November 2026. This is an approval record for PR #14. No production data, credentials or backup contents were opened, and no production PostgreSQL connection was made. **CONFIRMED** identifies an observed setting, code behaviour or documented requirement with the scope shown. **UNKNOWN** identifies a fact the available safe evidence does not establish. A complete draft is not an executed agreement or permission to publish.
 
 ## Decision boundaries
