@@ -2,6 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
+      "codex/meta-lead-ads-legal-readiness-20261109": false,
       "codex/notification-org-opt-in": false,
       "feature/notification-events-phase3b": false,
       "feature/notification-events-phase3": false,
