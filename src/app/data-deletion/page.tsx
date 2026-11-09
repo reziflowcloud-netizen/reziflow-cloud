@@ -71,6 +71,12 @@ export default function DataDeletionPage() {
           and diagnostic files. Deleting a lead through the CRM does not automatically remove all those
           records. Where the interface does not provide the necessary controls, request service-level assistance.
         </p>
+        <p>
+          For the internal QA pilot, contact the same privacy contact and identify the test App, Page, form
+          or synthetic record. The operator must consider the isolated QA database, related notifications,
+          diagnostic files and any retained QA copies separately. Production database deletion is not part
+          of this isolated pilot's cleanup procedure.
+        </p>
 
         <h2>4. Service-Level Deletion Request</h2>
         <p>

@@ -49,6 +49,12 @@ export default function PrivacyPolicyPage() {
           such as its own service administration and security. The roles depend on the actual processing
           and contractual arrangements, not only on which system stores the data.
         </p>
+        <p>
+          In the internal QA pilot, LegalHub determines the testing purposes for its own test App, Page,
+          form and isolated CRM organization. The pilot is intended for synthetic submissions only.
+          Meta administrator and account identifiers, access records and other technical information may
+          still relate to individuals. An internal CRM organization is not by itself a separate legal entity.
+        </p>
 
         <h2>2. Information We Process</h2>
         <p>Depending on how an agency configures the CRM, LegalHub may process:</p>
@@ -112,6 +118,13 @@ export default function PrivacyPolicyPage() {
           providers used to operate the CRM, such as hosting, database, file storage and deployment providers.
           Access is limited to what is necessary to provide the service and maintain security.
         </p>
+        <p>
+          Vercel provides hosting and application execution. Depending on the enabled feature, database,
+          document-storage, email, scheduling and device-notification providers may also process information.
+          The isolated QA Lead Ads flow uses Meta, an operator-managed local CRM and PostgreSQL database,
+          and a temporary Cloudflare HTTPS relay when enabled. It does not route test lead records through
+          the production CRM database. Meta also processes information under its own applicable terms and notices.
+        </p>
 
         <h2>6. Data Storage and Security</h2>
         <p>
@@ -125,9 +138,11 @@ export default function PrivacyPolicyPage() {
 
         <h2>7. Data Location</h2>
         <p>
-          Processing and storage locations depend on the hosting, database, backup and integration providers
-          used for the relevant environment. Test environments may use local infrastructure and a temporary
-          HTTPS relay. A test environment's location is not evidence of the location of the production service.
+          The current production Vercel deployment executes application functions in the United States
+          (Washington, D.C. region, iad1). Database, backup, network and other processing locations depend
+          on the provider and configuration. An EU database region does not mean that all service processing
+          remains in the EEA. Test environments may use local infrastructure and a temporary HTTPS relay.
+          A test environment's location is not evidence of the location of the production service.
           Information about applicable provider locations and international-transfer arrangements can be
           requested from the privacy contact below.
         </p>
