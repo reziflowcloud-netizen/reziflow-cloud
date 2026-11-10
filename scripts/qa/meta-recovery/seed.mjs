@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { randomBytes } from 'node:crypto'
-import { join,resolve,dirname } from 'node:path'
+import { join,resolve,dirname,basename,isAbsolute } from 'node:path'
 import { lstatSync,readFileSync,realpathSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -29,7 +29,11 @@ noLink(config.repo)
 const url=new URL(config.databaseUrl)
 if(!['postgres:','postgresql:'].includes(url.protocol)||url.hostname!=='127.0.0.1'||!url.port||url.port==='5432'||Number(url.port)!==state.cluster.Port||url.pathname!=='/legalhub_runner_'+run||url.pathname.slice(1)!==state.cluster.Database||config.databaseUrl!==state.cluster.Uri||process.env.DATABASE_URL!==config.databaseUrl||process.env.DIRECT_URL!==config.databaseUrl)throw Error('STAGE_A_DB_TARGET_REFUSED')
 // Path-only arguments; helper reads owned metadata and never needs Git on PATH.
-const check=spawnSync(join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-File',join(dirname(fileURLToPath(import.meta.url)),'verify-running.ps1'),'-RuntimeFile',privateFile],{windowsHide:true,stdio:'ignore',timeout:20000})
+const pwsh=process.env.QA_PWSH_EXE
+if(!pwsh||!isAbsolute(pwsh)||basename(pwsh).toLowerCase()!=='pwsh.exe'||config.qaPwshExecutable!==pwsh||!lstatSync(noLink(pwsh)).isFile())throw Error('STAGE_A_PWSH_HOST_UNVERIFIED')
+const version=spawnSync(pwsh,['-NoProfile','-NonInteractive','-Version'],{windowsHide:true,stdio:['ignore','pipe','ignore'],encoding:'utf8',timeout:20000})
+if(version.error||version.status!==0||!/^PowerShell 7\.\d+\.\d+(?:[-+][^\s]+)?\s*$/.test(version.stdout||''))throw Error('STAGE_A_PWSH7_REQUIRED')
+const check=spawnSync(pwsh,['-NoProfile','-NonInteractive','-File',join(dirname(fileURLToPath(import.meta.url)),'verify-running.ps1'),'-RuntimeFile',privateFile],{windowsHide:true,stdio:'ignore',timeout:20000})
 if(check.error||check.status!==0)throw Error('STAGE_A_RUNNING_SERVER_UNVERIFIED')
 const require=createRequire(join(config.repo,'package.json'))
 const {PrismaClient}=require('@prisma/client')

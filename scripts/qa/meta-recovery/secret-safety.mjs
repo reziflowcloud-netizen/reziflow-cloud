@@ -38,7 +38,7 @@ function validatedTelemetry(input) {
   const output = {phase: input.phase, status: input.status}
   for (const key of ['httpStatus', 'graphCode', 'graphSubcode', 'durationMs']) {
     if (input[key] === undefined) continue
-    const ceiling = key === 'httpStatus' ? 599 : key === 'durationMs' ? 86400000 : 1000000
+    const ceiling = key === 'httpStatus' ? 599 : key === 'durationMs' ? 86400000 : 2147483647
     if (!integer(input[key], ceiling) || key === 'httpStatus' && input[key] !== 0 && input[key] < 100) fail('INVALID_TELEMETRY')
     output[key] = input[key]
   }

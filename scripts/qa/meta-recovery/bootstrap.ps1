@@ -1,7 +1,12 @@
 param([Parameter(Mandatory=$true)][string]$EvidenceDirectory,[Parameter(Mandatory=$true)][string]$SourceEvidence)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
+if($PSVersionTable.PSVersion.Major -ne 7 -or $PSVersionTable.PSEdition -ne 'Core'){throw 'QA_BOOTSTRAP_REQUIRES_APPROVED_PWSH7'}
+$qaPwsh=Join-Path $PSHOME 'pwsh.exe'
+if([Environment]::ProcessPath -ne $qaPwsh -or -not(Test-Path -LiteralPath $qaPwsh -PathType Leaf)){throw 'QA_BOOTSTRAP_HOST_UNVERIFIED'}
+if((Get-ExecutionPolicy) -ne 'RemoteSigned'){throw 'QA_BOOTSTRAP_HOST_POLICY_NOT_APPROVED'}
 . (Join-Path $PSScriptRoot 'guard.ps1')
+Assert-QaNoReparse $qaPwsh
 $original=Assert-QaSource (Join-Path $SourceEvidence 'combined-source')
 $EvidenceDirectory=Get-QaCanonicalDirectory $EvidenceDirectory
 $pointerPath=Join-Path $EvidenceDirectory 'private-pointer.json'
@@ -72,7 +77,7 @@ try{
   if($listeners.Count -ne 1 -or $listeners[0].LocalAddress -ne '127.0.0.1'){throw 'PG_BIND_UNSAFE'}
   [IO.File]::WriteAllText($statePath,(@{config=$config;cluster=$cluster}|ConvertTo-Json -Depth 8))
   [IO.File]::WriteAllText($config.environmentFile,(@("DATABASE_URL=$($cluster.Uri.AbsoluteUri)","DIRECT_URL=$($cluster.Uri.AbsoluteUri)") -join [Environment]::NewLine))
-  [IO.File]::WriteAllText($runtime,(@{repo=$repo;sourceOriginal=$original;privateDirectory=$privateRoot;databaseUrl=$cluster.Uri.AbsoluteUri;appPort=43126;gatePort=43127;hostname='unit-handsfree-carpentry.ngrok-free.dev'}|ConvertTo-Json))
+  [IO.File]::WriteAllText($runtime,(@{repo=$repo;sourceOriginal=$original;privateDirectory=$privateRoot;databaseUrl=$cluster.Uri.AbsoluteUri;qaPwshExecutable=$qaPwsh;appPort=43126;gatePort=43127;hostname='unit-handsfree-carpentry.ngrok-free.dev'}|ConvertTo-Json))
   foreach($f in @($runtime,$statePath,$config.environmentFile)){Set-PrivateAcl $f}
   $guarded=Read-QaGuardedRuntime $pointerPath
   Invoke-WithIsolatedEnvironment $config $null @{DATABASE_URL=$cluster.Uri.AbsoluteUri;DIRECT_URL=$cluster.Uri.AbsoluteUri;NEXT_TELEMETRY_DISABLED='1'} {
@@ -88,7 +93,7 @@ try{
       if($LASTEXITCODE -ne 0){throw 'QA_SCHEMA_DRIFT'}
     }finally{Pop-Location}
   }
-  Invoke-WithIsolatedEnvironment $config $null @{DATABASE_URL=$cluster.Uri.AbsoluteUri;DIRECT_URL=$cluster.Uri.AbsoluteUri;QA_STAGE_A_PRIVATE_CONFIG=$runtime;QA_STAGE_A_EVIDENCE=$privateRoot} {
+  Invoke-WithIsolatedEnvironment $config $null @{DATABASE_URL=$cluster.Uri.AbsoluteUri;DIRECT_URL=$cluster.Uri.AbsoluteUri;QA_STAGE_A_PRIVATE_CONFIG=$runtime;QA_STAGE_A_EVIDENCE=$privateRoot;QA_PWSH_EXE=$qaPwsh} {
     $discard=@(& (Join-Path $config.nodeBin 'node.exe') (Join-Path $PSScriptRoot 'seed.mjs') 2>$null)
     if($LASTEXITCODE -ne 0){throw 'QA_SEED_FAILED'}
   }

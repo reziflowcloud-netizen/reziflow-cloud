@@ -1,5 +1,9 @@
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+if($PSVersionTable.PSVersion.Major -ne 7 -or $PSVersionTable.PSEdition -ne 'Core'){throw 'QA_TEST_REQUIRES_APPROVED_PWSH7'}
+$shell=[Environment]::ProcessPath
+if(-not $shell -or [IO.Path]::GetFileName($shell) -ne 'pwsh.exe' -or -not(Test-Path -LiteralPath $shell -PathType Leaf)){throw 'QA_TEST_HOST_EXECUTABLE_UNVERIFIED'}
+if((Get-ExecutionPolicy) -ne 'RemoteSigned'){throw 'QA_TEST_HOST_POLICY_NOT_APPROVED'}
 . (Join-Path $PSScriptRoot 'guard.ps1')
 $checks=0
 function Expect-QaRejected([scriptblock]$Action){
@@ -43,7 +47,6 @@ $jsonFailure=@"
 '{"private":"$canary", BROKEN' | ConvertFrom-Json -ErrorAction Stop
 "@
 $uriFailure="[Uri]::new('postgresql://$canary@[broken')"
-$shell=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $importLine=". (Join-Path `$PSScriptRoot 'guard.ps1')"
 $testRoot=Join-Path ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../..'))) ('artifacts/qa-guard-unit-'+[Guid]::NewGuid().ToString('N'))
 [void](New-Item -ItemType Directory -Path $testRoot)
@@ -68,6 +71,7 @@ foreach($entry in @(
       $code=$LASTEXITCODE
     }finally{$ErrorActionPreference=$savedPreference}
     $text=$capture -join "`n"
+    if($text -match 'PSSecurityException|UnauthorizedAccess|running scripts is disabled|execution of scripts is disabled'){throw 'QA_TEST_CHILD_POLICY_BLOCKED'}
     if($code -eq 0 -or -not $text.Contains($entry.Expected) -or $text.Contains($canary)){throw 'QA_PRIVATE_INPUT_SANITIZATION_FAILED'}
     $checks++
   }
