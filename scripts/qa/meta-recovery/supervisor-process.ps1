@@ -38,6 +38,10 @@ try {
  if($deadline -le [DateTimeOffset]::UtcNow -or $deadline -gt [DateTimeOffset]::UtcNow.AddMinutes(35) -or $c.ngrokExe -ne $approval.ngrokExe -or $approval.fullCaptureDisabled -ne $true -or $approval.freePlanVerified -ne $true){throw 'APPROVAL_REFUSED'}
  $stage='executables';foreach($file in @($NodeExe,$c.ngrokExe)){Assert-QaNoReparse $file;if(-not(Test-Path -LiteralPath $file -PathType Leaf)){throw 'EXECUTABLE_REFUSED'}}
  if((Get-FileHash -LiteralPath $c.ngrokExe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $approval.ngrokSha256){throw 'EXECUTABLE_CHANGED'}
+ $stage='store_alias';. (Join-Path $PSScriptRoot 'ngrok-store-alias.ps1')
+ $storeTarget=Get-QaVerifiedNgrokStoreAlias $c.ngrokExe $approval.ngrokSha256 $c.qaPwshExecutable
+ $expectedCallerPath=([IO.Path]::GetDirectoryName($c.qaPwshExecutable))+';C:\Windows\System32;C:\Program Files\nodejs;C:\Program Files\Git\cmd;'+$storeTarget.AliasDirectory
+ if($env:PATH -cne $expectedCallerPath -or $env:PATHEXT -cne '.EXE;.CPL'){throw 'STORE_CALLER_REFUSED'}
  $stage='private_acl';foreach($leaf in @('meta-app-secret.txt','meta-page-token.txt','meta-real-private.json','ngrok.yml')){Assert-QaPrivateAcl (Join-Path $c.privateDirectory $leaf)}
  $stage='parent'
  $self=Get-CimInstance Win32_Process -Filter ('ProcessId='+$PID)
@@ -94,6 +98,9 @@ public sealed class QaOwnedJob : IDisposable {
  [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool CreateProcessW(string exe,StringBuilder line,IntPtr pa,IntPtr ta,bool inherit,uint flags,IntPtr env,string cwd,ref SIX startup,out PI info);
  [DllImport("kernel32.dll",SetLastError=true)] static extern uint ResumeThread(IntPtr thread);
  [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
+ const string StoreImage=@"C:\Program Files\WindowsApps\ngrok.ngrok_3.39.11.0_x64__1g87z0zv29zzc\ngrok.exe";
+ const string NodeImage=@"C:\Program Files\nodejs\node.exe";
+ readonly string registeredAlias;
  IntPtr parent; readonly Dictionary<string,Owned> children=new Dictionary<string,Owned>();
  public static string LastOperation {get;private set;}
  public static int LastNativeCode {get;private set;}
@@ -102,7 +109,10 @@ public sealed class QaOwnedJob : IDisposable {
  static long Born(IntPtr handle){FT c,e,k,u;if(!GetProcessTimes(handle,out c,out e,out k,out u))throw NativeRefused("query_time");return c.Value;}
  static string Image(IntPtr handle){var s=new StringBuilder(32768);uint n=(uint)s.Capacity;if(!QueryFullProcessImageNameW(handle,0,s,ref n))throw NativeRefused("query_image");return s.ToString();}
  static string Quote(string arg){if(arg==null||arg.IndexOf('\0')>=0)throw Refused();var b=new StringBuilder("\"");int slash=0;foreach(char x in arg){if(x=='\\'){slash++;continue;}if(x=='\"'){b.Append('\\',slash*2+1);b.Append(x);slash=0;continue;}b.Append('\\',slash);slash=0;b.Append(x);}b.Append('\\',slash*2);b.Append('"');return b.ToString();}
- public QaOwnedJob(int parentPid,string expectedParent){
+ public static bool ValidRegisteredAlias(string value){return !String.IsNullOrEmpty(value)&&value.IndexOf('\0')<0&&System.IO.Path.IsPathFullyQualified(value)&&String.Equals(System.IO.Path.GetFullPath(value),value,StringComparison.OrdinalIgnoreCase)&&value.StartsWith(@"C:\Users\",StringComparison.OrdinalIgnoreCase)&&value.EndsWith(@"\AppData\Local\Microsoft\WindowsApps\ngrok.exe",StringComparison.OrdinalIgnoreCase);}
+ public QaOwnedJob(int parentPid,string expectedParent):this(parentPid,expectedParent,null){}
+ public QaOwnedJob(int parentPid,string expectedParent,string verifiedAlias){
+  if(verifiedAlias!=null&&!ValidRegisteredAlias(verifiedAlias))throw Refused();registeredAlias=verifiedAlias;
   try{parent=OpenProcess(0x101000,false,parentPid);if(parent==IntPtr.Zero)throw NativeRefused("open_parent");if(!String.Equals(Image(parent),expectedParent,StringComparison.OrdinalIgnoreCase)||WaitForSingleObject(parent,0)!=258)throw Refused();}
   catch{if(parent!=IntPtr.Zero){CloseHandle(parent);parent=IntPtr.Zero;}throw;}
  }
@@ -111,7 +121,14 @@ public sealed class QaOwnedJob : IDisposable {
  public int ActiveCount(){int total=0;foreach(var o in children.Values){Accounting a;if(!QueryInformationJobObject(o.job,1,out a,(uint)Marshal.SizeOf<Accounting>(),IntPtr.Zero))return -1;total=checked(total+(int)a.active);}return total;}
  public bool ChildAlive(string kind){Owned o;return children.TryGetValue(kind,out o)&&WaitForSingleObject(o.handle,0)==258;}
  public uint ChildExitCode(string kind){Owned o;uint code;if(!children.TryGetValue(kind,out o))throw Refused();if(!GetExitCodeProcess(o.handle,out code))throw NativeRefused("exit_code");return code;}
- public uint Launch(string kind,string exe,string[] args,string cwd,string[] envPairs){
+ public static bool ValidNodeTarget(string kind,string image){return (kind=="app"||kind=="tunnel")&&String.Equals(image,NodeImage,StringComparison.OrdinalIgnoreCase);}
+ public static bool ValidStoreTarget(string kind,string image){return kind=="tunnel"&&String.Equals(image,StoreImage,StringComparison.OrdinalIgnoreCase);}
+ public uint Launch(string kind,string exe,string[] args,string cwd,string[] envPairs){if(!ValidNodeTarget(kind,exe))throw Refused();return LaunchCore(kind,exe,exe,args,cwd,envPairs);}
+ public uint LaunchRegisteredAlias(string kind,string expectedImage,string[] args,string cwd,string[] envPairs){
+  if(registeredAlias==null||!ValidStoreTarget(kind,expectedImage))throw Refused();
+  return LaunchCore(kind,registeredAlias,expectedImage,args,cwd,envPairs);
+ }
+ uint LaunchCore(string kind,string exe,string expectedImage,string[] args,string cwd,string[] envPairs){
   if(!ParentAlive()||(kind!="app"&&kind!="tunnel")||ChildAlive(kind))throw Refused();
   if(children.ContainsKey(kind))StopChild(kind);
   // Each kind/generation gets an EMPTY target Job. The child keeps all its
@@ -127,10 +144,10 @@ public sealed class QaOwnedJob : IDisposable {
    var si=new SIX();si.si.cb=Marshal.SizeOf<SIX>();si.si.flags=0x100;si.si.input=nul;si.si.output=nul;si.si.error=nul;si.attributes=attrs;
    if(!CreateProcessW(exe,line,IntPtr.Zero,IntPtr.Zero,true,0x08080404,block,cwd,ref si,out pi))throw NativeRefused("create_process");
    if(!AssignProcessToJobObject(childJob,pi.process))throw NativeRefused("assign_job");
-   var record=new Owned{handle=pi.process,job=childJob,pid=pi.pid,exe=exe,born=Born(pi.process)};
-   if(!String.Equals(Image(pi.process),exe,StringComparison.OrdinalIgnoreCase)||record.born<=0)throw Refused();
+   var record=new Owned{handle=pi.process,job=childJob,pid=pi.pid,exe=expectedImage,born=Born(pi.process)};
+   if(!String.Equals(Image(pi.process),expectedImage,StringComparison.OrdinalIgnoreCase)||record.born<=0)throw Refused();
    if(!ParentAlive())throw Refused();
-   if(ResumeThread(pi.thread)==0xFFFFFFFF)throw NativeRefused("resume_thread");children.Add(kind,record);pi.process=IntPtr.Zero;childJob=IntPtr.Zero;return record.pid;
+   uint suspended=ResumeThread(pi.thread);if(suspended==0xFFFFFFFF)throw NativeRefused("resume_thread");if(suspended!=1)throw Refused();children.Add(kind,record);pi.process=IntPtr.Zero;childJob=IntPtr.Zero;return record.pid;
   }finally{
    if(childJob!=IntPtr.Zero)TerminateJobObject(childJob,1);
    if(pi.process!=IntPtr.Zero){TerminateProcess(pi.process,1);WaitForSingleObject(pi.process,5000);CloseHandle(pi.process);}
@@ -145,7 +162,7 @@ public sealed class QaOwnedJob : IDisposable {
  public void Dispose(){foreach(var o in children.Values)CloseOwned(o);children.Clear();if(parent!=IntPtr.Zero){CloseHandle(parent);parent=IntPtr.Zero;}}
 }
 '@
- $job=[QaOwnedJob]::new($ParentPid,$NodeExe)
+ $job=[QaOwnedJob]::new($ParentPid,$NodeExe,$storeTarget.LaunchAlias)
  $kinds=[Collections.Generic.HashSet[string]]::new()
  $appPid=0
  . (Join-Path $PSScriptRoot 'supervisor-input.ps1')
@@ -196,7 +213,11 @@ public sealed class QaOwnedJob : IDisposable {
     foreach($property in $command.env.PSObject.Properties){if($property.Name -cnotin $allowed -or [string]$property.Value -match "`0"){throw 'ENV_REFUSED'};$pairs.Add($property.Name+'='+[string]$property.Value)}
     $pairs.Sort([StringComparer]::OrdinalIgnoreCase)
     if($command.kind -eq 'tunnel'){$stage='tunnel_native'}
-    $childPid=$job.Launch($command.kind,$command.exe,[string[]]$command.args,$c.repo,$pairs.ToArray())
+    if($command.kind -eq 'tunnel'){
+     $stage='store_alias';$freshTarget=Get-QaVerifiedNgrokStoreAlias $c.ngrokExe $approval.ngrokSha256 $c.qaPwshExecutable
+     if($freshTarget.LaunchAlias -cne $storeTarget.LaunchAlias -or $freshTarget.VerifiedImage -cne $command.exe){throw 'STORE_BINDING_CHANGED'}
+     $stage='tunnel_native';$childPid=$job.LaunchRegisteredAlias($command.kind,$command.exe,[string[]]$command.args,$c.repo,$pairs.ToArray())
+    }else{$childPid=$job.Launch($command.kind,$command.exe,[string[]]$command.args,$c.repo,$pairs.ToArray())}
     if($command.kind -eq 'app'){$appPid=[int]$childPid}
     [void]$kinds.Add($command.kind)
     [Console]::Out.WriteLine((@{status='LAUNCHED';kind=$command.kind;pid=$childPid}|ConvertTo-Json -Compress))

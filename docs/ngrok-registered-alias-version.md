@@ -1,6 +1,10 @@
 # Proposed single registered-alias version diagnostic
 
-Status: **PREPARED AND SOURCE-REVIEWED; NOT EXECUTED. Separate owner permission required.**
+Status: **OWNER-AUTHORISED SINGLE CALL COMPLETED: PASS. Budget exhausted; do not rerun.**
+
+On 10 November 2026, the owner separately authorised this single call at PR #16 HEAD `e1ef7447581f086030916f7fff25c2ecb655cbb2`. It completed before **18:04:14 UTC**, with exit code 0, verified pinned raw image, previous suspend count 1, clean Job STOP, zero active owned processes and zero unexpected entries. A subsequent process metadata query found no diagnostic guardian, dummy or ngrok process. No tunnel, credential, database or Meta operation was involved. The earlier two raw-image calls failed at CreateProcessW / 5 in the same scratch/caller configuration.
+
+This confirms the registered alias is a working supported entry point in the controlled surrogate. It does not establish HTTP relay reachability, the deleted D-drive runtime's exact historical cause, or Meta E2E. The exhausted diagnostic retains its original native-code pin and is retired after the runtime implementation changes below.
 
 The authorised two-call comparison completed on 10 November 2026. Both direct-image calls returned `CreateProcessW / 5`; adding the registered alias directory to the caller PATH was insufficient. Both stopped with zero active owned processes. The two-call exception is exhausted. The exact original cause and any specific Windows/Work restriction remain **UNKNOWN**. Fresh selected Windows logs contain no matching event; Security is unavailable.
 
@@ -24,4 +28,4 @@ The operation uses no ngrok config or credentials, opens no listener, starts no 
 
 An alias version PASS would demonstrate that this official entry point works in the controlled surrogate, supporting a reviewed change to the actual supervisor. It would not establish public HTTPS, exact parity with the removed D-drive environment, or Meta E2E delivery. Another error 5 would leave the original cause unresolved and require a different evidence-based investigation, rather than more unsanctioned attempts.
 
-Completed preparation: eleven pure Node tests, eight pure native-fixture target checks, two canonical line-ending hash checks, the nonexecuting plan and independent source review all PASS. No native fixture constructor or alias version call was executed. The actual supervisor's native launch implementation remains unchanged; the new fixture is test-only. The owner decision is limited to this one diagnostic call. Existing restrictions on infrastructure, credentials, Meta, Live Mode, Production, RAM and SL remain in force.
+Completed preparation before that call: eleven pure Node tests, eight pure native-fixture target checks, two canonical line-ending hash checks, the nonexecuting plan and independent source review all PASS. The fixture remains test-only. The owner subsequently approved and consumed its single diagnostic call. Existing restrictions on Meta Live Mode, Production, RAM and SL remain in force; any further runtime work depends on the original bounded QA authorisation and fresh checks.

@@ -16,7 +16,7 @@ const fresh=(value,now,max)=>Number.isFinite(Date.parse(value))&&Date.parse(valu
 const numeric=value=>typeof value==='string'&&/^[1-9][0-9]{5,30}$/.test(value)
 const key=value=>typeof value==='string'&&value.length>=32&&value.length<=4096&&!/[\r\n\0]/.test(value)
 const port=value=>Number.isInteger(value)&&value>=1024&&value<=65535
-const guardianStages=new Set(['host','git_dependency','runtime','approval','executables','private_acl','parent','http_ports','native_job','health','launch_app','launch_tunnel','tunnel_owner','tunnel_executable','tunnel_config','tunnel_env','tunnel_args','tunnel_native','stop_child','app_ready','stop'])
+const guardianStages=new Set(['host','git_dependency','runtime','approval','executables','store_alias','private_acl','parent','http_ports','native_job','health','launch_app','launch_tunnel','tunnel_owner','tunnel_executable','tunnel_config','tunnel_env','tunnel_args','tunnel_native','stop_child','app_ready','stop'])
 const nativeOperations=new Set(['configuration','query_time','query_image','open_parent','create_job','job_limits','exit_code','open_nul','attributes_init','attributes_update','create_process','assign_job','resume_thread','terminate_job'])
 const launchStages=new Set(['arguments','metadata','runtime_config','ngrok_binary','private_acl','credentials','ngrok_config','graph_preflight','stop_marker','prisma_import','guardian_spawn','supervisor_start','supervisor_enable','supervisor_tunnel','supervisor_release','guardian_timeout','guardian_protocol','db_isolation','next_ready','gateway_ready','binding_enable',...[...guardianStages].map(s=>'guardian_'+s)])
 class LaunchFailure extends Error {constructor(stage,diagnostic={}){super('QA_LAUNCH_BLOCKED');this.stage=launchStages.has(stage)?stage:'guardian_protocol';if(nativeOperations.has(diagnostic.nativeOperation)&&Number.isSafeInteger(diagnostic.nativeCode)&&diagnostic.nativeCode>=0&&diagnostic.nativeCode<=65535){this.nativeOperation=diagnostic.nativeOperation;this.nativeCode=diagnostic.nativeCode}}}
@@ -27,6 +27,14 @@ export function launchFailureTelemetry(error,stage='arguments'){
  return Object.freeze(result)
 }
 export function guardianEnvironment(root){return{SystemRoot:'C:\\Windows',WINDIR:'C:\\Windows',PATH:'C:\\Windows\\System32;C:\\Program Files\\nodejs;C:\\Program Files\\Git\\cmd',PATHEXT:'.EXE',TEMP:root,TMP:root,USERPROFILE:root,APPDATA:root,LOCALAPPDATA:root}}
+export function guardianStoreEnvironment(root,approvedHost){
+ const suffix='\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell\\pwsh.exe'
+ if(typeof approvedHost!=='string'||!approvedHost.endsWith(suffix)||win32.normalize(approvedHost)!==approvedHost)fixedFailure()
+ const profile=approvedHost.slice(0,-suffix.length)
+ if(!/^C:\\Users\\[^\\/:;"<>|?*\x00-\x1f]+$/.test(profile))fixedFailure()
+ const environment=guardianEnvironment(root)
+ return {...environment,PATH:environment.PATH+';'+win32.join(profile,'AppData','Local','Microsoft','WindowsApps')}
+}
 export function earliestCleanupTime(values,now=Date.now()){
  const times=[now]
  for(const value of values){if(value===undefined||value===null)continue;const time=Date.parse(value);if(!Number.isFinite(time)||time>now)fixedFailure();times.push(time)}
@@ -157,7 +165,7 @@ async function main(){
  launchStage='ngrok_binary';await noLinks(c.qaPwshExecutable);await noLinks(c.ngrokExe);await noLinks(c.repo)
  if(createHash('sha256').update(await readFile(c.ngrokExe)).digest('hex')!==c.supervisorApproval.ngrokSha256)fixedFailure()
  const scripts=dirname(fileURLToPath(import.meta.url)),env={SystemRoot:'C:\\Windows',WINDIR:'C:\\Windows',PATH:'C:\\Windows\\System32;C:\\Program Files\\nodejs',TEMP:c.privateDirectory,TMP:c.privateDirectory,USERPROFILE:c.privateDirectory,APPDATA:c.privateDirectory,LOCALAPPDATA:c.privateDirectory}
- const guardianEnv=guardianEnvironment(c.privateDirectory)
+ const guardianEnv=guardianStoreEnvironment(c.privateDirectory,c.qaPwshExecutable)
  launchStage='guardian_git_dependency'
  await noLinks('C:\\Program Files\\Git\\cmd\\git.exe');if(!(await lstat('C:\\Program Files\\Git\\cmd\\git.exe')).isFile())throw new LaunchFailure('guardian_git_dependency')
  const guardianArgs=['-NoProfile','-NonInteractive','-File',join(scripts,'supervisor-process.ps1'),'-PointerPath',pointerPath,'-ParentPid',String(process.pid),'-NodeExe',process.execPath]

@@ -1,5 +1,9 @@
 param([Parameter(Mandatory=$true)][string]$PointerPath,[Parameter(Mandatory=$true)][switch]$FreeAccountAndCaptureChecked,[switch]$RearmClosedLaunch)
 $ErrorActionPreference='Stop'
+function Test-QaSupervisorNgrokConfig([string]$Text){
+ if($null -eq $Text -or $Text.Length -gt 8192 -or $Text.IndexOf([char]0) -ge 0){return $false}
+ return $Text.Replace("`r",'').Trim() -cmatch '\Aversion: "3"\nagent:\n  authtoken: "[A-Za-z0-9_-]{20,512}"\n  console_ui: false\n  inspect_db_size: -1\n  web_addr: false\n  log: false\n  remote_management: false\z'
+}
 function Assert-QaClosedRearm([object]$Runtime,[object]$Real,[int]$HttpListeners,[int]$OwnedProcesses,[int]$OpenBindings){
  if($Runtime.enabled -isnot [bool] -or $Runtime.workerEnabled -isnot [bool] -or $Runtime.approvedTuples -isnot [array] -or $Runtime.pilotLeadIds -isnot [array] -or $Real.release -isnot [bool]){throw 'REARM_GATE_TYPE_REFUSED'}
  if($HttpListeners -ne 0 -or $OwnedProcesses -ne 0 -or $OpenBindings -ne 0 -or $Runtime.appId -ne '2523488421395251' -or $Runtime.approvedMetaAppId -ne $Runtime.appId -or $Runtime.pageId -ne '1449474971582722' -or $Runtime.formId -ne '2046130655900851' -or $Runtime.enabled -ne $false -or $Runtime.workerEnabled -ne $false -or @($Runtime.approvedTuples).Count -ne 0 -or @($Runtime.pilotLeadIds).Count -ne 0){throw 'REARM_RUNTIME_REFUSED'}
@@ -38,6 +42,8 @@ try{
   Assert-QaNoReparse $ngrok
   $hash=(Get-FileHash -LiteralPath $ngrok -Algorithm SHA256).Hash.ToLowerInvariant()
   if($hash -ne '6cca51c969e13ad038a608b015000815135a3148ce4bb6a6f63c8aa536198e16'){throw 'EXECUTABLE_CHANGED'}
+  . (Join-Path $PSScriptRoot 'ngrok-store-alias.ps1')
+  $null=Get-QaVerifiedNgrokStoreAlias $ngrok $hash $c.qaPwshExecutable
   foreach($leaf in @('ngrok.yml','meta-app-secret.txt','meta-page-token.txt','meta-real-private.json')){Assert-QaPrivateAcl (Join-Path $c.privateDirectory $leaf)}
   . (Join-Path $qa.Source 'scripts/local-maintenance/core.ps1')
   if($RearmClosedLaunch){
@@ -55,12 +61,7 @@ try{
     $owned=@(Get-QaOwnedLaunchProcesses $c.privateDirectory $PointerPath)
     Assert-QaClosedRearm $c $real $http.Count $owned.Count ([int]$counts[0].Trim())
   }
-  $exit=Invoke-WithIsolatedEnvironment $qa.State.config $null @{} {
-    $ErrorActionPreference='Continue'
-    $discard=@(& $ngrok config check --config (Join-Path $c.privateDirectory 'ngrok.yml') 2>&1)
-    return $LASTEXITCODE
-  }
-  if($exit -ne 0){throw 'CONFIG_REFUSED'}
+  if(-not(Test-QaSupervisorNgrokConfig ([IO.File]::ReadAllText((Join-Path $c.privateDirectory 'ngrok.yml'))))){throw 'CONFIG_REFUSED'}
   $now=[DateTimeOffset]::UtcNow
   $approval=[pscustomobject]@{appId=$c.appId;pageId=$c.pageId;formId=$c.formId;approvedPwshExecutable=$c.qaPwshExecutable;approvedAt=$now.ToString('o');deadlineAt=$now.AddMinutes(30).ToString('o');allowEnable=$true;allowTunnel=$true;hostname=$c.hostname;ngrokExe=$ngrok;ngrokSha256=$hash;freePlanVerified=$true;fullCaptureDisabled=$true;hostnameVerified=$true;ngrokVerifiedAt=$now.ToString('o')}
   $c|Add-Member -NotePropertyName graphVersion -NotePropertyValue 'v27.0' -Force
@@ -75,5 +76,5 @@ try{
     Remove-Item -LiteralPath $stopPath -Force -ErrorAction Stop
     if(Test-Path -LiteralPath $stopPath){throw 'REARM_MARKER_REMAINS'}
   }
-  Write-Output 'QA_SUPERVISOR_METADATA_READY: exact QA resources; native ngrok config accepted; 30-minute deadline; no service started'
+  Write-Output 'QA_SUPERVISOR_METADATA_READY: exact QA resources; verified Store alias; minimal config validated locally; 30-minute deadline; no service started'
 }catch{Write-Output 'QA_SUPERVISOR_PREPARATION_BLOCKED';exit 1}
