@@ -4,7 +4,7 @@ import {createRequire} from 'node:module'
 import {createHash, randomUUID} from 'node:crypto'
 import {join, dirname, resolve, basename} from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
-import {publicTelemetry, assertPublishableText, scanArtifacts} from './secret-safety.mjs'
+import {publicTelemetry, assertPublishableText, scanArtifacts, isQaResultDirectoryName} from './secret-safety.mjs'
 import {assertQaTenantIsolation} from './supervisor-organizations.mjs'
 
 const APP = '2523488421395251', PAGE = '1449474971582722', FORM = '2046130655900851'
@@ -122,7 +122,7 @@ async function main() {
   if (!pageToken || real.tokenSha256 !== createHash('sha256').update(pageToken).digest('hex') ||
       !['tokenApp', 'tokenPage', 'formOwnership'].every(key => real.results?.[key] === 'PASS')) fixed()
   const resultRoot = resolve(process.env.QA_RESULT_DIRECTORY || ''), checkout = resolve(here, '../../..')
-  if (dirname(resultRoot) !== join(checkout, '.qa') || !/^meta-recovery-\d{8}$/.test(basename(resultRoot))) fixed()
+  if (dirname(resultRoot) !== join(checkout, '.qa') || !isQaResultDirectoryName(basename(resultRoot))) fixed()
   await noLinks(resultRoot)
   const resultFile = join(resultRoot, 'qa-result-' + randomUUID() + '.json')
   const ignored = spawnSync(process.env.QA_GIT_EXE, ['-C', checkout, 'check-ignore', '--quiet', resultFile],

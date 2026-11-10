@@ -4,7 +4,7 @@ import {join, dirname, resolve, basename} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {randomUUID} from 'node:crypto'
 import {runMetaOps} from './meta-ops.mjs'
-import {publicTelemetry, assertPublishableText, scanArtifacts} from './secret-safety.mjs'
+import {publicTelemetry, assertPublishableText, scanArtifacts, isQaResultDirectoryName} from './secret-safety.mjs'
 
 const same = (a, b) => a.dev === b.dev && a.ino === b.ino && a.size === b.size && a.mtimeMs === b.mtimeMs && b.nlink === 1
 async function noLinks(path) {
@@ -52,7 +52,7 @@ async function main() {
     if (value) knownSecrets.push(value)
   }
   const resultRoot = resolve(process.env.QA_RESULT_DIRECTORY || ''), checkout = resolve(here, '../../..')
-  if (dirname(resultRoot) !== join(checkout, '.qa') || !/^meta-recovery-\d{8}$/.test(basename(resultRoot))) throw Error('RESULT_REFUSED')
+  if (dirname(resultRoot) !== join(checkout, '.qa') || !isQaResultDirectoryName(basename(resultRoot))) throw Error('RESULT_REFUSED')
   await noLinks(resultRoot)
   const file = join(resultRoot, `meta-ops-${action}-${randomUUID()}.json`)
   const ignored = spawnSync(process.env.QA_GIT_EXE, ['-C', checkout, 'check-ignore', '--quiet', file],

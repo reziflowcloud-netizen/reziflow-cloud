@@ -4,7 +4,7 @@ import {join, dirname, resolve, basename} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {randomUUID} from 'node:crypto'
 import {runGraphPreflight} from './graph-preflight.mjs'
-import {publicTelemetry, assertPublishableText, scanArtifacts} from './secret-safety.mjs'
+import {publicTelemetry, assertPublishableText, scanArtifacts, isQaResultDirectoryName} from './secret-safety.mjs'
 
 const same=(a,b)=>a.dev===b.dev&&a.ino===b.ino&&a.size===b.size&&a.mtimeMs===b.mtimeMs&&b.nlink===1
 async function noLinks(path){for(let current=resolve(path);;){if((await lstat(current)).isSymbolicLink())throw Error('LINK_REFUSED');const parent=dirname(current);if(parent===current)break;current=parent}if(resolve(await realpath(path)).toLowerCase()!==resolve(path).toLowerCase())throw Error('LINK_REFUSED')}
@@ -45,7 +45,7 @@ async function main(){
   }
   const resultRoot=resolve(process.env.QA_RESULT_DIRECTORY||'')
   const checkout=resolve(here,'../../..')
-  if(dirname(resultRoot)!==join(checkout,'.qa')||!/^meta-recovery-\d{8}$/.test(basename(resultRoot)))throw Error('RESULT_REFUSED')
+  if(dirname(resultRoot)!==join(checkout,'.qa')||!isQaResultDirectoryName(basename(resultRoot)))throw Error('RESULT_REFUSED')
   await noLinks(resultRoot)
   const file=join(resultRoot,renewal?'graph-preflight-renewal-'+randomUUID()+'.json':refreshClosed?'graph-preflight-refresh-'+randomUUID()+'.json':'graph-preflight-result.json')
   const paths=refreshClosed||renewal?[file,join(resultRoot,'graph-preflight-result.json')]:[file]
