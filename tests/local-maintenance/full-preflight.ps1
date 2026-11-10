@@ -1,6 +1,7 @@
 param(
   [switch]$InjectPartialStartStopFailure,
-  [string]$InjectedTestId
+  [string]$InjectedTestId,
+  [string]$PendingMigration = '20261027120000_meta_lead_ads_multitenant'
 )
 if ($PSVersionTable.PSVersion.Major -lt 7) {
   throw 'TEST_REQUIRES_POWERSHELL_7: use pwsh -NoProfile -File tests/local-maintenance/full-preflight.ps1'
@@ -12,7 +13,7 @@ $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 . (Join-Path $repo 'scripts/local-maintenance/sql-audit.ps1')
 . (Join-Path $repo 'scripts/local-maintenance/plan.ps1')
 
-$pending = '20261024160000_meta_message_reads'
+$pending = $PendingMigration
 $pgBin = 'C:\Program Files\PostgreSQL\18\bin'
 if ($InjectPartialStartStopFailure -and $InjectedTestId -notmatch '^[0-9a-f]{12}$') {
   throw 'TEST_INJECTED_ID_INVALID'
@@ -176,7 +177,9 @@ datasource db {
   $planForStatus = Read-SealedPlan $config $planPath
   $sequenceState = [pscustomobject]@{
     audits = @([pscustomobject]@{
-        audit = Test-MigrationSql (Join-Path $repo "prisma/migrations/$pending/migration.sql")
+        # Exercise the sequence ACL revalidation against the known sequence
+        # migration; the current pending Lead Ads migration creates no sequence.
+        audit = Test-MigrationSql (Join-Path $repo 'prisma/migrations/20261024160000_meta_message_reads/migration.sql')
       })
     snapshot = [pscustomobject]@{ role = 'restore_admin' }
     applicationRole = 'restore_admin'

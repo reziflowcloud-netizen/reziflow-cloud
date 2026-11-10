@@ -93,8 +93,21 @@ function Test-SafeCreateTable([string]$Text) {
     Stop-Maintenance 'SQL_CREATE_TABLE_UNSUPPORTED'
   }
   $body = $Matches.body
+  $table = $Matches.table.Trim('"')
   $constraints = @()
   foreach ($item in @(Split-SafeTableItems $body)) {
+    # Narrowly admitted additive Lead Ads array. Other array types/defaults
+    # remain unsupported; this does not make arbitrary SQL expressions safe.
+    if ($table -eq 'MetaLeadAdsBinding' -and $item -cmatch '^"pilotLeadIds" TEXT\[\] NOT NULL DEFAULT ARRAY\[\]::TEXT\[\]$') { continue }
+    if ($table -eq 'MetaLeadAdsBinding' -and $item -cmatch '^CONSTRAINT "MetaLeadAdsBinding_mode_check" CHECK \("mode" IN \(''off'', ''pilot'', ''live'', ''shadow''\)\)$') {
+      $constraints += 'MetaLeadAdsBinding_mode_check'; continue
+    }
+    if ($table -eq 'MetaLeadAdsDelivery' -and $item -cmatch '^CONSTRAINT "MetaLeadAdsDelivery_status_check" CHECK \("status" IN \(''pending'', ''processing'', ''complete'', ''blocked'', ''shadow'', ''tombstone''\)\)$') {
+      $constraints += 'MetaLeadAdsDelivery_status_check'; continue
+    }
+    if ($table -eq 'MetaLeadAdsDelivery' -and $item -cmatch '^CONSTRAINT "MetaLeadAdsDelivery_attempts_check" CHECK \("attempts" >= 0\)$') {
+      $constraints += 'MetaLeadAdsDelivery_attempts_check'; continue
+    }
     if ($item -match "(?i)^$ident\s+(?:TEXT|INTEGER|BIGINT|BOOLEAN|TIMESTAMP(?:\s*\(\s*3\s*\))?)(?:\s+NOT\s+NULL)?(?:\s+DEFAULT\s+(?:true|false|[0-9]+|CURRENT_TIMESTAMP|'[^']*'))?$") {
       continue
     }
@@ -123,6 +136,14 @@ function Test-MigrationSql([string]$Path) {
   foreach ($statement in $statements) {
     $text = ($statement.Text -replace '\s+', ' ').Trim()
     $shape = ($statement.Shape -replace '\s+', ' ').Trim()
+    if ($text -match '(?i)^CREATE\s+TABLE\s+') {
+      # The table-item parser validates every column and constraint. Only the
+      # three exact Lead Ads CHECK forms above are accepted; CHECK elsewhere
+      # remains blocked by the normal destructive/unsupported token guard.
+      $tableResult = Test-SafeCreateTable $text
+      $createdConstraints += @($tableResult.Constraints)
+      $kinds += 'CREATE_TABLE'; continue
+    }
     $safeShape = $shape -replace '\bON\s+(?:DELETE|UPDATE)\s+(?:CASCADE|RESTRICT|SET\s+NULL|NO\s+ACTION)\b', ''
     if ($safeShape -match '\b(DROP|TRUNCATE|RENAME|INSERT|UPDATE|DELETE|MERGE|COPY|CALL|DO|EXECUTE|GRANT|REVOKE|VACUUM|ANALYZE)\b' -or
         $safeShape -match '\b(CREATE\s+OR\s+REPLACE|ALTER\s+COLUMN|USING|SELECT|GENERATED|CHECK)\b') {
@@ -148,11 +169,6 @@ function Test-MigrationSql([string]$Path) {
       $blockingIndexes += $Matches.table
       $createdIndexes += $Matches.name
       $kinds += 'CREATE_INDEX_BLOCKING'; continue
-    }
-    if ($text -match '(?i)^CREATE\s+TABLE\s+') {
-      $tableResult = Test-SafeCreateTable $text
-      $createdConstraints += @($tableResult.Constraints)
-      $kinds += 'CREATE_TABLE'; continue
     }
     Stop-Maintenance 'SQL_STATEMENT_UNSUPPORTED'
   }
