@@ -99,6 +99,46 @@ It never contains the Page token, App Secret, User token, User ID, profile name,
 provider messages, payloads, private paths, hashes or resource IDs. The root caller
 must likewise suppress raw exceptions and child-process output.
 
+## Explicit closed refresh before a test
+
+When the attestation ages out during setup repairs, the owner-authorized root may
+use `run-preflight.ps1 -RefreshClosed` with the existing owner/App confirmation
+arguments. The module flag is strictly boolean `refreshClosed:true`. This does
+not generate credentials, run a test lead, change subscriptions or extend a
+deadline on the strength of old evidence alone.
+
+Refresh requires the same existing private User token, App Secret and Page token;
+the old attestation must match the exact replacement tuple/current Page-token hash
+and three provenance PASS results. It must be closed: `release:false`, null
+approved Lead/time/Dashboard sample, and no create-attempt timestamp. The original
+App/Page subscription lists must be empty. A future or malformed old verification
+timestamp is rejected; an expired timestamp is allowed only to initiate the full
+new checks.
+
+All ten Graph checks are then repeated, including both actual App associations,
+owner/scopes, exact sole selected QA Page, Page/Form identity and both currently
+empty subscription edges. During refresh the User-token exact-Page request asks
+only for `id`, not `access_token`. All subsequent Page-token probes use the
+original stored Page token, whose current App/Page/Form access must pass again.
+No returned alternate credential is adopted; the stored Page token is unchanged.
+An expired User token yields numeric Meta error
+codes and BLOCKED; there is no new-token or debugger fallback.
+
+Only after all checks pass may the attestation receive a new `verifiedAt`. Its
+private file identity must still match the initial snapshot. The Page-token file
+is checked again and is not rewritten. A concurrent create-attempt/gate/state
+change blocks the write. The prior technical test proof and check time are
+preserved, `createAttemptAt` stays null, and `closedAt`/`earliestClosedAt` preserve
+the earliest known closure rather than restarting cleanup deadlines. Unknown
+private properties are not copied into the refreshed attestation.
+
+The wrapper writes a new ignored `graph-preflight-refresh-<UUID>.json` report,
+scans it together with the original `graph-preflight-result.json`, and leaves that
+initial proof untouched. Nonempty outputs remain refused without the explicit
+refresh path. This refresh is unavailable once a lead attempt has begun or any
+callback/subscription is configured; it does not weaken the one-hour provenance
+or ten-minute lead gate used by the actual supervisor.
+
 `fetchImpl` and `timeoutMs` are dependency-injection hooks for unit tests. Production
 must use native fetch and the default deadline. Tests use invented fixture strings,
 temporary directories and in-memory HTTP responses; they call no Meta API or DB.

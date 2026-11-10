@@ -5,6 +5,7 @@ import {createHash, randomUUID} from 'node:crypto'
 import {join, dirname, resolve, basename} from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import {publicTelemetry, assertPublishableText, scanArtifacts} from './secret-safety.mjs'
+import {assertQaTenantIsolation} from './supervisor-organizations.mjs'
 
 const APP = '2523488421395251', PAGE = '1449474971582722', FORM = '2046130655900851'
 const fixed = () => { throw Error('QA_RESULT_REFUSED') }
@@ -146,9 +147,7 @@ async function main() {
       await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY')
       const actual = await tx.$queryRawUnsafe("SELECT current_database() AS name, inet_server_addr()::text AS host, inet_server_port()::int AS port, current_setting('transaction_read_only') AS readonly")
       if (actual.length !== 1 || actual[0].name !== state.cluster.Database || actual[0].host !== '127.0.0.1' || actual[0].port !== state.cluster.Port || actual[0].readonly !== 'on') fixed()
-      if (await tx.organization.count() !== 1) fixed()
-      const org = await tx.organization.findUnique({where: {id: c.organizationId}, select: {name: true}})
-      if (org?.name !== 'LegalHub Internal QA') fixed()
+      await assertQaTenantIsolation(tx, c.organizationId)
       const binding = await tx.metaLeadAdsBinding.findMany({where: {organizationId: c.organizationId},
         select: {id: true, appId: true, pageId: true, formId: true}, take: 2})
       if (binding.length !== 1 || binding[0].appId !== APP || binding[0].pageId !== PAGE || binding[0].formId !== FORM) fixed()

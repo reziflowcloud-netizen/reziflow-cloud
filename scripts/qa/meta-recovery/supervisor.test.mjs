@@ -4,7 +4,7 @@ import {createHash,createHmac} from 'node:crypto'
 import {createRequire} from 'node:module'
 import {PassThrough,Writable} from 'node:stream'
 import {EventEmitter} from 'node:events'
-import {QA,validateSupervisorConfig,validateNgrokConfig,validatePreflight,appEnvironment,guardianEnvironment,launchFailureTelemetry,released,QaSupervisor,GuardianClient} from './supervisor.mjs'
+import {QA,validateSupervisorConfig,validateNgrokConfig,validatePreflight,appEnvironment,guardianEnvironment,launchFailureTelemetry,earliestCleanupTime,released,QaSupervisor,GuardianClient} from './supervisor.mjs'
 const {allowedRequest}=createRequire(import.meta.url)('./supervisor-egress.cjs')
 const now=Date.parse('2026-11-10T12:00:00Z'),secret='planted-secret-'.repeat(4),token='planted-page-token-'.repeat(4)
 const run='stagea'+'a'.repeat(32),root='D:\\LegalHubStageA-'+'b'.repeat(32)
@@ -62,6 +62,12 @@ test('guardian parent-death/unhealthy and absolute deadline invoke STOP',async()
 })
 test('STOP during preparation cannot launch an app afterwards',async()=>{
  const f=fixture();let release;f.d.preflight=()=>new Promise(r=>release=r);const starting=f.service.start();await f.service.stop();release();await assert.rejects(starting);assert.equal(f.calls.some(x=>x.startsWith('launch.')),false)
+})
+test('database isolation and Next readiness failures have distinct fixed stage codes',async()=>{
+ for(const [slot,code] of [['db','QA_LAUNCH_DB_ISOLATION'],['ready','QA_LAUNCH_NEXT_READY']]){const f=fixture();if(slot==='db')f.d.db.assertQa=async()=>{throw Error('planted-private-provider-error')};else f.d.ready=async()=>{throw Error('planted-private-provider-error')};let report;try{await f.service.start()}catch(error){report=launchFailureTelemetry(error)}assert.equal(report.code,code);assert.equal(JSON.stringify(report).includes('planted-private'),false)}
+})
+test('cleanup T0 always preserves the earliest closure across repeated STOP and rearm',()=>{
+ const early=new Date(now-3600000).toISOString(),late=new Date(now-1000).toISOString();assert.equal(earliestCleanupTime([late,early,null],now),early);assert.equal(earliestCleanupTime([early],now+600000),early);assert.equal(earliestCleanupTime([],now),new Date(now).toISOString());assert.throws(()=>earliestCleanupTime(['invalid'],now));assert.throws(()=>earliestCleanupTime([new Date(now+1).toISOString()],now))
 })
 test('unknown stdin command closes gates; repeated STOP remains idempotent',async()=>{
  const f=fixture();await f.service.start();await assert.rejects(f.service.command('UNTRUSTED'));await f.service.command('STOP');assert.equal(f.calls.filter(x=>x==='guardian.stop').length,1)

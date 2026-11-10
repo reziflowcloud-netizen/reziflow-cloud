@@ -29,6 +29,8 @@ The currently inspected Store binary is version 3.39.11-msix-stable at `C:\Progr
 
 ## Attached-session commands
 
+Tenant isolation expects exactly the synthetic QA organization and the configuration-only `org_default` inserted by migration `20260110000000_organizations`. The known default must match that migration's metadata and contain zero operational users, clients, cases, tasks, leads, employees, bindings, notifications, receipts, notification preferences/deliveries and routing records. Additional organizations or default operational records block startup. Both supervisor and QA result collection use this same read-only invariant; do not delete the migration organization to force a count to pass.
+
 Startup launches only loopback Next and the exact-route HMAC gateway, with intake and worker off. It does not launch ngrok. Only the gateway is ever passed to ngrok; CRM admin and PostgreSQL are not published.
 
 The actual guardian requires both HTTP ports to be empty initially. Each app launch refuses an occupied app port. Readiness accepts `/login` only after the guardian confirms the loopback listener belongs to the retained owned App PID, and confirms it again after the response. Relay launch requires the gateway's sole loopback listener to belong to the Node supervisor. Repeated CheckOnly validations remain usable while those owned services are active.
@@ -48,6 +50,8 @@ The PowerShell guardian creates a unique unnamed Windows Job with kill-on-close.
 The guardian holds the actual Node parent's process handle and checks it independently of JavaScript. stdin EOF, parent death, deadline, unexpected child exit or malformed command closes the Job. If the guardian itself dies, kernel kill-on-close terminates that Job. The JavaScript supervisor independently closes its gateway on stdin EOF, termination signals, unhandled failure, guardian failure or deadline. Raw child output and provider exceptions are never copied into reports. STOP is PASS only when its cleanup steps succeed; uncertainty remains BLOCKED.
 
 PostgreSQL was not launched by this supervisor and is not a Job member. After ingress/Next stop, use the separately reviewed `stop-qa.ps1` for the exact QA cluster. Meta callback/subscription restoration is a separate, explicitly scoped Meta operation. This launcher neither changes nor restores those settings. No files are deleted. Follow existing cleanup clocks; new launcher work does not extend earlier deadlines.
+
+An owner-authorized retry after a failed closed launch may use `prepare-supervisor.ps1 -RearmClosedLaunch` with the existing private pointer and the required fresh account/capture check. It refuses a missing or foreign STOP marker, active/ambiguous QA launcher, occupied HTTP port, open binding, runtime gate, Lead ID or Dashboard arm. Only the exact regular owned marker containing `closed` can be removed, after a final unchanged-file/process/port check; no database record, credential, source or other artifact is deleted. The normal preparation path refuses an existing STOP marker. Repeated STOP and rearm retain the earliest of `real.closedAt`, `real.earliestClosedAt` and `runtime.cleanupClosedAt`; refreshing a 30-minute launch approval does not reset cleanup T0.
 
 ## Offline verification
 

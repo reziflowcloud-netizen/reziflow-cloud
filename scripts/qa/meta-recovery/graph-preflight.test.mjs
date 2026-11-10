@@ -81,6 +81,7 @@ test('all ten read-only checks produce only a private Page token and closed priv
     assert.equal(call.options.headers.Authorization, `Bearer ${i === 8 ? `${APP}|${SECRET}` : i < 5 ? USER : PAGE_TOKEN}`)
   }
   assert.equal(new URL(m.calls[0].url).pathname, '/v27.0/app')
+  assert.equal(new URL(m.calls[4].url).searchParams.get('fields'), 'id,access_token')
 })
 
 test('wrong or unsupported issuing App fails closed without token-debug fallback or writes', async t => {
@@ -205,4 +206,89 @@ test('staged secret receives ACL approval before writing and write failure never
   }
   const result = await runGraphPreflight({...f.options, assertPrivateFile: guard, fetchImpl: mock().fetchImpl})
   assert.equal(result.code, 'PRIVATE_WRITE_FAILED'); assert.deepEqual(seen, ['']); assertSafe(result); await empty(f.root)
+})
+
+async function priorAttestation(f, extra = {}) {
+  const prior = {appId: APP, pageId: PAGE, formId: FORM, verifiedAt: new Date(Date.now() - 7200000).toISOString(),
+    tokenSha256: createHash('sha256').update(PAGE_TOKEN).digest('hex'),
+    results: {tokenApp: 'PASS', tokenPage: 'PASS', formOwnership: 'PASS'},
+    release: false, approvedLeadId: null, leadCreatedAt: null, dashboardSample: null,
+    originalAppSubscriptions: [], originalPageSubscriptions: [], ...extra}
+  await writeFile(join(f.root, 'meta-page-token.txt'), PAGE_TOKEN)
+  await writeFile(join(f.root, 'meta-real-private.json'), JSON.stringify(prior))
+  return prior
+}
+test('explicit closed refresh repeats all ten checks using unchanged credentials and preserves closure/test metadata', async t => {
+  const f = await fixture(t), closed = new Date(Date.now() - 7100000).toISOString(), earliest = new Date(Date.now() - 7200000).toISOString()
+  const previousTestLead = {id: '900000000000001', formId: FORM, createdAt: new Date(Date.now() - 86400000).toISOString(),
+    retrievalConfirmed: true, verifiedAt: new Date(Date.now() - 600000).toISOString(), deleted: true, deletedAt: closed}
+  const before = await priorAttestation(f, {closedAt: closed, earliestClosedAt: earliest,
+    previousTestLead, oldTestCheckAt: closed, createAttemptAt: null})
+  const m = mock(), result = await runGraphPreflight({...f.options, refreshClosed: true, fetchImpl: m.fetchImpl})
+  assert.equal(result.status, 'PASS'); assert.equal(m.calls.length, 10); assertSafe(result)
+  const after = JSON.parse(await readFile(join(f.root, 'meta-real-private.json'), 'utf8'))
+  assert.ok(Date.parse(after.verifiedAt) > Date.parse(before.verifiedAt)); assert.ok(Date.now() - Date.parse(after.verifiedAt) < 3000)
+  assert.deepEqual(after.previousTestLead, previousTestLead); assert.equal(after.oldTestCheckAt, closed)
+  assert.equal(after.closedAt, earliest); assert.equal(after.earliestClosedAt, earliest); assert.equal(after.createAttemptAt, null)
+  assert.equal(after.release, false); assert.equal(after.approvedLeadId, null); assert.equal(after.dashboardSample, null)
+  assert.equal(after.tokenSha256, before.tokenSha256)
+  assert.equal(await readFile(join(f.root, 'meta-page-token.txt'), 'utf8'), PAGE_TOKEN)
+  assert.equal(m.calls.every(x => x.options.method === 'GET'), true)
+})
+test('refresh cannot change live state, originals, completed attempt or current token association', async t => {
+  for (const extra of [{release: 'false'}, {release: true}, {approvedLeadId: '900000000000002'},
+    {leadCreatedAt: new Date().toISOString()}, {dashboardSample: {}}, {createAttemptAt: new Date().toISOString()},
+    {tokenSha256: '0'.repeat(64)}, {appId: '1160353550276176'}, {originalAppSubscriptions: [{}]},
+    {originalPageSubscriptions: [{}]}, {verifiedAt: new Date(Date.now() + 60000).toISOString()},
+    {closedAt: 'not a date'}, {previousTestLead: {id: 'bad'}}]) {
+    const f = await fixture(t), before = await priorAttestation(f, extra), m = mock([])
+    const result = await runGraphPreflight({...f.options, refreshClosed: true, fetchImpl: m.fetchImpl})
+    assert.equal(result.code, 'REFRESH_STATE_REFUSED'); assert.equal(m.calls.length, 0); assertSafe(result)
+    assert.deepEqual(JSON.parse(await readFile(join(f.root, 'meta-real-private.json'), 'utf8')), before)
+  }
+  const f = await fixture(t); await priorAttestation(f)
+  const noFlag = await runGraphPreflight({...f.options, fetchImpl: mock([]).fetchImpl})
+  assert.equal(noFlag.code, 'OUTPUT_NOT_EMPTY')
+  const badFlag = await runGraphPreflight({...f.options, refreshClosed: 'true', fetchImpl: mock([]).fetchImpl})
+  assert.equal(badFlag.code, 'INVALID_INPUT')
+})
+test('refresh requests only Page identity and revalidates the original stored token without adopting any returned token', async t => {
+  const f = await fixture(t), before = await priorAttestation(f), bodies = successBodies()
+  const differentToken = 'EAA' + 'AnotherPlantedPageOnly'.repeat(4)
+  bodies[4] = {id: PAGE, access_token: differentToken}
+  const m = mock(bodies), result = await runGraphPreflight({...f.options, refreshClosed: true, fetchImpl: m.fetchImpl})
+  assert.equal(result.status, 'PASS'); assert.equal(m.calls.length, 10); assertSafe(result)
+  assert.equal(new URL(m.calls[4].url).searchParams.get('fields'), 'id')
+  for (const index of [5, 6, 7, 9]) assert.equal(m.calls[index].options.headers.Authorization, 'Bearer ' + PAGE_TOKEN)
+  assert.equal(await readFile(join(f.root, 'meta-page-token.txt'), 'utf8'), PAGE_TOKEN)
+  const after = JSON.parse(await readFile(join(f.root, 'meta-real-private.json'), 'utf8'))
+  assert.equal(after.tokenSha256, before.tokenSha256); assert.equal(after.release, false)
+  assert.equal(JSON.stringify(after).includes(differentToken), false); assert.equal(JSON.stringify(result).includes(differentToken), false)
+})
+test('expired User or stored Page token and new remote subscriptions never refresh timestamp', async t => {
+  for (const mode of ['expired-user', 'expired-stored-page', 'new-subscription']) {
+    const f = await fixture(t), before = await priorAttestation(f), bodies = successBodies()
+    if (mode === 'new-subscription') bodies[9] = {data: [{id: APP, subscribed_fields: ['leadgen']}]}
+    const m = mock(bodies, (body, index) => (mode === 'expired-user' && index === 0 || mode === 'expired-stored-page' && index === 5) ?
+      new Response(JSON.stringify({error: {code: 190, error_subcode: 463, message: USER + ' expired'}}), {status: 400}) :
+      new Response(JSON.stringify(body), {status: 200}))
+    const result = await runGraphPreflight({...f.options, refreshClosed: true, fetchImpl: m.fetchImpl})
+    assert.equal(result.status, 'BLOCKED'); assertSafe(result)
+    if (mode === 'expired-user') { assert.equal(result.graphCode, 190); assert.equal(result.graphSubcode, 463); assert.equal(m.calls.length, 1) }
+    if (mode === 'expired-stored-page') { assert.equal(result.graphCode, 190); assert.equal(result.graphSubcode, 463); assert.equal(m.calls.length, 6) }
+    assert.deepEqual(JSON.parse(await readFile(join(f.root, 'meta-real-private.json'), 'utf8')), before)
+    assert.equal(await readFile(join(f.root, 'meta-page-token.txt'), 'utf8'), PAGE_TOKEN)
+  }
+})
+test('refresh refuses concurrent private state changes and never overwrites a new create-attempt marker', async t => {
+  const f = await fixture(t), before = await priorAttestation(f)
+  const marker = new Date().toISOString(), bodies = successBodies()
+  const m = mock(bodies, async (body, index) => {
+    if (index === 9) await writeFile(join(f.root, 'meta-real-private.json'), JSON.stringify({...before, createAttemptAt: marker}))
+    return new Response(JSON.stringify(body), {status: 200})
+  })
+  const result = await runGraphPreflight({...f.options, refreshClosed: true, fetchImpl: m.fetchImpl})
+  assert.equal(result.code, 'PRIVATE_WRITE_FAILED'); assertSafe(result)
+  const after = JSON.parse(await readFile(join(f.root, 'meta-real-private.json'), 'utf8'))
+  assert.equal(after.createAttemptAt, marker); assert.equal(after.verifiedAt, before.verifiedAt)
 })

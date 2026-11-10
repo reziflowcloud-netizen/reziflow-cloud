@@ -18,7 +18,7 @@ const CODES = new Set(['INVALID_INPUT', 'PRIVATE_FILE_REFUSED', 'PRIVATE_FILE_CH
   'GRAPH_RESPONSE_LIMIT', 'GRAPH_RESPONSE_INVALID', 'GRAPH_HTTP', 'APP_PROVENANCE_BLOCKED',
   'PROFILE_NOT_CONFIRMED', 'PERMISSIONS_BLOCKED', 'PAGE_SELECTION_BLOCKED',
   'PAGE_PROVENANCE_BLOCKED', 'FORM_OWNERSHIP_BLOCKED', 'EXISTING_SUBSCRIPTIONS',
-  'PRIVATE_WRITE_FAILED', 'UNEXPECTED_FAILURE'])
+  'PRIVATE_WRITE_FAILED', 'REFRESH_STATE_REFUSED', 'UNEXPECTED_FAILURE'])
 class PreflightError extends Error {
   constructor(code, httpStatus, graphCode, graphSubcode) {
     super(CODES.has(code) ? code : 'UNEXPECTED_FAILURE')
@@ -86,9 +86,10 @@ async function emptyOutput(path, assertPrivateFile) {
 
 // An unguessable file is created without data, then its inherited ACL and owner
 // are checked BEFORE it receives a secret. Rename preserves that checked ACL.
-// Output files must be precreated, private, empty, and unchanged. Each commit is
-// atomic; attestation is committed last, so partial failure never grants PASS.
-async function atomicPrivateWrite(path, value, expected, assertPrivateFile) {
+// First-run outputs must be precreated, private, empty, and unchanged. Only the
+// explicit closed refresh may replace a validated nonempty attestation. Each
+// commit is atomic; attestation is last, so partial failure never grants PASS.
+async function atomicPrivateWrite(path, value, expected, assertPrivateFile, refreshClosed = false) {
   const staging = join(dirname(path), `.graph-preflight-${randomUUID()}.tmp`)
   let handle
   let created = false
@@ -100,8 +101,9 @@ async function atomicPrivateWrite(path, value, expected, assertPrivateFile) {
     await handle.sync()
     const staged = await handle.stat()
     await handle.close(); handle = undefined
-    if (!same(staged, await checked(staging, assertPrivateFile)) ||
-        !same(expected, await emptyOutput(path, assertPrivateFile))) fail('PRIVATE_FILE_CHANGED')
+    const current = await checked(path, assertPrivateFile)
+    if (!refreshClosed && current.size !== 0) fail('OUTPUT_NOT_EMPTY')
+    if (!same(staged, await checked(staging, assertPrivateFile)) || !same(expected, current)) fail('PRIVATE_FILE_CHANGED')
     await rename(staging, path)
     created = false
     await checked(path, assertPrivateFile)
@@ -110,6 +112,45 @@ async function atomicPrivateWrite(path, value, expected, assertPrivateFile) {
     // Only the exact temporary file exclusively created by this invocation.
     if (created) await unlink(staging).catch(() => {})
   }
+}
+
+function refreshMetadata(state, currentPageToken) {
+  const past = value => typeof value === 'string' && Number.isFinite(Date.parse(value)) && Date.parse(value) <= Date.now()
+  if (!object(state) || state.appId !== APP || state.pageId !== PAGE || state.formId !== FORM ||
+      state.release !== false || state.approvedLeadId !== null || state.leadCreatedAt !== null || state.dashboardSample !== null ||
+      state.createAttemptAt != null || !past(state.verifiedAt) ||
+      state.tokenSha256 !== createHash('sha256').update(currentPageToken).digest('hex') ||
+      !['tokenApp', 'tokenPage', 'formOwnership'].every(key => state.results?.[key] === 'PASS') ||
+      !Array.isArray(state.originalAppSubscriptions) || state.originalAppSubscriptions.length ||
+      !Array.isArray(state.originalPageSubscriptions) || state.originalPageSubscriptions.length) fail('REFRESH_STATE_REFUSED')
+  const preserved = {createAttemptAt: null}
+  if (state.previousTestLead !== undefined) {
+    const old = state.previousTestLead
+    if (old !== null && (!object(old) || !numericId(old.id) || old.formId !== FORM || !past(old.createdAt) ||
+        old.retrievalConfirmed !== true || !past(old.verifiedAt) || typeof old.deleted !== 'boolean' ||
+        old.deletedAt !== undefined && !past(old.deletedAt))) fail('REFRESH_STATE_REFUSED')
+    if (old === null) preserved.previousTestLead = null
+    else {
+      preserved.previousTestLead = {id: old.id, formId: FORM, createdAt: old.createdAt,
+        retrievalConfirmed: true, verifiedAt: old.verifiedAt, deleted: old.deleted}
+      if (old.deletedAt !== undefined) preserved.previousTestLead.deletedAt = old.deletedAt
+    }
+  }
+  if (state.oldTestCheckAt !== undefined) {
+    if (!past(state.oldTestCheckAt)) fail('REFRESH_STATE_REFUSED')
+    preserved.oldTestCheckAt = state.oldTestCheckAt
+  }
+  const closure = []
+  for (const key of ['closedAt', 'earliestClosedAt']) if (state[key] !== undefined) {
+    if (!past(state[key])) fail('REFRESH_STATE_REFUSED')
+    closure.push(state[key])
+  }
+  if (closure.length) {
+    const earliest = closure.sort((a, b) => Date.parse(a) - Date.parse(b))[0]
+    preserved.closedAt = earliest
+    preserved.earliestClosedAt = earliest
+  }
+  return preserved
 }
 
 async function boundedJson(response, signal) {
@@ -158,6 +199,7 @@ export async function runGraphPreflight(options) {
         !/^[A-Za-z]:[\\/]|^\//.test(options.privateRoot) ||
         typeof options.assertPrivateFile !== 'function' ||
         options.uiConfirmedAppId !== APP || options.uiConfirmedProfile !== true ||
+        options.refreshClosed !== undefined && typeof options.refreshClosed !== 'boolean' ||
         options.timeoutMs !== undefined && (!Number.isInteger(options.timeoutMs) || options.timeoutMs < 5 || options.timeoutMs > 120000) ||
         options.fetchImpl !== undefined && typeof options.fetchImpl !== 'function') fail('INVALID_INPUT')
     const root = resolve(options.privateRoot)
@@ -170,8 +212,15 @@ export async function runGraphPreflight(options) {
     if (!/^EAA[A-Za-z0-9_-]{30,4090}$/.test(userToken) || !/^[a-f\d]{32}$/i.test(appSecret)) fail('CREDENTIAL_FORMAT')
     const pageFile = join(root, 'meta-page-token.txt')
     const stateFile = join(root, 'meta-real-private.json')
-    const pageBefore = await emptyOutput(pageFile, guard)
-    const stateBefore = await emptyOutput(stateFile, guard)
+    const refreshClosed = options.refreshClosed === true
+    const pageBefore = refreshClosed ? await checked(pageFile, guard) : await emptyOutput(pageFile, guard)
+    const stateBefore = refreshClosed ? await checked(stateFile, guard) : await emptyOutput(stateFile, guard)
+    let previousPageToken, preserved = {}
+    if (refreshClosed) {
+      previousPageToken = await privateRead(pageFile, guard, 4096)
+      if (!/^EAA[A-Za-z0-9_-]{30,4090}$/.test(previousPageToken)) fail('REFRESH_STATE_REFUSED')
+      preserved = refreshMetadata(JSON.parse(await privateRead(stateFile, guard, 32768)), previousPageToken)
+    }
     const fetchImpl = options.fetchImpl || globalThis.fetch
     if (typeof fetchImpl !== 'function') fail('INVALID_INPUT')
     const deadline = new Promise((_, reject) => {
@@ -212,9 +261,12 @@ export async function runGraphPreflight(options) {
           x.status === 'granted' && ![...SCOPES, 'public_profile'].includes(x.permission))) fail('PERMISSIONS_BLOCKED')
     const accounts = await request('me/accounts', 'id', userToken)
     if (!collection(accounts) || accounts.data.length !== 1 || accounts.data[0]?.id !== PAGE) fail('PAGE_SELECTION_BLOCKED')
-    const page = await request(PAGE, 'id,access_token', userToken)
-    if (page?.id !== PAGE || typeof page.access_token !== 'string' || !/^EAA[A-Za-z0-9_-]{30,4090}$/.test(page.access_token)) fail('PAGE_PROVENANCE_BLOCKED')
-    const pageToken = page.access_token
+    const page = await request(PAGE, refreshClosed ? 'id' : 'id,access_token', userToken)
+    if (page?.id !== PAGE || !refreshClosed && (typeof page.access_token !== 'string' ||
+        !/^EAA[A-Za-z0-9_-]{30,4090}$/.test(page.access_token))) fail('PAGE_PROVENANCE_BLOCKED')
+    // Refresh verifies the already stored credential itself in all following
+    // App/Page/Form probes. It neither requests nor adopts another Page token.
+    const pageToken = refreshClosed ? previousPageToken : page.access_token
     const pageApp = await request('app', 'id', pageToken)
     if (pageApp?.id !== APP) fail('APP_PROVENANCE_BLOCKED')
     const identity = await request('me', 'id', pageToken)
@@ -233,10 +285,13 @@ export async function runGraphPreflight(options) {
       results: {tokenApp: 'PASS', tokenPage: 'PASS', formOwnership: 'PASS'},
       release: false, approvedLeadId: null, leadCreatedAt: null, dashboardSample: null,
       originalAppSubscriptions: [], originalPageSubscriptions: [],
+      ...preserved,
     }
     try {
-      await atomicPrivateWrite(pageFile, pageToken, pageBefore, guard)
-      await atomicPrivateWrite(stateFile, JSON.stringify(attestation, null, 2) + '\n', stateBefore, guard)
+      if (refreshClosed) {
+        if (!same(pageBefore, await checked(pageFile, guard))) fail('PRIVATE_FILE_CHANGED')
+      } else await atomicPrivateWrite(pageFile, pageToken, pageBefore, guard)
+      await atomicPrivateWrite(stateFile, JSON.stringify(attestation, null, 2) + '\n', stateBefore, guard, refreshClosed)
     } catch { fail('PRIVATE_WRITE_FAILED') }
     return publicTelemetry({phase: 'preflight', status: 'PASS', durationMs: Date.now() - started, counts: {requests}})
   } catch (error) {

@@ -8,6 +8,7 @@ import {fileURLToPath, pathToFileURL} from 'node:url'
 import {createInterface} from 'node:readline'
 import {realGateway} from './gateway.mjs'
 import {publicTelemetry} from './secret-safety.mjs'
+import {assertQaTenantIsolation} from './supervisor-organizations.mjs'
 
 export const QA = Object.freeze({appId:'2523488421395251',pageId:'1449474971582722',formId:'2046130655900851'})
 const fixedFailure=()=>{throw Error('QA_SUPERVISOR_BLOCKED')}
@@ -16,13 +17,18 @@ const numeric=value=>typeof value==='string'&&/^[1-9][0-9]{5,30}$/.test(value)
 const key=value=>typeof value==='string'&&value.length>=32&&value.length<=4096&&!/[\r\n\0]/.test(value)
 const port=value=>Number.isInteger(value)&&value>=1024&&value<=65535
 const guardianStages=new Set(['host','git_dependency','runtime','approval','executables','private_acl','parent','http_ports','native_job','health','launch_app','launch_tunnel','stop_child','app_ready','stop'])
-const launchStages=new Set(['arguments','metadata','runtime_config','ngrok_binary','private_acl','credentials','ngrok_config','graph_preflight','stop_marker','prisma_import','guardian_spawn','supervisor_start','supervisor_enable','supervisor_tunnel','supervisor_release','guardian_timeout','guardian_protocol',...[...guardianStages].map(s=>'guardian_'+s)])
+const launchStages=new Set(['arguments','metadata','runtime_config','ngrok_binary','private_acl','credentials','ngrok_config','graph_preflight','stop_marker','prisma_import','guardian_spawn','supervisor_start','supervisor_enable','supervisor_tunnel','supervisor_release','guardian_timeout','guardian_protocol','db_isolation','next_ready','gateway_ready','binding_enable',...[...guardianStages].map(s=>'guardian_'+s)])
 class LaunchFailure extends Error {constructor(stage){super('QA_LAUNCH_BLOCKED');this.stage=launchStages.has(stage)?stage:'guardian_protocol'}}
 export function launchFailureTelemetry(error,stage='arguments'){
  const selected=error instanceof LaunchFailure?error.stage:stage
  return Object.freeze({...publicTelemetry({phase:'prepare',status:'BLOCKED'}),code:'QA_LAUNCH_'+(launchStages.has(selected)?selected:'guardian_protocol').toUpperCase()})
 }
 export function guardianEnvironment(root){return{SystemRoot:'C:\\Windows',WINDIR:'C:\\Windows',PATH:'C:\\Windows\\System32;C:\\Program Files\\nodejs;C:\\Program Files\\Git\\cmd',PATHEXT:'.EXE',TEMP:root,TMP:root,USERPROFILE:root,APPDATA:root,LOCALAPPDATA:root}}
+export function earliestCleanupTime(values,now=Date.now()){
+ const times=[now]
+ for(const value of values){if(value===undefined||value===null)continue;const time=Date.parse(value);if(!Number.isFinite(time)||time>now)fixedFailure();times.push(time)}
+ return new Date(Math.min(...times)).toISOString()
+}
 
 // Pure checks are exported for planted-data tests; they never load credentials.
 export function validateSupervisorConfig(c,state,now=Date.now()) {
@@ -73,8 +79,9 @@ export class QaSupervisor {
  constructor(c,deps){this.c=c;this.d=deps;this.mode='closed';this.closing=false;this.children=new Set();this.busy=false;this.controller=new AbortController();this.lastWorker=0}
  emit(phase,status,extra={}){this.d.emit(publicTelemetry({phase,status,...extra}))}
  async start(){
-  try{await this.d.preflight();if(this.closing)fixedFailure();await this.d.guardian.start();if(this.closing)fixedFailure();await this.d.db.assertQa();if(this.closing)fixedFailure();await this.d.guardian.launch('app',false);this.children.add('app');if(this.closing)fixedFailure();await this.d.ready();if(this.closing)fixedFailure();this.gate=await this.d.gateway();if(this.closing){this.gate.seal();fixedFailure()}this.emit('prepare','READY')}
-  catch(error){await this.stop();throw error instanceof LaunchFailure?error:new LaunchFailure('supervisor_start')}
+  let stage='supervisor_start'
+  try{await this.d.preflight();if(this.closing)fixedFailure();await this.d.guardian.start();if(this.closing)fixedFailure();stage='db_isolation';await this.d.db.assertQa();if(this.closing)fixedFailure();stage='supervisor_start';await this.d.guardian.launch('app',false);this.children.add('app');if(this.closing)fixedFailure();stage='next_ready';await this.d.ready();if(this.closing)fixedFailure();stage='gateway_ready';this.gate=await this.d.gateway();if(this.closing){this.gate.seal();fixedFailure()}this.emit('prepare','READY')}
+  catch(error){await this.stop();throw error instanceof LaunchFailure?error:new LaunchFailure(stage)}
  }
  async enable(){
   if(this.closing||this.mode!=='closed'||this.c.supervisorApproval.allowEnable!==true)fixedFailure()
@@ -169,7 +176,7 @@ async function main(){
   guardian,emit,now:Date.now,readReal:async()=>{const current=JSON.parse(await privateRead(realFile));validatePreflight(c,current,token,secret);return current},
   preflight:async()=>{await checkInputs();validateSupervisorConfig(c,state);validateNgrokConfig(await privateRead(join(c.privateDirectory,'ngrok.yml'),8192));real=JSON.parse(await privateRead(realFile));validatePreflight(c,real,token,secret)},
   db:{
-   assertQa:async()=>{const [total,org,other]=await Promise.all([db.organization.count(),db.organization.findUnique({where:{id:c.organizationId},select:{name:true}}),db.metaLeadAdsBinding.count({where:{enabled:true}})]);if(total!==1||org?.name!=='LegalHub Internal QA'||other!==0)fixedFailure()},
+   assertQa:()=>db.$transaction(async tx=>{await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');await assertQaTenantIsolation(tx,c.organizationId);if(await tx.metaLeadAdsBinding.count({where:{enabled:true}})!==0)fixedFailure()},{maxWait:5000,timeout:15000,isolationLevel:'RepeatableRead'}),
    enableBinding:async()=>{const existing=await db.metaLeadAdsBinding.findUnique({where:bindingWhere});if(existing&&existing.organizationId!==c.organizationId)fixedFailure();const b=await db.metaLeadAdsBinding.upsert({where:bindingWhere,create:{...tuple,organizationId:c.organizationId,enabled:true,mode:'pilot',activatedAt:new Date(),pilotLeadIds:[]},update:{enabled:true,mode:'pilot',activatedAt:new Date(),pilotLeadIds:[]}});bindingId=b.id},
    allowLead:async id=>{if(!bindingId)fixedFailure();const result=await db.metaLeadAdsBinding.updateMany({where:{id:bindingId,organizationId:c.organizationId,...tuple,enabled:true,mode:'pilot'},data:{pilotLeadIds:[id]}});if(result.count!==1)fixedFailure()},
    disableBinding:()=>db.metaLeadAdsBinding.updateMany({where:{organizationId:c.organizationId,...tuple,...(bindingId?{id:bindingId}:{})},data:{enabled:false,mode:'off',pilotLeadIds:[]}}),
@@ -179,7 +186,7 @@ async function main(){
   gateway:()=>new Promise((resolve,reject)=>{const gate=realGateway(c,secret);gate.once('error',reject);gate.listen(c.gatePort,'127.0.0.1',()=>resolve(gate))}),
   ready:async()=>{for(let n=0;n<100;n++){if(await guardian.appReady()){try{const response=await fetch('http://127.0.0.1:'+c.appPort+'/login',{redirect:'error',signal:AbortSignal.timeout(1000)});await response.body?.cancel();if(response.status===200&&await guardian.appReady())return}catch{}}await new Promise(r=>setTimeout(r,250))}fixedFailure()},
   worker:async signal=>{const r=await fetch('http://127.0.0.1:'+c.appPort+'/api/internal/meta-lead-ads',{method:'POST',headers:{Authorization:'Bearer '+c.secrets.worker},signal:AbortSignal.any([signal,AbortSignal.timeout(55000)]),redirect:'error'});await r.body?.cancel();emit(publicTelemetry({phase:'crm',status:r.ok?'PASS':'BLOCKED',httpStatus:r.status}))},
-  closeFiles:async()=>{await writeFile(c.stopFile,'closed',{mode:0o600});const current=JSON.parse(await privateRead(realFile));current.release=false;current.closedAt=new Date().toISOString();await writeFile(realFile,JSON.stringify(current),{mode:0o600});c.enabled=false;c.workerEnabled=false;c.approvedTuples=[];c.pilotLeadIds=[];await writeFile(p.runtimeFile,JSON.stringify(c),{mode:0o600})},
+  closeFiles:async()=>{await writeFile(c.stopFile,'closed',{mode:0o600});const current=JSON.parse(await privateRead(realFile));current.release=false;current.closedAt=earliestCleanupTime([current.closedAt,current.earliestClosedAt,c.cleanupClosedAt]);current.earliestClosedAt=current.closedAt;c.cleanupClosedAt=current.closedAt;await writeFile(realFile,JSON.stringify(current),{mode:0o600});c.enabled=false;c.workerEnabled=false;c.approvedTuples=[];c.pilotLeadIds=[];await writeFile(p.runtimeFile,JSON.stringify(c),{mode:0o600})},
  }
  const service=new QaSupervisor(c,deps),lines=createInterface({input:process.stdin});let serial=Promise.resolve();const finish=()=>void service.stop().then(ok=>{process.exitCode=ok?0:1;lines.close()})
  guardian.onFailure=()=>{if(!service.closing){emit(launchFailureTelemetry(null,'guardian_protocol'));finish()}}
