@@ -103,6 +103,12 @@ test('fixed launch-stage diagnostics never inspect raw errors or print provider 
  assert.equal(launchFailureTelemetry(poison,'credentials').code,'QA_LAUNCH_CREDENTIALS');assert.equal(launchFailureTelemetry(poison,'planted-secret').code,'QA_LAUNCH_GUARDIAN_PROTOCOL')
  const f=fakeGuardian(),g=new GuardianClient(f.child);const ready=g.start();f.send({status:'BLOCKED',stage:'git_dependency'});let captured;try{await ready}catch(error){captured=launchFailureTelemetry(error)}assert.equal(captured.code,'QA_LAUNCH_GUARDIAN_GIT_DEPENDENCY');assert.equal(JSON.stringify(captured).includes('planted-secret'),false);f.child.stdout.end();f.child.stderr.end()
 })
+test('tunnel substages and native diagnostics allow only fixed operations and bounded Win32 codes',async()=>{
+ for(const value of [{status:'BLOCKED',stage:'tunnel_env'},{status:'BLOCKED',stage:'tunnel_native',nativeOperation:'assign_job',nativeCode:5}]){
+  const f=fakeGuardian(),g=new GuardianClient(f.child);f.send({status:'READY'});await g.start();const pending=g.launch('tunnel',false);f.send(value);let report;try{await pending}catch(error){report=launchFailureTelemetry(error)}assert.equal(report.code,'QA_LAUNCH_GUARDIAN_'+value.stage.toUpperCase());if(value.nativeOperation){assert.equal(report.nativeOperation,'assign_job');assert.equal(report.nativeCode,5)}f.child.stdout.end();f.child.stderr.end()
+ }
+ for(const bad of [{nativeOperation:'planted-private-token',nativeCode:5},{nativeOperation:'create_process',nativeCode:1e9}]){const f=fakeGuardian(),g=new GuardianClient(f.child);const ready=g.start();f.send({status:'BLOCKED',stage:'tunnel_native',...bad});let report;try{await ready}catch(error){report=launchFailureTelemetry(error,'guardian_protocol')}assert.equal(report.code,'QA_LAUNCH_GUARDIAN_PROTOCOL');assert.equal(JSON.stringify(report).includes('planted-private'),false);f.child.stdout.end();f.child.stderr.end()}
+})
 test('egress permits only exact genuine Lead GET with matching authorization/proof',()=>{
  const c=configuration(),env=appEnvironment(c,attestation(),token,secret,true),r={...attestation(),release:true,approvedLeadId:'900000000000001',leadCreatedAt:new Date(now).toISOString()};const url=new URL('https://graph.facebook.com/v27.0/'+r.approvedLeadId);url.searchParams.set('fields','id,form_id,platform,field_data,created_time');url.searchParams.set('appsecret_proof',createHmac('sha256',secret).update(token).digest('hex'));const options={headers:{Authorization:'Bearer '+token},redirect:'error'}
  assert.equal(allowedRequest(url,options,r,now,env),true)

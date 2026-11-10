@@ -143,5 +143,43 @@ or ten-minute lead gate used by the actual supervisor.
 must use native fetch and the default deadline. Tests use invented fixture strings,
 temporary directories and in-memory HTTP responses; they call no Meta API or DB.
 
+## Explicit closed credential renewal after expiry
+
+If Meta confirms that the stored Page credential has expired, the owner may enter
+a fresh User token for this same QA App and scope directly into the existing
+private `meta-user-token.txt`. Only after that separately authorized owner action,
+use `run-preflight.ps1 -RenewClosedCredentials`. This flag is mutually exclusive
+with `-RefreshClosed`; the strict module option is
+`renewClosedCredentials:true`. It requires explicit public `artifacts:{root,paths}`
+for scans and all the same closed old-proof/current-hash/no-attempt/empty-original
+checks. The old Page token is read only for its private hash and known-secret scan;
+it is never used for an HTTP request in this mode.
+
+The existing User token and App Secret inputs are not overwritten by the helper.
+All ten native probes must pass using the newly supplied User token and a
+prospective Page token retrieved from the exact QA Page. The prospective token
+must prove the exact replacement App, QA Page and Form and currently empty Page
+subscription edge before it can replace the expired credential. The existing
+App Secret separately proves the empty original App subscription edge. Any
+provenance/expiry error returns safe numeric diagnostics and leaves existing
+Page/proof outputs unchanged; no automatic token grant or fallback is attempted.
+
+Artifact scans include both the previous and prospective Page credentials, the
+current User token and App Secret, before committing and afterward, including
+failure paths. Root wrapper scans also include the other current QA runtime
+secrets. File identities are rechecked before either output is replaced. Only
+after all checks succeed is the Page-token file atomically replaced, followed by
+an atomic attestation replacement. These are two separate filesystem commits:
+if the second unexpectedly fails after the first, the old proof/current-token
+hash mismatch blocks any gateway or worker use. That partial outcome requires
+explicit safe recovery; it is never reported as PASS or retried automatically.
+
+Renewal preserves closed gates, prior test metadata and the earliest closure T0.
+It never resets a create-attempt marker or cleanup deadline. The wrapper writes a
+unique ignored `graph-preflight-renewal-<UUID>.json`; it does not overwrite the
+initial proof. Initial setup and same-token closed refresh retain their separate
+behavior. Mock tests use invented expired/prospective tokens; they do not confirm
+real token validity or run any Graph call.
+
 Passing this preflight does not open the gateway, release a lead, configure a
 callback, subscribe a Page, enable Live Mode, or establish a full Meta-to-CRM E2E.

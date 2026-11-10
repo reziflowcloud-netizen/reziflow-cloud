@@ -2,7 +2,7 @@ import {lstat, realpath, open, rename, unlink} from 'node:fs/promises'
 import {resolve, dirname, basename, join} from 'node:path'
 import {createHash, randomUUID} from 'node:crypto'
 import {TextDecoder} from 'node:util'
-import {publicTelemetry} from './secret-safety.mjs'
+import {publicTelemetry, scanArtifacts} from './secret-safety.mjs'
 
 // These pins are public resource identifiers, never credentials. No discovery,
 // paging, retries, token debugger, mutation endpoint, or alternate App fallback.
@@ -18,7 +18,7 @@ const CODES = new Set(['INVALID_INPUT', 'PRIVATE_FILE_REFUSED', 'PRIVATE_FILE_CH
   'GRAPH_RESPONSE_LIMIT', 'GRAPH_RESPONSE_INVALID', 'GRAPH_HTTP', 'APP_PROVENANCE_BLOCKED',
   'PROFILE_NOT_CONFIRMED', 'PERMISSIONS_BLOCKED', 'PAGE_SELECTION_BLOCKED',
   'PAGE_PROVENANCE_BLOCKED', 'FORM_OWNERSHIP_BLOCKED', 'EXISTING_SUBSCRIPTIONS',
-  'PRIVATE_WRITE_FAILED', 'REFRESH_STATE_REFUSED', 'UNEXPECTED_FAILURE'])
+  'PRIVATE_WRITE_FAILED', 'REFRESH_STATE_REFUSED', 'ARTIFACT_SCAN_BLOCKED', 'UNEXPECTED_FAILURE'])
 class PreflightError extends Error {
   constructor(code, httpStatus, graphCode, graphSubcode) {
     super(CODES.has(code) ? code : 'UNEXPECTED_FAILURE')
@@ -87,7 +87,7 @@ async function emptyOutput(path, assertPrivateFile) {
 // An unguessable file is created without data, then its inherited ACL and owner
 // are checked BEFORE it receives a secret. Rename preserves that checked ACL.
 // First-run outputs must be precreated, private, empty, and unchanged. Only the
-// explicit closed refresh may replace a validated nonempty attestation. Each
+// explicit closed mode may replace validated nonempty outputs. Each
 // commit is atomic; attestation is last, so partial failure never grants PASS.
 async function atomicPrivateWrite(path, value, expected, assertPrivateFile, refreshClosed = false) {
   const staging = join(dirname(path), `.graph-preflight-${randomUUID()}.tmp`)
@@ -193,6 +193,8 @@ export async function runGraphPreflight(options) {
   const started = Date.now()
   let requests = 0
   let timer
+  let artifactCheck
+  const knownSecrets = []
   const controller = new AbortController()
   try {
     if (!object(options) || typeof options.privateRoot !== 'string' ||
@@ -200,6 +202,10 @@ export async function runGraphPreflight(options) {
         typeof options.assertPrivateFile !== 'function' ||
         options.uiConfirmedAppId !== APP || options.uiConfirmedProfile !== true ||
         options.refreshClosed !== undefined && typeof options.refreshClosed !== 'boolean' ||
+        options.renewClosedCredentials !== undefined && typeof options.renewClosedCredentials !== 'boolean' ||
+        options.refreshClosed === true && options.renewClosedCredentials === true ||
+        options.artifacts !== undefined && (!object(options.artifacts) || typeof options.artifacts.root !== 'string' || !Array.isArray(options.artifacts.paths)) ||
+        options.renewClosedCredentials === true && options.artifacts === undefined ||
         options.timeoutMs !== undefined && (!Number.isInteger(options.timeoutMs) || options.timeoutMs < 5 || options.timeoutMs > 120000) ||
         options.fetchImpl !== undefined && typeof options.fetchImpl !== 'function') fail('INVALID_INPUT')
     const root = resolve(options.privateRoot)
@@ -210,16 +216,27 @@ export async function runGraphPreflight(options) {
     const userToken = await privateRead(join(root, 'meta-user-token.txt'), guard, 4096)
     const appSecret = await privateRead(join(root, 'meta-app-secret.txt'), guard, 128)
     if (!/^EAA[A-Za-z0-9_-]{30,4090}$/.test(userToken) || !/^[a-f\d]{32}$/i.test(appSecret)) fail('CREDENTIAL_FORMAT')
+    knownSecrets.push(userToken, appSecret)
     const pageFile = join(root, 'meta-page-token.txt')
     const stateFile = join(root, 'meta-real-private.json')
     const refreshClosed = options.refreshClosed === true
-    const pageBefore = refreshClosed ? await checked(pageFile, guard) : await emptyOutput(pageFile, guard)
-    const stateBefore = refreshClosed ? await checked(stateFile, guard) : await emptyOutput(stateFile, guard)
+    const renewal = options.renewClosedCredentials === true
+    const closedMode = refreshClosed || renewal
+    const pageBefore = closedMode ? await checked(pageFile, guard) : await emptyOutput(pageFile, guard)
+    const stateBefore = closedMode ? await checked(stateFile, guard) : await emptyOutput(stateFile, guard)
     let previousPageToken, preserved = {}
-    if (refreshClosed) {
+    if (closedMode) {
       previousPageToken = await privateRead(pageFile, guard, 4096)
       if (!/^EAA[A-Za-z0-9_-]{30,4090}$/.test(previousPageToken)) fail('REFRESH_STATE_REFUSED')
+      knownSecrets.push(previousPageToken)
       preserved = refreshMetadata(JSON.parse(await privateRead(stateFile, guard, 32768)), previousPageToken)
+    }
+    if (options.artifacts !== undefined) {
+      artifactCheck = async () => {
+        try { await scanArtifacts({root: options.artifacts.root, paths: options.artifacts.paths, knownSecrets}) }
+        catch { fail('ARTIFACT_SCAN_BLOCKED') }
+      }
+      await artifactCheck()
     }
     const fetchImpl = options.fetchImpl || globalThis.fetch
     if (typeof fetchImpl !== 'function') fail('INVALID_INPUT')
@@ -267,6 +284,7 @@ export async function runGraphPreflight(options) {
     // Refresh verifies the already stored credential itself in all following
     // App/Page/Form probes. It neither requests nor adopts another Page token.
     const pageToken = refreshClosed ? previousPageToken : page.access_token
+    knownSecrets.push(pageToken)
     const pageApp = await request('app', 'id', pageToken)
     if (pageApp?.id !== APP) fail('APP_PROVENANCE_BLOCKED')
     const identity = await request('me', 'id', pageToken)
@@ -288,14 +306,21 @@ export async function runGraphPreflight(options) {
       ...preserved,
     }
     try {
+      if (artifactCheck) await artifactCheck()
+      if (!same(stateBefore, await checked(stateFile, guard)) || !same(pageBefore, await checked(pageFile, guard))) fail('PRIVATE_FILE_CHANGED')
       if (refreshClosed) {
         if (!same(pageBefore, await checked(pageFile, guard))) fail('PRIVATE_FILE_CHANGED')
-      } else await atomicPrivateWrite(pageFile, pageToken, pageBefore, guard)
-      await atomicPrivateWrite(stateFile, JSON.stringify(attestation, null, 2) + '\n', stateBefore, guard, refreshClosed)
-    } catch { fail('PRIVATE_WRITE_FAILED') }
+      } else await atomicPrivateWrite(pageFile, pageToken, pageBefore, guard, renewal)
+      await atomicPrivateWrite(stateFile, JSON.stringify(attestation, null, 2) + '\n', stateBefore, guard, closedMode)
+      if (artifactCheck) await artifactCheck()
+    } catch (error) {
+      if (error instanceof PreflightError && error.code === 'ARTIFACT_SCAN_BLOCKED') throw error
+      fail('PRIVATE_WRITE_FAILED')
+    }
     return publicTelemetry({phase: 'preflight', status: 'PASS', durationMs: Date.now() - started, counts: {requests}})
   } catch (error) {
-    const fixed = error instanceof PreflightError ? error : new PreflightError('PRIVATE_FILE_REFUSED')
+    let fixed = error instanceof PreflightError ? error : new PreflightError('PRIVATE_FILE_REFUSED')
+    if (artifactCheck) { try { await artifactCheck() } catch { fixed = new PreflightError('ARTIFACT_SCAN_BLOCKED') } }
     const telemetry = {phase: 'preflight', status: 'BLOCKED', durationMs: Math.min(Date.now() - started, 86400000), counts: {requests}}
     for (const key of ['httpStatus', 'graphCode', 'graphSubcode']) if (fixed[key] !== undefined) telemetry[key] = fixed[key]
     return Object.freeze({...publicTelemetry(telemetry), code: fixed.code})

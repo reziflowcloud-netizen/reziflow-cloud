@@ -1,7 +1,8 @@
-param([Parameter(Mandatory=$true)][string]$PointerPath,[Parameter(Mandatory=$true)][ValidateSet('2523488421395251')][string]$UiConfirmedAppId,[Parameter(Mandatory=$true)][switch]$OwnerConfirmedProfile,[switch]$RefreshClosed)
+param([Parameter(Mandatory=$true)][string]$PointerPath,[Parameter(Mandatory=$true)][ValidateSet('2523488421395251')][string]$UiConfirmedAppId,[Parameter(Mandatory=$true)][switch]$OwnerConfirmedProfile,[switch]$RefreshClosed,[switch]$RenewClosedCredentials)
 $ErrorActionPreference='Stop'
 try{
   if($PSVersionTable.PSVersion.Major -ne 7 -or (Get-ExecutionPolicy) -ne 'RemoteSigned' -or -not $OwnerConfirmedProfile){throw 'HOST_OR_OWNER_REFUSED'}
+  if($RefreshClosed -and $RenewClosedCredentials){throw 'MODE_REFUSED'}
   . (Join-Path $PSScriptRoot 'guard.ps1')
   $qa=Read-QaGuardedRuntime $PointerPath
   $c=$qa.Runtime
@@ -10,7 +11,8 @@ try{
   Assert-QaNoReparse $gitExe
   . (Join-Path $qa.Source 'scripts/local-maintenance/core.ps1')
   $qaRefreshFlag=if($RefreshClosed){'true'}else{'false'}
-  Invoke-WithIsolatedEnvironment $qa.State.config $null @{QA_STAGE_A_PRIVATE_CONFIG=$qa.Pointer.runtimeFile;QA_PWSH_EXE=$c.qaPwshExecutable;QA_UI_APP=$UiConfirmedAppId;QA_UI_OWNER='confirmed';QA_REFRESH_CLOSED=$qaRefreshFlag;QA_GIT_EXE=$gitExe;QA_RESULT_DIRECTORY=([IO.Path]::GetDirectoryName($PointerPath))} {
+  $qaRenewFlag=if($RenewClosedCredentials){'true'}else{'false'}
+  Invoke-WithIsolatedEnvironment $qa.State.config $null @{QA_STAGE_A_PRIVATE_CONFIG=$qa.Pointer.runtimeFile;QA_PWSH_EXE=$c.qaPwshExecutable;QA_UI_APP=$UiConfirmedAppId;QA_UI_OWNER='confirmed';QA_REFRESH_CLOSED=$qaRefreshFlag;QA_RENEW_CLOSED_CREDENTIALS=$qaRenewFlag;QA_GIT_EXE=$gitExe;QA_RESULT_DIRECTORY=([IO.Path]::GetDirectoryName($PointerPath))} {
     & 'C:\Program Files\nodejs\node.exe' (Join-Path $PSScriptRoot 'run-preflight.mjs')
     if($LASTEXITCODE -ne 0){throw 'PREFLIGHT_BLOCKED'}
   }

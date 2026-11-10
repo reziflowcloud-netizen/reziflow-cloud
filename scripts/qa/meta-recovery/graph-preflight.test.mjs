@@ -292,3 +292,100 @@ test('refresh refuses concurrent private state changes and never overwrites a ne
   const after = JSON.parse(await readFile(join(f.root, 'meta-real-private.json'), 'utf8'))
   assert.equal(after.createAttemptAt, marker); assert.equal(after.verifiedAt, before.verifiedAt)
 })
+
+async function renewalArtifacts(f) {
+  const root = join(f.root, 'publishable')
+  await mkdir(root)
+  const file = join(root, 'result.json')
+  await writeFile(file, '{"phase":"preflight","status":"BLOCKED"}\n')
+  return {root, paths: [file]}
+}
+test('explicit closed credential renewal validates new User/prospective Page through all ten probes before replacing expired Page credential', async t => {
+  const f = await fixture(t), closed = new Date(Date.now() - 7200000).toISOString()
+  const before = await priorAttestation(f, {closedAt: closed, createAttemptAt: null, previousTestLead: null})
+  const newUser = 'EAA' + 'OwnerRenewalUserOnly'.repeat(5), newPage = 'EAA' + 'RenewedPageOnly'.repeat(5)
+  await writeFile(join(f.root, 'meta-user-token.txt'), newUser)
+  const bodies = successBodies(); bodies[4] = {id: PAGE, access_token: newPage}
+  const m = mock(bodies, async (body, index) => {
+    if (index === 9) {
+      assert.equal(await readFile(join(f.root, 'meta-page-token.txt'), 'utf8'), PAGE_TOKEN)
+      assert.deepEqual(JSON.parse(await readFile(join(f.root, 'meta-real-private.json'), 'utf8')), before)
+    }
+    return new Response(JSON.stringify(body))
+  })
+  const result = await runGraphPreflight({...f.options, renewClosedCredentials: true, artifacts: await renewalArtifacts(f), fetchImpl: m.fetchImpl})
+  assert.equal(result.status, 'PASS'); assert.equal(m.calls.length, 10); assertSafe(result)
+  assert.equal(new URL(m.calls[4].url).searchParams.get('fields'), 'id,access_token')
+  for (const [index, call] of m.calls.entries()) {
+    assert.notEqual(call.options.headers.Authorization, 'Bearer ' + PAGE_TOKEN)
+    assert.equal(call.options.headers.Authorization, 'Bearer ' + (index < 5 ? newUser : index === 8 ? APP + '|' + SECRET : newPage))
+    assert.equal(call.options.method, 'GET'); assert.equal(call.url.includes(newPage), false); assert.equal(call.url.includes(newUser), false)
+  }
+  assert.equal(await readFile(join(f.root, 'meta-page-token.txt'), 'utf8'), newPage)
+  const after = JSON.parse(await readFile(join(f.root, 'meta-real-private.json'), 'utf8'))
+  assert.equal(after.tokenSha256, createHash('sha256').update(newPage).digest('hex'))
+  assert.ok(Date.parse(after.verifiedAt) > Date.parse(before.verifiedAt))
+  assert.equal(after.release, false); assert.equal(after.createAttemptAt, null); assert.equal(after.approvedLeadId, null)
+  assert.equal(after.closedAt, closed); assert.equal(after.earliestClosedAt, closed); assert.equal(after.previousTestLead, null)
+  for (const value of [newUser, newPage, PAGE_TOKEN]) assert.equal(JSON.stringify(after).includes(value), false)
+})
+test('renewal requires explicit exclusive mode, prior closed proof and explicit public artifact scan', async t => {
+  for (const delta of [{refreshClosed: true}, {renewClosedCredentials: 'true'}, {artifacts: undefined}]) {
+    const f = await fixture(t), before = await priorAttestation(f), m = mock([])
+    const result = await runGraphPreflight({...f.options, renewClosedCredentials: true, artifacts: await renewalArtifacts(f), ...delta, fetchImpl: m.fetchImpl})
+    assert.equal(result.code, 'INVALID_INPUT'); assert.equal(m.calls.length, 0); assertSafe(result)
+    assert.deepEqual(JSON.parse(await readFile(join(f.root, 'meta-real-private.json'), 'utf8')), before)
+  }
+  for (const extra of [{release: true}, {approvedLeadId: '900000000000002'}, {createAttemptAt: new Date().toISOString()},
+    {tokenSha256: '0'.repeat(64)}, {originalAppSubscriptions: [{}]}, {originalPageSubscriptions: [{}]}]) {
+    const f = await fixture(t), before = await priorAttestation(f, extra), m = mock([])
+    const result = await runGraphPreflight({...f.options, renewClosedCredentials: true, artifacts: await renewalArtifacts(f), fetchImpl: m.fetchImpl})
+    assert.equal(result.code, 'REFRESH_STATE_REFUSED'); assert.equal(m.calls.length, 0); assertSafe(result)
+    assert.deepEqual(JSON.parse(await readFile(join(f.root, 'meta-real-private.json'), 'utf8')), before)
+  }
+})
+test('renewal failed prospective provenance or numeric token expiry leaves both existing outputs unchanged', async t => {
+  for (const mode of ['wrong-new-app', 'wrong-new-form', 'expired-new-user', 'expired-new-page']) {
+    const f = await fixture(t), before = await priorAttestation(f), bodies = successBodies()
+    bodies[4] = {id: PAGE, access_token: 'EAA' + 'ProspectivePageOnly'.repeat(5)}
+    if (mode === 'wrong-new-app') bodies[5] = {id: '1160353550276176'}
+    if (mode === 'wrong-new-form') bodies[7] = {id: FORM, page: {id: '999999999999999'}}
+    const m = mock(bodies, (body, index) => (mode === 'expired-new-user' && index === 0 || mode === 'expired-new-page' && index === 5) ?
+      new Response(JSON.stringify({error: {code: 190, error_subcode: 463, message: USER + ' expired'}}), {status: 401}) : new Response(JSON.stringify(body)))
+    const result = await runGraphPreflight({...f.options, renewClosedCredentials: true, artifacts: await renewalArtifacts(f), fetchImpl: m.fetchImpl})
+    assert.equal(result.status, 'BLOCKED'); assertSafe(result)
+    if (mode.startsWith('expired')) { assert.equal(result.httpStatus, 401); assert.equal(result.graphCode, 190); assert.equal(result.graphSubcode, 463) }
+    assert.equal(await readFile(join(f.root, 'meta-page-token.txt'), 'utf8'), PAGE_TOKEN)
+    assert.deepEqual(JSON.parse(await readFile(join(f.root, 'meta-real-private.json'), 'utf8')), before)
+  }
+})
+test('renewal scans old and prospective credentials before committing and does not overwrite on leakage', async t => {
+  for (const beforeNetwork of [true, false]) {
+    const f = await fixture(t), prior = await priorAttestation(f), artifacts = await renewalArtifacts(f), bodies = successBodies()
+    const newPage = 'EAA' + 'ProspectivePlantedPage'.repeat(5); bodies[4] = {id: PAGE, access_token: newPage}
+    if (beforeNetwork) await writeFile(artifacts.paths[0], PAGE_TOKEN)
+    const m = mock(bodies, async (body, index) => {
+      if (index === 9) await writeFile(artifacts.paths[0], newPage)
+      return new Response(JSON.stringify(body))
+    })
+    const result = await runGraphPreflight({...f.options, renewClosedCredentials: true, artifacts, fetchImpl: m.fetchImpl})
+    assert.equal(result.code, 'ARTIFACT_SCAN_BLOCKED'); assertSafe(result); assert.equal(m.calls.length, beforeNetwork ? 0 : 10)
+    assert.equal(await readFile(join(f.root, 'meta-page-token.txt'), 'utf8'), PAGE_TOKEN)
+    assert.deepEqual(JSON.parse(await readFile(join(f.root, 'meta-real-private.json'), 'utf8')), prior)
+  }
+})
+
+test('renewal notices a concurrent create-attempt before replacing even the expired Page token', async t => {
+  const f = await fixture(t), before = await priorAttestation(f), artifacts = await renewalArtifacts(f), bodies = successBodies()
+  bodies[4] = {id: PAGE, access_token: 'EAA' + 'RenewedConcurrentPageOnly'.repeat(4)}
+  const marker = new Date().toISOString()
+  const m = mock(bodies, async (body, index) => {
+    if (index === 9) await writeFile(join(f.root, 'meta-real-private.json'), JSON.stringify({...before, createAttemptAt: marker}))
+    return new Response(JSON.stringify(body))
+  })
+  const result = await runGraphPreflight({...f.options, renewClosedCredentials: true, artifacts, fetchImpl: m.fetchImpl})
+  assert.equal(result.code, 'PRIVATE_WRITE_FAILED'); assertSafe(result)
+  assert.equal(await readFile(join(f.root, 'meta-page-token.txt'), 'utf8'), PAGE_TOKEN)
+  const after = JSON.parse(await readFile(join(f.root, 'meta-real-private.json'), 'utf8'))
+  assert.equal(after.createAttemptAt, marker); assert.equal(after.verifiedAt, before.verifiedAt)
+})

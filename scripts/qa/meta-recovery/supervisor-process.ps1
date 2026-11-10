@@ -75,7 +75,7 @@ public sealed class QaOwnedJob : IDisposable {
  [StructLayout(LayoutKind.Sequential)] struct Extended {public Basic basic; public IO io; public UIntPtr processMemory,jobMemory,peakProcess,peakJob;}
  [StructLayout(LayoutKind.Sequential)] struct Accounting {public long user,kernel,periodUser,periodKernel;public uint faults,total,active,terminated;}
  [StructLayout(LayoutKind.Sequential)] struct FT { public uint low,high; public long Value {get{return ((long)high<<32)|low;}} }
- sealed class Owned {public IntPtr handle;public uint pid;public string exe;public long born;}
+ sealed class Owned {public IntPtr handle,job;public uint pid;public string exe;public long born;}
  [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern IntPtr CreateJobObjectW(IntPtr a,string name);
  [DllImport("kernel32.dll",SetLastError=true)] static extern bool SetInformationJobObject(IntPtr job,int type,ref Extended info,uint len);
  [DllImport("kernel32.dll",SetLastError=true)] static extern bool QueryInformationJobObject(IntPtr job,int type,out Accounting info,uint len,IntPtr ret);
@@ -85,6 +85,7 @@ public sealed class QaOwnedJob : IDisposable {
  [DllImport("kernel32.dll",SetLastError=true)] static extern uint WaitForSingleObject(IntPtr handle,uint ms);
  [DllImport("kernel32.dll",SetLastError=true)] static extern IntPtr OpenProcess(uint access,bool inherit,int pid);
  [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetProcessTimes(IntPtr process,out FT created,out FT exit,out FT kernel,out FT user);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetExitCodeProcess(IntPtr process,out uint code);
  [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool QueryFullProcessImageNameW(IntPtr process,uint flags,StringBuilder text,ref uint size);
  [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern IntPtr CreateFileW(string name,uint access,uint share,ref SA sa,uint creation,uint flags,IntPtr template);
  [DllImport("kernel32.dll",SetLastError=true)] static extern bool InitializeProcThreadAttributeList(IntPtr list,int count,int flags,ref IntPtr size);
@@ -93,41 +94,55 @@ public sealed class QaOwnedJob : IDisposable {
  [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool CreateProcessW(string exe,StringBuilder line,IntPtr pa,IntPtr ta,bool inherit,uint flags,IntPtr env,string cwd,ref SIX startup,out PI info);
  [DllImport("kernel32.dll",SetLastError=true)] static extern uint ResumeThread(IntPtr thread);
  [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
- IntPtr job,parent; readonly Dictionary<string,Owned> children=new Dictionary<string,Owned>();
- static Exception Refused(){return new InvalidOperationException("OWNED_JOB_REFUSED");}
- static long Born(IntPtr handle){FT c,e,k,u;if(!GetProcessTimes(handle,out c,out e,out k,out u))throw Refused();return c.Value;}
- static string Image(IntPtr handle){var s=new StringBuilder(32768);uint n=(uint)s.Capacity;if(!QueryFullProcessImageNameW(handle,0,s,ref n))throw Refused();return s.ToString();}
+ IntPtr parent; readonly Dictionary<string,Owned> children=new Dictionary<string,Owned>();
+ public static string LastOperation {get;private set;}
+ public static int LastNativeCode {get;private set;}
+ static Exception Refused(){LastOperation="configuration";LastNativeCode=0;return new InvalidOperationException("OWNED_JOB_REFUSED");}
+ static Exception NativeRefused(string operation){LastOperation=operation;LastNativeCode=Marshal.GetLastWin32Error();return new InvalidOperationException("OWNED_JOB_NATIVE_REFUSED");}
+ static long Born(IntPtr handle){FT c,e,k,u;if(!GetProcessTimes(handle,out c,out e,out k,out u))throw NativeRefused("query_time");return c.Value;}
+ static string Image(IntPtr handle){var s=new StringBuilder(32768);uint n=(uint)s.Capacity;if(!QueryFullProcessImageNameW(handle,0,s,ref n))throw NativeRefused("query_image");return s.ToString();}
  static string Quote(string arg){if(arg==null||arg.IndexOf('\0')>=0)throw Refused();var b=new StringBuilder("\"");int slash=0;foreach(char x in arg){if(x=='\\'){slash++;continue;}if(x=='\"'){b.Append('\\',slash*2+1);b.Append(x);slash=0;continue;}b.Append('\\',slash);slash=0;b.Append(x);}b.Append('\\',slash*2);b.Append('"');return b.ToString();}
  public QaOwnedJob(int parentPid,string expectedParent){
-  parent=OpenProcess(0x101000,false,parentPid);if(parent==IntPtr.Zero||!String.Equals(Image(parent),expectedParent,StringComparison.OrdinalIgnoreCase)||WaitForSingleObject(parent,0)!=258)throw Refused();
-  job=CreateJobObjectW(IntPtr.Zero,null);if(job==IntPtr.Zero)throw Refused();var limit=new Extended();limit.basic.flags=0x2000;
-  if(!SetInformationJobObject(job,9,ref limit,(uint)Marshal.SizeOf<Extended>()))throw Refused();
+  try{parent=OpenProcess(0x101000,false,parentPid);if(parent==IntPtr.Zero)throw NativeRefused("open_parent");if(!String.Equals(Image(parent),expectedParent,StringComparison.OrdinalIgnoreCase)||WaitForSingleObject(parent,0)!=258)throw Refused();}
+  catch{if(parent!=IntPtr.Zero){CloseHandle(parent);parent=IntPtr.Zero;}throw;}
  }
+ static IntPtr NewEmptyJob(){var handle=CreateJobObjectW(IntPtr.Zero,null);if(handle==IntPtr.Zero)throw NativeRefused("create_job");try{var limit=new Extended();limit.basic.flags=0x2000;if(!SetInformationJobObject(handle,9,ref limit,(uint)Marshal.SizeOf<Extended>()))throw NativeRefused("job_limits");return handle;}catch{CloseHandle(handle);throw;}}
  public bool ParentAlive(){return parent!=IntPtr.Zero&&WaitForSingleObject(parent,0)==258;}
- public int ActiveCount(){Accounting a;if(!QueryInformationJobObject(job,1,out a,(uint)Marshal.SizeOf<Accounting>(),IntPtr.Zero))return -1;return (int)a.active;}
+ public int ActiveCount(){int total=0;foreach(var o in children.Values){Accounting a;if(!QueryInformationJobObject(o.job,1,out a,(uint)Marshal.SizeOf<Accounting>(),IntPtr.Zero))return -1;total=checked(total+(int)a.active);}return total;}
  public bool ChildAlive(string kind){Owned o;return children.TryGetValue(kind,out o)&&WaitForSingleObject(o.handle,0)==258;}
+ public uint ChildExitCode(string kind){Owned o;uint code;if(!children.TryGetValue(kind,out o))throw Refused();if(!GetExitCodeProcess(o.handle,out code))throw NativeRefused("exit_code");return code;}
  public uint Launch(string kind,string exe,string[] args,string cwd,string[] envPairs){
   if(!ParentAlive()||(kind!="app"&&kind!="tunnel")||ChildAlive(kind))throw Refused();
-  var env=String.Join("\0",envPairs)+"\0\0";var block=Marshal.StringToHGlobalUni(env);var line=new StringBuilder(Quote(exe));foreach(var a in args)line.Append(' ').Append(Quote(a));
+  if(children.ContainsKey(kind))StopChild(kind);
+  // Each kind/generation gets an EMPTY target Job. The child keeps all its
+  // inherited jobs; no breakaway/UI/security-limit change is requested.
+  IntPtr childJob=IntPtr.Zero,block=IntPtr.Zero;
+  var env=String.Join("\0",envPairs)+"\0\0";var line=new StringBuilder(Quote(exe));foreach(var a in args)line.Append(' ').Append(Quote(a));
   var sa=new SA{length=Marshal.SizeOf<SA>(),inherit=1};IntPtr nul=IntPtr.Zero,attrs=IntPtr.Zero,list=IntPtr.Zero;var pi=new PI();bool attributesReady=false;
   try{
-   nul=CreateFileW("NUL",0xC0000000,3,ref sa,3,0,IntPtr.Zero);if(nul==new IntPtr(-1))throw Refused();IntPtr size=IntPtr.Zero;InitializeProcThreadAttributeList(IntPtr.Zero,1,0,ref size);attrs=Marshal.AllocHGlobal(size);
-   if(!InitializeProcThreadAttributeList(attrs,1,0,ref size))throw Refused();attributesReady=true;list=Marshal.AllocHGlobal(IntPtr.Size);Marshal.WriteIntPtr(list,nul);
-   if(!UpdateProcThreadAttribute(attrs,0,new IntPtr(0x20002),list,new IntPtr(IntPtr.Size),IntPtr.Zero,IntPtr.Zero))throw Refused();
+   childJob=NewEmptyJob();block=Marshal.StringToHGlobalUni(env);
+   nul=CreateFileW("NUL",0xC0000000,3,ref sa,3,0,IntPtr.Zero);if(nul==new IntPtr(-1))throw NativeRefused("open_nul");IntPtr size=IntPtr.Zero;InitializeProcThreadAttributeList(IntPtr.Zero,1,0,ref size);attrs=Marshal.AllocHGlobal(size);
+   if(!InitializeProcThreadAttributeList(attrs,1,0,ref size))throw NativeRefused("attributes_init");attributesReady=true;list=Marshal.AllocHGlobal(IntPtr.Size);Marshal.WriteIntPtr(list,nul);
+   if(!UpdateProcThreadAttribute(attrs,0,new IntPtr(0x20002),list,new IntPtr(IntPtr.Size),IntPtr.Zero,IntPtr.Zero))throw NativeRefused("attributes_update");
    var si=new SIX();si.si.cb=Marshal.SizeOf<SIX>();si.si.flags=0x100;si.si.input=nul;si.si.output=nul;si.si.error=nul;si.attributes=attrs;
-   if(!CreateProcessW(exe,line,IntPtr.Zero,IntPtr.Zero,true,0x08080404,block,cwd,ref si,out pi))throw Refused();
-   if(!AssignProcessToJobObject(job,pi.process))throw Refused();
-   var record=new Owned{handle=pi.process,pid=pi.pid,exe=exe,born=Born(pi.process)};
+   if(!CreateProcessW(exe,line,IntPtr.Zero,IntPtr.Zero,true,0x08080404,block,cwd,ref si,out pi))throw NativeRefused("create_process");
+   if(!AssignProcessToJobObject(childJob,pi.process))throw NativeRefused("assign_job");
+   var record=new Owned{handle=pi.process,job=childJob,pid=pi.pid,exe=exe,born=Born(pi.process)};
    if(!String.Equals(Image(pi.process),exe,StringComparison.OrdinalIgnoreCase)||record.born<=0)throw Refused();
-   if(ResumeThread(pi.thread)==0xFFFFFFFF)throw Refused();Owned old;if(children.TryGetValue(kind,out old))CloseHandle(old.handle);children[kind]=record;pi.process=IntPtr.Zero;return record.pid;
+   if(!ParentAlive())throw Refused();
+   if(ResumeThread(pi.thread)==0xFFFFFFFF)throw NativeRefused("resume_thread");children.Add(kind,record);pi.process=IntPtr.Zero;childJob=IntPtr.Zero;return record.pid;
   }finally{
+   if(childJob!=IntPtr.Zero)TerminateJobObject(childJob,1);
    if(pi.process!=IntPtr.Zero){TerminateProcess(pi.process,1);WaitForSingleObject(pi.process,5000);CloseHandle(pi.process);}
-   if(pi.thread!=IntPtr.Zero)CloseHandle(pi.thread);if(attrs!=IntPtr.Zero){if(attributesReady)DeleteProcThreadAttributeList(attrs);Marshal.FreeHGlobal(attrs);}if(list!=IntPtr.Zero)Marshal.FreeHGlobal(list);if(nul!=IntPtr.Zero&&nul!=new IntPtr(-1))CloseHandle(nul);Marshal.FreeHGlobal(block);
+   if(childJob!=IntPtr.Zero)CloseHandle(childJob);
+   if(pi.thread!=IntPtr.Zero)CloseHandle(pi.thread);if(attrs!=IntPtr.Zero){if(attributesReady)DeleteProcThreadAttributeList(attrs);Marshal.FreeHGlobal(attrs);}if(list!=IntPtr.Zero)Marshal.FreeHGlobal(list);if(nul!=IntPtr.Zero&&nul!=new IntPtr(-1))CloseHandle(nul);if(block!=IntPtr.Zero)Marshal.FreeHGlobal(block);
   }
  }
- public void StopChild(string kind){Owned o;if(!children.TryGetValue(kind,out o))throw Refused();if(WaitForSingleObject(o.handle,0)==258){if(Born(o.handle)!=o.born||!String.Equals(Image(o.handle),o.exe,StringComparison.OrdinalIgnoreCase))throw Refused();if(!TerminateProcess(o.handle,0)||WaitForSingleObject(o.handle,5000)!=0)throw Refused();}}
- public bool StopAll(){if(job==IntPtr.Zero)return true;if(!TerminateJobObject(job,0))return false;for(int n=0;n<100;n++){Accounting a;if(!QueryInformationJobObject(job,1,out a,(uint)Marshal.SizeOf<Accounting>(),IntPtr.Zero))return false;bool signalled=true;foreach(var o in children.Values)if(WaitForSingleObject(o.handle,0)!=0)signalled=false;if(a.active==0&&signalled)return true;Thread.Sleep(50);}return false;}
- public void Dispose(){if(job!=IntPtr.Zero){CloseHandle(job);job=IntPtr.Zero;}foreach(var o in children.Values)CloseHandle(o.handle);children.Clear();if(parent!=IntPtr.Zero){CloseHandle(parent);parent=IntPtr.Zero;}}
+ static bool Drained(Owned o){Accounting a;bool accounting=QueryInformationJobObject(o.job,1,out a,(uint)Marshal.SizeOf<Accounting>(),IntPtr.Zero);uint waited=WaitForSingleObject(o.handle,0);return accounting&&a.active==0&&waited==0;}
+ static void CloseOwned(Owned o){if(o.job!=IntPtr.Zero){CloseHandle(o.job);o.job=IntPtr.Zero;}if(o.handle!=IntPtr.Zero){CloseHandle(o.handle);o.handle=IntPtr.Zero;}}
+ public void StopChild(string kind){Owned o;if(!children.TryGetValue(kind,out o))throw Refused();if(WaitForSingleObject(o.handle,0)==258&&(Born(o.handle)!=o.born||!String.Equals(Image(o.handle),o.exe,StringComparison.OrdinalIgnoreCase)))throw Refused();if(!TerminateJobObject(o.job,0))throw NativeRefused("terminate_job");for(int n=0;n<100;n++){if(Drained(o)){children.Remove(kind);CloseOwned(o);return;}Thread.Sleep(50);}throw Refused();}
+ public bool StopAll(){bool terminated=true;foreach(var o in children.Values)if(!TerminateJobObject(o.job,0))terminated=false;for(int n=0;n<100;n++){bool drained=true;foreach(var o in children.Values)if(!Drained(o))drained=false;if(drained)return terminated;Thread.Sleep(50);}return false;}
+ public void Dispose(){foreach(var o in children.Values)CloseOwned(o);children.Clear();if(parent!=IntPtr.Zero){CloseHandle(parent);parent=IntPtr.Zero;}}
 }
 '@
  $job=[QaOwnedJob]::new($ParentPid,$NodeExe)
@@ -155,23 +170,31 @@ public sealed class QaOwnedJob : IDisposable {
      $expected=@('--require',(Join-Path $PSScriptRoot 'supervisor-egress.cjs'),(Join-Path $c.repo 'node_modules/next/dist/bin/next'),'start','-H','127.0.0.1','-p',[string]$c.appPort)
      if($command.env.DATABASE_URL -ne $c.databaseUrl -or $command.env.DIRECT_URL -ne $c.databaseUrl -or $command.env.META_LEAD_ADS_APP_ID -ne $c.appId -or $command.env.WEB_PUSH_ENABLED -ne 'false' -or $command.env.META_LEAD_ADS_RETENTION_ENABLED -ne 'false' -or $command.env.META_LEAD_ADS_ENABLED -ne ([string]$command.enabled).ToLowerInvariant() -or $command.env.META_LEAD_ADS_WORKER_ENABLED -ne ([string]$command.enabled).ToLowerInvariant()){throw 'APP_ENV_REFUSED'}
     }else{
-     $stage='launch_tunnel'
+     $stage='tunnel_owner'
      [void](Assert-QaHttpOwner ([int]$c.gatePort) $ParentPid)
+     $stage='tunnel_executable'
      if($command.exe -ne $c.ngrokExe -or $approval.allowTunnel -ne $true -or $command.enabled){throw 'TUNNEL_REFUSED'}
+     Assert-QaNoReparse $command.exe
+     if((Get-FileHash -LiteralPath $command.exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $approval.ngrokSha256){throw 'TUNNEL_EXECUTABLE_CHANGED'}
+     $stage='tunnel_config'
      Assert-QaPrivateAcl (Join-Path $c.privateDirectory 'ngrok.yml')
      $yaml=([IO.File]::ReadAllText((Join-Path $c.privateDirectory 'ngrok.yml'))).Replace("`r",'').Trim()
      if($yaml -notmatch '\Aversion: "3"\nagent:\n  authtoken: "[A-Za-z0-9_-]{20,512}"\n  console_ui: false\n  inspect_db_size: -1\n  web_addr: false\n  log: false\n  remote_management: false\z'){throw 'NGROK_CONFIG_REFUSED'}
      $expected=@('http',('http://127.0.0.1:'+$c.gatePort),'--url',('https://'+$c.hostname),'--inspect=false','--config',(Join-Path $c.privateDirectory 'ngrok.yml'))
     }
+    if($command.kind -eq 'tunnel'){$stage='tunnel_env'}
     $allowed=@('SystemRoot','WINDIR','PATH','TEMP','TMP','USERPROFILE','APPDATA','LOCALAPPDATA')
     if($command.kind -eq 'app'){$allowed+=@('NODE_ENV','NEXT_TELEMETRY_DISABLED','DATABASE_URL','DIRECT_URL','JWT_SECRET','NOTIFICATIONS_ENABLED','NOTIFICATION_EVENTS_ENABLED','NOTIFICATION_SCHEDULED_EVENTS_ENABLED','WEB_PUSH_ENABLED','META_LEAD_ADS_APP_ID','META_LEAD_ADS_APP_SECRET','META_LEAD_ADS_VERIFY_TOKEN','META_LEAD_ADS_RECEIPT_HMAC_KEY','META_LEAD_ADS_WORKER_SECRET','META_LEAD_ADS_ENABLED','META_LEAD_ADS_WORKER_ENABLED','META_LEAD_ADS_RETENTION_ENABLED','META_LEAD_ADS_APPROVED_TUPLES','META_LEAD_ADS_PILOT_ORGANIZATION_ID','META_LEAD_ADS_GRAPH_VERSION','META_LEAD_ADS_ACTIVATED_AT','QA_REAL_CONFIG');if($command.enabled){$allowed+=('META_LEAD_ADS_PAGE_TOKEN_'+$c.pageId)}}
     if(@($command.env.PSObject.Properties).Count -ne $allowed.Count -or $command.env.SystemRoot -ne 'C:\Windows' -or $command.env.WINDIR -ne 'C:\Windows' -or $command.env.PATH -ne 'C:\Windows\System32;C:\Program Files\nodejs'){throw 'ENV_REFUSED'}
     foreach($name in @('TEMP','TMP','USERPROFILE','APPDATA','LOCALAPPDATA')){if($command.env.$name -ne $c.privateDirectory){throw 'ENV_REFUSED'}}
+    if($command.kind -eq 'tunnel'){$stage='tunnel_args'}
     if(@($command.args).Count -ne $expected.Count){throw 'ARGUMENTS_REFUSED'}
     for($i=0;$i -lt $expected.Count;$i++){if($command.args[$i] -cne $expected[$i]){throw 'ARGUMENTS_REFUSED'}}
+    if($command.kind -eq 'tunnel'){$stage='tunnel_env'}
     $pairs=[Collections.Generic.List[string]]::new()
     foreach($property in $command.env.PSObject.Properties){if($property.Name -cnotin $allowed -or [string]$property.Value -match "`0"){throw 'ENV_REFUSED'};$pairs.Add($property.Name+'='+[string]$property.Value)}
     $pairs.Sort([StringComparer]::OrdinalIgnoreCase)
+    if($command.kind -eq 'tunnel'){$stage='tunnel_native'}
     $childPid=$job.Launch($command.kind,$command.exe,[string[]]$command.args,$c.repo,$pairs.ToArray())
     if($command.kind -eq 'app'){$appPid=[int]$childPid}
     [void]$kinds.Add($command.kind)
@@ -188,8 +211,13 @@ public sealed class QaOwnedJob : IDisposable {
  $stage='stop';if(-not $job.StopAll()){throw 'STOP_UNVERIFIED'}
  [Console]::Out.WriteLine('{"status":"STOPPED"}')
 }catch{
+ $failure=[ordered]@{status='BLOCKED';stage=$stage}
+ if($stage -in @('native_job','tunnel_native','launch_app') -and $null -ne ('QaOwnedJob' -as [type])){
+  $operation=[QaOwnedJob]::LastOperation;$code=[QaOwnedJob]::LastNativeCode
+  if($operation -in @('configuration','query_time','query_image','open_parent','create_job','job_limits','exit_code','open_nul','attributes_init','attributes_update','create_process','assign_job','resume_thread','terminate_job') -and $code -ge 0 -and $code -le 65535){$failure.nativeOperation=$operation;$failure.nativeCode=$code}
+ }
  if($job){try{[void]$job.StopAll()}catch{}}
- [Console]::Out.WriteLine((@{status='BLOCKED';stage=$stage}|ConvertTo-Json -Compress))
+ [Console]::Out.WriteLine(($failure|ConvertTo-Json -Compress))
  exit 1
 }finally{
  if($job){$job.Dispose()}

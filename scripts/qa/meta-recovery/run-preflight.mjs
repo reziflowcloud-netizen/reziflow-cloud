@@ -27,7 +27,9 @@ async function main(){
   const runtimeFile=process.env.QA_STAGE_A_PRIVATE_CONFIG
   const pwsh=process.env.QA_PWSH_EXE
   const refreshClosed=process.env.QA_REFRESH_CLOSED==='true'
+  const renewal=process.env.QA_RENEW_CLOSED_CREDENTIALS==='true'
   if(process.env.QA_REFRESH_CLOSED!==undefined&&!['true','false'].includes(process.env.QA_REFRESH_CLOSED))throw Error('INPUT_REFUSED')
+  if(process.env.QA_RENEW_CLOSED_CREDENTIALS!==undefined&&!['true','false'].includes(process.env.QA_RENEW_CLOSED_CREDENTIALS)||renewal&&refreshClosed)throw Error('INPUT_REFUSED')
   if(!runtimeFile||!pwsh||process.env.QA_UI_APP!=='2523488421395251'||process.env.QA_UI_OWNER!=='confirmed')throw Error('INPUT_REFUSED')
   const root=dirname(resolve(runtimeFile))
   const guard=async path=>{
@@ -45,8 +47,8 @@ async function main(){
   const checkout=resolve(here,'../../..')
   if(dirname(resultRoot)!==join(checkout,'.qa')||!/^meta-recovery-\d{8}$/.test(basename(resultRoot)))throw Error('RESULT_REFUSED')
   await noLinks(resultRoot)
-  const file=join(resultRoot,refreshClosed?'graph-preflight-refresh-'+randomUUID()+'.json':'graph-preflight-result.json')
-  const paths=refreshClosed?[file,join(resultRoot,'graph-preflight-result.json')]:[file]
+  const file=join(resultRoot,renewal?'graph-preflight-renewal-'+randomUUID()+'.json':refreshClosed?'graph-preflight-refresh-'+randomUUID()+'.json':'graph-preflight-result.json')
+  const paths=refreshClosed||renewal?[file,join(resultRoot,'graph-preflight-result.json')]:[file]
   const existing=await lstat(file).catch(error=>{if(error.code==='ENOENT')return null;throw error})
   if(existing)throw Error('RESULT_EXISTS')
   const ignored=spawnSync(process.env.QA_GIT_EXE,['-C',checkout,'check-ignore','--quiet',file],{windowsHide:true,stdio:'ignore',timeout:20000})
@@ -59,7 +61,7 @@ async function main(){
     await output.writeFile(placeholder);await output.sync()
     const before=await output.stat()
     await scanArtifacts({root:resultRoot,paths,knownSecrets})
-    result=await runGraphPreflight({privateRoot:root,assertPrivateFile:guard,uiConfirmedAppId:c.appId,uiConfirmedProfile:true,refreshClosed})
+    result=await runGraphPreflight({privateRoot:root,assertPrivateFile:guard,uiConfirmedAppId:c.appId,uiConfirmedProfile:true,refreshClosed,renewClosedCredentials:renewal,artifacts:{root:resultRoot,paths}})
     const page=(await privateRead(join(root,'meta-page-token.txt'),guard,4096)).trim();if(page)knownSecrets.push(page)
     text=JSON.stringify(result)
     assertPublishableText(text,{knownSecrets})
