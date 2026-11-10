@@ -4,7 +4,7 @@ import {createHash,createHmac} from 'node:crypto'
 import {createRequire} from 'node:module'
 import {PassThrough,Writable} from 'node:stream'
 import {EventEmitter} from 'node:events'
-import {QA,validateSupervisorConfig,validateNgrokConfig,validatePreflight,appEnvironment,released,QaSupervisor,GuardianClient} from './supervisor.mjs'
+import {QA,validateSupervisorConfig,validateNgrokConfig,validatePreflight,appEnvironment,guardianEnvironment,launchFailureTelemetry,released,QaSupervisor,GuardianClient} from './supervisor.mjs'
 const {allowedRequest}=createRequire(import.meta.url)('./supervisor-egress.cjs')
 const now=Date.parse('2026-11-10T12:00:00Z'),secret='planted-secret-'.repeat(4),token='planted-page-token-'.repeat(4)
 const run='stagea'+'a'.repeat(32),root='D:\\LegalHubStageA-'+'b'.repeat(32)
@@ -74,7 +74,15 @@ test('malformed guardian output cannot leak through protocol errors',async()=>{
  const f=fakeGuardian(),g=new GuardianClient(f.child);const ready=g.start();f.send({status:'planted-private-token'});await assert.rejects(ready,/QA_GUARDIAN_BLOCKED/);f.child.stdout.end();f.child.stderr.end()
 })
 test('app readiness waits for exact owned listener acknowledgement',async()=>{
- const f=fakeGuardian(),g=new GuardianClient(f.child);f.send({status:'READY'});await g.start();let pending=g.appReady();f.send({status:'APP_WAIT'});assert.equal(await pending,false);pending=g.appReady();f.send({status:'APP_READY'});assert.equal(await pending,true);pending=g.appReady();f.send({status:'BLOCKED'});await assert.rejects(pending,/QA_GUARDIAN_BLOCKED/);f.child.stdout.end();f.child.stderr.end()
+ const f=fakeGuardian(),g=new GuardianClient(f.child);f.send({status:'READY'});await g.start();let pending=g.appReady();f.send({status:'APP_WAIT'});assert.equal(await pending,false);pending=g.appReady();f.send({status:'APP_READY'});assert.equal(await pending,true);pending=g.appReady();f.send({status:'BLOCKED'});await assert.rejects(pending,/QA_LAUNCH_BLOCKED/);f.child.stdout.end();f.child.stderr.end()
+})
+test('only guardian receives approved Git dependency; app and relay baseline remain minimal',()=>{
+ const env=guardianEnvironment(root);assert.equal(env.PATH,'C:\\Windows\\System32;C:\\Program Files\\nodejs;C:\\Program Files\\Git\\cmd');assert.equal(appEnvironment(configuration(),attestation(),token,secret,false).PATH,'C:\\Windows\\System32;C:\\Program Files\\nodejs');assert.equal(env.NODE_OPTIONS,undefined);assert.equal(env.HTTP_PROXY,undefined)
+})
+test('fixed launch-stage diagnostics never inspect raw errors or print provider text',async()=>{
+ const poison={get message(){throw Error('do not read')},get stack(){throw Error('do not read')}}
+ assert.equal(launchFailureTelemetry(poison,'credentials').code,'QA_LAUNCH_CREDENTIALS');assert.equal(launchFailureTelemetry(poison,'planted-secret').code,'QA_LAUNCH_GUARDIAN_PROTOCOL')
+ const f=fakeGuardian(),g=new GuardianClient(f.child);const ready=g.start();f.send({status:'BLOCKED',stage:'git_dependency'});let captured;try{await ready}catch(error){captured=launchFailureTelemetry(error)}assert.equal(captured.code,'QA_LAUNCH_GUARDIAN_GIT_DEPENDENCY');assert.equal(JSON.stringify(captured).includes('planted-secret'),false);f.child.stdout.end();f.child.stderr.end()
 })
 test('egress permits only exact genuine Lead GET with matching authorization/proof',()=>{
  const c=configuration(),env=appEnvironment(c,attestation(),token,secret,true),r={...attestation(),release:true,approvedLeadId:'900000000000001',leadCreatedAt:new Date(now).toISOString()};const url=new URL('https://graph.facebook.com/v27.0/'+r.approvedLeadId);url.searchParams.set('fields','id,form_id,platform,field_data,created_time');url.searchParams.set('appsecret_proof',createHmac('sha256',secret).update(token).digest('hex'));const options={headers:{Authorization:'Bearer '+token},redirect:'error'}

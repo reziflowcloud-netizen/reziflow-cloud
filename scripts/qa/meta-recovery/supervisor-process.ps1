@@ -7,19 +7,26 @@ param(
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 $job=$null
+$stage='host'
 try {
  Set-StrictMode -Version Latest
  if($PSVersionTable.PSVersion.Major -ne 7 -or $PSVersionTable.PSEdition -ne 'Core' -or (Get-ExecutionPolicy) -ne 'RemoteSigned'){throw 'HOST_REFUSED'}
  . (Join-Path $PSScriptRoot 'guard.ps1')
+ $stage='git_dependency'
+ $gitExe='C:\Program Files\Git\cmd\git.exe'
+ Assert-QaNoReparse $gitExe
+ if(-not(Test-Path -LiteralPath $gitExe -PathType Leaf) -or (Get-Command git.exe -CommandType Application -ErrorAction Stop).Source -ne $gitExe){throw 'GIT_DEPENDENCY_REFUSED'}
+ $stage='runtime'
  $qa=Read-QaGuardedRuntime $PointerPath
  $c=$qa.Runtime
  if([Environment]::ProcessPath -ne $c.qaPwshExecutable -or $NodeExe -ne 'C:\Program Files\nodejs\node.exe' -or $c.appId -ne '2523488421395251' -or $c.approvedMetaAppId -ne $c.appId -or $c.pageId -ne '1449474971582722' -or $c.formId -ne '2046130655900851'){throw 'TARGET_REFUSED'}
- $approval=$c.supervisorApproval
+ $stage='approval';$approval=$c.supervisorApproval
  $deadline=[DateTimeOffset]::Parse($approval.deadlineAt)
  if($deadline -le [DateTimeOffset]::UtcNow -or $deadline -gt [DateTimeOffset]::UtcNow.AddMinutes(35) -or $c.ngrokExe -ne $approval.ngrokExe -or $approval.fullCaptureDisabled -ne $true -or $approval.freePlanVerified -ne $true){throw 'APPROVAL_REFUSED'}
- foreach($file in @($NodeExe,$c.ngrokExe)){Assert-QaNoReparse $file;if(-not(Test-Path -LiteralPath $file -PathType Leaf)){throw 'EXECUTABLE_REFUSED'}}
+ $stage='executables';foreach($file in @($NodeExe,$c.ngrokExe)){Assert-QaNoReparse $file;if(-not(Test-Path -LiteralPath $file -PathType Leaf)){throw 'EXECUTABLE_REFUSED'}}
  if((Get-FileHash -LiteralPath $c.ngrokExe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $approval.ngrokSha256){throw 'EXECUTABLE_CHANGED'}
- foreach($leaf in @('meta-app-secret.txt','meta-page-token.txt','meta-real-private.json','ngrok.yml')){Assert-QaPrivateAcl (Join-Path $c.privateDirectory $leaf)}
+ $stage='private_acl';foreach($leaf in @('meta-app-secret.txt','meta-page-token.txt','meta-real-private.json','ngrok.yml')){Assert-QaPrivateAcl (Join-Path $c.privateDirectory $leaf)}
+ $stage='parent'
  $self=Get-CimInstance Win32_Process -Filter ('ProcessId='+$PID)
  $parent=Get-CimInstance Win32_Process -Filter ('ProcessId='+$ParentPid)
  $owner=Invoke-CimMethod -InputObject $parent -MethodName GetOwnerSid
@@ -34,10 +41,11 @@ try {
   if($listeners.Count -ne 1 -or $listeners[0].LocalAddress -ne '127.0.0.1' -or $listeners[0].OwningProcess -ne $ExpectedPid){throw 'HTTP_OWNER_REFUSED'}
   return $true
  }
- foreach($port in @([int]$c.appPort,[int]$c.gatePort)){if(@(Get-QaHttpListeners $port).Count){throw 'HTTP_PORT_BUSY'}}
+ $stage='http_ports';foreach($port in @([int]$c.appPort,[int]$c.gatePort)){if(@(Get-QaHttpListeners $port).Count){throw 'HTTP_PORT_BUSY'}}
  # No shell, no PID/name based termination. Each child is created suspended,
  # assigned to this unnamed Job, then resumed. The Job handle is never inherited.
  # Native retained handles avoid PID reuse. Closing the guardian kills its Job.
+ $stage='native_job'
  Add-Type -WarningAction SilentlyContinue -TypeDefinition @'
 using System;
 using System.Collections.Generic;
@@ -116,6 +124,7 @@ public sealed class QaOwnedJob : IDisposable {
  $read=[Console]::In.ReadLineAsync()
  $stopping=$false
  while(-not $stopping){
+  $stage='health'
   if(-not $job.ParentAlive() -or [DateTimeOffset]::UtcNow -ge $deadline){break}
   foreach($kind in $kinds){if(-not $job.ChildAlive($kind)){throw 'CHILD_EXITED'}}
   if(-not $read.Wait(200)){continue}
@@ -127,11 +136,13 @@ public sealed class QaOwnedJob : IDisposable {
    'launch' {
     if($command.kind -notin @('app','tunnel') -or $command.enabled -isnot [bool]){throw 'COMMAND_REFUSED'}
     if($command.kind -eq 'app'){
+     $stage='launch_app'
      if(@(Get-QaHttpListeners ([int]$c.appPort)).Count){throw 'APP_PORT_BUSY'}
      if($command.exe -ne $NodeExe -or ($command.enabled -and $approval.allowEnable -ne $true)){throw 'APP_REFUSED'}
      $expected=@('--require',(Join-Path $PSScriptRoot 'supervisor-egress.cjs'),(Join-Path $c.repo 'node_modules/next/dist/bin/next'),'start','-H','127.0.0.1','-p',[string]$c.appPort)
      if($command.env.DATABASE_URL -ne $c.databaseUrl -or $command.env.DIRECT_URL -ne $c.databaseUrl -or $command.env.META_LEAD_ADS_APP_ID -ne $c.appId -or $command.env.WEB_PUSH_ENABLED -ne 'false' -or $command.env.META_LEAD_ADS_RETENTION_ENABLED -ne 'false' -or $command.env.META_LEAD_ADS_ENABLED -ne ([string]$command.enabled).ToLowerInvariant() -or $command.env.META_LEAD_ADS_WORKER_ENABLED -ne ([string]$command.enabled).ToLowerInvariant()){throw 'APP_ENV_REFUSED'}
     }else{
+     $stage='launch_tunnel'
      [void](Assert-QaHttpOwner ([int]$c.gatePort) $ParentPid)
      if($command.exe -ne $c.ngrokExe -or $approval.allowTunnel -ne $true -or $command.enabled){throw 'TUNNEL_REFUSED'}
      Assert-QaPrivateAcl (Join-Path $c.privateDirectory 'ngrok.yml')
@@ -153,19 +164,19 @@ public sealed class QaOwnedJob : IDisposable {
     [void]$kinds.Add($command.kind)
     [Console]::Out.WriteLine((@{status='LAUNCHED';kind=$command.kind;pid=$childPid}|ConvertTo-Json -Compress))
    }
-   'stopChild' {if($command.kind -ne 'app'){throw 'STOP_KIND_REFUSED'};$job.StopChild('app');[void]$kinds.Remove('app');[Console]::Out.WriteLine('{"status":"CHILD_STOPPED","kind":"app"}')}
-   'appReady' {if($appPid -le 0 -or -not $kinds.Contains('app')){throw 'APP_NOT_LAUNCHED'};if(Assert-QaHttpOwner ([int]$c.appPort) $appPid -AllowAbsent){[Console]::Out.WriteLine('{"status":"APP_READY"}')}else{[Console]::Out.WriteLine('{"status":"APP_WAIT"}')}}
+   'stopChild' {$stage='stop_child';if($command.kind -ne 'app'){throw 'STOP_KIND_REFUSED'};$job.StopChild('app');[void]$kinds.Remove('app');[Console]::Out.WriteLine('{"status":"CHILD_STOPPED","kind":"app"}')}
+   'appReady' {$stage='app_ready';if($appPid -le 0 -or -not $kinds.Contains('app')){throw 'APP_NOT_LAUNCHED'};if(Assert-QaHttpOwner ([int]$c.appPort) $appPid -AllowAbsent){[Console]::Out.WriteLine('{"status":"APP_READY"}')}else{[Console]::Out.WriteLine('{"status":"APP_WAIT"}')}}
    'health' {if($kinds.Contains('app')){[void](Assert-QaHttpOwner ([int]$c.appPort) $appPid -AllowAbsent)};if($kinds.Contains('tunnel')){[void](Assert-QaHttpOwner ([int]$c.gatePort) $ParentPid)};[Console]::Out.WriteLine('{"status":"HEALTHY"}')}
    'stop' {$stopping=$true}
    default {throw 'COMMAND_REFUSED'}
   }
   if(-not $stopping){$read=[Console]::In.ReadLineAsync()}
  }
- if(-not $job.StopAll()){throw 'STOP_UNVERIFIED'}
+ $stage='stop';if(-not $job.StopAll()){throw 'STOP_UNVERIFIED'}
  [Console]::Out.WriteLine('{"status":"STOPPED"}')
 }catch{
  if($job){try{[void]$job.StopAll()}catch{}}
- [Console]::Out.WriteLine('{"status":"BLOCKED"}')
+ [Console]::Out.WriteLine((@{status='BLOCKED';stage=$stage}|ConvertTo-Json -Compress))
  exit 1
 }finally{
  if($job){$job.Dispose()}
