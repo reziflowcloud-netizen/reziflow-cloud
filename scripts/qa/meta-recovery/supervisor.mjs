@@ -22,7 +22,7 @@ export function launchFailureTelemetry(error,stage='arguments'){
  const selected=error instanceof LaunchFailure?error.stage:stage
  return Object.freeze({...publicTelemetry({phase:'prepare',status:'BLOCKED'}),code:'QA_LAUNCH_'+(launchStages.has(selected)?selected:'guardian_protocol').toUpperCase()})
 }
-export function guardianEnvironment(root){return{SystemRoot:'C:\\Windows',WINDIR:'C:\\Windows',PATH:'C:\\Windows\\System32;C:\\Program Files\\nodejs;C:\\Program Files\\Git\\cmd',TEMP:root,TMP:root,USERPROFILE:root,APPDATA:root,LOCALAPPDATA:root}}
+export function guardianEnvironment(root){return{SystemRoot:'C:\\Windows',WINDIR:'C:\\Windows',PATH:'C:\\Windows\\System32;C:\\Program Files\\nodejs;C:\\Program Files\\Git\\cmd',PATHEXT:'.EXE',TEMP:root,TMP:root,USERPROFILE:root,APPDATA:root,LOCALAPPDATA:root}}
 
 // Pure checks are exported for planted-data tests; they never load credentials.
 export function validateSupervisorConfig(c,state,now=Date.now()) {

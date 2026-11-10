@@ -77,7 +77,7 @@ test('app readiness waits for exact owned listener acknowledgement',async()=>{
  const f=fakeGuardian(),g=new GuardianClient(f.child);f.send({status:'READY'});await g.start();let pending=g.appReady();f.send({status:'APP_WAIT'});assert.equal(await pending,false);pending=g.appReady();f.send({status:'APP_READY'});assert.equal(await pending,true);pending=g.appReady();f.send({status:'BLOCKED'});await assert.rejects(pending,/QA_LAUNCH_BLOCKED/);f.child.stdout.end();f.child.stderr.end()
 })
 test('only guardian receives approved Git dependency; app and relay baseline remain minimal',()=>{
- const env=guardianEnvironment(root);assert.equal(env.PATH,'C:\\Windows\\System32;C:\\Program Files\\nodejs;C:\\Program Files\\Git\\cmd');assert.equal(appEnvironment(configuration(),attestation(),token,secret,false).PATH,'C:\\Windows\\System32;C:\\Program Files\\nodejs');assert.equal(env.NODE_OPTIONS,undefined);assert.equal(env.HTTP_PROXY,undefined)
+ const env=guardianEnvironment(root);assert.equal(env.PATH,'C:\\Windows\\System32;C:\\Program Files\\nodejs;C:\\Program Files\\Git\\cmd');assert.equal(env.PATHEXT,'.EXE');assert.equal(appEnvironment(configuration(),attestation(),token,secret,false).PATH,'C:\\Windows\\System32;C:\\Program Files\\nodejs');assert.equal(appEnvironment(configuration(),attestation(),token,secret,false).PATHEXT,undefined);assert.equal(env.NODE_OPTIONS,undefined);assert.equal(env.HTTP_PROXY,undefined)
 })
 test('fixed launch-stage diagnostics never inspect raw errors or print provider text',async()=>{
  const poison={get message(){throw Error('do not read')},get stack(){throw Error('do not read')}}
