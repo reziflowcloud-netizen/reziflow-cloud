@@ -73,6 +73,19 @@ test('unknown stdin command closes gates; repeated STOP remains idempotent',asyn
  const f=fixture();await f.service.start();await assert.rejects(f.service.command('UNTRUSTED'));await f.service.command('STOP');assert.equal(f.calls.filter(x=>x==='guardian.stop').length,1)
 })
 function fakeGuardian(){const child=new EventEmitter();child.stdout=new PassThrough();child.stderr=new PassThrough();const commands=[];child.stdin=new Writable({write(data,_enc,done){commands.push(JSON.parse(data));done()}});return{child,commands,send:value=>child.stdout.write(JSON.stringify(value)+'\n')}}
+
+test('READY cancels its startup timeout while a missing READY still closes the guardian',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']})
+ try{
+  const f=fakeGuardian(),g=new GuardianClient(f.child),started=g.start();f.send({status:'READY'});await started
+  t.mock.timers.tick(25000);assert.equal(g.alive,true)
+  const health=g.healthy();f.send({status:'HEALTHY'});assert.equal(await health,true)
+  f.child.stdout.end();f.child.stderr.end()
+  const missing=fakeGuardian(),blocked=new GuardianClient(missing.child),waiting=blocked.start()
+  const rejected=assert.rejects(waiting);t.mock.timers.tick(20001);await rejected;assert.equal(blocked.alive,false)
+  missing.child.stdout.end();missing.child.stderr.end()
+ }finally{t.mock.timers.reset()}
+})
 test('guardian protocol accepts only fixed bounded acknowledgements',async()=>{
  const f=fakeGuardian(),g=new GuardianClient(f.child);f.send({status:'READY'});await g.start();let pending=g.launch('app',false);assert.deepEqual(f.commands[0],{command:'launch',kind:'app',enabled:false});f.send({status:'LAUNCHED',kind:'app',pid:42});await pending;pending=g.healthy();f.send({status:'HEALTHY'});assert.equal(await pending,true);pending=g.stop();f.send({status:'STOPPED'});await pending;f.child.stdout.end();f.child.stderr.end()
 })
