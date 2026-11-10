@@ -8,6 +8,19 @@ $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 $job=$null
 $stage='host'
+function Convert-QaDeadlineUtc([object]$Value){
+ # ConvertFrom-Json on newer PowerShell returns typed DateTime values. Parsing
+ # their culture-formatted string loses Kind/offset, so preserve the type first.
+ if($Value -is [DateTimeOffset]){return $Value.ToUniversalTime()}
+ if($Value -is [DateTime]){
+  if($Value.Kind -eq [DateTimeKind]::Unspecified){throw 'DEADLINE_ZONE_REQUIRED'}
+  return ([DateTimeOffset]::new($Value)).ToUniversalTime()
+ }
+ if($Value -isnot [string] -or $Value -notmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,7})?(?:Z|[+-]\d{2}:\d{2})$'){throw 'DEADLINE_ISO_REQUIRED'}
+ $parsed=[DateTimeOffset]::MinValue
+ if(-not[DateTimeOffset]::TryParse($Value,[Globalization.CultureInfo]::InvariantCulture,[Globalization.DateTimeStyles]::None,[ref]$parsed)){throw 'DEADLINE_INVALID'}
+ return $parsed.ToUniversalTime()
+}
 try {
  Set-StrictMode -Version Latest
  if($PSVersionTable.PSVersion.Major -ne 7 -or $PSVersionTable.PSEdition -ne 'Core' -or (Get-ExecutionPolicy) -ne 'RemoteSigned'){throw 'HOST_REFUSED'}
@@ -21,7 +34,7 @@ try {
  $c=$qa.Runtime
  if([Environment]::ProcessPath -ne $c.qaPwshExecutable -or $NodeExe -ne 'C:\Program Files\nodejs\node.exe' -or $c.appId -ne '2523488421395251' -or $c.approvedMetaAppId -ne $c.appId -or $c.pageId -ne '1449474971582722' -or $c.formId -ne '2046130655900851'){throw 'TARGET_REFUSED'}
  $stage='approval';$approval=$c.supervisorApproval
- $deadline=[DateTimeOffset]::Parse($approval.deadlineAt)
+ $deadline=Convert-QaDeadlineUtc $approval.deadlineAt
  if($deadline -le [DateTimeOffset]::UtcNow -or $deadline -gt [DateTimeOffset]::UtcNow.AddMinutes(35) -or $c.ngrokExe -ne $approval.ngrokExe -or $approval.fullCaptureDisabled -ne $true -or $approval.freePlanVerified -ne $true){throw 'APPROVAL_REFUSED'}
  $stage='executables';foreach($file in @($NodeExe,$c.ngrokExe)){Assert-QaNoReparse $file;if(-not(Test-Path -LiteralPath $file -PathType Leaf)){throw 'EXECUTABLE_REFUSED'}}
  if((Get-FileHash -LiteralPath $c.ngrokExe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $approval.ngrokSha256){throw 'EXECUTABLE_CHANGED'}
