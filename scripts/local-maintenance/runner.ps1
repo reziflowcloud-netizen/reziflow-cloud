@@ -165,6 +165,7 @@ function Invoke-Preflight([string]$Repo) {
   $config = Get-Config $Repo
   $runId = [Guid]::NewGuid().ToString('N').Substring(0, 12)
   $state = $null
+  $integrityDiagnostic = @{}
   try {
     if ($NoMigration) {
       if (@($ExpectedMigrations).Count -gt 0) { Stop-Maintenance 'NO_MIGRATION_WITH_EXPECTED_SET' }
@@ -201,7 +202,8 @@ function Invoke-Preflight([string]$Repo) {
       $cluster = New-DisposableCluster $config $runId
       Restore-DisposableBackup $config $cluster $backup
       $restored = Get-RepresentativeFingerprints $config $cluster.Uri
-      Compare-RepresentativeFingerprints $before $restored
+      Compare-RepresentativeFingerprints $before $restored -Stage 'RESTORE' `
+        -Diagnostic $integrityDiagnostic
       $restoredStructure = Get-StructureFingerprint $config $cluster.Uri
       Assert-StructureEqual $beforeStructure $restoredStructure
       $restoreLedger = @(Get-ProductionLedger $config $cluster.Uri)
@@ -217,7 +219,8 @@ function Invoke-Preflight([string]$Repo) {
         }
       }
       $after = Get-RepresentativeFingerprints $config $cluster.Uri $excluded
-      Compare-RepresentativeFingerprints $restored $after $true
+      Compare-RepresentativeFingerprints $restored $after $true 'POST_MIGRATION' `
+        $integrityDiagnostic
       Assert-CreatedObjects $config $cluster.Uri $state.audits
       Assert-SequenceRolePermissions $config $uri $cluster $state.audits `
         $state.snapshot.role $state.applicationRole
@@ -264,6 +267,7 @@ function Invoke-Preflight([string]$Repo) {
         simulation = 'UNKNOWN'; structure = 'UNKNOWN'; sequencePermissions = 'UNKNOWN'
         oldAppCompatibility = 'UNKNOWN'; apply = 'NOT_ATTEMPTED'
         result = 'PREFLIGHT_BLOCKED'; reasonCode = $code; approvalReference = ''
+        integrityMismatch = Get-SafeFingerprintMismatch $code $integrityDiagnostic
         nextAction = 'FIX_CAUSE_RERUN_PREFLIGHT'
       }))
     } catch { }
