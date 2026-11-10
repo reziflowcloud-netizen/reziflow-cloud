@@ -148,8 +148,9 @@ public sealed class QaOwnedJob : IDisposable {
  $job=[QaOwnedJob]::new($ParentPid,$NodeExe)
  $kinds=[Collections.Generic.HashSet[string]]::new()
  $appPid=0
+ . (Join-Path $PSScriptRoot 'supervisor-input.ps1')
  [Console]::Out.WriteLine('{"status":"READY"}')
- $read=[Console]::In.ReadLineAsync()
+ $read=[QaAsyncConsoleInput]::ReadLine()
  $stopping=$false
  while(-not $stopping){
   $stage='health'
@@ -206,7 +207,7 @@ public sealed class QaOwnedJob : IDisposable {
    'stop' {$stopping=$true}
    default {throw 'COMMAND_REFUSED'}
   }
-  if(-not $stopping){$read=[Console]::In.ReadLineAsync()}
+  if(-not $stopping){$read=[QaAsyncConsoleInput]::ReadLine()}
  }
  $stage='stop';if(-not $job.StopAll()){throw 'STOP_UNVERIFIED'}
  [Console]::Out.WriteLine('{"status":"STOPPED"}')

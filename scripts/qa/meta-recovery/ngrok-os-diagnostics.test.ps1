@@ -23,5 +23,11 @@ try{
  if($null -eq $packaged -or $packaged.facts.ErrorCode -ne '0x80070005' -or ($packaged|ConvertTo-Json -Depth 6 -Compress).Contains($planted)){throw 'PACKAGED_EVENT_MISSED'}
  $event.xml=$event.xml.Replace('2026-11-10T14:53:15Z','2026-11-10T13:53:15Z')
  if($null -ne (Get-QaIncidentEventSummary $event 'AppModel')){throw 'WRONG_UTC_WINDOW_ACCEPTED'}
+ $event.xml=$event.xml.Replace('2026-11-10T13:53:15Z','2026-11-10T17:44:32Z')
+ if($null -ne (Get-QaIncidentEventSummary $event 'AppModel')){throw 'PAIR_EVENT_IN_ORIGINAL_WINDOW'}
+ $pair=Get-QaIncidentEventSummary $event 'AppModel' -AuthorizedPairWindow
+ if($null -eq $pair -or $pair.timeUtc -ne '2026-11-10T17:44:32.0000000+00:00' -or ($pair|ConvertTo-Json -Depth 6 -Compress).Contains($planted)){throw 'PAIR_WINDOW_REDACTION_REFUSED'}
+ $event.xml=$event.xml.Replace('2026-11-10T17:44:32Z','2026-11-10T17:44:46Z')
+ if($null -ne (Get-QaIncidentEventSummary $event 'AppModel' -AuthorizedPairWindow)){throw 'PAIR_WINDOW_OVERRUN'}
  Write-Output 'NGROK_OS_DIAGNOSTICS_UNIT_PASS: exact incident target; device/package paths; no raw event/command/contact text; no OS query or process launch'
 }catch{Write-Output 'NGROK_OS_DIAGNOSTICS_UNIT_BLOCKED';exit 1}

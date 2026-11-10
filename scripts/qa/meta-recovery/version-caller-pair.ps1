@@ -1,8 +1,22 @@
-param([switch]$MetadataOnly,[switch]$ExpectedOwnerAuthorizedVersionProbe,[ValidateSet('Minimal','Alias')][string]$Case='Minimal',[string]$ScratchRoot,[string]$AliasDirectory,[int]$ParentPid,[string]$DeadlineUtc)
+param([switch]$MetadataOnly,[switch]$ExpectedOwnerAuthorizedVersionProbe,[switch]$PrepareScratch,[switch]$InspectCallerEnvironment,[switch]$RegisteredAliasVersion,[ValidateSet('Minimal','Alias')][string]$Case='Minimal',[string]$ScratchRoot,[string]$AliasDirectory,[int]$ParentPid,[string]$DeadlineUtc)
 $ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';Set-StrictMode -Version Latest
-if(-not $MetadataOnly -and -not $ExpectedOwnerAuthorizedVersionProbe){Write-Output '{"status":"PLAN_ONLY","ngrokStarted":false}';return}
-$job=$null;$stage='metadata';$operation='none';$nativeCode=0;$zero=$false;$stopped=$true;$active=0;$entries=0
+if(-not $MetadataOnly -and -not $ExpectedOwnerAuthorizedVersionProbe -and -not $InspectCallerEnvironment){Write-Output '{"status":"PLAN_ONLY","ngrokStarted":false}';return}
+$job=$null;$jobClass=$null;$stage='metadata';$operation='none';$nativeCode=0;$zero=$false;$stopped=$true;$active=0;$entries=0;$hostCache=0;$unexpected=0;$attempted=$false;$prepared=$false;$inspected=$false;$callerMetadata=$null
+function Write-PairProgress([string]$Phase){[Console]::Out.WriteLine((@{event='phase';case=if($MetadataOnly){'metadata'}elseif($PrepareScratch){'preparation'}elseif($RegisteredAliasVersion){'registered_alias'}elseif($Case -eq 'Minimal'){'minimal'}else{'alias_path'};phase=$Phase;versionAttempted=$attempted}|ConvertTo-Json -Compress));[Console]::Out.Flush()}
+function Get-CallerEnvironmentMetadata([Collections.IDictionary]$Actual,[string]$Scratch,[string]$HostDirectory,[string]$ExpectedPath){
+ $expected=[ordered]@{SystemRoot='C:\Windows';WINDIR='C:\Windows';PATH=$ExpectedPath;PATHEXT='.EXE';TEMP=$Scratch;TMP=$Scratch;USERPROFILE=$Scratch;APPDATA=$Scratch;LOCALAPPDATA=$Scratch};$mismatch=[Collections.Generic.List[string]]::new()
+ foreach($name in $expected.Keys){if($Actual[$name] -cne $expected[$name]){$mismatch.Add($name)}}
+ return [pscustomobject]@{inspected=$true;mismatchKeys=[string[]]$mismatch.ToArray();pathExact=($Actual['PATH'] -ceq $ExpectedPath);pathWithHostPrefix=($Actual['PATH'] -ceq ($HostDirectory+';'+$ExpectedPath));pathExtExeOnly=($Actual['PATHEXT'] -ceq '.EXE');pathExtExeCpl=($Actual['PATHEXT'] -ceq '.EXE;.CPL');otherFieldsExact=(@($mismatch.ToArray()|Where-Object {$_ -cne 'PATH'}).Count -eq 0)}
+}
+function Test-ObservedCallerBinding([object]$Metadata){return $Metadata.pathWithHostPrefix -eq $true -and $Metadata.pathExtExeCpl -eq $true -and $Metadata.mismatchKeys.Count -eq 2 -and $Metadata.mismatchKeys[0] -ceq 'PATH' -and $Metadata.mismatchKeys[1] -ceq 'PATHEXT'}
+function Get-HostCacheInventory([string]$Root){
+ Assert-QaPrivateAcl $Root;if(-not (Get-Acl -LiteralPath $Root).AreAccessRulesProtected){throw 'CACHE_ROOT_NOT_PROTECTED'};$allowed=@('AppData','AppData\Local','AppData\Local\Microsoft','AppData\Local\Microsoft\PowerShell');$pending=[Collections.Generic.Queue[string]]::new();$pending.Enqueue('');$count=0;$recognized=0;$other=0
+ while($pending.Count){$relative=$pending.Dequeue();$directory=if($relative){Join-Path $Root $relative}else{$Root};foreach($item in @(Get-ChildItem -LiteralPath $directory -Force)){$count++;if($count -gt 16){throw 'CACHE_INVENTORY_BOUND'};Assert-QaNoReparse $item.FullName;Assert-QaPrivateAcl $item.FullName;$name=if($relative){$relative+'\'+$item.Name}else{$item.Name};if($item.PSIsContainer -and $name -cin $allowed){$recognized++;$pending.Enqueue($name)}elseif(-not $item.PSIsContainer -and (($name -cin @('AppData\Local\Microsoft\PowerShell\StartupProfileData-NonInteractive','AppData\Local\Microsoft\PowerShell\ModuleAnalysisCache-7A5873E9') -and $item.Length -gt 0 -and $item.Length -le 1048576) -or ($name -ceq 'AppData\Local\Microsoft\PowerShell\telemetry.uuid' -and $item.Length -eq 16))){$recognized++}else{$other++}}}
+ return [pscustomobject]@{Entries=$count;HostCache=$recognized;Unexpected=$other}
+}
 try{
+ if($RegisteredAliasVersion -and (-not $ExpectedOwnerAuthorizedVersionProbe -or $MetadataOnly -or $PrepareScratch -or $InspectCallerEnvironment -or $Case -ne 'Alias' -or [IO.Path]::GetFileName($ScratchRoot) -cne 'ngrok-caller-pair-903102b5eed94e98afd0c7d49d10fd56')){throw 'REGISTERED_ALIAS_MODE_REFUSED'}
+ Write-PairProgress $stage
  if($PSVersionTable.PSVersion.Major -ne 7 -or (Get-ExecutionPolicy) -ne 'RemoteSigned'){throw 'HOST_REFUSED'}
  . (Join-Path $PSScriptRoot 'guard.ps1')
  $hostSuffix='\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe';$hostPath=[Environment]::ProcessPath
@@ -31,35 +45,52 @@ public static class QaPairMetadata {
 }
 '@
  if(-not [QaPairMetadata]::Signature((Join-Path $package 'AppxSignature.p7x')) -or -not [QaPairMetadata]::Alias($alias,$exe)){throw 'TRUSTED_ALIAS_REFUSED'}
- if($MetadataOnly){Write-Output '{"status":"METADATA_VERIFIED","case":"metadata","operation":"none","nativeCode":0,"stopped":true,"activeProcesses":0,"scratchEntries":0,"versionExitedZero":false}';return}
- $stage='scratch';$checkout=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../..'));$parent=Join-Path $checkout '.qa';Assert-QaNoReparse $parent
+ if($MetadataOnly){Write-Output '{"status":"METADATA_VERIFIED","case":"metadata","phase":"metadata","versionAttempted":false,"operation":"none","nativeCode":0,"stopped":true,"activeProcesses":0,"scratchEntries":0,"legitHostCacheEntries":0,"unexpectedEntries":0,"versionExitedZero":false}';return}
+ $stage='scratch_prepare';Write-PairProgress $stage;$checkout=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../..'));$parent=Join-Path $checkout '.qa';Assert-QaNoReparse $parent
  $git='C:\Program Files\Git\cmd\git.exe';Assert-QaNoReparse $git
  & $git -C $checkout check-ignore --quiet -- '.qa/ngrok-caller-pair-placeholder' 2>$null
  if($LASTEXITCODE -ne 0){throw 'SCRATCH_NOT_IGNORED'}
  if([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($ScratchRoot)) -ne $parent -or [IO.Path]::GetFileName($ScratchRoot) -notmatch '^ngrok-caller-pair-[a-f0-9]{32}$'){throw 'SCRATCH_REFUSED'}
- Assert-QaNoReparse $ScratchRoot;if(@(Get-ChildItem -LiteralPath $ScratchRoot -Force).Count){throw 'SCRATCH_NOT_EMPTY'}
- $who=[Security.Principal.WindowsIdentity]::GetCurrent().User;$acl=[Security.AccessControl.DirectorySecurity]::new();$acl.SetAccessRuleProtection($true,$false);$acl.SetOwner($who)
- foreach($sid in @($who.Value,'S-1-5-18','S-1-5-32-544')){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($sid),'FullControl','ContainerInherit,ObjectInherit','None','Allow'))}
- Set-Acl -LiteralPath $ScratchRoot -AclObject $acl;Assert-QaPrivateAcl $ScratchRoot
- $expected='C:\Windows\System32;C:\Program Files\nodejs;C:\Program Files\Git\cmd';if($Case -eq 'Alias'){$expected+=';'+$AliasDirectory};if($env:PATH -cne $expected -or $env:PATHEXT -cne '.EXE'){throw 'CALLER_ENV_REFUSED'}
- foreach($name in @('TEMP','TMP','USERPROFILE','APPDATA','LOCALAPPDATA')){if([Environment]::GetEnvironmentVariable($name,'Process') -cne $ScratchRoot){throw 'CALLER_ENV_REFUSED'}}
+ $who=[Security.Principal.WindowsIdentity]::GetCurrent().User
+ if($PrepareScratch){
+  if(-not $ExpectedOwnerAuthorizedVersionProbe -or (Test-Path -LiteralPath $ScratchRoot)){throw 'PREPARATION_REFUSED'};[void][IO.Directory]::CreateDirectory($ScratchRoot);Assert-QaNoReparse $ScratchRoot
+  $acl=[Security.AccessControl.DirectorySecurity]::new();$acl.SetAccessRuleProtection($true,$false);$acl.SetOwner($who);foreach($sid in @($who.Value,'S-1-5-18','S-1-5-32-544')){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($sid),'FullControl','ContainerInherit,ObjectInherit','None','Allow'))};Set-Acl -LiteralPath $ScratchRoot -AclObject $acl;Assert-QaPrivateAcl $ScratchRoot
+  if(@(Get-ChildItem -LiteralPath $ScratchRoot -Force).Count){throw 'PREPARATION_NOT_EMPTY'}
+  $prepared=$true
+ }else{
+ $stage='scratch_inventory';Write-PairProgress $stage;$inventory=Get-HostCacheInventory $ScratchRoot;if($inventory.Unexpected){throw 'UNEXPECTED_SCRATCH_ENTRY'}
+ $stage='caller_environment';Write-PairProgress $stage
+ $expected='C:\Windows\System32;C:\Program Files\nodejs;C:\Program Files\Git\cmd';if($Case -eq 'Alias'){$expected+=';'+$AliasDirectory}
+ $actual=@{};foreach($name in @('SystemRoot','WINDIR','PATH','PATHEXT','TEMP','TMP','USERPROFILE','APPDATA','LOCALAPPDATA')){$actual[$name]=[Environment]::GetEnvironmentVariable($name,'Process')};$callerMetadata=Get-CallerEnvironmentMetadata $actual $ScratchRoot ([IO.Path]::GetDirectoryName($hostPath)) $expected
+ if($InspectCallerEnvironment){$inspected=$true}else{
+ if(-not (Test-ObservedCallerBinding $callerMetadata)){throw 'CALLER_ENV_REFUSED'}
  $deadline=[DateTimeOffset]::Parse($DeadlineUtc,[Globalization.CultureInfo]::InvariantCulture);if($deadline -le [DateTimeOffset]::UtcNow -or $deadline -gt [DateTimeOffset]::UtcNow.AddSeconds(50)){throw 'DEADLINE_REFUSED'}
- $self=Get-CimInstance Win32_Process -Filter ('ProcessId='+$PID);$caller=Get-CimInstance Win32_Process -Filter ('ProcessId='+$ParentPid);$owner=Invoke-CimMethod -InputObject $caller -MethodName GetOwnerSid
+ $stage='parent';Write-PairProgress $stage;$self=Get-CimInstance Win32_Process -Filter ('ProcessId='+$PID);$caller=Get-CimInstance Win32_Process -Filter ('ProcessId='+$ParentPid);$owner=Invoke-CimMethod -InputObject $caller -MethodName GetOwnerSid
  if($self.ParentProcessId -ne $ParentPid -or $caller.ExecutablePath -ne 'C:\Program Files\nodejs\node.exe' -or $owner.ReturnValue -ne 0 -or $owner.Sid -ne $who.Value){throw 'PARENT_REFUSED'}
- $tokens=$null;$errors=$null;$ast=[System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'supervisor-ngrok-version.test.ps1'),[ref]$tokens,[ref]$errors);$function=$ast.Find({param($n)$n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Get-QaVersionChildEnvironmentPairs'},$true);if($errors.Count -or -not $function){throw 'ENV_SOURCE_REFUSED'};. ([scriptblock]::Create($function.Extent.Text));$pairs=Get-QaVersionChildEnvironmentPairs $ScratchRoot
+ $stage='source';Write-PairProgress $stage;$tokens=$null;$errors=$null;$ast=[System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'supervisor-ngrok-version.test.ps1'),[ref]$tokens,[ref]$errors);$function=$ast.Find({param($n)$n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Get-QaVersionChildEnvironmentPairs'},$true);if($errors.Count -or -not $function){throw 'ENV_SOURCE_REFUSED'};. ([scriptblock]::Create($function.Extent.Text));$pairs=Get-QaVersionChildEnvironmentPairs $ScratchRoot
  $source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'supervisor-process.ps1'));$match=[regex]::Match($source,"(?s)Add-Type -WarningAction SilentlyContinue -TypeDefinition @'\r?\n(?<code>.*?)\r?\n'@");$code=$match.Groups['code'].Value.Replace("`r`n","`n")
  if(-not $match.Success -or [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($code))).ToLowerInvariant() -ne '72fd9543508606d49e93beabe0259944cf762cf78db44ec21a4cab27936f73c9'){throw 'NATIVE_SOURCE_REFUSED'}
- Add-Type -TypeDefinition $code -WarningAction SilentlyContinue
- if(@(Get-ChildItem -LiteralPath $ScratchRoot -Force).Count){throw 'SCRATCH_NOT_EMPTY'}
- $stage='version';$job=[QaOwnedJob]::new($ParentPid,'C:\Program Files\nodejs\node.exe');$inputTask=[Console]::In.ReadLineAsync()
- $discard=$job.Launch('app','C:\Program Files\nodejs\node.exe',[string[]]@((Join-Path $PSScriptRoot 'supervisor-fake-child.mjs'),'--descendant'),$ScratchRoot,$pairs)
+ if($RegisteredAliasVersion){
+  $nativeFile=Join-Path $PSScriptRoot 'alias-version-native.cs';Assert-QaNoReparse $nativeFile;$aliasCode=[IO.File]::ReadAllText($nativeFile).Replace("`r`n","`n")
+  if([Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($aliasCode))).ToLowerInvariant() -ne 'ba98913512cc055a828870aa9044d5ce7e405acd972f6242136dfcd5892398c3'){throw 'ALIAS_NATIVE_SOURCE_REFUSED'}
+  Add-Type -TypeDefinition $aliasCode -WarningAction SilentlyContinue;$jobClass='QaAliasVersionJob' -as [type]
+ }else{Add-Type -TypeDefinition $code -WarningAction SilentlyContinue;$jobClass='QaOwnedJob' -as [type]}
+ $inventory=Get-HostCacheInventory $ScratchRoot;if($inventory.Unexpected){throw 'UNEXPECTED_SCRATCH_ENTRY'}
+ $stage='stdin_prepare';Write-PairProgress $stage;. (Join-Path $PSScriptRoot 'supervisor-input.ps1');$inputTask=[QaAsyncConsoleInput]::ReadLine()
+ if($inputTask.IsCompleted){throw 'CANCELLED'}
+ $stage='native_job';Write-PairProgress $stage;if($RegisteredAliasVersion){$job=$jobClass::new($ParentPid,'C:\Program Files\nodejs\node.exe',$alias)}else{$job=$jobClass::new($ParentPid,'C:\Program Files\nodejs\node.exe')}
+ $stage='dummy';Write-PairProgress $stage
+ if($RegisteredAliasVersion){$discard=$job.Launch('app','C:\Program Files\nodejs\node.exe','C:\Program Files\nodejs\node.exe',[string[]]@((Join-Path $PSScriptRoot 'supervisor-fake-child.mjs'),'--descendant'),$ScratchRoot,$pairs)}else{$discard=$job.Launch('app','C:\Program Files\nodejs\node.exe',[string[]]@((Join-Path $PSScriptRoot 'supervisor-fake-child.mjs'),'--descendant'),$ScratchRoot,$pairs)}
  if([DateTimeOffset]::UtcNow -ge $deadline -or $inputTask.IsCompleted){throw 'CANCELLED'}
- $discard=$job.Launch('tunnel',$exe,[string[]]@('version'),$ScratchRoot,$pairs)
+ $stage='version_launch';$attempted=$true;Write-PairProgress $stage;if($RegisteredAliasVersion){$discard=$job.Launch('tunnel',$alias,$exe,[string[]]@('version'),$ScratchRoot,$pairs)}else{$discard=$job.Launch('tunnel',$exe,[string[]]@('version'),$ScratchRoot,$pairs)}
+ $stage='version_wait';Write-PairProgress $stage
  while($job.ChildAlive('tunnel')){if(-not $job.ParentAlive() -or $inputTask.IsCompleted -or [DateTimeOffset]::UtcNow -ge $deadline){throw 'CANCELLED'};Start-Sleep -Milliseconds 100}
  $zero=$job.ChildExitCode('tunnel') -eq 0
-}catch{if($null -ne ('QaOwnedJob' -as [type])){$operation=[QaOwnedJob]::LastOperation;$nativeCode=[QaOwnedJob]::LastNativeCode};if($null -eq $operation){$operation='none'}}
-finally{if($job){try{$stopped=$job.StopAll();$active=$job.ActiveCount()}catch{$stopped=$false;$active=1000}finally{try{$job.Dispose()}catch{$stopped=$false}}};if($ScratchRoot){try{Assert-QaNoReparse $ScratchRoot;$entries=@(Get-ChildItem -LiteralPath $ScratchRoot -Force).Count}catch{$entries=1000;$stopped=$false}}}
+ }
+ }
+}catch{if($null -ne $jobClass){$operation=$jobClass::LastOperation;$nativeCode=$jobClass::LastNativeCode};if($null -eq $operation){$operation='none'}}
+finally{if($job){try{Write-PairProgress 'stop'}catch{};try{$stopped=$job.StopAll();$active=$job.ActiveCount()}catch{$stopped=$false;$active=1000}finally{try{$job.Dispose()}catch{$stopped=$false}}};if($ScratchRoot){try{$inventory=Get-HostCacheInventory $ScratchRoot;$entries=$inventory.Entries;$hostCache=$inventory.HostCache;$unexpected=$inventory.Unexpected}catch{$entries=1000;$hostCache=0;$unexpected=1000;$stopped=$false}}}
 if($operation -notin @('none','configuration','query_time','query_image','open_parent','create_job','job_limits','exit_code','open_nul','attributes_init','attributes_update','create_process','assign_job','resume_thread','terminate_job')){$operation='none';$nativeCode=0}
-$passed=$zero -and $stopped -and $active -eq 0 -and $entries -eq 0
-[pscustomobject]@{status=if($passed){'PASS'}else{'BLOCKED'};case=if($MetadataOnly){'metadata'}elseif($Case -eq 'Minimal'){'minimal'}else{'alias_path'};operation=$operation;nativeCode=$nativeCode;stopped=$stopped;activeProcesses=$active;scratchEntries=$entries;versionExitedZero=$zero}|ConvertTo-Json -Compress
+$passed=($zero -or $prepared -or $inspected) -and $stopped -and $active -eq 0 -and $unexpected -eq 0
+[pscustomobject]@{status=if($passed){if($prepared){'PREPARED'}elseif($inspected){'INSPECTED'}else{'PASS'}}else{'BLOCKED'};case=if($MetadataOnly){'metadata'}elseif($PrepareScratch){'preparation'}elseif($RegisteredAliasVersion){'registered_alias'}elseif($Case -eq 'Minimal'){'minimal'}else{'alias_path'};phase=$stage;versionAttempted=$attempted;operation=$operation;nativeCode=$nativeCode;stopped=$stopped;activeProcesses=$active;scratchEntries=$entries;legitHostCacheEntries=$hostCache;unexpectedEntries=$unexpected;versionExitedZero=$zero;callerEnvironment=$callerMetadata}|ConvertTo-Json -Depth 4 -Compress
 if(-not $passed){exit 1}
