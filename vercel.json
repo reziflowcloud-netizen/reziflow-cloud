@@ -10,7 +10,8 @@
       "feature/web-push-production-pilot": false,
       "feature/notifications-web-push": false,
       "feature/mobile-refresh-autosave": false,
-      "feature/autosave-leads-clients-tasks": false
+      "feature/autosave-leads-clients-tasks": false,
+      "codex/meta-qa-recovery-hardening-20261110": false
     }
   }
 }

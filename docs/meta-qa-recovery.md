@@ -1,0 +1,55 @@
+# Isolated Meta QA recovery
+
+These helpers prepare a disposable internal environment from the preserved combined PR #9/#10 candidate. They do not release the integration, start a public relay, configure Meta, or authorise another organisation. Functional PRs remain Draft.
+
+## Verified local checkpoint — 10 November 2026
+
+- The approved PowerShell 7 host ran `guard.test.ps1`: **28 checks PASS**. Its child fixtures use that same executable with `-File` and enforce the existing `RemoteSigned` policy.
+- Fresh isolated bootstrap completed: **54 QA migrations, zero schema drift, synthetic seed PASS**. The database is a newly owned D-drive cluster, bound to loopback on a dedicated non-5432 port. The preserved combined source was not modified.
+- The isolated production build completed: **PASS**. This is a local build, not a Production deployment.
+- `prepare-inputs.ps1` completed for replacement App `2523488421395251` and the exact existing QA Page/Form. Four private credential/attestation placeholders were prepared without overwriting existing files. Intake and worker remain off, and the tuple/Lead allowlists remain empty.
+- Bootstrap results alone do not establish fresh Graph provenance or automatic Meta delivery. Run the separate guarded Graph preflight and reviewed supervisor before an external test. Staff Routing, notification and deduplication assertions in the seed establish fixture configuration; they are not proof of a new automatic Meta-to-CRM E2E.
+
+The earlier Windows PowerShell 5 script-loading refusal remains part of the history. The owner subsequently approved the already installed PowerShell 7 host under its existing `RemoteSigned` policy. That approved route was exercised successfully; no execution-policy change, `Bypass`, unblock, or inline-script workaround was used. A new refusal on the approved host still means STOP.
+
+## Preconditions
+
+- Use a reviewed checkout of this branch and the preserved, clean candidate at `51c560a5f0090b669ee4ffe48485ba4d6a3a873e`. Keep the original candidate, Git history, development documents and dependencies outside the disposable root.
+- Use the owner-approved PowerShell 7 executable recorded in the fresh private runtime, with its existing `RemoteSigned` policy. The wrappers refuse other major versions or a different effective policy. A refusal to load a script is a stop condition. Do not change execution policy, use `Bypass`, wrap the script inline, or switch hosts to evade that refusal.
+- PostgreSQL 18 and Node.js must already be installed at the paths checked by the helpers. No installer, Production environment pull, cloud database or paid service is part of recovery.
+- Create an empty evidence directory beneath the checkout's ignored `.qa/` directory. Check that Git actually ignores it before continuing. Keep the pointer private: it contains local paths, even though credentials are stored in the separate D-drive root.
+
+## Local recovery sequence
+
+Run each reviewed script with `-NoProfile -File` using the approved PowerShell executable. Do not paste script bodies into a terminal after a loading refusal.
+
+1. Run `scripts/qa/meta-recovery/guard.test.ps1`. This uses synthetic URI/process metadata and malformed-input canaries; it neither starts PostgreSQL nor calls Meta/ngrok. It retains temporary test fixtures beneath `artifacts/qa-guard-unit-*` for inspection. A child script-loading denial is a blocked test, not PASS.
+2. Run `scripts/qa/meta-recovery/bootstrap.ps1` with `-EvidenceDirectory` set to that existing ignored directory and `-SourceEvidence` set to the preserved candidate's evidence parent. It creates a fresh owner-restricted `D:\LegalHubStageA-<random hex>` tree, its ownership marker, a source copy and a new synthetic loopback PostgreSQL cluster. It checks the exact server PID, executable, owner, data directory, start time and listener before running QA migrations or seeding. Intake/worker/binding remain off, external notifications are off, and the new App binding is initially null. No old runtime or secret is imported.
+3. Only after `QA_DB_READY`, use the private pointer with `build.ps1 -PointerPath <private pointer>`. Before a subsequent database operation, repeat `verify-running.ps1 -RuntimeFile <private runtime>`. Never print either file's contents. Failed preparation stops only the verified owned cluster and preserves data for review; it does not recursively delete anything.
+4. Run `prepare-inputs.ps1 -PointerPath <private pointer> -ApprovedMetaAppId 2523488421395251`. It repeats the strict runtime/server guard, checks the exact QA Page/Form and closed controls, then creates only absent `meta-user-token.txt`, `meta-app-secret.txt`, `meta-page-token.txt`, and `meta-real-private.json` files with private ACLs. Existing files are never overwritten or read. It records only the explicitly approved new App ID; it does not guess a Graph version or change Meta settings. Its output is limited to readiness and those file paths.
+5. The prepared ngrok configuration has an empty token, inspection/logging/remote management disabled. It is not an active endpoint. The owner must supply fresh credentials directly into the restricted local store following [credential safety](meta-qa-credential-safety.md). Do not copy the legacy supervisor, token-debug URL, seed or retired App binding into this runtime.
+6. Only after confirming the selected replacement App and owner profile, run `run-preflight.ps1 -PointerPath <private pointer> -UiConfirmedAppId 2523488421395251 -OwnerConfirmedProfile` on the same approved PowerShell 7 host. The wrapper repeats the strict runtime guard and launches `run-preflight.mjs` in an isolated environment. Credentials remain in private files: arguments and environment carry only paths and public/UI attestations, never token or secret values. `assert-private.ps1` checks the exact owned D-drive root, marker, ACLs and absence of reparse points through `-File` calls on that same host.
+7. The Graph wrapper uses native fetch only, with no optional fetch injection. It permits only the bounded read-only QA checks described in [the Graph preflight contract](meta-qa-graph-preflight.md). Its scan scope is solely the newly created anonymous result file inside the checkout's ignored `.qa/` evidence directory, before and after finalisation; private credentials are held in memory only as forbidden-value matches. It does not scan private input files as publishable artifacts. Result output contains only fixed diagnostic fields and bounded numeric codes/counts. A blocked check does not release any gate, create a Lead, modify subscriptions, or authorise a retry with broader permissions.
+8. Use the separately reviewed [supervisor](meta-qa-supervisor.md), [Meta operations](meta-qa-meta-ops.md) and [Dashboard sample arm](meta-qa-dashboard-arm.md) only after a successful real Graph preflight and their own current gates. These bootstrap helpers alone are not a complete E2E runner. A host refusal to create the relay is a stop condition, even when its local version fixture succeeds. Do not start the historical supervisor against the replacement App.
+
+## Gates before an external test
+
+Confirm the replacement App, administrator role, supported Graph version, exact own Page/Form relationship, token provenance and minimal grants without serialising token screens. Confirm current Leads Access and both subscription layers: App `page/leadgen` and the exact Page's `subscribed_apps` entry for that App with only `leadgen`.
+
+Before any relay launch, confirm the free account/hostname and capture settings; expose only the HMAC gateway's exact webhook route. The gateway requires an explicitly approved replacement App, exact QA Page/Form and a closed first-event gate. Original raw bytes/signature must reach the CRM unchanged. Its one-use Dashboard sample route returns a transport result without forwarding a fake Lead. A sample, local simulation or manual Graph retrieval cannot establish automatic E2E.
+
+Fresh resource verification and public legal URL readback precede replacement-App publication. A separately reviewed three-page legal update must not include these functional helpers. Development is the default; Live is conditional on every requirement in the owner's bounded test authorisation. Do not infer that publication fixes Pending or submit Review/BV to get past a blocker.
+
+## Stop and cleanup
+
+Close the gate and tenant binding, stop the worker/CRM and relay, then run `stop-qa.ps1 -PointerPath <private pointer>`. It refuses to stop PostgreSQL while the QA HTTP ports listen and verifies the owned server before stopping it. It preserves `PG_VERSION` and the data directory. Full ingress/process STOP must also be tested when the new supervisor is prepared; the database helper is not that proof.
+
+Follow the ownership, review, timing and verification requirements in [the adopted cleanup procedure](legal/stage-a-qa-cleanup.md). Its historical `qa-cleanup-inventory.ps1` helper is incompatible with this new D-drive root and `.qa/` pointer: it requires a different pointer filename, parent and evidence-root name. Do not run it with substituted paths, bypass its checks or widen its scope. Before deletion, prepare and independently review a metadata-only inventory for this exact new target, including canonical paths, ownership markers, reparse checks, stopped processes, file counts/sizes and external copies. The bootstrap/stop helpers do not provide that deletion inventory or authorisation.
+
+The separately reviewed [new private-tree cleanup helper](meta-qa-new-root-cleanup.md) provides that cycle-specific preview and fingerprint-matching execution. The exact authorised root stays a private argument; it is never inferred from a broad parent. Its `-WhatIf` step creates only the protected inventory outside the target. Use `-Execute` only within the applicable owner authorisation after reviewing that concrete preview. External copies remain separately accounted for.
+
+Record closure/cancellation T0 even for BLOCKED. Remove transient credentials/config and the disposable private cluster by T0 + 24 hours, other QA artifacts/copies by T0 + 7 days, and the non-identifying result by T0 + 30 days. Account for editor, clipboard, export and synced copies separately. Do not erase development sources, Git or approved documents, and do not claim local deletion revokes Meta credentials or provider records. Earlier cycle deadlines remain unchanged. Every destructive operation still needs the applicable exact-target authorisation.
+
+## Offline checks
+
+`node --test scripts/qa/meta-recovery/secret-safety.test.mjs scripts/qa/meta-recovery/gateway.test.mjs scripts/qa/meta-recovery/graph-preflight.test.mjs` runs planted-secret, bounded local HTTP and in-memory Graph fixtures only. It requires no Meta/ngrok credentials or database. These tests cannot establish issuing-App semantics for the undocumented `/app` capability probe, real Graph access, or automatic delivery. PowerShell parsing checks establish syntax only; they do not replace execution of `guard.test.ps1` or the isolated-runtime checks.
