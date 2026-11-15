@@ -2,13 +2,13 @@ import {createServer} from 'node:http'
 import {createHmac,timingSafeEqual} from 'node:crypto'
 import {readFileSync,existsSync,writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-const canonical=value=>JSON.stringify(value,(_k,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v)
+import {matchesDashboardObservation} from './dashboard-arm.mjs'
 const dashboardFixture=event=>event?.object==='page'&&event.entry?.length===1&&['0','444444444444'].includes(String(event.entry[0].id))&&event.entry[0].changes?.length===1&&event.entry[0].changes[0].field==='leadgen'&&['page_id','form_id','leadgen_id'].every(key=>String(event.entry[0].changes[0].value?.[key])==='444444444444')&&!Object.hasOwn(event.entry[0].changes[0].value,'field_data')
 // The real profile never generates or replays provider events and never stores request bodies.
 export function realGateway(c,secret){
  if(typeof c.appId!=='string'||!/^[1-9][0-9]{5,30}$/.test(c.appId)||c.appId==='1160353550276176'||c.appId!==c.approvedMetaAppId||c.pageId!=='1449474971582722'||typeof c.formId!=='string'||!/^[1-9][0-9]{5,30}$/.test(c.formId))throw Error('QA_TARGET_REFUSED')
  if(!Number.isInteger(c.appPort)||c.appPort<1024||c.appPort>65535||typeof secret!=='string'||secret.length<24||typeof c.secrets?.verifyToken!=='string'||c.secrets.verifyToken.length<24)throw Error('QA_GATE_CONFIGURATION_REFUSED')
- const audit={requests:0,challenge200:0,postReceived:0,dashboardSamples:0,hmacValid:0,qaTupleValid:0,forwarded:0,statuses:{},upstreamStatuses:{}}
+ const audit={requests:0,challenge200:0,postReceived:0,dashboardSamples:0,placeholderSigned:0,hmacValid:0,qaTupleValid:0,forwarded:0,statuses:{},upstreamStatuses:{}}
  const auditFile=join(c.privateDirectory,'real-http-audit.json'),realFile=join(c.privateDirectory,'meta-real-private.json')
  let closed=false,windowStart=Date.now(),windowCount=0,active=0
  const equal=(a,b)=>typeof a==='string'&&Buffer.byteLength(a)===Buffer.byteLength(b)&&timingSafeEqual(Buffer.from(a),Buffer.from(b))
@@ -37,8 +37,9 @@ export function realGateway(c,secret){
    if(!equal(signature,expected))return reply(401)
    audit.hmacValid++
    let event;try{event=JSON.parse(raw.toString('utf8'))}catch{return reply(400)}
+   if(dashboardFixture(event))audit.placeholderSigned++
    const sampleState=JSON.parse(readFileSync(realFile,'utf8'))
-   if(dashboardFixture(event) && sampleState.dashboardSample && Date.parse(sampleState.dashboardSample.expiresAt)>Date.now() && Date.parse(sampleState.dashboardSample.expiresAt)-Date.now()<=60000 && sampleState.dashboardSample.expectedCanonical===canonical(event)){
+   if(dashboardFixture(event) && sampleState.dashboardSample && Date.parse(sampleState.dashboardSample.expiresAt)>Date.now() && Date.parse(sampleState.dashboardSample.expiresAt)-Date.now()<=60000 && matchesDashboardObservation(event,sampleState.dashboardSample)){
     sampleState.dashboardSample=null;writeFileSync(realFile,JSON.stringify(sampleState),{mode:0o600});audit.dashboardSamples++;return reply(200,'{"sampleOnly":true,"crmProcessing":false}')
    }
    if(event?.object!=='page'||!Array.isArray(event.entry)||!event.entry.length)return reply(400)

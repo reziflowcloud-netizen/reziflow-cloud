@@ -1,6 +1,10 @@
 param([Parameter(Mandatory=$true)][string]$EvidenceDirectory,[Parameter(Mandatory=$true)][string]$SourceEvidence)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
+function Assert-QaEvidenceScope([string]$Path,[string]$Checkout,[string]$OwnerSid,[string]$ExpectedOwnerSid){
+ $parent=[IO.Path]::GetDirectoryName($Path);$leaf=[IO.Path]::GetFileName($Path)
+ if($parent -cne (Join-Path $Checkout '.qa') -or $leaf -cnotin @('meta-recovery-20261110','meta-recovery-alias-e2e-20261110','meta-recovery-20261115') -or $OwnerSid -cne $ExpectedOwnerSid -or [string]::IsNullOrEmpty($ExpectedOwnerSid)){throw 'QA_EVIDENCE_SCOPE_REFUSED'}
+}
 if($PSVersionTable.PSVersion.Major -ne 7 -or $PSVersionTable.PSEdition -ne 'Core'){throw 'QA_BOOTSTRAP_REQUIRES_APPROVED_PWSH7'}
 $qaPwsh=Join-Path $PSHOME 'pwsh.exe'
 if([Environment]::ProcessPath -ne $qaPwsh -or -not(Test-Path -LiteralPath $qaPwsh -PathType Leaf)){throw 'QA_BOOTSTRAP_HOST_UNVERIFIED'}
@@ -13,6 +17,8 @@ $pointerPath=Join-Path $EvidenceDirectory 'private-pointer.json'
 if(Test-Path -LiteralPath $pointerPath){throw 'QA_POINTER_ALREADY_EXISTS'}
 Assert-QaTreeNoReparse (Join-Path $original 'node_modules')
 . (Join-Path $original 'scripts/local-maintenance/core.ps1')
+Assert-QaEvidenceScope $EvidenceDirectory ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../..'))) ((Get-Acl -LiteralPath $EvidenceDirectory).GetOwner([Security.Principal.SecurityIdentifier]).Value) ([Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
+Set-PrivateAcl $EvidenceDirectory
 foreach($port in @(43126,43127)){if(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue){throw 'QA_PORT_BUSY'}}
 $privateRoot='D:\LegalHubStageA-'+[guid]::NewGuid().ToString('N')
 if(Test-Path -LiteralPath $privateRoot){throw 'PRIVATE_ROOT_EXISTS'}

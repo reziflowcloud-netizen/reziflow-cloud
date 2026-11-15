@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os'
 import {join, resolve} from 'node:path'
 import {randomBytes, createHmac} from 'node:crypto'
 import {realGateway} from './gateway.mjs'
+import {observedDashboardArm} from './dashboard-arm.mjs'
 
 const canonical = value => JSON.stringify(value, (_key, child) => child && typeof child === 'object' && !Array.isArray(child)
   ? Object.fromEntries(Object.entries(child).sort(([a], [b]) => a.localeCompare(b))) : child)
@@ -147,6 +148,23 @@ test('only signed, exact, one-use Dashboard sample is acknowledged without CRM p
   assert.equal(f.gate.audit.dashboardSamples, 1);assert.equal(f.gate.audit.qaTupleValid, 0)
   assert.equal(f.gate.audit.forwarded, 0);assert.equal(f.upstreamRequests(), 0)
   assert.equal((await f.post(body)).status, 403)
+})
+
+test('observed v27 Dashboard change admits one signed placeholder envelope and never forwards',async t=>{
+ const f=await setup(t),body=sample(),change=body.entry[0].changes[0]
+ change.value.ad_id='444444444';change.value.adgroup_id='44444444444'
+ const arm=observedDashboardArm({sample:change,sub_field_options:null,sample_context_metadata:null})
+ await f.state({release:false,approvedLeadId:null,dashboardSample:{expiresAt:new Date(Date.now()+30000).toISOString(),...arm}})
+ const bad=structuredClone(body);bad.entry[0].changes[0].value.created_time++
+ assert.equal((await f.post(bad)).status,403)
+ assert.equal((await f.post(body,'sha256=wrong')).status,401)
+ const contacts=structuredClone(body);contacts.entry[0].changes[0].value.field_data=[]
+ assert.equal((await f.post(contacts)).status,403)
+ body.entry[0].time++
+ assert.equal((await f.post(body)).status,200);assert.equal(f.gate.audit.dashboardSamples,1)
+ assert.equal(f.gate.audit.qaTupleValid,0);assert.equal(f.upstreamRequests(),0)
+ assert.equal((await f.post(body)).status,403)
+ assert.equal((await f.post(f.validEvent())).status,503);assert.equal(f.upstreamRequests(),0)
 })
 
 test('expired and excessively long Dashboard arms do not bypass normal resource checks', async t => {

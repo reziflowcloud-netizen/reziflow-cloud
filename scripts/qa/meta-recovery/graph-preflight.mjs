@@ -291,7 +291,7 @@ export async function runGraphPreflight(options) {
     if (identity?.id !== PAGE) fail('PAGE_PROVENANCE_BLOCKED')
     const form = await request(FORM, 'id,name,page', pageToken)
     if (form?.id !== FORM || form.page?.id !== PAGE) fail('FORM_OWNERSHIP_BLOCKED')
-    const appSubscriptions = await request(`${APP}/subscriptions`, undefined, `${APP}|${appSecret}`)
+    const appSubscriptions = await request(`${APP}/subscriptions`, 'object,callback_url,active,fields', `${APP}|${appSecret}`)
     const pageSubscriptions = await request(`${PAGE}/subscribed_apps`, 'id,subscribed_fields', pageToken)
     if (!collection(appSubscriptions) || appSubscriptions.data.length !== 0 ||
         !collection(pageSubscriptions) || pageSubscriptions.data.length !== 0) fail('EXISTING_SUBSCRIPTIONS')

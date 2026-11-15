@@ -82,6 +82,7 @@ test('all ten read-only checks produce only a private Page token and closed priv
   }
   assert.equal(new URL(m.calls[0].url).pathname, '/v27.0/app')
   assert.equal(new URL(m.calls[4].url).searchParams.get('fields'), 'id,access_token')
+  assert.equal(new URL(m.calls[8].url).searchParams.get('fields'), 'object,callback_url,active,fields')
 })
 
 test('wrong or unsupported issuing App fails closed without token-debug fallback or writes', async t => {

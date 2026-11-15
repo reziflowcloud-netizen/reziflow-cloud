@@ -4,7 +4,7 @@ import {mkdtemp,mkdir,writeFile,readFile,rm,readdir,link} from 'node:fs/promises
 import {join} from 'node:path'
 import {tmpdir} from 'node:os'
 import {randomUUID,createHash} from 'node:crypto'
-import {observedDashboardCanonical,armDashboardSample} from './dashboard-arm.mjs'
+import {observedDashboardCanonical,observedDashboardArm,matchesDashboardObservation,armDashboardSample} from './dashboard-arm.mjs'
 const APP='2523488421395251',PAGE='1449474971582722',FORM='2046130655900851',DUMMY='444444444444'
 const TOKEN='EAA'+'SyntheticPageOnly'.repeat(5),SECRET='PlantedGeneratedQaSecretOnly'.repeat(2)
 const sample=()=>({object:'page',entry:[{id:'0',time:1700000000,changes:[{field:'leadgen',value:{page_id:DUMMY,form_id:DUMMY,leadgen_id:DUMMY,ad_id:DUMMY,adgroup_id:DUMMY,created_time:1700000000}}]}]})
@@ -29,6 +29,19 @@ test('observed sample keeps canonical value types and admits only known placehol
  const numeric=sample();numeric.entry[0].id=0;numeric.entry[0].changes[0].value.page_id=444444444444
  assert.equal(JSON.parse(observedDashboardCanonical(numeric)).entry[0].id,0)
  for(const mutate of [x=>x.object='instagram',x=>x.extra='anything',x=>x.entry[0].id=PAGE,x=>x.entry[0].changes.push(x.entry[0].changes[0]),x=>x.entry[0].changes[0].field='messages',x=>x.entry[0].changes[0].value.page_id=PAGE,x=>x.entry[0].changes[0].value.form_id=FORM,x=>x.entry[0].changes[0].value.leadgen_id='900000000000001',x=>x.entry[0].changes[0].value.field_data=[],x=>x.entry[0].changes[0].value.email='contact@example.invalid',x=>x.entry[0].changes[0].value.ad_id=APP,x=>x.entry[0].time='1700000000',x=>x.entry[0].changes[0].value.is_organic='false']){const bad=sample();mutate(bad);assert.throws(()=>observedDashboardCanonical(bad),/PUBLIC_SAMPLE_REFUSED/)}
+})
+
+test('v27 public UI change is pinned without inventing Meta transport wrapper',async t=>{
+ const f=await fixture(t),body=sample(),change=body.entry[0].changes[0]
+ change.value.ad_id='444444444';change.value.adgroup_id='44444444444'
+ const ui={sample:change,sub_field_options:null,sample_context_metadata:null}
+ const arm=observedDashboardArm(ui);assert.equal(typeof arm.expectedChangeCanonical,'string');assert.equal(arm.expectedCanonical,undefined)
+ assert.equal(matchesDashboardObservation(body,arm),true)
+ const later=structuredClone(body);later.entry[0].time++;assert.equal(matchesDashboardObservation(later,arm),true)
+ for(const mutate of [x=>x.entry[0].id=PAGE,x=>x.entry[0].changes[0].value.form_id=FORM,x=>x.entry[0].changes[0].value.created_time++,x=>x.entry[0].changes[0].value.field_data=[],x=>x.entry[0].changes[0].value.ad_id='4444444444']){const bad=structuredClone(body);mutate(bad);assert.equal(matchesDashboardObservation(bad,arm),false)}
+ for(const invalid of [{...ui,sub_field_options:{}},{...ui,unexpected:true},{...ui,sample:{...change,value:{...change.value,email:'contact@example.invalid'}}}])assert.throws(()=>observedDashboardArm(invalid),/PUBLIC_SAMPLE_REFUSED/)
+ await writeFile(f.publicSampleFile,JSON.stringify(ui));const r=await armDashboardSample(f.options);assert.equal(r.status,'READY');safe(r)
+ assert.equal((await f.read()).dashboardSample.expectedChangeCanonical,arm.expectedChangeCanonical)
 })
 test('arming changes only dashboardSample, expires in 55 seconds and preserves proof/closure/runtime/token',async t=>{
  const f=await fixture(t),runtimeBefore=await readFile(join(f.root,'runtime.json'),'utf8'),started=Date.now()

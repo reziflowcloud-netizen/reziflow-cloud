@@ -97,7 +97,7 @@ try{
  if($PSVersionTable.PSVersion.Major -ne 7 -or (Get-ExecutionPolicy) -ne 'RemoteSigned' -or ($CompareOnly -and ($Execute -or $WhatIfPreference)) -or (-not $CompareOnly -and (($Execute -and $WhatIfPreference) -or (-not $Execute -and -not $WhatIfPreference)))){throw 'CLEANUP_MODE_REFUSED'}
  . (Join-Path $PSScriptRoot 'guard.ps1')
  $cleanupStage='pointer'
- $expectedPointers=@('meta-recovery-20261110','meta-recovery-alias-e2e-20261110')|ForEach-Object{[IO.Path]::GetFullPath((Join-Path $PSScriptRoot ('../../../.qa/'+$_+'/private-pointer.json')))}
+ $expectedPointers=@('meta-recovery-20261110','meta-recovery-alias-e2e-20261110','meta-recovery-20261115')|ForEach-Object{[IO.Path]::GetFullPath((Join-Path $PSScriptRoot ('../../../.qa/'+$_+'/private-pointer.json')))}
  $expectedPointer=[IO.Path]::GetFullPath($PointerPath)
  if($expectedPointer -cnotin $expectedPointers){throw 'CLEANUP_POINTER_REFUSED'}
  $manifestPath=[IO.Path]::GetFullPath($Manifest)

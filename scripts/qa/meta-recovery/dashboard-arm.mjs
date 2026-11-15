@@ -19,17 +19,39 @@ const fresh=(time,max)=>typeof time==='string'&&Number.isFinite(Date.parse(time)
 
 // This is the public sample observed in the QA Developer Dashboard, not a Lead.
 // Return the same canonical JSON used by the gateway without changing value types.
+function observedChange(change){
+ const v=change?.value
+ if(!keys(change,['field','value'])||change.field!=='leadgen'||!keys(v,['page_id','form_id','leadgen_id','ad_id','adgroup_id','created_time','is_organic'])||!['page_id','form_id','leadgen_id'].every(key=>placeholder(v[key])))fail('PUBLIC_SAMPLE_REFUSED')
+ const ads={ad_id:['444444444',PLACEHOLDER],adgroup_id:['44444444444',PLACEHOLDER]}
+ for(const key of Object.keys(ads))if(v[key]!==undefined&&(!['string','number'].includes(typeof v[key])||!ads[key].includes(String(v[key]))))fail('PUBLIC_SAMPLE_REFUSED')
+ if(v.created_time!==undefined&&!epoch(v.created_time)||v.is_organic!==undefined&&typeof v.is_organic!=='boolean')fail('PUBLIC_SAMPLE_REFUSED')
+ return change
+}
 export function observedDashboardCanonical(event){
  try{
   if(!keys(event,['object','entry'])||event.object!=='page'||!Array.isArray(event.entry)||event.entry.length!==1)fail('PUBLIC_SAMPLE_REFUSED')
   const entry=event.entry[0]
   if(!keys(entry,['id','time','changes'])||!['0',PLACEHOLDER].includes(String(entry.id))||!['string','number'].includes(typeof entry.id)||entry.time!==undefined&&!epoch(entry.time)||!Array.isArray(entry.changes)||entry.changes.length!==1)fail('PUBLIC_SAMPLE_REFUSED')
-  const change=entry.changes[0],v=change?.value
-  if(!keys(change,['field','value'])||change.field!=='leadgen'||!keys(v,['page_id','form_id','leadgen_id','ad_id','adgroup_id','created_time','is_organic'])||!['page_id','form_id','leadgen_id'].every(key=>placeholder(v[key])))fail('PUBLIC_SAMPLE_REFUSED')
-  for(const key of ['ad_id','adgroup_id'])if(v[key]!==undefined&&!placeholder(v[key]))fail('PUBLIC_SAMPLE_REFUSED')
-  if(v.created_time!==undefined&&!epoch(v.created_time)||v.is_organic!==undefined&&typeof v.is_organic!=='boolean')fail('PUBLIC_SAMPLE_REFUSED')
+  observedChange(entry.changes[0])
   return canonical(event)
  }catch{fail('PUBLIC_SAMPLE_REFUSED')}
+}
+// The v27 Dashboard displays the public change and nullable UI metadata, not
+// Meta's transport envelope. Pin every displayed change value; independently
+// validate the received placeholder envelope. No real IDs/contacts are admitted.
+export function observedDashboardArm(event){
+ if(object(event)&&Object.hasOwn(event,'sample')){
+  if(!keys(event,['sample','sub_field_options','sample_context_metadata'])||['sub_field_options','sample_context_metadata'].some(key=>Object.hasOwn(event,key)&&event[key]!==null))fail('PUBLIC_SAMPLE_REFUSED')
+  return {expectedChangeCanonical:canonical(observedChange(event.sample))}
+ }
+ return {expectedCanonical:observedDashboardCanonical(event)}
+}
+export function matchesDashboardObservation(event,arm){
+ try{
+  const full=observedDashboardCanonical(event)
+  if(typeof arm?.expectedChangeCanonical==='string')return arm.expectedCanonical===undefined&&arm.expectedChangeCanonical===canonical(event.entry[0].changes[0])
+  return typeof arm?.expectedCanonical==='string'&&arm.expectedCanonical===full
+ }catch{return false}
 }
 async function checked(path,guard,directory=false){
  if(!absolute(path))fail('PRIVATE_FILE_REFUSED')
@@ -84,13 +106,13 @@ export async function armDashboardSample(options){
   if(!/^stagea[a-f0-9]{32}$/.test(run||'')||dbState.config?.targetKind!=='synthetic'||dbState.config.privateDirectory!==root||dbState.config.expectedHost!=='127.0.0.1'||dbState.config.expectedApplicationHost!=='127.0.0.1'||!['postgres:','postgresql:'].includes(url.protocol)||url.hostname!=='127.0.0.1'||!url.port||url.port==='5432'||Number(url.port)!==dbState.cluster.Port||url.pathname!=='/legalhub_runner_'+run||dbState.cluster.Database!==url.pathname.slice(1)||c.databaseUrl!==dbState.cluster.Uri)fail('RUNTIME_REFUSED')
   knownSecrets=[token,c.databaseUrl,...Object.values(c.secrets||{}),...Object.values(c.passwords||{})].filter(x=>typeof x==='string'&&x.length)
   if(!/^EAA[A-Za-z0-9_-]{30,4090}$/.test(token)||state.appId!==APP||state.pageId!==PAGE||state.formId!==FORM||state.release!==false||state.approvedLeadId!==null||state.leadCreatedAt!==null||state.dashboardSample!==null||state.createAttemptAt!=null||!fresh(state.verifiedAt,3600000)||state.tokenSha256!==createHash('sha256').update(token).digest('hex')||!['tokenApp','tokenPage','formOwnership'].every(k=>state.results?.[k]==='PASS'))fail('PROOF_REFUSED')
-  const observed=await boundedRead(sampleFile,null,8192),expectedCanonical=observedDashboardCanonical(JSON.parse(observed.text))
+  const observed=await boundedRead(sampleFile,null,8192),expectedObservation=observedDashboardArm(JSON.parse(observed.text))
   artifactCheck=async()=>{try{await scanArtifacts({root:options.artifacts.root,paths:options.artifacts.paths,knownSecrets})}catch{fail('ARTIFACT_SCAN_BLOCKED')}}
   await artifactCheck()
   if(!same(observed.stat,await checked(sampleFile,null)))fail('PRIVATE_FILE_CHANGED')
   if(!same(runtimeRead.stat,await checked(runtimeFile,guard))||!same(dbRead.stat,await checked(dbFile,guard))||!same(tokenRead.stat,await checked(tokenFile,guard)))fail('PRIVATE_FILE_CHANGED')
   if(await lstat(join(root,'STOP')).then(()=>true,error=>{if(error.code==='ENOENT')return false;throw error}))fail('CLOSED_CYCLE_REFUSED')
-  state.dashboardSample={expiresAt:new Date(Date.now()+55000).toISOString(),expectedCanonical}
+  state.dashboardSample={expiresAt:new Date(Date.now()+55000).toISOString(),...expectedObservation}
   await saveArm(stateFile,state,saved.stat,guard)
   await artifactCheck()
   return output('READY')
