@@ -24,6 +24,9 @@ jobs:
       - name: Strict ACL model tests (no database or private paths)
         shell: pwsh
         run: pwsh -NoProfile -File tests/local-maintenance/acl-tests.ps1
+      - name: Session transport model tests (no DNS or database)
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/session-pooler-tests.ps1
   release-checks:
     runs-on: ubuntu-latest
     timeout-minutes: 15

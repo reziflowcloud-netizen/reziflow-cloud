@@ -1,4 +1,5 @@
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'session-pooler.ps1')
 
 function Stop-Maintenance([string]$Code) {
   throw "LMR:$Code"
@@ -150,7 +151,12 @@ function Set-PrivateAcl([string]$Path) {
 
 function Read-MaintenanceConfig([string]$ConfigPath, [bool]$Synthetic) {
   if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) { Stop-Maintenance 'CONFIG_MISSING' }
-  try { $config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json }
+  try {
+    $json = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8
+    if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')) {
+      $config = $json | ConvertFrom-Json -DateKind String
+    } else { $config = $json | ConvertFrom-Json }
+  }
   catch { Stop-Maintenance 'CONFIG_INVALID_JSON' }
   foreach ($name in @('targetKind', 'environmentFile', 'expectedHost', 'backupDirectory',
       'privateDirectory', 'postgresBin', 'nodeBin', 'applicationRole',
@@ -203,6 +209,10 @@ function Read-MaintenanceConfig([string]$ConfigPath, [bool]$Synthetic) {
     Assert-NotReparsePoint $config.tlsRootCertFile
   }
   Assert-PrivateAcl $config.backupDirectory
+  if (Test-SessionPoolerMode $config) {
+    if ($Synthetic) { Stop-Maintenance 'SESSION_SYNTHETIC_MODE_FORBIDDEN' }
+    Assert-SessionPoolerProfile $config $false
+  }
   return $config
 }
 
@@ -213,12 +223,22 @@ function Get-PrivateDatabaseUri([object]$Config, [string]$Key, [bool]$Synthetic)
   $value = $matches[0].Substring($Key.Length + 1).Trim().Trim('"').Trim("'")
   try { $uri = [Uri]::new($value) }
   catch { Stop-Maintenance "ENV_URL_INVALID_$Key" }
-  $expectedHost = if ($Key -eq 'DATABASE_URL') { $Config.expectedApplicationHost } else { $Config.expectedHost }
+  if ($Key -in @('PREFLIGHT_SESSION_URL','PREFLIGHT_APPLICATION_SESSION_URL') -and
+      -not (Test-SessionPoolerMode $Config)) { Stop-Maintenance 'SESSION_MODE_REQUIRED' }
+  $sessionRole = if ($Key -eq 'PREFLIGHT_SESSION_URL') { $Config.maintenanceRole }
+    elseif ($Key -eq 'PREFLIGHT_APPLICATION_SESSION_URL') { $Config.applicationRole } else { '' }
+  $expectedHost = if ($sessionRole) { $Config.sessionPoolerHost }
+    elseif ($Key -eq 'DATABASE_URL') { $Config.expectedApplicationHost } else { $Config.expectedHost }
   if ($uri.Scheme -notin @('postgres', 'postgresql') -or $uri.Host -ne $expectedHost -or
       $uri.UserInfo.Split(':', 2).Count -ne 2) {
     Stop-Maintenance "ENV_TARGET_MISMATCH_$Key"
   }
   $database = $uri.AbsolutePath.TrimStart('/')
+  if ($sessionRole) {
+    if ($Synthetic) { Stop-Maintenance 'SESSION_SYNTHETIC_MODE_FORBIDDEN' }
+    Assert-SessionPoolerUri $Config $uri $sessionRole
+    return $uri
+  }
   if ($Synthetic) {
     if ($uri.Host -ne '127.0.0.1' -or $database -notmatch '^legalhub_runner_synthetic_') {
       Stop-Maintenance 'SYNTHETIC_DB_IDENTITY_INVALID'
@@ -289,11 +309,34 @@ function Invoke-WithIsolatedEnvironment([object]$Config, [Uri]$Uri,
     else {
       $safe.PGSSLMODE = 'verify-full'
       $safe.PGSSLROOTCERT = $Config.tlsRootCertFile
+      if (Test-SessionPoolerMode $Config) {
+        $login = [Uri]::UnescapeDataString($parts[0])
+        $role = if ($login -ceq ($Config.maintenanceRole + '.' + $Config.projectReference)) {
+          $Config.maintenanceRole
+        } elseif ($login -ceq ($Config.applicationRole + '.' + $Config.projectReference)) {
+          $Config.applicationRole
+        } else { Stop-Maintenance 'SESSION_ENDPOINT_INVALID' }
+        Assert-SessionPoolerUri $Config $Uri $role
+        if (-not $Config.PSObject.Properties['resolvedSessionIpv4'] -or
+            -not (Test-PublicIpv4 $Config.resolvedSessionIpv4)) {
+          Stop-Maintenance 'SESSION_IPV4_UNVERIFIED'
+        }
+        # Keep PGHOST for certificate hostname verification; pin only the socket address.
+        $safe.PGHOSTADDR = $Config.resolvedSessionIpv4
+      }
     }
   }
   foreach ($key in $Extra.Keys) {
     if ($key -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { Stop-Maintenance 'CHILD_ENV_KEY_INVALID' }
     $safe[$key] = [string]$Extra[$key]
+  }
+  if ($Uri -and $Uri.Host -ne '127.0.0.1' -and (Test-SessionPoolerMode $Config)) {
+    if ($Extra.Count -gt 0 -or $safe.PGHOST -cne $Config.sessionPoolerHost -or $safe.PGPORT -ne '5432' -or
+        $safe.PGHOSTADDR -cne $Config.resolvedSessionIpv4 -or
+        $safe.PGSSLMODE -cne 'verify-full' -or $safe.PGSSLROOTCERT -cne $Config.tlsRootCertFile -or
+        $safe.PGUSER -cne [Uri]::UnescapeDataString($Uri.UserInfo.Split(':',2)[0]) -or
+        $safe.PGPASSWORD -cne [Uri]::UnescapeDataString($Uri.UserInfo.Split(':',2)[1]) -or
+        $safe.PGDATABASE -cne 'postgres') { Stop-Maintenance 'SESSION_ENVIRONMENT_OVERRIDE_FORBIDDEN' }
   }
   try {
     foreach ($key in @($previous.Keys)) { Remove-Item -LiteralPath ("Env:$key") -ErrorAction Stop }
@@ -318,6 +361,9 @@ function Invoke-PostgresTool([object]$Config, [Uri]$Uri, [string]$Tool,
     $oldPreference = $ErrorActionPreference
     try {
       $ErrorActionPreference = 'Continue'
+      if ($Uri.Host -ne '127.0.0.1' -and (Test-SessionPoolerMode $Config)) {
+        return Invoke-BoundedSessionTool $binary $Arguments
+      }
       $output = @(& $binary @Arguments 2>$null)
       return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
     } finally { $ErrorActionPreference = $oldPreference }
@@ -724,6 +770,8 @@ function Get-DatabaseSnapshot([object]$Config, [Uri]$Uri) {
 SELECT json_build_object(
   'database', current_database(),
   'role', current_user,
+  'sessionRole', session_user,
+  'backendTls', (SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()),
   'databaseOid', (SELECT oid FROM pg_database WHERE datname=current_database()),
   'serverVersion', current_setting('server_version_num'),
   'leadMessageRows', (SELECT count(*) FROM public."LeadMessage"),
@@ -750,7 +798,9 @@ SELECT json_build_object(
 }
 
 function Get-DatabaseIdentityState([object]$Config, [Uri]$Uri) {
-  $sql = "SELECT json_build_object('database',current_database(),'role',current_user," +
+  $sql = "SELECT json_build_object('database',current_database(),'role',current_user,'sessionRole',session_user," +
+    "'backendTls',(SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid())," +
+    "'serverVersion',current_setting('server_version_num')," +
     "'databaseOid',(SELECT oid FROM pg_database WHERE datname=current_database())," +
     "'clusterIdentity',(SELECT system_identifier::text FROM pg_control_system()))::text"
   try {
@@ -776,6 +826,10 @@ function Get-ApplicationRoleState([object]$Config, [Uri]$ApplicationUri,
     Stop-Maintenance 'DIRECT_CLUSTER_IDENTITY_UNVERIFIABLE'
   }
   $state = Get-DatabaseIdentityState $Config $ApplicationUri
+  if (Test-SessionPoolerMode $Config) {
+    Assert-SessionIdentity $state $DirectSnapshot $Config.applicationRole
+    Assert-SessionBackendTls $state
+  }
   if ($state.database -ne $DirectSnapshot.database -or
       [string]$state.databaseOid -ne [string]$DirectSnapshot.databaseOid -or
       $state.clusterIdentity -ne $DirectSnapshot.clusterIdentity -or
