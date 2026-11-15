@@ -1,6 +1,7 @@
 [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='Medium')]
-param([Parameter(Mandatory=$true)][string]$PointerPath,[Parameter(Mandatory=$true)][string]$ExpectedPrivateRoot,[Parameter(Mandatory=$true)][string]$Manifest,[switch]$Execute)
+param([Parameter(Mandatory=$true)][string]$PointerPath,[Parameter(Mandatory=$true)][string]$ExpectedPrivateRoot,[Parameter(Mandatory=$true)][string]$Manifest,[switch]$Execute,[switch]$CompareOnly)
 $ErrorActionPreference='Stop'
+$cleanupStage='host'
 function Assert-QaCleanupScope([string]$Expected,[string]$Actual,[string]$Source){
  if($Expected -notmatch '^D:\\LegalHubStageA-[0-9a-f]{32}$' -or [IO.Path]::GetFullPath($Expected) -cne $Expected -or $Actual -cne $Expected -or $Source -eq $Expected -or $Source.StartsWith($Expected+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'CLEANUP_SCOPE_REFUSED'}
 }
@@ -12,6 +13,11 @@ function Get-QaCleanupExemptPids([object]$Self,[object]$Parent,[string]$Exe,[str
   if(@($Helper,$Root,$Pointer|Where-Object{$line.IndexOf($_,[StringComparison]::OrdinalIgnoreCase) -lt 0}).Count -eq 0){$allowed+=[int]$Parent.ProcessId}
  }
  return $allowed
+}
+function Assert-QaStalePostmaster([string[]]$Lines,[string]$ExpectedData,[int]$ExpectedPort,[DateTimeOffset]$Boot,[bool]$ProcessExists){
+ [int]$oldPid=0;[int]$oldPort=0;[long]$started=0
+ if($Lines.Count -lt 8 -or -not[int]::TryParse($Lines[0],[ref]$oldPid) -or $oldPid -le 0 -or -not[long]::TryParse($Lines[2],[ref]$started) -or -not[int]::TryParse($Lines[3],[ref]$oldPort)){throw 'CLEANUP_STALE_PID_REFUSED'}
+ if([IO.Path]::GetFullPath($Lines[1]) -cne $ExpectedData -or $oldPort -ne $ExpectedPort -or $Lines[5].Trim() -cne '127.0.0.1' -or $Lines[7].Trim() -cne 'ready' -or $started -le 0 -or $ProcessExists -or $Boot.ToUnixTimeSeconds() -le $started){throw 'CLEANUP_STALE_PID_REFUSED'}
 }
 function Get-QaCleanupQuiet([object]$Qa,[string]$Pointer,[string]$HelperPath=(Join-Path $PSScriptRoot 'cleanup-new-root.ps1')){
  $ports=@(43126,43127,[int]$Qa.State.cluster.Port)
@@ -28,7 +34,18 @@ function Get-QaCleanupQuiet([object]$Qa,[string]$Pointer,[string]$HelperPath=(Jo
  if($parent -and $parent.ExecutablePath -eq $Qa.Runtime.qaPwshExecutable){$parentOwner=Invoke-CimMethod -InputObject $parent -MethodName GetOwnerSid -ErrorAction Stop -WhatIf:$false;if($parentOwner.ReturnValue -ne 0){throw 'CLEANUP_CALLER_OWNER_REFUSED'};$parent|Add-Member -NotePropertyName OwnerSid -NotePropertyValue $parentOwner.Sid -Force}else{$parent=$null}
  $allowed=@(Get-QaCleanupExemptPids $self $parent $Qa.Runtime.qaPwshExecutable $identity $HelperPath $Qa.Runtime.privateDirectory ([IO.Path]::GetFullPath($Pointer)) $PID)
  if(@(Get-CimInstance Win32_Process -Property ProcessId,Name -Filter $filter -ErrorAction Stop|Where-Object{$_.ProcessId -notin $allowed}).Count){throw 'CLEANUP_PROCESS_PRESENT'}
- if(Test-Path -LiteralPath (Join-Path $Qa.State.cluster.Cluster 'postmaster.pid') -ErrorAction Stop){throw 'CLEANUP_PID_FILE_PRESENT'}
+ $pidFile=Join-Path $Qa.State.cluster.Cluster 'postmaster.pid'
+ if(Test-Path -LiteralPath $pidFile -ErrorAction Stop){
+  # A reboot can leave the owned cluster's PID file. Prove it predates this
+  # boot and its PID has no process; never remove or reinterpret a live PID.
+  Assert-QaPrivateAcl $pidFile
+  if((Get-Item -LiteralPath $pidFile).Length -gt 8192){throw 'CLEANUP_STALE_PID_REFUSED'}
+  $lines=@(Get-Content -LiteralPath $pidFile);[int]$oldPid=0
+  if($lines.Count -lt 8 -or -not[int]::TryParse($lines[0],[ref]$oldPid) -or $oldPid -le 0){throw 'CLEANUP_STALE_PID_REFUSED'}
+  $boot=Get-CimInstance Win32_OperatingSystem -Property LastBootUpTime -ErrorAction Stop
+  $pidProcess=@(Get-CimInstance Win32_Process -Filter ('ProcessId='+$oldPid) -ErrorAction Stop)
+  Assert-QaStalePostmaster $lines ([IO.Path]::GetFullPath($Qa.State.cluster.Cluster)) ([int]$Qa.State.cluster.Port) (Convert-QaCleanupTime $boot.LastBootUpTime) ($pidProcess.Count -ne 0)
+ }
 }
 function Convert-QaCleanupTime([object]$Value){
  if($Value -is [DateTimeOffset]){return $Value.ToUniversalTime()}
@@ -77,37 +94,59 @@ function Get-QaCleanupSnapshot([object]$Qa,[string]$Pointer){
 }
 try{
  Set-StrictMode -Version Latest
- if($PSVersionTable.PSVersion.Major -ne 7 -or (Get-ExecutionPolicy) -ne 'RemoteSigned' -or ($Execute -and $WhatIfPreference) -or (-not $Execute -and -not $WhatIfPreference)){throw 'CLEANUP_MODE_REFUSED'}
+ if($PSVersionTable.PSVersion.Major -ne 7 -or (Get-ExecutionPolicy) -ne 'RemoteSigned' -or ($CompareOnly -and ($Execute -or $WhatIfPreference)) -or (-not $CompareOnly -and (($Execute -and $WhatIfPreference) -or (-not $Execute -and -not $WhatIfPreference)))){throw 'CLEANUP_MODE_REFUSED'}
  . (Join-Path $PSScriptRoot 'guard.ps1')
- $expectedPointer=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../../.qa/meta-recovery-20261110/private-pointer.json'))
- if([IO.Path]::GetFullPath($PointerPath) -cne $expectedPointer){throw 'CLEANUP_POINTER_REFUSED'}
+ $cleanupStage='pointer'
+ $expectedPointers=@('meta-recovery-20261110','meta-recovery-alias-e2e-20261110')|ForEach-Object{[IO.Path]::GetFullPath((Join-Path $PSScriptRoot ('../../../.qa/'+$_+'/private-pointer.json')))}
+ $expectedPointer=[IO.Path]::GetFullPath($PointerPath)
+ if($expectedPointer -cnotin $expectedPointers){throw 'CLEANUP_POINTER_REFUSED'}
  $manifestPath=[IO.Path]::GetFullPath($Manifest)
- if($manifestPath -cne (Join-Path ([IO.Path]::GetDirectoryName($expectedPointer)) 'new-root-cleanup-manifest.json')){throw 'CLEANUP_MANIFEST_SCOPE_REFUSED'}
+ $approvedManifests=@('new-root-cleanup-manifest.json','new-root-cleanup-manifest-reviewed.json')|ForEach-Object{Join-Path ([IO.Path]::GetDirectoryName($expectedPointer)) $_}
+ if($manifestPath -cnotin $approvedManifests){throw 'CLEANUP_MANIFEST_SCOPE_REFUSED'}
  Assert-QaNoReparse ([IO.Path]::GetDirectoryName($manifestPath))
- $qa=Read-QaGuardedRuntime $PointerPath -AllowStopped
+ $cleanupStage='guard';$qa=Read-QaGuardedRuntime $PointerPath -AllowStopped
  if([Environment]::ProcessPath -ne $qa.Runtime.qaPwshExecutable){throw 'CLEANUP_HOST_REFUSED'}
  Assert-QaCleanupScope $ExpectedPrivateRoot $qa.Runtime.privateDirectory $qa.Source
- $snapshot=Get-QaCleanupSnapshot $qa $PointerPath
+ $cleanupStage='snapshot';$snapshot=Get-QaCleanupSnapshot $qa $PointerPath
+ if($CompareOnly){
+  $cleanupStage='compare';Assert-QaPrivateAcl $manifestPath
+  if((Get-Item -LiteralPath $manifestPath).Length -gt 20971520){throw 'CLEANUP_MANIFEST_SIZE_REFUSED'}
+  $saved=(Get-Content -LiteralPath $manifestPath -Raw|ConvertFrom-Json).snapshot
+  if(($saved.files -isnot [int] -and $saved.files -isnot [long]) -or $saved.files -lt 0 -or $saved.files -gt 1000000 -or ($saved.bytes -isnot [int] -and $saved.bytes -isnot [long]) -or $saved.bytes -lt 0 -or $saved.metadata -isnot [array] -or $saved.metadata.Count -gt 1000000){throw 'CLEANUP_MANIFEST_SCHEMA_REFUSED'}
+  $before=@{};foreach($row in $saved.metadata){$before[$row.relativePath]=$row}
+  $after=@{};foreach($row in $snapshot.metadata){$after[$row.relativePath]=$row}
+  $added=0;$removed=0;$changed=0;$fields=@{};$changedItems=@()
+  foreach($key in $after.Keys){if(-not $before.ContainsKey($key)){$added++}else{$itemChanged=$false;foreach($field in @('directory','length','creationTicks','writeTicks','attributes')){if($before[$key].$field -ne $after[$key].$field){$itemChanged=$true;$changed++;if(-not $fields.ContainsKey($field)){$fields[$field]=0};$fields[$field]++}};if($itemChanged){$leaf=[IO.Path]::GetFileName($key);$safeName=if($leaf -cin @('runtime.json','postmaster.pid','postmaster.opts','qa-resume.log','qa-resume-control.out','qa-resume-control.err','real-http-audit.json','STOP')){$leaf}else{'OTHER_QA_ITEM'};$changedItems+=[pscustomobject]@{category=$safeName;directory=$after[$key].directory;sizeDelta=($after[$key].length-$before[$key].length)}}}}
+  foreach($key in $before.Keys){if(-not $after.ContainsKey($key)){$removed++}}
+  [pscustomobject]@{status='READ_ONLY_COMPARISON';savedFiles=$saved.files;currentFiles=$snapshot.files;savedBytes=$saved.bytes;currentBytes=$snapshot.bytes;added=$added;removed=$removed;changedFields=$changed;fieldCounts=$fields;changedItems=$changedItems;deletionPerformed=$false}|ConvertTo-Json -Depth 3 -Compress
+  return
+ }
  if(-not $Execute){
   if(Test-Path -LiteralPath $manifestPath -ErrorAction Stop){throw 'CLEANUP_MANIFEST_ALREADY_EXISTS'}
-  $stream=[IO.FileStream]::new($manifestPath,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None);$stream.Dispose()
+  $cleanupStage='manifest';$stream=[IO.FileStream]::new($manifestPath,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None);$stream.Dispose()
   $acl=[Security.AccessControl.FileSecurity]::new();$acl.SetAccessRuleProtection($true,$false);$identity=[Security.Principal.WindowsIdentity]::GetCurrent().User;$acl.SetOwner($identity)
   foreach($sid in @($identity.Value,'S-1-5-18','S-1-5-32-544')){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($sid),[Security.AccessControl.FileSystemRights]::FullControl,[Security.AccessControl.AccessControlType]::Allow))}
   Set-Acl -LiteralPath $manifestPath -AclObject $acl -WhatIf:$false -Confirm:$false;Assert-QaPrivateAcl $manifestPath
   [IO.File]::WriteAllText($manifestPath,([ordered]@{version=1;createdUtc=[DateTimeOffset]::UtcNow.ToString('o');previewOnly=$true;snapshot=$snapshot}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false))
-  Remove-Item -LiteralPath $ExpectedPrivateRoot -Recurse -Force -WhatIf
+  $cleanupStage='preview';Remove-Item -LiteralPath $ExpectedPrivateRoot -Recurse -Force -WhatIf
   [pscustomobject]@{status='PREVIEW_ONLY';target=$ExpectedPrivateRoot;files=$snapshot.files;bytes=$snapshot.bytes;categories=$snapshot.categories;cleanupT0=$snapshot.cleanupT0;credentialsDue=$snapshot.credentialsDue;manifest=$manifestPath;deletionPerformed=$false}|ConvertTo-Json -Depth 6 -Compress
  }else{
-  Assert-QaPrivateAcl $manifestPath
+  $cleanupStage='compare';Assert-QaPrivateAcl $manifestPath
   if((Get-Item -LiteralPath $manifestPath).Length -gt 20971520){throw 'CLEANUP_MANIFEST_SIZE_REFUSED'}
   $approved=Get-Content -LiteralPath $manifestPath -Raw|ConvertFrom-Json
-  if($approved.version -ne 1 -or $approved.previewOnly -ne $true -or $approved.snapshot.target -cne $ExpectedPrivateRoot -or $approved.snapshot.sourceOriginal -cne $qa.Source -or $approved.snapshot.sourceHead -ne $snapshot.sourceHead -or $approved.snapshot.fingerprint -cne $snapshot.fingerprint -or $approved.snapshot.files -ne $snapshot.files -or $approved.snapshot.bytes -ne $snapshot.bytes -or $approved.snapshot.cleanupT0Ticks -ne $snapshot.cleanupT0Ticks){throw 'CLEANUP_MANIFEST_CHANGED'}
+  if($approved.version -ne 1 -or $approved.previewOnly -ne $true -or $approved.snapshot.target -cne $ExpectedPrivateRoot -or $approved.snapshot.sourceOriginal -cne $qa.Source -or $approved.snapshot.sourceHead -ne $snapshot.sourceHead -or $approved.snapshot.cleanupT0Ticks -ne $snapshot.cleanupT0Ticks){throw 'CLEANUP_MANIFEST_CHANGED'}
+  if($approved.snapshot.files -ne $snapshot.files -or $approved.snapshot.bytes -ne $snapshot.bytes){throw 'CLEANUP_MANIFEST_COUNTS_CHANGED'}
+  if($approved.snapshot.fingerprint -cne $snapshot.fingerprint){throw 'CLEANUP_MANIFEST_FINGERPRINT_CHANGED'}
   Get-QaCleanupQuiet $qa $PointerPath
   Assert-QaCleanupScope $ExpectedPrivateRoot $qa.Runtime.privateDirectory $qa.Source
   if($PSCmdlet.ShouldProcess($ExpectedPrivateRoot,'Remove only the approved disposable QA tree')){
-   Remove-Item -LiteralPath $ExpectedPrivateRoot -Recurse -Force -Confirm:$false -ErrorAction Stop
+   $cleanupStage='delete';Remove-Item -LiteralPath $ExpectedPrivateRoot -Recurse -Force -Confirm:$false -ErrorAction Stop
    if(Test-Path -LiteralPath $ExpectedPrivateRoot -ErrorAction Stop){throw 'CLEANUP_ABSENCE_UNVERIFIED'}
    [pscustomobject]@{status='REMOVED';targetAbsent=$true;files=$snapshot.files;bytes=$snapshot.bytes;sourcePreserved=$true;externalCopies='NOT_VERIFIED';deletionPerformed=$true}|ConvertTo-Json -Compress
   }else{throw 'CLEANUP_NOT_EXECUTED'}
  }
-}catch{Write-Output '{"status":"BLOCKED","code":"QA_NEW_ROOT_CLEANUP_REFUSED","deletionConfirmed":false}';exit 1}
+}catch{
+ if($cleanupStage -cnotin @('host','pointer','guard','snapshot','manifest','preview','compare','delete')){$cleanupStage='host'}
+ $reason='UNKNOWN';foreach($known in @('CLEANUP_STALE_PID_REFUSED','CLEANUP_PORT_BUSY','CLEANUP_PROCESS_PRESENT','CLEANUP_SELF_PROOF_REFUSED','CLEANUP_SELF_OWNER_REFUSED','CLEANUP_CALLER_OWNER_REFUSED','CLEANUP_TIME_REFUSED','CLEANUP_TIME_FUTURE','CLEANUP_TIME_MISSING','CLEANUP_SOURCE_OR_LINK_REFUSED','CLEANUP_CLUSTER_MARKER_MISSING','CLEANUP_RUNTIME_REFUSED','CLEANUP_GATE_REFUSED','CLEANUP_MANIFEST_ALREADY_EXISTS','CLEANUP_MANIFEST_CHANGED','CLEANUP_MANIFEST_COUNTS_CHANGED','CLEANUP_MANIFEST_FINGERPRINT_CHANGED','QA_OWNER_REFUSED','QA_ACL_TOO_BROAD','QA_REPARSE_REFUSED')){if($_.Exception.Message -ceq $known){$reason=$known}}
+ [pscustomobject]@{status='BLOCKED';code='QA_NEW_ROOT_CLEANUP_REFUSED';stage=$cleanupStage;reason=$reason;deletionConfirmed=$false}|ConvertTo-Json -Compress;exit 1
+}

@@ -6,7 +6,7 @@ import {publicTelemetry,assertPublishableText,scanArtifacts} from './secret-safe
 
 const APP='2523488421395251',PAGE='1449474971582722',FORM='2046130655900851'
 const actions=new Set(['old-test-check','delete-confirmed-old','mark-create-attempt','capture-created-lead'])
-const codes=new Set(['INVALID_INPUT','PRIVATE_FILE_REFUSED','PRIVATE_FILE_CHANGED','RUNTIME_REFUSED','ATTESTATION_REFUSED','ARTIFACT_SCAN_BLOCKED','GRAPH_TRANSPORT','GRAPH_TIMEOUT','GRAPH_HTTP','GRAPH_RESPONSE_INVALID','GRAPH_RESPONSE_LIMIT','TEST_EDGE_REFUSED','TEST_IDENTITY_REFUSED','OLD_DELETE_REFUSED','DELETE_NOT_CONFIRMED','CREATE_ATTEMPT_REFUSED','NEW_TEST_REFUSED','PRIVATE_WRITE_FAILED'])
+const codes=new Set(['INVALID_INPUT','PRIVATE_FILE_REFUSED','PRIVATE_FILE_CHANGED','RUNTIME_REFUSED','ATTESTATION_REFUSED','ARTIFACT_SCAN_BLOCKED','GRAPH_TRANSPORT','GRAPH_TIMEOUT','GRAPH_HTTP','GRAPH_RESPONSE_INVALID','GRAPH_RESPONSE_LIMIT','TEST_EDGE_REFUSED','TEST_IDENTITY_REFUSED','OLD_DELETE_REFUSED','DELETE_NOT_CONFIRMED','CREATE_ATTEMPT_REFUSED','NEW_TEST_REFUSED','PRIVATE_WRITE_FAILED','PRIVATE_WRITE_CREATE','PRIVATE_WRITE_ACL','PRIVATE_WRITE_FLUSH','PRIVATE_WRITE_STAGE','PRIVATE_WRITE_RENAME','PRIVATE_WRITE_VERIFY'])
 class ControlError extends Error{constructor(code,status,graphCode,graphSubcode){super(codes.has(code)?code:'PRIVATE_FILE_REFUSED');this.code=this.message;for(const [key,value] of Object.entries({httpStatus:status,graphCode,graphSubcode}))if(value!==undefined)this[key]=value}}
 const fail=code=>{throw new ControlError(code)}
 const object=x=>x!==null&&typeof x==='object'&&!Array.isArray(x)
@@ -32,13 +32,14 @@ async function privateRead(path,guard,max){
  }finally{await handle.close()}
 }
 async function saveState(path,state,before,guard){
- const temp=join(dirname(path),'.lead-control-'+randomUUID()+'.tmp');let handle,created=false
+ const temp=join(dirname(path),'.lead-control-'+randomUUID()+'.tmp');let handle,created=false,stage='CREATE'
  try{
-  handle=await open(temp,'wx',0o600);created=true;await checked(temp,guard)
-  await handle.writeFile(JSON.stringify(state)+'\n');await handle.sync();const staged=await handle.stat();await handle.close();handle=undefined
-  if(!same(staged,await checked(temp,guard))||!same(before,await checked(path,guard)))fail('PRIVATE_FILE_CHANGED')
-  await rename(temp,path);created=false;await checked(path,guard)
- }catch{fail('PRIVATE_WRITE_FAILED')}finally{if(handle)await handle.close().catch(()=>{});if(created)await unlink(temp).catch(()=>{})}
+  handle=await open(temp,'wx',0o600);created=true;stage='ACL';await checked(temp,guard)
+  stage='FLUSH';await handle.writeFile(JSON.stringify(state)+'\n');await handle.sync();const staged=await handle.stat();await handle.close();handle=undefined
+  stage='STAGE';if(!same(staged,await checked(temp,guard)))fail('PRIVATE_FILE_CHANGED')
+  if(!same(before,await checked(path,guard)))fail('PRIVATE_WRITE_FAILED')
+  stage='RENAME';await rename(temp,path);created=false;stage='VERIFY';await checked(path,guard)
+ }catch(error){if(error instanceof ControlError&&error.code==='PRIVATE_WRITE_FAILED')throw error;fail('PRIVATE_WRITE_'+stage)}finally{if(handle)await handle.close().catch(()=>{});if(created)await unlink(temp).catch(()=>{})}
 }
 async function boundedJson(response,signal){
  const declared=response.headers?.get('content-length');if(declared&&(!/^\d+$/.test(declared)||Number(declared)>65536))fail('GRAPH_RESPONSE_LIMIT')

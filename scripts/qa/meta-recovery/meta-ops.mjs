@@ -11,7 +11,7 @@ const RETIRED_ROOT = 'LegalHubStageA-e0d6208c7f1b4b61917281dc390a8045'
 const codes = new Set(['INVALID_INPUT', 'PRIVATE_FILE_REFUSED', 'RUNTIME_REFUSED',
   'ATTESTATION_REFUSED', 'ARTIFACT_SCAN_BLOCKED', 'GRAPH_TRANSPORT', 'GRAPH_TIMEOUT',
   'GRAPH_RESPONSE_LIMIT', 'GRAPH_RESPONSE_INVALID', 'GRAPH_HTTP',
-  'SUBSCRIPTION_STATE_REFUSED', 'MUTATION_NOT_CONFIRMED', 'READBACK_BLOCKED'])
+  'SUBSCRIPTION_STATE_REFUSED', 'MUTATION_NOT_CONFIRMED', 'READBACK_BLOCKED', 'READBACK_APP_BLOCKED', 'READBACK_PAGE_BLOCKED'])
 class OpsError extends Error {
   constructor(code, status, graphCode, graphSubcode) {
     super(codes.has(code) ? code : 'PRIVATE_FILE_REFUSED'); this.code = this.message
@@ -144,6 +144,7 @@ export async function runMetaOps(options) {
       if (controller.signal.aborted || ++requests > 8) fail('GRAPH_TIMEOUT')
       // Paths, query names, and form fields are all constructed from these pins.
       const url = new URL(`https://graph.facebook.com/v27.0/${kind === 'app' ? APP + '/subscriptions' : PAGE + '/subscribed_apps'}`)
+      if (method === 'GET' && kind === 'app') url.searchParams.set('fields', 'object,callback_url,active,fields')
       if (method === 'GET' && kind === 'page') url.searchParams.set('fields', 'id,subscribed_fields')
       const headers = {Authorization: `Bearer ${kind === 'app' ? APP + '|' + secret : pageToken}`, Accept: 'application/json'}
       const init = {method, headers, redirect: 'error', cache: 'no-store', signal: controller.signal}
@@ -170,10 +171,11 @@ export async function runMetaOps(options) {
     }
     let app = appState(await request('app')), page = pageState(await request('page'))
     if (options.action === 'verify') {
-      if (app !== 'ours' || page !== 'ours') fail('READBACK_BLOCKED')
+      if (app !== 'ours') fail('READBACK_APP_BLOCKED')
+      if (page !== 'ours') fail('READBACK_PAGE_BLOCKED')
     } else if (options.action === 'configure') {
-      if (app === 'empty') { await request('app', 'POST'); app = appState(await request('app')); if (app !== 'ours') fail('READBACK_BLOCKED') }
-      if (page === 'empty') { await request('page', 'POST'); page = pageState(await request('page')); if (page !== 'ours') fail('READBACK_BLOCKED') }
+      if (app === 'empty') { await request('app', 'POST'); app = appState(await request('app')); if (app !== 'ours') fail('READBACK_APP_BLOCKED') }
+      if (page === 'empty') { await request('page', 'POST'); page = pageState(await request('page')); if (page !== 'ours') fail('READBACK_PAGE_BLOCKED') }
     } else {
       if (page === 'ours') { await request('page', 'DELETE'); page = pageState(await request('page')); if (page !== 'empty') fail('READBACK_BLOCKED') }
       if (app === 'ours') { await request('app', 'DELETE'); app = appState(await request('app')); if (app !== 'empty') fail('READBACK_BLOCKED') }

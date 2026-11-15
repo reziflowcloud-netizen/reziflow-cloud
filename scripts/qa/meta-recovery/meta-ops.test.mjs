@@ -56,6 +56,7 @@ test('configure changes only exact QA App/Page leadgen using body fields and hea
     assert.equal(init.redirect, 'error'); assert.equal(init.cache, 'no-store')
     for (const secret of [TOKEN, SECRET, VERIFY]) assert.equal(url.includes(secret), false)
     assert.ok([...parsed.searchParams.keys()].every(key => key === 'fields'))
+    if (method === 'GET') assert.equal(parsed.searchParams.get('fields'),kind==='app'?'object,callback_url,active,fields':'id,subscribed_fields')
   }
   assert.deepEqual(Object.fromEntries(new URLSearchParams(m.calls[2].init.body)), {object: 'page', fields: 'leadgen', callback_url: CALLBACK, verify_token: VERIFY})
   assert.deepEqual(Object.fromEntries(new URLSearchParams(m.calls[4].init.body)), {subscribed_fields: 'leadgen'})
@@ -69,7 +70,7 @@ test('verify and already configured state use only reads; missing setup is not P
   }
   const f = await fixture(t), m = mock([EMPTY(), EMPTY()])
   const result = await runMetaOps({...f.options, action: 'verify', fetchImpl: m.fetchImpl})
-  assert.equal(result.code, 'READBACK_BLOCKED'); safe(result)
+  assert.equal(result.code, 'READBACK_APP_BLOCKED'); safe(result)
 })
 test('restore removes only our Page install then our App page object; empty is idempotent', async t => {
   const f = await fixture(t), m = mock([OUR_APP(), OUR_PAGE(), {success: true}, EMPTY(), {success: true}, EMPTY()])
@@ -143,7 +144,7 @@ test('raw provider errors stay private; numeric subcodes preserved; ambiguous mu
 test('post mutation readback mismatch stops before Page installation, and slow/oversized responses are bounded', async t => {
   const f = await fixture(t), m = mock([EMPTY(), EMPTY(), {success: true}, EMPTY()])
   const result = await runMetaOps({...f.options, action: 'configure', fetchImpl: m.fetchImpl})
-  assert.equal(result.code, 'READBACK_BLOCKED'); assert.equal(result.counts.accepted, 1); assert.equal(m.calls.length, 4); safe(result)
+  assert.equal(result.code, 'READBACK_APP_BLOCKED'); assert.equal(result.counts.accepted, 1); assert.equal(m.calls.length, 4); safe(result)
   for (const [fetchImpl, code] of [[() => new Promise(() => {}), 'GRAPH_TIMEOUT'],
     [() => new Response('x'.repeat(65537)), 'GRAPH_RESPONSE_LIMIT']]) {
     const next = await fixture(t), start = Date.now()

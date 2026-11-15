@@ -15,7 +15,7 @@ const attestation=()=>({...QA,verifiedAt:new Date(now).toISOString(),tokenSha256
 const yaml='version: "3"\nagent:\n  authtoken: "planted_ngrok_token_123456789"\n  console_ui: false\n  inspect_db_size: -1\n  web_addr: false\n  log: false\n  remote_management: false\n'
 function fixture(){
  const c=configuration(),calls=[],events=[];let clock=now,real=attestation(),healthy=true
- const d={now:()=>clock,emit:x=>events.push(x),preflight:async()=>calls.push('preflight'),guardian:{start:async()=>calls.push('guardian.start'),launch:async(kind,enabled)=>calls.push('launch.'+kind+'.'+enabled),stopChild:async kind=>calls.push('stopChild.'+kind),healthy:async()=>healthy,stop:async()=>calls.push('guardian.stop')},db:{assertQa:async()=>calls.push('db.assert'),enableBinding:async()=>calls.push('db.enable'),allowLead:async()=>calls.push('db.allowLead'),disableBinding:async()=>calls.push('db.disable'),close:async()=>calls.push('db.close')},ready:async()=>calls.push('app.ready'),gateway:async()=>{calls.push('gate.open');return{seal:()=>calls.push('gate.seal')}},readReal:async()=>real,releaseGate:async r=>{calls.push('gate.release');r.release=true},worker:async()=>calls.push('worker'),closeFiles:async()=>calls.push('files.close')}
+ const d={now:()=>clock,emit:x=>events.push(x),preflight:async()=>calls.push('preflight'),guardian:{start:async()=>calls.push('guardian.start'),launch:async(kind,enabled)=>calls.push('launch.'+kind+'.'+enabled),stopChild:async kind=>calls.push('stopChild.'+kind),healthy:async()=>healthy,stop:async()=>calls.push('guardian.stop')},db:{assertQa:async()=>calls.push('db.assert'),enableBinding:async()=>calls.push('db.enable'),allowLead:async()=>calls.push('db.allowLead'),disableBinding:async()=>calls.push('db.disable'),close:async()=>calls.push('db.close')},ready:async()=>calls.push('app.ready'),gateway:async()=>{calls.push('gate.open');return{seal:()=>calls.push('gate.seal')}},readReal:async()=>real,releaseGate:async r=>{calls.push('gate.release');r.release=true},worker:async()=>{calls.push('worker');return true},closeFiles:async()=>calls.push('files.close')}
  return{c,d,calls,events,service:new QaSupervisor(c,d),setClock:x=>clock=x,setReal:x=>real=x,setHealthy:x=>healthy=x}
 }
 test('exact synthetic DB, replacement App and bounded explicit approval are required',()=>{
@@ -44,8 +44,18 @@ test('enable and tunnel need separate explicit booleans',async()=>{
  const f=fixture();await f.service.start();await assert.rejects(f.service.enable());await assert.rejects(f.service.tunnel());assert.equal(f.calls.includes('db.enable'),false);assert.equal(f.calls.some(x=>x.startsWith('launch.tunnel')),false);await f.service.stop()
 })
 test('pilot ID is committed before release and worker waits for genuine exact fresh gate',async()=>{
- const f=fixture();f.c.supervisorApproval.allowEnable=true;f.c.supervisorApproval.allowTunnel=true;await f.service.start();await f.service.enable();await f.service.tunnel();await f.service.tick();assert.equal(f.calls.includes('worker'),false)
- const real={...attestation(),approvedLeadId:'900000000000001',leadCreatedAt:new Date(now).toISOString()};f.setReal(real);await f.service.release();await f.service.tick();assert.equal(f.calls.filter(x=>x==='worker').length,1);assert.ok(f.calls.indexOf('db.allowLead')<f.calls.indexOf('gate.release'));await f.service.stop()
+ const f=fixture();f.c.supervisorApproval.allowEnable=true;f.c.supervisorApproval.allowTunnel=true;await f.service.start();await f.service.enable();await f.service.tunnel();await f.service.tick();assert.equal(f.calls.filter(x=>x==='worker').length,1)
+ const real={...attestation(),approvedLeadId:'900000000000001',leadCreatedAt:new Date(now).toISOString()};f.setReal(real);await f.service.release();await f.service.tick();assert.equal(f.calls.filter(x=>x==='worker').length,2);assert.ok(f.calls.indexOf('db.allowLead')<f.calls.indexOf('gate.release'));await f.service.stop()
+})
+
+test('empty-database worker readiness is required before enabling or exposing the tunnel',async()=>{
+ const f=fixture();f.c.supervisorApproval.allowEnable=true;f.c.supervisorApproval.allowTunnel=true
+ await f.service.start();await assert.rejects(f.service.tunnel());assert.equal(f.calls.includes('launch.tunnel.false'),false)
+ f.d.worker=async()=>false
+ let report;try{await f.service.enable()}catch(error){report=launchFailureTelemetry(error)}
+ assert.equal(report.code,'QA_LAUNCH_WORKER_READY');assert.equal(f.service.closing,true)
+ await assert.rejects(f.service.tunnel());await assert.rejects(f.service.release());assert.equal(f.calls.includes('launch.tunnel.false'),false)
+ assert.equal(f.calls.includes('gate.release'),false);assert.ok(f.calls.includes('db.disable'))
 })
 test('truthy malformed release never enables worker and stale/future lead closes service',async()=>{
  for(const release of ['false',1,false])assert.equal(released(configuration(),{...attestation(),release,approvedLeadId:'900000000000001',leadCreatedAt:new Date(now).toISOString()},now),false)

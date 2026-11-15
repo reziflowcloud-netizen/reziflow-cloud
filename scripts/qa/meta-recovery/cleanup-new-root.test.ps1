@@ -7,6 +7,8 @@ try{
  $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'cleanup-new-root.ps1'),[ref]$tokens,[ref]$errors)
  if($errors.Count){throw 'TEST_SYNTAX_REFUSED'}
  foreach($name in @('Assert-QaCleanupScope','Get-QaCleanupHash','Convert-QaCleanupTime','Get-QaCleanupExemptPids','Get-QaCleanupQuiet')){$fn=$ast.Find({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $name},$true);if(-not $fn){throw 'TEST_FUNCTION_MISSING'};. ([scriptblock]::Create($fn.Extent.Text))}
+ $staleFunction=$ast.Find({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Assert-QaStalePostmaster'},$true)
+ if(-not $staleFunction){throw 'TEST_FUNCTION_MISSING'};. ([scriptblock]::Create($staleFunction.Extent.Text))
  $stage='scope';$target='D:\LegalHubStageA-'+('0'*32);$source='C:\QA-CLEANUP-FIXTURE\combined-source'
  $stage='scope-valid';Assert-QaCleanupScope $target $target $source
  $checks=1
@@ -36,6 +38,11 @@ try{
  $script:fakePorts=@();$script:portFailure=$true;$blocked=$false;try{Get-QaCleanupQuiet $qa 'C:\QA-CLEANUP-FIXTURE\private-pointer.json' $helper}catch{$blocked=$true};if(-not $blocked){throw 'TEST_QUERY_DENIAL_BECAME_EMPTY'};$checks++
  $script:portFailure=$false;$script:fakeProcesses=@([pscustomobject]@{ProcessId=42;Name='node.exe'});$blocked=$false;try{Get-QaCleanupQuiet $qa 'C:\QA-CLEANUP-FIXTURE\private-pointer.json' $helper}catch{$blocked=$true};if(-not $blocked){throw 'TEST_PROCESS_ACCEPTED'};$checks++
  $script:fakeProcesses=@();$script:fakePid=$true;$blocked=$false;try{Get-QaCleanupQuiet $qa 'C:\QA-CLEANUP-FIXTURE\private-pointer.json' $helper}catch{$blocked=$true};if(-not $blocked){throw 'TEST_PID_FILE_ACCEPTED'};$checks++
+ $stage='stale-pid';$data=$target+'\isolated\fixture\cluster';$started=[DateTimeOffset]::Parse('2026-11-10T14:00:00Z');$boot=$started.AddDays(1)
+ $lines=@('123',$data,([string]$started.ToUnixTimeSeconds()),'55123','','127.0.0.1','','ready   ')
+ Assert-QaStalePostmaster $lines $data 55123 $boot $false;$checks++
+ foreach($change in @(@{index=0;value='0'},@{index=1;value='D:\other\cluster'},@{index=2;value='bad'},@{index=3;value='5432'},@{index=5;value='0.0.0.0'},@{index=7;value='starting'})){$changed=@($lines);$changed[$change.index]=$change.value;$blocked=$false;try{Assert-QaStalePostmaster $changed $data 55123 $boot $false}catch{$blocked=$true};if(-not $blocked){throw 'TEST_STALE_PID_SCOPE_ACCEPTED'};$checks++}
+ foreach($case in @(@{boot=$started;exists=$false},@{boot=$boot;exists=$true})){$blocked=$false;try{Assert-QaStalePostmaster $lines $data 55123 $case.boot $case.exists}catch{$blocked=$true};if(-not $blocked){throw 'TEST_LIVE_PID_ACCEPTED'};$checks++}
  $stage='delete-scope';$deletes=$ast.FindAll({param($n)$n -is [Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Remove-Item'},$true)
  if($deletes.Count -ne 2){throw 'TEST_DELETE_COUNT_CHANGED'}
  foreach($delete in $deletes){if($delete.Extent.Text -notmatch '^Remove-Item -LiteralPath \$ExpectedPrivateRoot -Recurse -Force ' -or $delete.Extent.Text -match 'Wildcard|\*|\$manifest|\$Pointer'){throw 'TEST_DELETE_SCOPE_CHANGED'}}

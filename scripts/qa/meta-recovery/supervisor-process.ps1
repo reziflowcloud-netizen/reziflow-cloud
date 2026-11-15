@@ -177,7 +177,8 @@ public sealed class QaOwnedJob : IDisposable {
   $line=$read.Result
   if($null -eq $line){break}
   if($line.Length -gt 65536){throw 'COMMAND_SIZE'}
-  $command=$line|ConvertFrom-Json
+  # JSON environment values must stay exact strings, including the ISO activation time.
+  $command=$line|ConvertFrom-Json -DateKind String
   switch($command.command){
    'launch' {
     if($command.kind -notin @('app','tunnel') -or $command.enabled -isnot [bool]){throw 'COMMAND_REFUSED'}
@@ -210,7 +211,7 @@ public sealed class QaOwnedJob : IDisposable {
     for($i=0;$i -lt $expected.Count;$i++){if($command.args[$i] -cne $expected[$i]){throw 'ARGUMENTS_REFUSED'}}
     if($command.kind -eq 'tunnel'){$stage='tunnel_env'}
     $pairs=[Collections.Generic.List[string]]::new()
-    foreach($property in $command.env.PSObject.Properties){if($property.Name -cnotin $allowed -or [string]$property.Value -match "`0"){throw 'ENV_REFUSED'};$pairs.Add($property.Name+'='+[string]$property.Value)}
+    foreach($property in $command.env.PSObject.Properties){if($property.Name -cnotin $allowed -or $property.Value -isnot [string] -or $property.Value -match "`0"){throw 'ENV_REFUSED'};$pairs.Add($property.Name+'='+$property.Value)}
     $pairs.Sort([StringComparer]::OrdinalIgnoreCase)
     if($command.kind -eq 'tunnel'){$stage='tunnel_native'}
     if($command.kind -eq 'tunnel'){
