@@ -15,7 +15,7 @@ const attestation=()=>({...QA,verifiedAt:new Date(now).toISOString(),tokenSha256
 const yaml='version: "3"\nagent:\n  authtoken: "planted_ngrok_token_123456789"\n  console_ui: false\n  inspect_db_size: -1\n  web_addr: false\n  log: false\n  remote_management: false\n'
 function fixture(){
  const c=configuration(),calls=[],events=[];let clock=now,real=attestation(),healthy=true
- const d={now:()=>clock,emit:x=>events.push(x),preflight:async()=>calls.push('preflight'),guardian:{start:async()=>calls.push('guardian.start'),launch:async(kind,enabled)=>calls.push('launch.'+kind+'.'+enabled),stopChild:async kind=>calls.push('stopChild.'+kind),healthy:async()=>healthy,stop:async()=>calls.push('guardian.stop')},db:{assertQa:async()=>calls.push('db.assert'),enableBinding:async()=>calls.push('db.enable'),allowLead:async()=>calls.push('db.allowLead'),disableBinding:async()=>calls.push('db.disable'),close:async()=>calls.push('db.close')},ready:async()=>calls.push('app.ready'),gateway:async()=>{calls.push('gate.open');return{seal:()=>calls.push('gate.seal')}},readReal:async()=>real,releaseGate:async r=>{calls.push('gate.release');r.release=true},worker:async()=>{calls.push('worker');return true},closeFiles:async()=>calls.push('files.close')}
+ const d={now:()=>clock,emit:x=>events.push(x),preflight:async()=>calls.push('preflight'),guardian:{start:async()=>calls.push('guardian.start'),launch:async(kind,enabled)=>calls.push('launch.'+kind+'.'+enabled),stopChild:async kind=>calls.push('stopChild.'+kind),healthy:async()=>healthy,stop:async()=>calls.push('guardian.stop')},db:{assertQa:async()=>calls.push('db.assert'),enableBinding:async()=>calls.push('db.enable'),allowLead:async()=>calls.push('db.allowLead'),disableBinding:async()=>calls.push('db.disable'),close:async()=>calls.push('db.close')},ready:async()=>calls.push('app.ready'),gateway:async()=>{calls.push('gate.open');return{closeIntake:()=>calls.push('gate.intake'),seal:()=>calls.push('gate.seal')}},readReal:async()=>real,releaseGate:async r=>{calls.push('gate.release');r.release=true},worker:async()=>{calls.push('worker');return true},closeFiles:async()=>calls.push('files.close')}
  return{c,d,calls,events,service:new QaSupervisor(c,d),setClock:x=>clock=x,setReal:x=>real=x,setHealthy:x=>healthy=x}
 }
 test('exact synthetic DB, replacement App and bounded explicit approval are required',()=>{
@@ -62,7 +62,14 @@ test('truthy malformed release never enables worker and stale/future lead closes
  for(const date of [new Date(now-600001).toISOString(),new Date(now+1).toISOString(),'bad']){const f=fixture();await f.service.start();f.setReal({...attestation(),leadCreatedAt:date});await f.service.tick();assert.equal(f.service.closing,true)}
 })
 test('single STOP seals ingress before job termination and always attempts binding cleanup',async()=>{
- const f=fixture();await f.service.start();f.calls.length=0;const first=f.service.stop();const second=f.service.stop();assert.equal(await first,true);assert.equal(await second,true);assert.deepEqual(f.calls,['files.close','gate.seal','guardian.stop','db.disable','db.close']);assert.equal(f.service.controller.signal.aborted,true)
+ const f=fixture();await f.service.start();f.calls.length=0;const first=f.service.stop();const second=f.service.stop();assert.equal(await first,true);assert.equal(await second,true);assert.deepEqual(f.calls,['files.close','gate.intake','guardian.stop','gate.seal','db.disable','db.close']);assert.equal(f.service.controller.signal.aborted,true)
+})
+
+test('closed intake retains the owned listener until queued guardian health and STOP finish',async()=>{
+ const f=fixture();let listening=true,intakeOpen=true
+ f.d.gateway=async()=>({closeIntake:()=>{intakeOpen=false},seal:()=>{listening=false}})
+ f.d.guardian.stop=async()=>{assert.equal(intakeOpen,false);assert.equal(listening,true)}
+ await f.service.start();assert.equal(await f.service.stop(),true);assert.equal(listening,false)
 })
 test('stop failure is BLOCKED, no raw child/provider error is emitted',async()=>{
  const f=fixture();await f.service.start();f.d.guardian.stop=async()=>{f.calls.push('guardian.unverified');throw Error('planted-private-credential')};assert.equal(await f.service.stop(),false);assert.ok(f.calls.includes('db.disable'));assert.equal(f.events.at(-1).status,'BLOCKED');assert.equal(JSON.stringify(f.events).includes('planted-private'),false)
@@ -93,11 +100,11 @@ test('READY cancels its startup timeout while a missing READY still closes the g
  t.mock.timers.enable({apis:['setTimeout']})
  try{
   const f=fakeGuardian(),g=new GuardianClient(f.child),started=g.start();f.send({status:'READY'});await started
-  t.mock.timers.tick(25000);assert.equal(g.alive,true)
+  t.mock.timers.tick(65000);assert.equal(g.alive,true)
   const health=g.healthy();f.send({status:'HEALTHY'});assert.equal(await health,true)
   f.child.stdout.end();f.child.stderr.end()
   const missing=fakeGuardian(),blocked=new GuardianClient(missing.child),waiting=blocked.start()
-  const rejected=assert.rejects(waiting);t.mock.timers.tick(20001);await rejected;assert.equal(blocked.alive,false)
+  const rejected=assert.rejects(waiting);t.mock.timers.tick(60001);await rejected;assert.equal(blocked.alive,false)
   missing.child.stdout.end();missing.child.stderr.end()
  }finally{t.mock.timers.reset()}
 })
@@ -110,6 +117,18 @@ test('intentional guardian exit may precede draining its STOPPED pipe acknowledg
  const stopped=g.stop();f.child.emit('exit',0,null);assert.equal(g.alive,true)
  f.send({status:'STOPPED'});f.child.emit('close',0,null);await stopped;assert.equal(g.alive,false)
  f.child.stdout.end();f.child.stderr.end()
+})
+
+test('guardian READY allows slow metadata preparation but missing READY stays bounded',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']})
+ const first=fakeGuardian(),readyGuardian=new GuardianClient(first.child),ready=readyGuardian.start()
+ t.mock.timers.tick(21000);assert.equal(readyGuardian.alive,true)
+ first.send({status:'READY'});await ready
+ first.child.emit('close',0,null);first.child.stdout.end();first.child.stderr.end()
+ const second=fakeGuardian(),missingGuardian=new GuardianClient(second.child)
+ const refused=assert.rejects(missingGuardian.start(),/QA_GUARDIAN_(TIMEOUT|BLOCKED)/)
+ t.mock.timers.tick(60000);await refused;assert.equal(missingGuardian.alive,false)
+ second.child.stdout.end();second.child.stderr.end()
 })
 
 test('unexpected guardian exit and close without STOPPED still fail closed',async()=>{

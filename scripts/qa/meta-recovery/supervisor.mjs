@@ -131,7 +131,7 @@ export class QaSupervisor {
   if(this.stopPromise)return this.stopPromise
   this.closing=true;this.controller.abort()
   this.stopPromise=(async()=>{const failed=[]
-   for(const [stage,action] of [['FILES',()=>this.d.closeFiles()],['GATE',()=>this.gate?.seal()],['JOBS',()=>this.d.guardian.stop()],['BINDING',()=>this.d.db.disableBinding()],['DATABASE',()=>this.d.db.close()]])try{await action()}catch{failed.push(stage)}
+   for(const [stage,action] of [['FILES',()=>this.d.closeFiles()],['INTAKE',()=>this.gate?.closeIntake()],['JOBS',()=>this.d.guardian.stop()],['GATE',()=>this.gate?.seal()],['BINDING',()=>this.d.db.disableBinding()],['DATABASE',()=>this.d.db.close()]])try{await action()}catch{failed.push(stage)}
    const ok=failed.length===0
    this.mode='stopped';this.d.emit({...publicTelemetry({phase:'shutdown',status:ok?'PASS':'BLOCKED'}),...(ok?{}:{code:'QA_SHUTDOWN_'+failed.join('_')})});return ok
   })()
@@ -149,7 +149,7 @@ export class GuardianClient {
  }
  fail(){if(!this.alive)return;this.alive=false;this.boot?.reject(Error('QA_GUARDIAN_BLOCKED'));this.boot=null;for(const w of this.pending.splice(0))w.reject(Error('QA_GUARDIAN_BLOCKED'));this.child.stdin?.end();this.child.stdout?.destroy();this.onFailure?.()}
  async request(command){if(!this.alive)fixedFailure();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{this.fail();reject(Error('QA_GUARDIAN_TIMEOUT'))},20000);this.pending.push({resolve:value=>{clearTimeout(timer);resolve(value)},reject:error=>{clearTimeout(timer);reject(error)}});this.child.stdin.write(JSON.stringify(command)+'\n',error=>{if(error)this.fail()})})}
- async start(){let timer;try{await Promise.race([this.ready,new Promise((_,reject)=>{timer=setTimeout(()=>{this.fail();reject(Error('QA_GUARDIAN_TIMEOUT'))},20000);timer.unref()})])}finally{clearTimeout(timer)}}
+ async start(){let timer;try{await Promise.race([this.ready,new Promise((_,reject)=>{timer=setTimeout(()=>{this.fail();reject(Error('QA_GUARDIAN_TIMEOUT'))},60000);timer.unref()})])}finally{clearTimeout(timer)}}
  async launch(kind,enabled){const r=await this.request({command:'launch',kind,enabled,...this.plan(kind,enabled)});if(r.status!=='LAUNCHED'||r.kind!==kind||!Number.isSafeInteger(r.pid)||r.pid<=0)fixedFailure()}
  async stopChild(kind){const r=await this.request({command:'stopChild',kind});if(r.status!=='CHILD_STOPPED'||r.kind!==kind)fixedFailure()}
  async healthy(){const r=await this.request({command:'health'});return r.status==='HEALTHY'}

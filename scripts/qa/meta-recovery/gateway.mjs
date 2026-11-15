@@ -11,12 +11,13 @@ export function realGateway(c,secret){
  const audit={requests:0,challenge200:0,postReceived:0,dashboardSamples:0,placeholderSigned:0,sampleMatchReasons:{},hmacValid:0,qaTupleValid:0,forwarded:0,statuses:{},upstreamStatuses:{}}
  const auditFile=join(c.privateDirectory,'real-http-audit.json'),realFile=join(c.privateDirectory,'meta-real-private.json')
  let closed=false,windowStart=Date.now(),windowCount=0,active=0
+ const shutdown=new AbortController()
  const equal=(a,b)=>typeof a==='string'&&Buffer.byteLength(a)===Buffer.byteLength(b)&&timingSafeEqual(Buffer.from(a),Buffer.from(b))
  const server=createServer(async(req,res)=>{
   audit.requests++;active++;let finished=false
   const record=()=>{if(finished)return;finished=true;active--;audit.statuses[res.statusCode]=(audit.statuses[res.statusCode]||0)+1;writeFileSync(auditFile,JSON.stringify(audit),{mode:0o600})}
   res.once('finish',record);res.once('close',record)
-  const reply=(status,body='')=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(body)}
+  const reply=(status,body='')=>{if(res.destroyed||res.writableEnded)return;res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(body)}
   try{
    if(closed||existsSync(c.stopFile))return reply(503)
    if(Date.now()-windowStart>60000){windowStart=Date.now();windowCount=0}
@@ -33,6 +34,7 @@ export function realGateway(c,secret){
    if(Number(req.headers['content-length'])>65536)return reply(413)
    let bytes=0;const chunks=[]
    for await(const chunk of req){bytes+=chunk.length;if(bytes>65536)return reply(413);chunks.push(chunk)}
+   if(closed||existsSync(c.stopFile))return reply(503)
    const raw=Buffer.concat(chunks),signature=req.headers['x-hub-signature-256'],expected='sha256='+createHmac('sha256',secret).update(raw).digest('hex')
    if(!equal(signature,expected))return reply(401)
    audit.hmacValid++
@@ -57,13 +59,16 @@ export function realGateway(c,secret){
    if(real.release!==true||!real.approvedLeadId||!ids.every(id=>id===real.approvedLeadId)){res.setHeader('Retry-After','30');return reply(503,'{"qaGate":"awaiting_exact_test_id_approval"}')}
    const leadAge=Date.now()-Date.parse(real.leadCreatedAt)
    if(!Number.isFinite(leadAge)||leadAge<0||leadAge>600000)return reply(503)
-   const upstream=await fetch('http://127.0.0.1:'+c.appPort+'/api/webhooks/meta/lead-ads',{method:'POST',redirect:'error',headers:{'Content-Type':'application/json','X-Hub-Signature-256':signature},body:raw,signal:AbortSignal.timeout(8000)})
+   if(closed||existsSync(c.stopFile))return reply(503)
+   const upstream=await fetch('http://127.0.0.1:'+c.appPort+'/api/webhooks/meta/lead-ads',{method:'POST',redirect:'error',headers:{'Content-Type':'application/json','X-Hub-Signature-256':signature},body:raw,signal:AbortSignal.any([shutdown.signal,AbortSignal.timeout(8000)])})
    audit.forwarded++;audit.upstreamStatuses[upstream.status]=(audit.upstreamStatuses[upstream.status]||0)+1
    await upstream.body?.cancel();return reply(upstream.status,upstream.ok?'{"accepted":true}':'{}')
   }catch{return reply(503)}
  })
  server.headersTimeout=5000;server.requestTimeout=10000;server.timeout=10000;server.maxHeadersCount=40
  server.on('clientError',(_e,s)=>s.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n'))
- server.audit=audit;server.seal=()=>{closed=true;server.closeAllConnections();server.close();writeFileSync(auditFile,JSON.stringify(audit),{mode:0o600})}
+ server.audit=audit
+ server.closeIntake=()=>{closed=true;shutdown.abort();server.closeAllConnections();writeFileSync(auditFile,JSON.stringify(audit),{mode:0o600})}
+ server.seal=()=>{try{server.closeIntake()}finally{server.close()}}
  return server
 }

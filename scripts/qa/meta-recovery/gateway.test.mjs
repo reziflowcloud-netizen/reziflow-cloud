@@ -99,6 +99,15 @@ test('default closed intake and unknown exact Lead ID do not forward', async t =
   assert.equal(f.upstreamRequests(), 0)
 })
 
+test('closeIntake rejects every request while retaining the listener until seal',async t=>{
+ const f=await setup(t)
+ await f.state({release:true,approvedLeadId:'900000000000001',leadCreatedAt:new Date().toISOString()})
+ f.gate.closeIntake();assert.equal(f.gate.listening,true)
+ assert.equal((await f.post(f.validEvent())).status,503)
+ const response=await fetch(f.url+f.path);assert.equal(response.status,503);await response.body?.cancel()
+ assert.equal(f.upstreamRequests(),0)
+})
+
 for(const release of ['false', 1]) {
   test('malformed release ' + JSON.stringify(release) + ' never opens exact intake', async t => {
     const f=await setup(t)
