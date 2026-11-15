@@ -143,9 +143,9 @@ async function noLinks(path){let current=resolve(path);for(;;){if((await lstat(c
 async function privateRead(path,max=65536){await noLinks(path);const st=await lstat(path);if(!st.isFile()||st.nlink!==1||st.size>max)fixedFailure();return readFile(path,'utf8')}
 
 export class GuardianClient {
- constructor(child,{plan=()=>({})}={}){this.child=child;this.pending=[];this.alive=true;this.plan=plan;this.ready=new Promise((resolve,reject)=>{this.boot={resolve,reject}});let bytes=0,buffer=''
+ constructor(child,{plan=()=>({})}={}){this.child=child;this.pending=[];this.alive=true;this.stopping=false;this.plan=plan;this.ready=new Promise((resolve,reject)=>{this.boot={resolve,reject}});let bytes=0,buffer=''
   child.stdout.on('data',chunk=>{try{bytes+=chunk.length;buffer+=chunk.toString('utf8');if(bytes>262144)fixedFailure();for(;;){const end=buffer.indexOf('\n');if(end<0)break;if(end>4096)fixedFailure();const line=buffer.slice(0,end).trim();buffer=buffer.slice(end+1);const value=JSON.parse(line);if(Object.keys(value).some(key=>!['status','kind','pid','stage','nativeOperation','nativeCode'].includes(key))||(value.stage!==undefined&&!guardianStages.has(value.stage))||!['READY','LAUNCHED','CHILD_STOPPED','HEALTHY','APP_READY','APP_WAIT','STOPPED','BLOCKED'].includes(value.status))fixedFailure();if((value.nativeOperation!==undefined||value.nativeCode!==undefined)&&(value.status!=='BLOCKED'||!nativeOperations.has(value.nativeOperation)||!Number.isSafeInteger(value.nativeCode)||value.nativeCode<0||value.nativeCode>65535))fixedFailure();const failure=new LaunchFailure('guardian_'+value.stage,value);if(this.boot){const b=this.boot;this.boot=null;if(value.status!=='READY')b.reject(failure);else b.resolve(value)}else{const waiter=this.pending.shift();if(!waiter)fixedFailure();value.status==='BLOCKED'?waiter.reject(failure):waiter.resolve(value)}}if(buffer.length>4096)fixedFailure()}catch{this.fail()}})
-  child.once('error',()=>this.fail());child.once('exit',()=>this.fail());child.stderr?.resume()
+  child.once('error',()=>this.fail());child.once('exit',()=>{if(!this.stopping)this.fail()});child.once('close',()=>this.fail());child.stderr?.resume()
  }
  fail(){if(!this.alive)return;this.alive=false;this.boot?.reject(Error('QA_GUARDIAN_BLOCKED'));this.boot=null;for(const w of this.pending.splice(0))w.reject(Error('QA_GUARDIAN_BLOCKED'));this.child.stdin?.end();this.child.stdout?.destroy();this.onFailure?.()}
  async request(command){if(!this.alive)fixedFailure();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{this.fail();reject(Error('QA_GUARDIAN_TIMEOUT'))},20000);this.pending.push({resolve:value=>{clearTimeout(timer);resolve(value)},reject:error=>{clearTimeout(timer);reject(error)}});this.child.stdin.write(JSON.stringify(command)+'\n',error=>{if(error)this.fail()})})}
@@ -154,7 +154,7 @@ export class GuardianClient {
  async stopChild(kind){const r=await this.request({command:'stopChild',kind});if(r.status!=='CHILD_STOPPED'||r.kind!==kind)fixedFailure()}
  async healthy(){const r=await this.request({command:'health'});return r.status==='HEALTHY'}
  async appReady(){const r=await this.request({command:'appReady'});if(!['APP_READY','APP_WAIT'].includes(r.status))fixedFailure();return r.status==='APP_READY'}
- async stop(){if(!this.alive)fixedFailure();const r=await this.request({command:'stop'});this.child.stdin.end();if(r.status!=='STOPPED')fixedFailure()}
+ async stop(){if(!this.alive||this.stopping)fixedFailure();this.stopping=true;const r=await this.request({command:'stop'});this.child.stdin.end();if(r.status!=='STOPPED')fixedFailure()}
 }
 
 let launchStage='arguments'

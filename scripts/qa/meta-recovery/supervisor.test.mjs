@@ -104,6 +104,23 @@ test('READY cancels its startup timeout while a missing READY still closes the g
 test('guardian protocol accepts only fixed bounded acknowledgements',async()=>{
  const f=fakeGuardian(),g=new GuardianClient(f.child);f.send({status:'READY'});await g.start();let pending=g.launch('app',false);assert.deepEqual(f.commands[0],{command:'launch',kind:'app',enabled:false});f.send({status:'LAUNCHED',kind:'app',pid:42});await pending;pending=g.healthy();f.send({status:'HEALTHY'});assert.equal(await pending,true);pending=g.stop();f.send({status:'STOPPED'});await pending;f.child.stdout.end();f.child.stderr.end()
 })
+
+test('intentional guardian exit may precede draining its STOPPED pipe acknowledgment',async()=>{
+ const f=fakeGuardian(),g=new GuardianClient(f.child);f.send({status:'READY'});await g.start()
+ const stopped=g.stop();f.child.emit('exit',0,null);assert.equal(g.alive,true)
+ f.send({status:'STOPPED'});f.child.emit('close',0,null);await stopped;assert.equal(g.alive,false)
+ f.child.stdout.end();f.child.stderr.end()
+})
+
+test('unexpected guardian exit and close without STOPPED still fail closed',async()=>{
+ for(const intentional of [false,true]){
+  const f=fakeGuardian(),g=new GuardianClient(f.child);f.send({status:'READY'});await g.start()
+  const pending=intentional?g.stop():g.healthy();const rejected=assert.rejects(pending)
+  f.child.emit('exit',1,null);if(!intentional)assert.equal(g.alive,false)
+  f.child.emit('close',1,null);await rejected;assert.equal(g.alive,false)
+  f.child.stdout.end();f.child.stderr.end()
+ }
+})
 test('malformed guardian output cannot leak through protocol errors',async()=>{
  const f=fakeGuardian(),g=new GuardianClient(f.child);const ready=g.start();f.send({status:'planted-private-token'});await assert.rejects(ready,/QA_GUARDIAN_BLOCKED/);f.child.stdout.end();f.child.stderr.end()
 })
