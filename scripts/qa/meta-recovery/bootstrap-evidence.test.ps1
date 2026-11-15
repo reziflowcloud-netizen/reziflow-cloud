@@ -6,7 +6,7 @@ try{
  $fn=$ast.Find({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Assert-QaEvidenceScope'},$true)
  if(-not $fn){throw 'TEST_FUNCTION_MISSING'};. ([scriptblock]::Create($fn.Extent.Text))
  $checkout='C:\QA-EVIDENCE-FIXTURE\checkout';$checks=0
- foreach($leaf in @('meta-recovery-20261110','meta-recovery-alias-e2e-20261110','meta-recovery-20261115')){Assert-QaEvidenceScope (Join-Path (Join-Path $checkout '.qa') $leaf) $checkout 'fixture-owner' 'fixture-owner';$checks++}
+ foreach($leaf in @('meta-recovery-20261110','meta-recovery-alias-e2e-20261110','meta-recovery-20261115','meta-recovery-final-20261115')){Assert-QaEvidenceScope (Join-Path (Join-Path $checkout '.qa') $leaf) $checkout 'fixture-owner' 'fixture-owner';$checks++}
  foreach($case in @(@{path='C:\';owner='fixture-owner'},@{path=(Join-Path $checkout 'meta-recovery-20261115');owner='fixture-owner'},@{path=(Join-Path (Join-Path $checkout '.qa') 'other');owner='fixture-owner'},@{path=(Join-Path (Join-Path $checkout '.qa') 'meta-recovery-20261115');owner='foreign-owner'})){
   $refused=$false;try{Assert-QaEvidenceScope $case.path $checkout $case.owner 'fixture-owner'}catch{$refused=$true};if(-not $refused){throw 'TEST_FOREIGN_SCOPE_ACCEPTED'};$checks++
  }

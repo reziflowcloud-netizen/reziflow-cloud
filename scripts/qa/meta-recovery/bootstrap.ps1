@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 function Assert-QaEvidenceScope([string]$Path,[string]$Checkout,[string]$OwnerSid,[string]$ExpectedOwnerSid){
  $parent=[IO.Path]::GetDirectoryName($Path);$leaf=[IO.Path]::GetFileName($Path)
- if($parent -cne (Join-Path $Checkout '.qa') -or $leaf -cnotin @('meta-recovery-20261110','meta-recovery-alias-e2e-20261110','meta-recovery-20261115') -or $OwnerSid -cne $ExpectedOwnerSid -or [string]::IsNullOrEmpty($ExpectedOwnerSid)){throw 'QA_EVIDENCE_SCOPE_REFUSED'}
+ if($parent -cne (Join-Path $Checkout '.qa') -or $leaf -cnotin @('meta-recovery-20261110','meta-recovery-alias-e2e-20261110','meta-recovery-20261115','meta-recovery-final-20261115') -or $OwnerSid -cne $ExpectedOwnerSid -or [string]::IsNullOrEmpty($ExpectedOwnerSid)){throw 'QA_EVIDENCE_SCOPE_REFUSED'}
 }
 if($PSVersionTable.PSVersion.Major -ne 7 -or $PSVersionTable.PSEdition -ne 'Core'){throw 'QA_BOOTSTRAP_REQUIRES_APPROVED_PWSH7'}
 $qaPwsh=Join-Path $PSHOME 'pwsh.exe'

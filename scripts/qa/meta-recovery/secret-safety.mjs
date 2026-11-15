@@ -4,7 +4,7 @@ import {TextDecoder} from 'node:util'
 
 // The resumed cycle has a separate owned evidence directory; never overwrite
 // the previous cycle's pointer, reports or cleanup obligations.
-export const isQaResultDirectoryName=name=>typeof name==='string'&&(/^meta-recovery-\d{8}$/.test(name)||name==='meta-recovery-alias-e2e-20261110')
+export const isQaResultDirectoryName=name=>typeof name==='string'&&(/^meta-recovery-\d{8}$/.test(name)||name==='meta-recovery-alias-e2e-20261110'||name==='meta-recovery-final-20261115')
 
 const failures = new Set([
   'INVALID_SAFETY_INPUT', 'INVALID_TELEMETRY', 'SECRET_PATTERN', 'KNOWN_SECRET',
