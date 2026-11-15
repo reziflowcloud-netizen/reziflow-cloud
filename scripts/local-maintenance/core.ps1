@@ -43,21 +43,89 @@ function Assert-PrivateAcl([string]$Path) {
   $acl = Get-Acl -LiteralPath $Path
   $allowed = @([Security.Principal.WindowsIdentity]::GetCurrent().User.Value,
     'S-1-5-18', 'S-1-5-32-544')
-  foreach ($entry in $acl.Access) {
-    if ($entry.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow) { continue }
-    try { $sid = $entry.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value }
-    catch { Stop-Maintenance 'PRIVATE_ACL_UNVERIFIABLE' }
-    if ($sid -notin $allowed) { Stop-Maintenance 'PRIVATE_ACL_TOO_BROAD' }
+  $raw = [Security.AccessControl.RawSecurityDescriptor]::new(
+    $acl.GetSecurityDescriptorBinaryForm(), 0)
+  if ($null -eq $raw.DiscretionaryAcl) { Stop-Maintenance 'PRIVATE_ACL_TOO_BROAD' }
+  foreach ($entry in $raw.DiscretionaryAcl) {
+    if ($entry -isnot [Security.AccessControl.CommonAce] -or $entry.IsCallback -or
+        $entry.AceType -notin @([Security.AccessControl.AceType]::AccessAllowed,
+          [Security.AccessControl.AceType]::AccessDenied)) {
+      Stop-Maintenance 'PRIVATE_ACL_UNSUPPORTED'
+    }
+    if ($entry.AceType -eq [Security.AccessControl.AceType]::AccessAllowed -and
+        $entry.SecurityIdentifier.Value -notin $allowed) {
+      Stop-Maintenance 'PRIVATE_ACL_TOO_BROAD'
+    }
+  }
+}
+
+function Test-ExactPrivateAcl([object]$Acl, [bool]$IsDirectory) {
+  $allowed = @([Security.Principal.WindowsIdentity]::GetCurrent().User.Value,
+    'S-1-5-18', 'S-1-5-32-544')
+  try {
+    if ($Acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -notin $allowed -or
+        -not $Acl.AreAccessRulesProtected -or -not $Acl.AreAccessRulesCanonical) {
+      return $false
+    }
+    $raw = [Security.AccessControl.RawSecurityDescriptor]::new(
+      $Acl.GetSecurityDescriptorBinaryForm(), 0)
+    if ($null -eq $raw.DiscretionaryAcl -or $raw.DiscretionaryAcl.Count -ne 3) {
+      return $false
+    }
+    $inheritance = if ($IsDirectory) { 3 } else { 0 }
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($rule in $raw.DiscretionaryAcl) {
+      if ($rule -isnot [Security.AccessControl.CommonAce] -or $rule.IsCallback -or
+          $rule.AceType -ne [Security.AccessControl.AceType]::AccessAllowed) {
+        return $false
+      }
+      $sid = $rule.SecurityIdentifier.Value
+      if ($sid -notin $allowed -or -not $seen.Add($sid) -or
+          $rule.AccessMask -ne [int][Security.AccessControl.FileSystemRights]::FullControl -or
+          [int]$rule.AceFlags -ne $inheritance) {
+        return $false
+      }
+    }
+    return $true
+  } catch { return $false }
+}
+
+function Write-PrivateDacl([IO.FileSystemInfo]$Item, [object]$Acl) {
+  # The PowerShell Set-Acl provider first writes ALL descriptor sections.
+  # Persist only DACL/protection changes; never write owner/group/audit.
+  $descriptor = if ($Item.PSIsContainer) {
+    [Security.AccessControl.DirectorySecurity]::new()
+  } else { [Security.AccessControl.FileSecurity]::new() }
+  $descriptor.SetSecurityDescriptorBinaryForm($Acl.GetSecurityDescriptorBinaryForm(),
+    [Security.AccessControl.AccessControlSections]::Access)
+  if ($PSVersionTable.PSEdition -eq 'Desktop') {
+    $Item.SetAccessControl($descriptor)
+  } else {
+    [IO.FileSystemAclExtensions]::SetAccessControl($Item, $descriptor)
   }
 }
 
 function Set-PrivateAcl([string]$Path) {
+  Assert-NotReparsePoint $Path
+  $item = Get-Item -LiteralPath $Path -Force
   $acl = Get-Acl -LiteralPath $Path
-  $acl.SetAccessRuleProtection($true, $false)
-  foreach ($entry in @($acl.Access)) { [void]$acl.RemoveAccessRuleSpecific($entry) }
   $identity = [Security.Principal.WindowsIdentity]::GetCurrent().User
+  try { $owner = $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value }
+  catch { Stop-Maintenance 'PRIVATE_OWNER_UNVERIFIABLE' }
+  if ($owner -notin @($identity.Value, 'S-1-5-18', 'S-1-5-32-544')) {
+    Stop-Maintenance 'PRIVATE_OWNER_UNVERIFIED'
+  }
+  if (Test-ExactPrivateAcl $acl $item.PSIsContainer) {
+    Assert-PrivateAcl $Path
+    return
+  }
+  # A fresh DACL cannot retain ACE types omitted by the managed Access projection.
+  $targetAcl = if ($item.PSIsContainer) {
+    [Security.AccessControl.DirectorySecurity]::new()
+  } else { [Security.AccessControl.FileSecurity]::new() }
+  $targetAcl.SetAccessRuleProtection($true, $false)
   $inheritance = [Security.AccessControl.InheritanceFlags]::None
-  if (Test-Path -LiteralPath $Path -PathType Container) {
+  if ($item.PSIsContainer) {
     $inheritance = [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
       [Security.AccessControl.InheritanceFlags]::ObjectInherit
   }
@@ -67,10 +135,17 @@ function Set-PrivateAcl([string]$Path) {
       $sid, [Security.AccessControl.FileSystemRights]::FullControl, $inheritance,
       [Security.AccessControl.PropagationFlags]::None,
       [Security.AccessControl.AccessControlType]::Allow)
-    $acl.AddAccessRule($rule)
+    $targetAcl.AddAccessRule($rule)
   }
-  Set-Acl -LiteralPath $Path -AclObject $acl
+  Write-PrivateDacl $item $targetAcl
   Assert-PrivateAcl $Path
+  $after = Get-Acl -LiteralPath $Path
+  if (-not (Test-ExactPrivateAcl $after $item.PSIsContainer) -or
+      $after.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $owner -or
+      $after.GetGroup([Security.Principal.SecurityIdentifier]).Value -ne
+        $acl.GetGroup([Security.Principal.SecurityIdentifier]).Value) {
+    Stop-Maintenance 'PRIVATE_ACL_POSTCONDITION_FAILED'
+  }
 }
 
 function Read-MaintenanceConfig([string]$ConfigPath, [bool]$Synthetic) {

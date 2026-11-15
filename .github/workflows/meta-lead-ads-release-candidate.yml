@@ -6,12 +6,24 @@ on:
       - 'src/**'
       - 'prisma/**'
       - 'tests/**'
+      - 'scripts/local-maintenance/**'
       - 'scripts/meta-lead-ads-worker.mjs'
       - '.github/workflows/meta-lead-ads-release-candidate.yml'
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
+  acl-guards:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Strict ACL model tests (no database or private paths)
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/acl-tests.ps1
   release-checks:
     runs-on: ubuntu-latest
     timeout-minutes: 15
