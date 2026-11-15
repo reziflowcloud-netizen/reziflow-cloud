@@ -60,7 +60,7 @@ try {
   await new Promise(resolve => listener.listen(0, '127.0.0.1', resolve))
   const port = listener.address().port
   await new Promise(resolve => listener.close(resolve))
-  server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', String(port)], {
+  server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-H', '127.0.0.1', '-p', String(port)], {
     cwd: root, env, windowsHide: true, stdio: 'ignore',
   })
   stopped = false

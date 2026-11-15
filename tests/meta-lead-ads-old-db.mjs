@@ -22,7 +22,7 @@ const base = `http://127.0.0.1:${port}`
 const secret = 'synthetic-old-db-jwt-secret-1234567890'
 const cleanEnv = Object.fromEntries(['PATH','Path','SystemRoot','TEMP','TMP','APPDATA','LOCALAPPDATA','USERPROFILE','COMSPEC']
   .filter(key => process.env[key]).map(key => [key, process.env[key]]))
-const child = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '-p', String(port)], {
+const child = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '-H', '127.0.0.1', '-p', String(port)], {
   cwd: process.cwd(), windowsHide: true, stdio: 'ignore', env: { ...cleanEnv,
     DATABASE_URL: process.env.DATABASE_URL, JWT_SECRET: secret, NEXT_TELEMETRY_DISABLED: '1',
     META_LEAD_ADS_UI_ENABLED: 'true', META_LEAD_ADS_UI_ORGANIZATION_IDS: org.id },

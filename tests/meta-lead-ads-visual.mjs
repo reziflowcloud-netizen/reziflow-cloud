@@ -28,7 +28,7 @@ const secret = 'synthetic-visual-qa-secret-1234567890123456'
 const port = await freePort()
 const base = `http://127.0.0.1:${port}`
 const cleanEnv = Object.fromEntries(['PATH','Path','SystemRoot','TEMP','TMP','APPDATA','LOCALAPPDATA','USERPROFILE','COMSPEC'].filter(key => process.env[key]).map(key => [key, process.env[key]]))
-const child = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', String(port)], {
+const child = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-H', '127.0.0.1', '-p', String(port)], {
   cwd: process.cwd(), windowsHide: true, stdio: 'ignore',
   env: { ...cleanEnv, JWT_SECRET: secret, NEXT_TELEMETRY_DISABLED: '1',
     DATABASE_URL: process.env.DATABASE_URL, META_LEAD_ADS_UI_ENABLED: 'true', META_LEAD_ADS_UI_ORGANIZATION_IDS: org.id },
