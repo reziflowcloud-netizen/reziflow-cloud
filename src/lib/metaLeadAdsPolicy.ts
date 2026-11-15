@@ -43,3 +43,9 @@ export function metaRetryDelay(attempts: number, retryAfterSeconds?: number | nu
   const exponential = Math.min(3600, 30 * 2 ** Math.min(Math.max(attempts - 1, 0), 7))
   return Math.min(3600, Math.max(exponential, Number.isFinite(retryAfterSeconds) ? Math.max(0, Number(retryAfterSeconds)) : 0))
 }
+
+export function metaGraphRetryable(status: number, code: unknown, transient: unknown): boolean {
+  // Authorization/permission failures need an operator, never a retry loop.
+  if ([10, 190, 200].includes(Number(code))) return false
+  return status === 429 || status >= 500 || [1, 2, 4, 17, 32, 341, 613].includes(Number(code)) || transient === true
+}

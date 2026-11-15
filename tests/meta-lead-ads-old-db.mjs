@@ -24,7 +24,8 @@ const cleanEnv = Object.fromEntries(['PATH','Path','SystemRoot','TEMP','TMP','AP
   .filter(key => process.env[key]).map(key => [key, process.env[key]]))
 const child = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '-p', String(port)], {
   cwd: process.cwd(), windowsHide: true, stdio: 'ignore', env: { ...cleanEnv,
-    DATABASE_URL: process.env.DATABASE_URL, JWT_SECRET: secret, NEXT_TELEMETRY_DISABLED: '1' },
+    DATABASE_URL: process.env.DATABASE_URL, JWT_SECRET: secret, NEXT_TELEMETRY_DISABLED: '1',
+    META_LEAD_ADS_UI_ENABLED: 'true', META_LEAD_ADS_UI_ORGANIZATION_IDS: org.id },
 })
 try {
   let ready = false

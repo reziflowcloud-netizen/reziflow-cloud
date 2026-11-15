@@ -3,6 +3,7 @@ import { verifyMetaWebhookSignature } from '@/lib/metaWebhookSecurity'
 import { keyMatches } from '@/lib/leadWebhook'
 import { acceptLeadAdsEvents, leadAdsAppConfig } from '@/lib/metaLeadAds'
 import { collectMetaLeadAdsEvents } from '@/lib/metaLeadAdsPolicy'
+import { BodyLimitError, readBoundedBody } from '@/lib/boundedBody'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -25,10 +26,11 @@ export async function POST(request: NextRequest) {
   if (!config) return NextResponse.json({ error: 'Lead Ads unavailable' }, { status: 503 })
   let raw: Uint8Array
   try {
-    const buffer = await request.arrayBuffer()
-    if (buffer.byteLength > 65536) return NextResponse.json({ error: 'Payload too large' }, { status: 413 })
-    raw = new Uint8Array(buffer)
-  } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
+    raw = await readBoundedBody(request.body, 65536, request.headers.get('content-length'))
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof BodyLimitError ? 'Payload too large' : 'Invalid body' },
+      { status: error instanceof BodyLimitError ? 413 : 400 })
+  }
   const signature = verifyMetaWebhookSignature(raw, request.headers.get('x-hub-signature-256'), config.secret)
   if (!signature.verified) return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
   if (process.env.META_LEAD_ADS_ENABLED !== 'true') {

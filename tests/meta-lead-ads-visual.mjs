@@ -14,6 +14,8 @@ const suffix = randomUUID().slice(0, 8)
 const org = await db.organization.create({ data: { name: 'Synthetic Visual QA', slug: `synthetic-visual-${suffix}` } })
 const owner = await db.user.create({ data: { organizationId: org.id, email: `visual-${suffix}@example.invalid`,
   password: 'synthetic', name: 'Visual Owner', role: 'owner' } })
+const deniedOrg = await db.organization.create({ data: { name: 'Synthetic Unapproved Tenant', slug: `synthetic-visual-denied-${suffix}` } })
+const deniedOwner = await db.user.create({ data: { organizationId: deniedOrg.id, email: `denied-${suffix}@example.invalid`, password: 'synthetic', name: 'Unapproved Owner', role: 'owner' } })
 
 async function freePort() {
   const server = createServer()
@@ -29,7 +31,7 @@ const cleanEnv = Object.fromEntries(['PATH','Path','SystemRoot','TEMP','TMP','AP
 const child = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', String(port)], {
   cwd: process.cwd(), windowsHide: true, stdio: 'ignore',
   env: { ...cleanEnv, JWT_SECRET: secret, NEXT_TELEMETRY_DISABLED: '1',
-    DATABASE_URL: process.env.DATABASE_URL },
+    DATABASE_URL: process.env.DATABASE_URL, META_LEAD_ADS_UI_ENABLED: 'true', META_LEAD_ADS_UI_ORGANIZATION_IDS: org.id },
 })
 let browser
 try {
@@ -46,7 +48,9 @@ try {
     .setProtectedHeader({ alg: 'HS256' }).setIssuedAt().setExpirationTime('1h')
     .sign(new TextEncoder().encode(secret))
   const labels = { ru: 'Отдельная интеграция', uk: 'Окрема інтеграція', pl: 'osobna integracja' }
-  for (const width of [390, 414, 430]) for (const lang of ['ru', 'uk', 'pl']) {
+  const deniedToken = await new SignJWT({ id: deniedOwner.id, organizationId: deniedOrg.id, role: 'owner', sessionVersion: 0 })
+    .setProtectedHeader({ alg: 'HS256' }).setIssuedAt().setExpirationTime('1h').sign(new TextEncoder().encode(secret))
+  for (const width of [390, 414, 430, 1280]) for (const lang of ['ru', 'uk', 'pl']) {
     const context = await browser.newContext({ viewport: { width, height: 844 } })
     await context.addCookies([{ name: 'auth-token', value: token, url: base }])
     await context.addInitScript(value => localStorage.setItem('rezi_lang', value), lang)
@@ -66,8 +70,18 @@ try {
     assert.equal(overflow, 0, `${lang} ${width}px horizontal overflow`)
     assert.deepEqual(errors, [], `${lang} ${width}px runtime errors`)
     await context.close()
+    const deniedContext = await browser.newContext({ viewport: { width, height: 844 } })
+    await deniedContext.addCookies([{ name: 'auth-token', value: deniedToken, url: base }])
+    const deniedPage = await deniedContext.newPage()
+    assert.equal((await deniedPage.goto(`${base}/settings/integrations/meta-lead-ads`))?.status(), 404)
+    assert.equal((await deniedContext.request.get(`${base}/api/meta-lead-ads/bindings`)).status(), 404)
+    const sources = await (await deniedContext.request.get(`${base}/api/lead-sources`)).json()
+    assert.equal(sources.sources.some(source => source.value.includes('lead_ads')), false)
+    await deniedPage.goto(`${base}/settings/integrations`, { waitUntil: 'networkidle' })
+    assert.equal(await deniedPage.locator('a[href="/settings/integrations/meta-lead-ads"]').count(), 0)
+    await deniedContext.close()
   }
-  console.log('VISUAL PASS: 390/414/430 × RU/UA/PL, no overflow or runtime errors')
+  console.log('VISUAL PASS: 390/414/430/1280 × RU/UA/PL; approved UI no overflow; unapproved page/API404, sources and integration link absent')
 } finally {
   await browser?.close()
   child.kill()

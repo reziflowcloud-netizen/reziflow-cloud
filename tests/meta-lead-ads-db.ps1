@@ -1,13 +1,18 @@
 param([string]$PgBin = 'C:\Program Files\PostgreSQL\18\bin', [switch]$SkipVisual)
 $ErrorActionPreference = 'Stop'
-$root = Join-Path $env:TEMP ('legalhub-meta-lead-ads-qa-' + [guid]::NewGuid().ToString('N'))
+$testId = [guid]::NewGuid().ToString('N')
+$root = [IO.Path]::GetFullPath(('D:\LegalHubReleaseTests-' + $testId))
 $data = Join-Path $root 'cluster'
 $port = $null
 $started = $false
 $startupAttempted = $false
 $exitCode = 1
 New-Item -ItemType Directory -Path $root | Out-Null
+[IO.File]::WriteAllText((Join-Path $root 'release-tests-owned.txt'), $testId)
 try {
+  foreach ($name in @(Get-ChildItem Env: | Where-Object Name -match 'DATABASE|DIRECT_URL|TOKEN|SECRET|^META_|^FACEBOOK_|^INSTAGRAM_|^NGROK_|^PRISMA_')) {
+    [Environment]::SetEnvironmentVariable($name.Name, $null, 'Process')
+  }
   foreach ($name in @('initdb.exe','pg_ctl.exe','createdb.exe')) {
     if (-not (Test-Path -LiteralPath (Join-Path $PgBin $name))) { throw "PostgreSQL 18 tool missing: $name" }
   }
@@ -35,6 +40,23 @@ try {
   }
   & node tests\meta-lead-ads-http.mjs
   if ($LASTEXITCODE -ne 0) { throw 'Synthetic HTTP assertions failed' }
+  $regressionDb = 'legalhub_webhook_qa_notifications_qa'
+  & (Join-Path $PgBin 'createdb.exe') -h 127.0.0.1 -p $port -U meta_qa $regressionDb
+  if ($LASTEXITCODE -ne 0) { throw 'Regression database creation failed' }
+  $metaUrl = $env:DATABASE_URL
+  try {
+    $env:DATABASE_URL = "postgresql://meta_qa@127.0.0.1:$port/$($regressionDb)?schema=public"
+    & .\node_modules\.bin\prisma.cmd migrate deploy
+    if ($LASTEXITCODE -ne 0) { throw 'Regression migration chain failed' }
+    $env:NOTIFICATIONS_TEST_DATABASE_URL = $env:DATABASE_URL
+    $env:LEAD_WEBHOOK_POOL_TEST_DATABASE_URL = $env:DATABASE_URL
+    $env:RUN_DB_TESTS = '1'
+    & node --test --test-concurrency=1 tests\notification-events-phase3.test.mjs tests\lead-webhook-pool-timeout.test.mjs tests\staff-routing-v2-db.test.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'Shared ingestion/runtime DB regressions failed' }
+  } finally {
+    $env:DATABASE_URL = $metaUrl
+    Remove-Item Env:NOTIFICATIONS_TEST_DATABASE_URL,Env:LEAD_WEBHOOK_POOL_TEST_DATABASE_URL,Env:RUN_DB_TESTS -ErrorAction SilentlyContinue
+  }
   & (Join-Path $PgBin 'createdb.exe') -h 127.0.0.1 -p $port -U meta_qa meta_lead_ads_old_qa
   if ($LASTEXITCODE -ne 0) { throw 'Old-schema disposable database creation failed' }
   $oldFixture = Join-Path $root 'old-schema-fixture'
@@ -80,10 +102,14 @@ try {
     }
   }
   $resolvedRoot = [System.IO.Path]::GetFullPath($root)
-  $resolvedTemp = [System.IO.Path]::GetFullPath($env:TEMP).TrimEnd('\') + '\'
-  if ($stopped -and $resolvedRoot.StartsWith($resolvedTemp, [StringComparison]::OrdinalIgnoreCase) -and
-      (Split-Path $resolvedRoot -Leaf) -match '^legalhub-meta-lead-ads-qa-[0-9a-f]{32}$') {
+  $marker = Join-Path $resolvedRoot 'release-tests-owned.txt'
+  $links = @(Get-ChildItem -LiteralPath $resolvedRoot -Force -Recurse | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint })
+  if ($stopped -and $resolvedRoot -ceq ('D:\LegalHubReleaseTests-' + $testId) -and
+      -not ((Get-Item -LiteralPath $resolvedRoot -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) -and
+      $links.Count -eq 0 -and (Get-Content -LiteralPath $marker -Raw) -ceq $testId) {
+    Remove-Item -LiteralPath $resolvedRoot -Recurse -Force -WhatIf
     Remove-Item -LiteralPath $resolvedRoot -Recurse -Force
+    if (Test-Path -LiteralPath $resolvedRoot) { throw 'Disposable cleanup absence check failed' }
   } else {
     Write-Error "Disposable cluster cleanup blocked; inspect local path: $resolvedRoot" -ErrorAction Continue
     $exitCode = 1

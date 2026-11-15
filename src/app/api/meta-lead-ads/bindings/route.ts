@@ -5,15 +5,24 @@ import { isSameOriginRequest } from '@/lib/requestSecurity'
 import { leadAdsAppConfig, pageToken } from '@/lib/metaLeadAds'
 import { metaNumericId } from '@/lib/metaLeadAdsPolicy'
 import { leadAdsTupleAuthorized } from '@/lib/metaLeadAdsAuthorization'
+import { metaLeadAdsFeatureEnabled } from '@/lib/metaLeadAdsFeature'
+import { BodyLimitError, readBoundedBody } from '@/lib/boundedBody'
 
 export const dynamic = 'force-dynamic'
 const db = prisma as any
 
-async function ownerContext() {
+async function ownerContext(requireFeature = true) {
   const user = await getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   if ((user.role !== 'owner' && user.role !== 'admin') || user.restrictedAccess === true) return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
-  return { organizationId: getOrganizationId(user) }
+  const organizationId = getOrganizationId(user)
+  if (requireFeature && !metaLeadAdsFeatureEnabled(organizationId)) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) }
+  return { organizationId }
+}
+
+async function readInput(request: NextRequest) {
+  const raw = await readBoundedBody(request.body, 16384, request.headers.get('content-length'))
+  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(raw))
 }
 
 export async function GET() {
@@ -59,7 +68,10 @@ async function save(request: NextRequest, create: boolean) {
   if (!isSameOriginRequest(request)) return NextResponse.json({ error: 'Cross-origin request blocked' }, { status: 403 })
   const context = await ownerContext()
   if (context.error) return context.error
-  const body = await request.json().catch(() => null)
+  let body: any
+  try { body = await readInput(request) } catch (error) {
+    return NextResponse.json({ error: 'Invalid body' }, { status: error instanceof BodyLimitError ? 413 : 400 })
+  }
   const config = leadAdsAppConfig()
   if (!config || !body || typeof body !== 'object') return NextResponse.json({ error: 'App configuration unavailable' }, { status: 503 })
   const mode = String(body.mode || 'off')
@@ -129,9 +141,12 @@ export async function PUT(request: NextRequest) { return save(request, false) }
 // withdrawn. The Organization lock is shared with Lead creation's final check.
 export async function DELETE(request: NextRequest) {
   if (!isSameOriginRequest(request)) return NextResponse.json({ error: 'Cross-origin request blocked' }, { status: 403 })
-  const context = await ownerContext()
+  const context = await ownerContext(false)
   if (context.error) return context.error
-  const body = await request.json().catch(() => null)
+  let body: any
+  try { body = await readInput(request) } catch (error) {
+    return NextResponse.json({ error: 'Invalid body' }, { status: error instanceof BodyLimitError ? 413 : 400 })
+  }
   if (typeof body?.id !== 'string') return NextResponse.json({ error: 'Invalid binding' }, { status: 400 })
   try {
     const result = await db.$transaction(async (tx: any) => {

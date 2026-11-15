@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { keyMatches } from '@/lib/leadWebhook'
 import { maintainLeadAdsReceipts } from '@/lib/metaLeadAdsRetention'
+import { BodyLimitError, readBoundedBody } from '@/lib/boundedBody'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -12,7 +13,10 @@ export async function POST(request: NextRequest) {
   if (secret.length < 32 || !bearer.startsWith('Bearer ') || !keyMatches(secret, bearer.slice(7))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  const body = await request.json().catch(() => null)
+  let body: any
+  try { body = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(
+    await readBoundedBody(request.body, 4096, request.headers.get('content-length')))) }
+  catch (error) { return NextResponse.json({ error: 'Invalid body' }, { status: error instanceof BodyLimitError ? 413 : 400 }) }
   const organizationId = typeof body?.organizationId === 'string' ? body.organizationId : ''
   const permitted = String(process.env.META_LEAD_ADS_RETENTION_ORGANIZATION_IDS || '').split(',').map(value => value.trim()).includes(organizationId)
   if (!organizationId || !permitted) return NextResponse.json({ error: 'Tenant not authorized' }, { status: 403 })

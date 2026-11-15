@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { metaNumericId } from './metaLeadAdsPolicy.ts'
+import { isInternalQaMetaResource } from './metaLeadAdsFeature.ts'
 
 type ApprovedTuple = {
   appId: string; pageId: string; formId: string; organizationId: string
@@ -22,7 +23,8 @@ function allowedOrganization(mode: string, organizationId: string): boolean {
 export function leadAdsTupleAuthorized(input: {
   appId: string; pageId: string; formId: string; organizationId: string; mode: string; pageToken: string | null
 }): boolean {
-  if (!input.organizationId || !allowedOrganization(input.mode, input.organizationId) || !input.pageToken) return false
+  if (isInternalQaMetaResource(input.appId, input.pageId, input.formId) ||
+      !input.organizationId || !allowedOrganization(input.mode, input.organizationId) || !input.pageToken) return false
   let tuples: unknown
   try { tuples = JSON.parse(process.env.META_LEAD_ADS_APPROVED_TUPLES || '') } catch { return false }
   if (!Array.isArray(tuples) || tuples.length > 100) return false

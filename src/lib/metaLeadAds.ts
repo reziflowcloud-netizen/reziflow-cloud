@@ -6,8 +6,10 @@ import { normalizeLeadBody } from '@/lib/leads'
 import { resolveInboundLeadAssignment } from '@/lib/leadRouting'
 import { notifyAssignment } from '@/lib/notifications'
 import { assertBillingLimit } from '@/lib/billing'
-import { leadAdsSource, metaNumericId, metaRetryDelay, pilotAllows, type MetaLeadAdsEvent } from '@/lib/metaLeadAdsPolicy'
+import { leadAdsSource, metaNumericId, metaRetryDelay, metaGraphRetryable, pilotAllows, type MetaLeadAdsEvent } from '@/lib/metaLeadAdsPolicy'
 import { leadAdsTupleAuthorized } from '@/lib/metaLeadAdsAuthorization'
+import { isInternalQaMetaResource } from '@/lib/metaLeadAdsFeature'
+import { BodyLimitError, readBoundedBody } from '@/lib/boundedBody'
 
 const db = prisma as any
 
@@ -21,7 +23,7 @@ export function leadAdsAppConfig() {
     Number.isFinite(Date.parse(activationRaw)) ? new Date(activationRaw) : null
   const legacySecrets = [process.env.META_APP_SECRET, process.env.FACEBOOK_APP_SECRET, process.env.INSTAGRAM_APP_SECRET]
   const legacyAppIds = [process.env.META_APP_ID, process.env.FACEBOOK_APP_ID]
-  if (!appId || secret.length < 24 || verifyToken.length < 24 || receiptKey.length < 32 ||
+  if (!appId || isInternalQaMetaResource(appId) || secret.length < 24 || verifyToken.length < 24 || receiptKey.length < 32 ||
       (process.env.META_LEAD_ADS_ENABLED === 'true' && !activationTime) ||
       receiptKey === secret || receiptKey === verifyToken ||
       legacySecrets.some(value => value && value === secret) || legacyAppIds.some(value => value && value === appId)) return null
@@ -125,7 +127,7 @@ async function fetchLead(leadgenId: string, pageId: string, secret: string, dead
   const token = pageToken(pageId)
   if (!token) throw new GraphFailure('PAGE_TOKEN_MISSING', true)
   const version = /^v\d+\.\d+$/.test(process.env.META_LEAD_ADS_GRAPH_VERSION || '')
-    ? process.env.META_LEAD_ADS_GRAPH_VERSION : 'v23.0'
+    ? process.env.META_LEAD_ADS_GRAPH_VERSION : 'v27.0'
   const url = new URL(`https://graph.facebook.com/${version}/${leadgenId}`)
   url.searchParams.set('fields', 'id,form_id,platform,field_data,created_time')
   url.searchParams.set('appsecret_proof', createHmac('sha256', secret).update(token).digest('hex'))
@@ -136,14 +138,26 @@ async function fetchLead(leadgenId: string, pageId: string, secret: string, dead
       signal: AbortSignal.timeout(Math.min(10000, Math.max(1000, deadline - Date.now() - 2000))),
     })
   } catch { throw new GraphFailure('GRAPH_TRANSPORT', true) }
+  let raw: string
+  try {
+    const bytes = await readBoundedBody(response.body, 131072, response.headers.get('content-length'))
+    raw = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch (error) {
+    throw new GraphFailure(error instanceof BodyLimitError ? 'GRAPH_RESPONSE_TOO_LARGE' : 'GRAPH_BODY_INVALID',
+      !(error instanceof BodyLimitError))
+  }
+  let value: any
+  try { value = JSON.parse(raw) } catch {
+    throw new GraphFailure('GRAPH_INVALID_JSON', response.ok || response.status === 429 || response.status >= 500)
+  }
   if (!response.ok) {
+    const code = Number.isSafeInteger(value?.error?.code) ? value.error.code : null
     const rawRetry = Number(response.headers.get('retry-after'))
-    throw new GraphFailure(`GRAPH_${response.status}`, response.status === 429 || response.status >= 500,
+    throw new GraphFailure(`GRAPH_${response.status}${code === null ? '' : `_${code}`}`,
+      metaGraphRetryable(response.status, code, value?.error?.is_transient),
       Number.isFinite(rawRetry) ? rawRetry : undefined)
   }
-  const raw = await response.text()
-  if (raw.length > 131072) throw new GraphFailure('GRAPH_RESPONSE_TOO_LARGE', false)
-  try { return JSON.parse(raw) } catch { throw new GraphFailure('GRAPH_INVALID_JSON', true) }
+  return value
 }
 
 function fieldsToPayload(metaLead: any): Record<string, string> {

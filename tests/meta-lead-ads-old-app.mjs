@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { PrismaClient } from '@prisma/client'
 
-const MAIN = 'bb0ef24186462bb4bca8e3ea9b6b1b6500a5d466'
+const MAIN = '2e7c25ca573203ee8a3c757f7a36e48259964166'
 if (process.env.META_LEAD_ADS_SYNTHETIC_DB_TEST !== '1' ||
     !/^postgresql:\/\/meta_qa@127\.0\.0\.1:\d+\/meta_lead_ads_qa\?schema=public$/.test(process.env.DATABASE_URL || '')) {
   throw new Error('Synthetic localhost database guard failed')

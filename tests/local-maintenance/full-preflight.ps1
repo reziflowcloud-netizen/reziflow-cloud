@@ -104,7 +104,7 @@ try {
 
   $head = (& git -C $repo rev-parse HEAD).Trim()
   $runner = Join-Path $repo 'scripts/local-maintenance/runner.ps1'
-  $batch = Join-Path $repo 'PREFLIGHT.bat'
+  $pwsh = Join-Path $PSHOME 'pwsh.exe'
   $decoy = Join-Path $root 'decoy-cwd'
   $decoyMigrations = Join-Path $decoy 'prisma/migrations/20990101000000_decoy'
   [void](New-Item -ItemType Directory -Path $decoyMigrations -Force)
@@ -118,20 +118,20 @@ datasource db {
     'CREATE TABLE public."Decoy" (id INTEGER);', [Text.UTF8Encoding]::new($false))
   $runnerErr = Join-Path $root 'runner.err'
   $ErrorActionPreference = 'Continue'
-  $initialStatus = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
+  $initialStatus = @(& $pwsh -NoProfile -File $runner `
       -Mode Status -Synthetic -ConfigPath $configFile 2>$runnerErr)
   if ($LASTEXITCODE -ne 0 -or ($initialStatus -join ' ') -notmatch 'NO_HISTORY') {
     Stop-Maintenance 'NO_HISTORY_REPORT_FAILED'
   }
   Write-Output 'PASS offline status with no history'
-  $blocked = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
+  $blocked = @(& $pwsh -NoProfile -File $runner `
       -Mode Preflight -Synthetic -ApprovedCommit $head `
       -ExpectedMigrations '20990101000000_unexpected' -ConfigPath $configFile 2>$runnerErr)
   if ($LASTEXITCODE -eq 0 -or
       (Get-Content -LiteralPath $runnerErr -Raw) -notmatch 'PENDING_SET_MISMATCH') {
     Stop-Maintenance 'BLOCKED_PREFLIGHT_REPORT_SETUP_FAILED'
   }
-  $blockedStatus = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
+  $blockedStatus = @(& $pwsh -NoProfile -File $runner `
       -Mode Status -Synthetic -ConfigPath $configFile 2>$runnerErr)
   if ($LASTEXITCODE -ne 0 -or ($blockedStatus -join ' ') -notmatch 'PREFLIGHT_BLOCKED') {
     Stop-Maintenance 'BLOCKED_PREFLIGHT_REPORT_FAILED'
@@ -139,7 +139,7 @@ datasource db {
   Write-Output 'PASS blocked preflight persisted to offline status'
   Push-Location $decoy
   try {
-    $result = @(& $batch -Synthetic -ApprovedCommit $head -ExpectedMigrations $pending `
+    $result = @(& $pwsh -NoProfile -File $runner -Mode Preflight -Synthetic -ApprovedCommit $head -ExpectedMigrations $pending `
         -ConfigPath $configFile 2>$runnerErr)
   } finally { Pop-Location }
   if ($LASTEXITCODE -ne 0 -or ($result -join ' ') -notmatch 'PREFLIGHT PASS') {
@@ -156,9 +156,9 @@ datasource db {
   $decoyRows = Invoke-ReadOnlyQuery $config $sourceUri `
     "SELECT count(*) FROM pg_class WHERE oid=to_regclass('public.`"Decoy`"')" 'DECOY_CHECK_FAILED'
   if ($decoyRows -ne '0') { Stop-Maintenance 'DECOY_MIGRATION_WAS_USED' }
-  Write-Output 'PASS BAT launched from decoy CWD, pinned Prisma schema and migration folder'
+  Write-Output 'PASS approved PowerShell runner launched from decoy CWD, pinned Prisma schema and migration folder'
   Write-Output 'PASS synthetic credential not emitted'
-  $denied = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
+  $denied = @(& $pwsh -NoProfile -File $runner `
       -Mode Apply -Synthetic -ConfigPath $configFile 2>$runnerErr)
   if ($LASTEXITCODE -eq 0 -or
       (Get-Content -LiteralPath $runnerErr -Raw) -notmatch 'SYNTHETIC_APPLY_FORBIDDEN') {
@@ -167,7 +167,7 @@ datasource db {
   Write-Output 'PASS synthetic apply refused'
   $planPath = Get-ChildItem -LiteralPath (Join-Path $private 'plans') `
     -Filter '*.sealed.json' -File | Select-Object -First 1 -ExpandProperty FullName
-  $status = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
+  $status = @(& $pwsh -NoProfile -File $runner `
       -Mode Status -Synthetic -ConfigPath $configFile -PlanPath $planPath 2>$runnerErr)
   if ($LASTEXITCODE -ne 0 -or ($status -join ' ') -notmatch 'PREFLIGHT_ONLY') {
     Stop-Maintenance 'OFFLINE_STATUS_FAILED'
@@ -232,14 +232,14 @@ $plan = Read-SealedPlan $config $PlanPath
 Mark-PlanAttempted $config $plan
 [Diagnostics.Process]::GetCurrentProcess().Kill()
 '@, [Text.UTF8Encoding]::new($false))
-  $crashResult = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $crashScript `
+  $crashResult = @(& $pwsh -NoProfile -File $crashScript `
       -Repo $repo -ConfigPath $configFile -PlanPath $planPath 2>$runnerErr)
   $attemptedMarker = Join-Path $private "plans/$($planForStatus.runId).attempted"
   if ($LASTEXITCODE -eq 0 -or -not (Test-Path -LiteralPath $attemptedMarker)) {
     Stop-Maintenance 'ABRUPT_ATTEMPT_MARKER_TEST_FAILED'
   }
   foreach ($mode in @('Status', 'Report')) {
-    $interrupted = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
+    $interrupted = @(& $pwsh -NoProfile -File $runner `
         -Mode $mode -Synthetic -ConfigPath $configFile -PlanPath $planPath 2>$runnerErr)
     $text = $interrupted -join ' '
     if ($LASTEXITCODE -ne 0 -or $text -notmatch 'STATUS ATTEMPTED_UNVERIFIED' -or
@@ -253,7 +253,7 @@ Mark-PlanAttempted $config $plan
   $hiddenReport = $reportPath + '.held'
   [IO.File]::Move($reportPath, $hiddenReport)
   try {
-    $missingReport = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
+    $missingReport = @(& $pwsh -NoProfile -File $runner `
         -Mode Status -Synthetic -ConfigPath $configFile -PlanPath $planPath 2>$runnerErr)
     if ($LASTEXITCODE -ne 0 -or ($missingReport -join ' ') -notmatch 'ATTEMPTED_UNVERIFIED') {
       Stop-Maintenance 'MISSING_INTERRUPTED_REPORT_UNSAFE'
@@ -270,7 +270,7 @@ Mark-PlanAttempted $config $plan
       [IO.File]::WriteAllText($reportPath, ($reportState | ConvertTo-Json -Depth 20),
         [Text.UTF8Encoding]::new($false))
       Assert-PrivateAcl $reportPath
-      $view = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
+      $view = @(& $pwsh -NoProfile -File $runner `
           -Mode Status -Synthetic -ConfigPath $configFile -PlanPath $planPath 2>$runnerErr)
       if ($LASTEXITCODE -ne 0 -or ($view -join ' ') -notmatch "STATUS $resultName") {
         Stop-Maintenance 'APPLY_REPORT_STATUS_FAILED'
@@ -285,7 +285,7 @@ Mark-PlanAttempted $config $plan
   $syntheticTarget = [pscustomobject]@{ Uri = $sourceUri; Port = $source.Port;
     Database = $dbName }
   Invoke-DisposableMigration $config $syntheticTarget $repo
-  $skip = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner `
+  $skip = @(& $pwsh -NoProfile -File $runner `
       -Mode Preflight -Synthetic -NoMigration -ApprovedCommit $head `
       -ConfigPath $configFile 2>$runnerErr)
   if ($LASTEXITCODE -ne 0 -or ($skip -join ' ') -notmatch 'SKIPPED_NO_MIGRATION' -or
