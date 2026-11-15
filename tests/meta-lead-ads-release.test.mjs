@@ -9,7 +9,7 @@ import { metaGraphRetryable } from '../src/lib/metaLeadAdsPolicy.ts'
 test('Graph transient/throttle error codes retry even with HTTP400; authorization stays terminal', () => {
   for (const code of [1, 2, 4, 17, 32, 341, 613]) assert.equal(metaGraphRetryable(400, code, false), true)
   assert.equal(metaGraphRetryable(400, 999, true), true)
-  for (const code of [10, 190, 200]) assert.equal(metaGraphRetryable(500, code, true), false)
+  for (const code of [10, 102, 190, 200, 201, 299]) assert.equal(metaGraphRetryable(500, code, true), false)
   assert.equal(metaGraphRetryable(400, 100, false), false)
 })
 

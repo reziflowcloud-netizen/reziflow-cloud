@@ -293,14 +293,13 @@ Mark-PlanAttempted $config $plan
     Stop-Maintenance 'NO_MIGRATION_SKIP_FAILED'
   }
   Write-Output 'PASS no-migration skip without new backup'
-  $reportBatch = Join-Path $repo 'REPORT.bat'
   Push-Location $decoy
-  try { $skipReport = @(& $reportBatch -Synthetic -ConfigPath $configFile 2>$runnerErr) }
+  try { $skipReport = @(& $pwsh -NoProfile -File $runner -Mode Report -Synthetic -ConfigPath $configFile 2>$runnerErr) }
   finally { Pop-Location }
   if ($LASTEXITCODE -ne 0 -or ($skipReport -join ' ') -notmatch 'SKIPPED_NO_MIGRATION') {
     Stop-Maintenance 'REPORT_BATCH_SKIP_FAILED'
   }
-  Write-Output 'PASS REPORT.bat shows skipped no-migration state'
+  Write-Output 'PASS approved PowerShell Report shows skipped no-migration state'
   Write-Output 'FULL WINDOWS PREFLIGHT TEST PASS'
 } finally {
   try {

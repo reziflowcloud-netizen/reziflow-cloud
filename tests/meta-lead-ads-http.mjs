@@ -74,7 +74,7 @@ await db.leadChannelRouteMember.create({ data: { organizationId: org.id, routeId
 const instagramRoute = await db.leadChannelRoute.create({ data: { organizationId: org.id, sourceKey: 'instagram_lead_ads', employeeId: employeeB.id } })
 const binding = await db.metaLeadAdsBinding.create({ data: {
   organizationId: org.id, appId: '123', pageId: '111', formId: '222', enabled: true, mode: 'pilot',
-  activatedAt: new Date(Date.now() - 1000), pilotLeadIds: ['333', '334', '429', '500', '404', '555', '556'],
+  activatedAt: new Date(Date.now() - 1000), pilotLeadIds: ['333', '334', '429', '500', '400', '401', '413', '404', '555', '556'],
 } })
 const shadowBinding = await db.metaLeadAdsBinding.create({ data: {
   organizationId: other.id, appId: '123', pageId: '777', formId: '888', enabled: true, mode: 'shadow', activatedAt: new Date(Date.now() - 1000),
@@ -420,25 +420,32 @@ try {
   assert.equal((await worker()).status, 200)
   assert.equal(await db.lead.count({ where: { organizationId: org.id, messengerId: 'meta-lead-ads:556' } }), 1)
   assert.equal((await db.leadChannelRoute.findUnique({ where: { id: route.id } })).nextPosition, 2)
-  for (const id of ['429', '500']) {
+  for (const id of ['429', '500', '400']) {
     assert.equal((await webhook(event(id))).status, 200)
     const row = await db.metaLeadAdsDelivery.findFirst({ where: { appId: '123', leadgenId: id } })
     assert.equal(row?.status, 'pending')
   }
   assert.equal((await worker('wrong')).status, 401)
   assert.equal((await worker()).status, 200)
-  for (const id of ['429', '500']) {
+  for (const id of ['429', '500', '400']) {
     const row = await db.metaLeadAdsDelivery.findFirst({ where: { appId: '123', leadgenId: id } })
     assert.equal(row?.status, 'pending')
     await db.metaLeadAdsDelivery.update({ where: { id: row.id }, data: { nextAttemptAt: new Date(Date.now() - 1000) } })
   }
   assert.equal((await worker()).status, 200)
-  for (const id of ['429', '500']) {
+  for (const id of ['429', '500', '400']) {
     assert.equal((await db.metaLeadAdsDelivery.findFirst({ where: { appId: '123', leadgenId: id } }))?.status, 'complete')
     assert.equal(await db.lead.count({ where: { organizationId: org.id, messengerId: `meta-lead-ads:${id}` } }), 1)
   }
   assert.equal((await webhook(event('404'))).status, 200)
+  for (const id of ['401', '413']) assert.equal((await webhook(event(id))).status, 200)
   assert.equal((await worker()).status, 200)
+  for (const [id, code] of [['401', 'GRAPH_400_190'], ['413', 'GRAPH_RESPONSE_TOO_LARGE']]) {
+    const rejected = await db.metaLeadAdsDelivery.findFirst({ where: { appId: '123', leadgenId: id } })
+    assert.equal(rejected?.status, 'blocked'); assert.equal(rejected?.lastErrorCode, code)
+    assert.equal(rejected?.attempts, 1)
+    assert.equal(await db.lead.count({ where: { organizationId: org.id, messengerId: `meta-lead-ads:${id}` } }), 0)
+  }
   const missingGraphLead = await db.metaLeadAdsDelivery.findFirst({ where: { appId: '123', leadgenId: '404' }, select: { status: true, lastErrorCode: true } })
   if (missingGraphLead?.status !== 'blocked') console.error('GRAPH_404_STATUS', missingGraphLead)
   assert.equal(missingGraphLead?.status, 'blocked')

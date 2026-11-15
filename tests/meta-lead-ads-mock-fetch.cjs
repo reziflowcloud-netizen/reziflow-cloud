@@ -15,6 +15,9 @@ global.fetch = async function syntheticMetaFetch(input, init) {
   if (id === '9981' || id === '9983') await new Promise(resolve => setTimeout(resolve, 9500))
   if (['429', '995', '996'].includes(id) && count === 1) return new Response('{}', { status: 429, headers: { 'Retry-After': '0' } })
   if (id === '500' && count === 1) return new Response('{}', { status: 500 })
+  if (id === '400' && count === 1) return Response.json({ error: { code: 2, is_transient: true, message: 'Synthetic private diagnostic excluded' } }, { status: 400 })
+  if (id === '401') return Response.json({ error: { code: 190, is_transient: true } }, { status: 400 })
+  if (id === '413') return new Response('x'.repeat(131073), { status: 200 })
   if (id === '404') return new Response('{}', { status: 404 })
   return Response.json({ id, form_id: id === '997' ? '225' : ['9981', '9983'].includes(id) ? '227' : '222',
     created_time: new Date(Date.now() - (id === '3002' ? 367 * 86400000 : 0)).toISOString(),
