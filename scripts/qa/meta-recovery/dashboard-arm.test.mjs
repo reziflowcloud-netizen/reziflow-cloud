@@ -68,6 +68,15 @@ test('sample mismatch diagnosis returns only fixed reasons, never values or unkn
  changed.entry[0].time=1794735000000;assert.equal(dashboardObservationReason(changed,arm),'envelope_time_milliseconds')
  const injected=structuredClone(body);injected.entry[0].changes[0].value.email=SECRET;const result=dashboardObservationReason(injected,arm);assert.equal(result,'envelope_schema');assert.equal(result.includes(SECRET),false)
 })
+
+test('only provider-created sample time may refresh within its bounded arm window',()=>{
+ const body=sample(),now=Date.now(),arm={...observedDashboardArm({sample:body.entry[0].changes[0]}),expiresAt:new Date(now+55000).toISOString()}
+ body.entry[0].changes[0].value.created_time=Math.floor(now/1000)
+ assert.equal(matchesDashboardObservation(body,arm),true)
+ for(const time of [Math.floor((now-6000)/1000),Math.ceil((now+61000)/1000),'1794735000']){const bad=structuredClone(body);bad.entry[0].changes[0].value.created_time=time;assert.equal(matchesDashboardObservation(bad,arm),false)}
+ const bad=structuredClone(body);bad.entry[0].changes[0].value.ad_id=444444444444;assert.equal(matchesDashboardObservation(bad,arm),false)
+ const actual=structuredClone(body);actual.entry[0].id=PAGE;actual.entry[0].changes[0].value.form_id=FORM;assert.equal(matchesDashboardObservation(actual,arm),false)
+})
 test('unobserved/inside-private/noncanonical/hardlinked public sample refuses without arming',async t=>{
  const f=await fixture(t)
  for(const delta of [{uiObservedInQaDashboard:false},{uiObservedInQaDashboard:'true'},{publicSampleFile:join(f.root,'dashboard-sample-public.json')},{publicSampleFile:join(f.root,'runtime.json')}]){const result=await armDashboardSample({...f.options,...delta});assert.equal(result.status,'BLOCKED');safe(result);assert.equal((await f.read()).dashboardSample,null)}

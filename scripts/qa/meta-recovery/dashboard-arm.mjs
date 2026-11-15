@@ -49,7 +49,17 @@ export function observedDashboardArm(event){
 export function matchesDashboardObservation(event,arm){
  try{
   const full=observedDashboardCanonical(event)
-  if(typeof arm?.expectedChangeCanonical==='string')return arm.expectedCanonical===undefined&&arm.expectedChangeCanonical===canonical(event.entry[0].changes[0])
+  if(typeof arm?.expectedChangeCanonical==='string'){
+   if(arm.expectedCanonical!==undefined)return false
+   const actual=event.entry[0].changes[0]
+   if(arm.expectedChangeCanonical===canonical(actual))return true
+   // Meta's delivered sample time can differ from the UI's cached example. All
+   // other observed values/types remain exact; real tuples never enter here.
+   const expected=observedChange(JSON.parse(arm.expectedChangeCanonical)),end=Date.parse(arm.expiresAt)
+   const generated=actual.value.created_time
+   if(!epoch(expected.value.created_time)||!epoch(generated)||!Number.isFinite(end)||generated*1000<end-60000||generated*1000>end+5000)return false
+   return arm.expectedChangeCanonical===canonical({...actual,value:{...actual.value,created_time:expected.value.created_time}})
+  }
   return typeof arm?.expectedCanonical==='string'&&arm.expectedCanonical===full
  }catch{return false}
 }
