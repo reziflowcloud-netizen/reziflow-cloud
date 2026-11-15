@@ -55,7 +55,8 @@ test('scheduler performs no requests by default and retries are bounded without 
   let calls = 0; const reports = [], waits = []
   assert.deepEqual(await runWorkerScheduler({ env: {}, fetchImpl: () => { calls++; throw new Error() } }), { disabled: true, ticks: 0 })
   assert.equal(calls, 0)
-  const env = { META_LEAD_ADS_SCHEDULER_ENABLED: 'true', META_LEAD_ADS_WORKER_URL: 'https://example.invalid/api/internal/meta-lead-ads', META_LEAD_ADS_WORKER_SECRET: 'synthetic-worker-secret-123456789012345' }
+  const env = { META_LEAD_ADS_SCHEDULER_ENABLED: 'true', META_LEAD_ADS_WORKER_URL: 'https://legalhubcrm.com/api/internal/meta-lead-ads', META_LEAD_ADS_WORKER_SECRET: 'synthetic-worker-secret-123456789012345' }
+  await assert.rejects(runWorkerScheduler({ env: { ...env, META_LEAD_ADS_WORKER_URL: 'https://other.invalid/api/internal/meta-lead-ads' } }), /WORKER_URL_INVALID/)
   const result = await runWorkerScheduler({ env, fetchImpl: async () => { calls++; return new Response('PRIVATE_REMOTE_BODY', { status: 503, headers: { 'retry-after': '120' } }) },
     sleep: async ms => waits.push(ms), report: value => reports.push(value), maxTicks: 20 })
   assert.equal(result.failed, true); assert.equal(calls, 3); assert.deepEqual(waits, [120000, 120000])
@@ -64,7 +65,7 @@ test('scheduler performs no requests by default and retries are bounded without 
 test('scheduler reports backlog, serializes ticks and stops on operator signal', async () => {
   const controller = new AbortController(), reports = []
   let calls = 0
-  const result = await runWorkerScheduler({ env: { META_LEAD_ADS_SCHEDULER_ENABLED: 'true', META_LEAD_ADS_WORKER_URL: 'https://example.invalid/api/internal/meta-lead-ads', META_LEAD_ADS_WORKER_SECRET: 'synthetic-worker-secret-123456789012345' },
+  const result = await runWorkerScheduler({ env: { META_LEAD_ADS_SCHEDULER_ENABLED: 'true', META_LEAD_ADS_WORKER_URL: 'https://legalhubcrm.com/api/internal/meta-lead-ads', META_LEAD_ADS_WORKER_SECRET: 'synthetic-worker-secret-123456789012345' },
     signal: controller.signal, fetchImpl: async () => { calls++; return Response.json({ complete: 1, retry: 0, blocked: 0, skipped: 0, pending: 1, blockedTotal: 0, oldestPendingSeconds: 400 }) },
     sleep: async () => controller.abort(), report: value => reports.push(value) })
   assert.equal(result.ticks, 1); assert.equal(calls, 1); assert.equal(reports[0].severity, 'alert')

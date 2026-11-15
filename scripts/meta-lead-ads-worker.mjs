@@ -9,7 +9,7 @@ export async function runWorkerScheduler({ env = process.env, fetchImpl = fetch,
   maxTicks = 1440 } = {}) {
   if (env.META_LEAD_ADS_SCHEDULER_ENABLED !== 'true') return { disabled: true, ticks: 0 }
   const url = new URL(env.META_LEAD_ADS_WORKER_URL || '')
-  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash ||
+  if (url.origin !== 'https://legalhubcrm.com' || url.username || url.password || url.search || url.hash ||
       url.pathname !== '/api/internal/meta-lead-ads') throw new Error('WORKER_URL_INVALID')
   const secret = env.META_LEAD_ADS_WORKER_SECRET || ''
   if (secret.length < 32) throw new Error('WORKER_SECRET_MISSING')
