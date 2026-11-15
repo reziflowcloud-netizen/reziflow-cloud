@@ -4,7 +4,7 @@ import {mkdtemp,mkdir,writeFile,readFile,rm,readdir,link} from 'node:fs/promises
 import {join} from 'node:path'
 import {tmpdir} from 'node:os'
 import {randomUUID,createHash} from 'node:crypto'
-import {observedDashboardCanonical,observedDashboardArm,matchesDashboardObservation,armDashboardSample} from './dashboard-arm.mjs'
+import {observedDashboardCanonical,observedDashboardArm,matchesDashboardObservation,dashboardObservationReason,armDashboardSample} from './dashboard-arm.mjs'
 const APP='2523488421395251',PAGE='1449474971582722',FORM='2046130655900851',DUMMY='444444444444'
 const TOKEN='EAA'+'SyntheticPageOnly'.repeat(5),SECRET='PlantedGeneratedQaSecretOnly'.repeat(2)
 const sample=()=>({object:'page',entry:[{id:'0',time:1700000000,changes:[{field:'leadgen',value:{page_id:DUMMY,form_id:DUMMY,leadgen_id:DUMMY,ad_id:DUMMY,adgroup_id:DUMMY,created_time:1700000000}}]}]})
@@ -51,6 +51,22 @@ test('arming changes only dashboardSample, expires in 55 seconds and preserves p
  delete after.dashboardSample;const expected={...f.state};delete expected.dashboardSample;assert.deepEqual(after,expected)
  assert.equal(await readFile(join(f.root,'runtime.json'),'utf8'),runtimeBefore);assert.equal(await readFile(join(f.root,'meta-page-token.txt'),'utf8'),TOKEN)
  const again=await armDashboardSample(f.options);assert.equal(again.code,'PROOF_REFUSED');assert.deepEqual((await f.read()).dashboardSample,arm)
+})
+
+test('explicit disarm removes only the sample capability and cannot open or erase a Lead attempt',async t=>{
+ const f=await fixture(t),armed={...f.state,dashboardSample:{expiresAt:new Date(Date.now()+30000).toISOString(),...observedDashboardArm(sample())}}
+ await writeFile(join(f.root,'meta-real-private.json'),JSON.stringify(armed))
+ const r=await armDashboardSample({...f.options,disarm:true});assert.equal(r.status,'PASS');safe(r);assert.deepEqual(await f.read(),f.state)
+ assert.equal((await armDashboardSample({...f.options,disarm:true})).status,'PASS')
+ for(const delta of [{release:true},{createAttemptAt:new Date().toISOString()},{approvedLeadId:'900000000000001'}]){const blocked={...armed,...delta};await writeFile(join(f.root,'meta-real-private.json'),JSON.stringify(blocked));assert.equal((await armDashboardSample({...f.options,disarm:true})).status,'BLOCKED');assert.deepEqual(await f.read(),blocked)}
+})
+
+test('sample mismatch diagnosis returns only fixed reasons, never values or unknown field names',()=>{
+ const body=sample(),arm=observedDashboardArm({sample:body.entry[0].changes[0]})
+ assert.equal(dashboardObservationReason(body,arm),'matched');assert.equal(dashboardObservationReason(body,null),'unarmed')
+ const changed=structuredClone(body);changed.entry[0].changes[0].value.created_time++;assert.equal(dashboardObservationReason(changed,arm),'value_created_time')
+ changed.entry[0].time=1794735000000;assert.equal(dashboardObservationReason(changed,arm),'envelope_time_milliseconds')
+ const injected=structuredClone(body);injected.entry[0].changes[0].value.email=SECRET;const result=dashboardObservationReason(injected,arm);assert.equal(result,'envelope_schema');assert.equal(result.includes(SECRET),false)
 })
 test('unobserved/inside-private/noncanonical/hardlinked public sample refuses without arming',async t=>{
  const f=await fixture(t)

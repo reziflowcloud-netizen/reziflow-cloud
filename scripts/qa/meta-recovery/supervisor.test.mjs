@@ -67,6 +67,11 @@ test('single STOP seals ingress before job termination and always attempts bindi
 test('stop failure is BLOCKED, no raw child/provider error is emitted',async()=>{
  const f=fixture();await f.service.start();f.d.guardian.stop=async()=>{f.calls.push('guardian.unverified');throw Error('planted-private-credential')};assert.equal(await f.service.stop(),false);assert.ok(f.calls.includes('db.disable'));assert.equal(f.events.at(-1).status,'BLOCKED');assert.equal(JSON.stringify(f.events).includes('planted-private'),false)
 })
+
+test('shutdown diagnostics name only fixed failed cleanup steps and still attempt later steps',async()=>{
+ const f=fixture();await f.service.start();f.d.guardian.stop=async()=>{throw Error('planted-private-error')};f.d.db.disableBinding=async()=>{throw Error('another-private-error')}
+ assert.equal(await f.service.stop(),false);assert.equal(f.events.at(-1).code,'QA_SHUTDOWN_JOBS_BINDING');assert.ok(f.calls.includes('db.close'));assert.equal(JSON.stringify(f.events).includes('private-error'),false)
+})
 test('guardian parent-death/unhealthy and absolute deadline invoke STOP',async()=>{
  for(const cause of ['parent','deadline']){const f=fixture();await f.service.start();if(cause==='parent')f.setHealthy(false);else f.setClock(now+600001);await f.service.tick();assert.equal(f.service.closing,true);assert.ok(f.calls.includes('guardian.stop'))}
 })

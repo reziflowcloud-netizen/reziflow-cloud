@@ -162,6 +162,7 @@ test('observed v27 Dashboard change admits one signed placeholder envelope and n
  assert.equal((await f.post(contacts)).status,403)
  body.entry[0].time++
  assert.equal((await f.post(body)).status,200);assert.equal(f.gate.audit.dashboardSamples,1)
+ assert.equal(f.gate.audit.sampleMatchReasons.value_created_time,1);assert.equal(f.gate.audit.sampleMatchReasons.matched,1)
  assert.equal(f.gate.audit.qaTupleValid,0);assert.equal(f.upstreamRequests(),0)
  assert.equal((await f.post(body)).status,403)
  assert.equal((await f.post(f.validEvent())).status,503);assert.equal(f.upstreamRequests(),0)

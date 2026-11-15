@@ -1,7 +1,8 @@
 param(
   [Parameter(Mandatory=$true)][string]$PointerPath,
   [Parameter(Mandatory=$true)][string]$SampleJsonPath,
-  [Parameter(Mandatory=$true)][switch]$ObservedInQaDashboard
+  [Parameter(Mandatory=$true)][switch]$ObservedInQaDashboard,
+  [switch]$Disarm
 )
 $ErrorActionPreference='Stop'
 try{
@@ -11,6 +12,7 @@ try{
   $c=$qa.Runtime
   if([Environment]::ProcessPath -ne $c.qaPwshExecutable -or $c.appId -ne '2523488421395251' -or $c.approvedMetaAppId -ne $c.appId -or $c.pageId -ne '1449474971582722' -or $c.formId -ne '2046130655900851'){throw 'APP_REFUSED'}
   $qaDashboardArgs=@([IO.Path]::GetFullPath($SampleJsonPath))
+  if($Disarm){$qaDashboardArgs+='--disarm'}
   $gitExe=(Get-Command git.exe -ErrorAction Stop).Source
   Assert-QaNoReparse $gitExe
   . (Join-Path $qa.Source 'scripts/local-maintenance/core.ps1')

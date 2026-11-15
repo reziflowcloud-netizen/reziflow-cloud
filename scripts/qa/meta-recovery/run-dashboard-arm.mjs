@@ -32,7 +32,8 @@ async function privateRead(path, guard, max) {
 }
 async function main() {
   const publicSampleFile=resolve(process.argv[2]||'')
-  if(process.argv.length!==3 || process.env.QA_DASHBOARD_SAMPLE_OBSERVED!=='true')throw Error('INPUT_REFUSED')
+  const disarm=process.argv.length===4&&process.argv[3]==='--disarm'
+  if(![3,4].includes(process.argv.length)||process.argv.length===4&&!disarm || process.env.QA_DASHBOARD_SAMPLE_OBSERVED!=='true')throw Error('INPUT_REFUSED')
   const here = dirname(fileURLToPath(import.meta.url))
   const runtimeFile = process.env.QA_STAGE_A_PRIVATE_CONFIG, pwsh = process.env.QA_PWSH_EXE
   if (!runtimeFile || !pwsh || basename(runtimeFile) !== 'runtime.json') throw Error('INPUT_REFUSED')
@@ -67,7 +68,7 @@ async function main() {
     await output.writeFile(placeholder); await output.sync()
     const before = await output.stat()
     await scanArtifacts({root: resultRoot, paths, knownSecrets})
-    result = await armDashboardSample({publicSampleFile, uiObservedInQaDashboard:true, privateRoot: root, assertPrivateFile: guard, artifacts: {root: resultRoot, paths}})
+    result = await armDashboardSample({publicSampleFile, uiObservedInQaDashboard:true, disarm, privateRoot: root, assertPrivateFile: guard, artifacts: {root: resultRoot, paths}})
     text = JSON.stringify(result)
     assertPublishableText(text, {knownSecrets})
     await noLinks(resultRoot)
@@ -81,7 +82,7 @@ async function main() {
   } finally { await output.close() }
   await scanArtifacts({root: resultRoot, paths, knownSecrets})
   console.log(text)
-  if (result.status !== 'READY') process.exitCode = 1
+  if (result.status !== (disarm?'PASS':'READY')) process.exitCode = 1
 }
 main().catch(() => {
   console.log('{"phase":"dashboard_sample","status":"BLOCKED","code":"LOCAL_DASHBOARD_ARM_REFUSED"}')

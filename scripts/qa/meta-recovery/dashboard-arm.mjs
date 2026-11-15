@@ -53,6 +53,24 @@ export function matchesDashboardObservation(event,arm){
   return typeof arm?.expectedCanonical==='string'&&arm.expectedCanonical===full
  }catch{return false}
 }
+export function dashboardObservationReason(event,arm,now=Date.now()){
+ if(!object(arm))return 'unarmed'
+ if(Object.hasOwn(arm,'expiresAt')&&(!Number.isFinite(Date.parse(arm.expiresAt))||Date.parse(arm.expiresAt)<=now||Date.parse(arm.expiresAt)-now>60000))return 'expired_arm'
+ try{observedDashboardCanonical(event)}catch{
+  const time=event?.entry?.[0]?.time
+  return Number.isSafeInteger(time)&&time>2147483647&&time<=2147483647000?'envelope_time_milliseconds':'envelope_schema'
+ }
+ if(matchesDashboardObservation(event,arm))return 'matched'
+ if(typeof arm.expectedChangeCanonical!=='string')return 'full_envelope_mismatch'
+ try{
+  const expected=observedChange(JSON.parse(arm.expectedChangeCanonical)).value,actual=event.entry[0].changes[0].value
+  for(const key of ['page_id','form_id','leadgen_id','ad_id','adgroup_id','created_time','is_organic']){
+   if(typeof expected[key]!==typeof actual[key])return 'type_'+key
+   if(expected[key]!==actual[key])return 'value_'+key
+  }
+  return 'change_shape'
+ }catch{return 'arm_schema'}
+}
 async function checked(path,guard,directory=false){
  if(!absolute(path))fail('PRIVATE_FILE_REFUSED')
  for(let current=resolve(path);;){if((await lstat(current)).isSymbolicLink())fail('PRIVATE_FILE_REFUSED');const parent=dirname(current);if(parent===current)break;current=parent}
@@ -90,7 +108,7 @@ export async function armDashboardSample(options){
   assertPublishableText(JSON.stringify(summary),{knownSecrets});return Object.freeze(summary)
  }
  try{
-  if(!object(options)||!absolute(options.privateRoot)||!absolute(options.publicSampleFile)||options.uiObservedInQaDashboard!==true||typeof options.assertPrivateFile!=='function'||!object(options.artifacts)||typeof options.artifacts.root!=='string'||!Array.isArray(options.artifacts.paths))fail('INPUT_REFUSED')
+  if(!object(options)||!absolute(options.privateRoot)||!absolute(options.publicSampleFile)||options.uiObservedInQaDashboard!==true||options.disarm!==undefined&&typeof options.disarm!=='boolean'||typeof options.assertPrivateFile!=='function'||!object(options.artifacts)||typeof options.artifacts.root!=='string'||!Array.isArray(options.artifacts.paths))fail('INPUT_REFUSED')
   const root=resolve(options.privateRoot),sampleFile=resolve(options.publicSampleFile),guard=options.assertPrivateFile
   if(!/^LegalHubStageA-[a-f0-9]{32}$/.test(basename(root))||basename(root)==='LegalHubStageA-e0d6208c7f1b4b61917281dc390a8045'||basename(sampleFile)!=='dashboard-sample-public.json'||sampleFile.toLowerCase().startsWith(root.toLowerCase()+(process.platform==='win32'?'\\':'/')))fail('INPUT_REFUSED')
   await checked(root,guard,true)
@@ -105,10 +123,14 @@ export async function armDashboardSample(options){
   const run=dbState.cluster?.RunId,url=new URL(c.databaseUrl)
   if(!/^stagea[a-f0-9]{32}$/.test(run||'')||dbState.config?.targetKind!=='synthetic'||dbState.config.privateDirectory!==root||dbState.config.expectedHost!=='127.0.0.1'||dbState.config.expectedApplicationHost!=='127.0.0.1'||!['postgres:','postgresql:'].includes(url.protocol)||url.hostname!=='127.0.0.1'||!url.port||url.port==='5432'||Number(url.port)!==dbState.cluster.Port||url.pathname!=='/legalhub_runner_'+run||dbState.cluster.Database!==url.pathname.slice(1)||c.databaseUrl!==dbState.cluster.Uri)fail('RUNTIME_REFUSED')
   knownSecrets=[token,c.databaseUrl,...Object.values(c.secrets||{}),...Object.values(c.passwords||{})].filter(x=>typeof x==='string'&&x.length)
-  if(!/^EAA[A-Za-z0-9_-]{30,4090}$/.test(token)||state.appId!==APP||state.pageId!==PAGE||state.formId!==FORM||state.release!==false||state.approvedLeadId!==null||state.leadCreatedAt!==null||state.dashboardSample!==null||state.createAttemptAt!=null||!fresh(state.verifiedAt,3600000)||state.tokenSha256!==createHash('sha256').update(token).digest('hex')||!['tokenApp','tokenPage','formOwnership'].every(k=>state.results?.[k]==='PASS'))fail('PROOF_REFUSED')
-  const observed=await boundedRead(sampleFile,null,8192),expectedObservation=observedDashboardArm(JSON.parse(observed.text))
+  if(!/^EAA[A-Za-z0-9_-]{30,4090}$/.test(token)||state.appId!==APP||state.pageId!==PAGE||state.formId!==FORM||state.release!==false||state.approvedLeadId!==null||state.leadCreatedAt!==null||options.disarm!==true&&state.dashboardSample!==null||state.createAttemptAt!=null||!fresh(state.verifiedAt,3600000)||state.tokenSha256!==createHash('sha256').update(token).digest('hex')||!['tokenApp','tokenPage','formOwnership'].every(k=>state.results?.[k]==='PASS'))fail('PROOF_REFUSED')
   artifactCheck=async()=>{try{await scanArtifacts({root:options.artifacts.root,paths:options.artifacts.paths,knownSecrets})}catch{fail('ARTIFACT_SCAN_BLOCKED')}}
   await artifactCheck()
+  if(options.disarm===true){
+   if(state.dashboardSample!==null){state.dashboardSample=null;await saveArm(stateFile,state,saved.stat,guard)}
+   await artifactCheck();return output('PASS')
+  }
+  const observed=await boundedRead(sampleFile,null,8192),expectedObservation=observedDashboardArm(JSON.parse(observed.text))
   if(!same(observed.stat,await checked(sampleFile,null)))fail('PRIVATE_FILE_CHANGED')
   if(!same(runtimeRead.stat,await checked(runtimeFile,guard))||!same(dbRead.stat,await checked(dbFile,guard))||!same(tokenRead.stat,await checked(tokenFile,guard)))fail('PRIVATE_FILE_CHANGED')
   if(await lstat(join(root,'STOP')).then(()=>true,error=>{if(error.code==='ENOENT')return false;throw error}))fail('CLOSED_CYCLE_REFUSED')

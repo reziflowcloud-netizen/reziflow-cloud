@@ -130,9 +130,10 @@ export class QaSupervisor {
  async stop(){
   if(this.stopPromise)return this.stopPromise
   this.closing=true;this.controller.abort()
-  this.stopPromise=(async()=>{let ok=true
-   for(const action of [()=>this.d.closeFiles(),()=>this.gate?.seal(),()=>this.d.guardian.stop(),()=>this.d.db.disableBinding(),()=>this.d.db.close()])try{await action()}catch{ok=false}
-   this.mode='stopped';this.emit('shutdown',ok?'PASS':'BLOCKED');return ok
+  this.stopPromise=(async()=>{const failed=[]
+   for(const [stage,action] of [['FILES',()=>this.d.closeFiles()],['GATE',()=>this.gate?.seal()],['JOBS',()=>this.d.guardian.stop()],['BINDING',()=>this.d.db.disableBinding()],['DATABASE',()=>this.d.db.close()]])try{await action()}catch{failed.push(stage)}
+   const ok=failed.length===0
+   this.mode='stopped';this.d.emit({...publicTelemetry({phase:'shutdown',status:ok?'PASS':'BLOCKED'}),...(ok?{}:{code:'QA_SHUTDOWN_'+failed.join('_')})});return ok
   })()
   return this.stopPromise
  }
