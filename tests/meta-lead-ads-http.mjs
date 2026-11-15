@@ -516,7 +516,11 @@ try {
   assert.equal((await worker()).status, 200)
   assert.equal((await db.metaLeadAdsDelivery.findUnique({ where: { id: recovering.id } })).status, 'complete')
   assert.equal(await db.notification.count({ where: { organizationId: org.id, entityId: firstLead.id } }), noticesBeforeRecovery)
-  assert.equal((await db.leadChannelRoute.findUnique({ where: { id: route.id } })).nextPosition, cursorBeforeRecovery + 1)
+  assert.equal((await db.leadChannelRoute.findUnique({ where: { id: route.id } })).nextPosition,
+    cursorBeforeRecovery === 1 ? 2 : 1)
+  const recoveredAssignment = await db.lead.findFirst({ where: { organizationId: org.id, messengerId: 'meta-lead-ads:4001' } })
+  assert.equal(recoveredAssignment?.employeeId, cursorBeforeRecovery === 1 ? employeeB.id : employeeA.id)
+  assert.equal(recoveredAssignment?.assignedToId, cursorBeforeRecovery === 1 ? employeeUserB.id : employeeUserA.id)
   assert.equal((await db.metaLeadAdsDelivery.findFirst({ where: { bindingId: binding.id, leadgenId: '4001' } })).status, 'complete')
   assert.equal((await db.metaLeadAdsDelivery.findFirst({ where: { bindingId: binding.id, leadgenId: '4002' } })).status, 'blocked')
   await db.metaLeadAdsDelivery.create({ data: { organizationId: org.id, bindingId: binding.id,
