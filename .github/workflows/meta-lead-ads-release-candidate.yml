@@ -27,6 +27,20 @@ jobs:
       - name: Session transport model tests (no DNS or database)
         shell: pwsh
         run: pwsh -NoProfile -File tests/local-maintenance/session-pooler-tests.ps1
+      - name: Closed structure proof model tests (no database)
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1
+  structure-restore:
+    runs-on: windows-2025
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Isolated PostgreSQL structure and trigger restore (synthetic only)
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1 -WithPostgres
   release-checks:
     runs-on: ubuntu-latest
     timeout-minutes: 15

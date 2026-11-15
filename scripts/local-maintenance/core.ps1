@@ -1,5 +1,6 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'session-pooler.ps1')
+. (Join-Path $PSScriptRoot 'structure-proof.ps1')
 
 function Stop-Maintenance([string]$Code) {
   throw "LMR:$Code"
@@ -1065,59 +1066,9 @@ WHERE n.nspname='public' AND x.contype='n' AND NOT (
 '@ 'STRUCTURE_NOT_NULL_CHECK_FAILED' $SnapshotId
   if ($unmodeledNotNull -ne '0') { Stop-Maintenance 'STRUCTURE_NOT_NULL_UNMODELED' }
 
-  # A public-only dump does not promise to include extensions in other schemas
-  # or their dependencies. Such dependencies cannot be safely inferred from
-  # extension namespace alone. Block when catalog dependencies or opaque
-  # public function bodies could depend on an external extension.
-  $externalDependency = Invoke-ReadOnlyQuery $Config $Uri @'
-WITH external_extensions AS (
-  SELECT e.oid FROM pg_extension e
-  JOIN pg_namespace n ON n.oid=e.extnamespace
-  WHERE n.nspname <> 'public' AND e.extname <> 'plpgsql'
-), public_functions AS (
-  SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-  WHERE n.nspname='public' LIMIT 1
-), public_dependencies AS (
-  SELECT 1 FROM pg_depend d
-  LEFT JOIN pg_depend member ON member.classid=d.refclassid
-    AND member.objid=d.refobjid AND member.objsubid=0
-    AND member.deptype='e' AND member.refclassid='pg_extension'::regclass
-  JOIN external_extensions e ON e.oid=member.refobjid OR
-    (d.refclassid='pg_extension'::regclass AND d.refobjid=e.oid)
-  LEFT JOIN pg_depend owned ON owned.classid=d.classid
-    AND owned.objid=d.objid AND owned.deptype='e'
-    AND owned.refclassid='pg_extension'::regclass
-  CROSS JOIN LATERAL pg_identify_object(d.classid,d.objid,d.objsubid) identified
-  LEFT JOIN pg_class c ON d.classid='pg_class'::regclass AND c.oid=d.objid
-  LEFT JOIN pg_attrdef ad ON d.classid='pg_attrdef'::regclass AND ad.oid=d.objid
-  LEFT JOIN pg_constraint co ON d.classid='pg_constraint'::regclass AND co.oid=d.objid
-  LEFT JOIN pg_rewrite rw ON d.classid='pg_rewrite'::regclass AND rw.oid=d.objid
-  LEFT JOIN pg_trigger tr ON d.classid='pg_trigger'::regclass AND tr.oid=d.objid
-  LEFT JOIN pg_proc p ON d.classid='pg_proc'::regclass AND p.oid=d.objid
-  LEFT JOIN pg_cast ca ON d.classid='pg_cast'::regclass AND ca.oid=d.objid
-  LEFT JOIN pg_type cast_source ON cast_source.oid=ca.castsource
-  LEFT JOIN pg_type cast_target ON cast_target.oid=ca.casttarget
-  LEFT JOIN pg_namespace source_ns ON source_ns.oid=cast_source.typnamespace
-  LEFT JOIN pg_namespace target_ns ON target_ns.oid=cast_target.typnamespace
-  LEFT JOIN pg_namespace n ON n.oid=COALESCE(c.relnamespace,
-    (SELECT relnamespace FROM pg_class WHERE oid=ad.adrelid),
-    co.connamespace,
-    (SELECT relnamespace FROM pg_class WHERE oid=rw.ev_class),
-    (SELECT relnamespace FROM pg_class WHERE oid=tr.tgrelid),
-    p.pronamespace)
-  WHERE d.deptype <> 'e' AND owned.objid IS NULL
-    AND (n.nspname='public' OR identified.schema='public' OR
-      source_ns.nspname='public' OR target_ns.nspname='public')
-  LIMIT 1
-)
-SELECT CASE WHEN EXISTS (SELECT 1 FROM external_extensions)
-  AND (EXISTS (SELECT 1 FROM public_functions)
-       OR EXISTS (SELECT 1 FROM public_dependencies))
-  THEN 1 ELSE 0 END
-'@ 'STRUCTURE_EXTENSION_CHECK_FAILED' $SnapshotId
-  if ($externalDependency -ne '0') {
-    Stop-Maintenance 'STRUCTURE_EXTENSION_DEPENDENCY_UNPROVEN'
-  }
+  # Same exported snapshot as the dump. Catalog closure alone is insufficient
+  # for string-body routines: additionally prove the closed routing contract.
+  $proof = Get-StructureProof $Config $Uri $SnapshotId
   $sql = @'
 WITH objects AS (
   SELECT 'table' AS kind, n.nspname||'.'||c.relname AS name,
@@ -1151,7 +1102,11 @@ SELECT json_build_object('count',count(*),
   'digest',md5(COALESCE(string_agg(kind||'|'||name||'|'||definition,E'\n'
     ORDER BY kind,name,definition),'')))::text FROM objects
 '@
-  try { return Invoke-ReadOnlyQuery $Config $Uri $sql 'STRUCTURE_INVENTORY_FAILED' $SnapshotId | ConvertFrom-Json }
+  try {
+    $fingerprint = Invoke-ReadOnlyQuery $Config $Uri $sql 'STRUCTURE_INVENTORY_FAILED' $SnapshotId | ConvertFrom-Json
+    $fingerprint.digest = Get-Sha256Text ($fingerprint.digest + '|' + (Get-StructureProofDigest $proof))
+    return $fingerprint
+  }
   catch { if ($_.Exception.Message -like 'LMR:*') { throw }; Stop-Maintenance 'STRUCTURE_INVENTORY_INVALID' }
 }
 

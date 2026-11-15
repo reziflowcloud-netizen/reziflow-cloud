@@ -81,6 +81,10 @@ function Get-CheckedState([object]$Config, [Uri]$Uri, [string]$Repo,
     Assert-SessionBackendTls $initialSessionIdentity
     Assert-SessionIdentity $initialSessionIdentity $initialSessionIdentity $Config.maintenanceRole
   }
+  # Bind the closed routine/trigger contract into the sealed target identity.
+  # Both preflight and the existing final Apply rechecks must reject drift.
+  $structureProof = Get-StructureProof $Config $Uri
+  $structureProofDigest = Get-StructureProofDigest $structureProof
   $migrations = @(Get-MigrationFiles $Repo)
   $ledger = @(Get-ProductionLedger $Config $Uri)
   $ledgerResult = Compare-MigrationLedger $migrations $ledger $Expected
@@ -116,7 +120,7 @@ function Get-CheckedState([object]$Config, [Uri]$Uri, [string]$Repo,
     snapshot = $snapshot
     applicationRole = $appState.role
     fingerprint = Get-Sha256Text ((Get-TargetFingerprint $Uri $snapshot) + '|' +
-      $appUri.Host + '|' + $appState.role + '|' + $transport)
+      $appUri.Host + '|' + $appState.role + '|' + $transport + '|structure-proof-v1|' + $structureProofDigest)
   }
 }
 

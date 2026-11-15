@@ -657,10 +657,11 @@ datasource db {
       '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
       'ALTER EXTENSION hstore SET SCHEMA public; CREATE TABLE public."SyntheticRequiredExtension" (attributes hstore);') `
     'SYNTHETIC_REQUIRED_EXTENSION_SOURCE_FAILED')
-  $requiredSource = Get-StructureFingerprint $config $readUri
-  Expect-Block { Assert-StructureEqual $requiredSource `
-      (Get-StructureFingerprint $config $restore.Uri) } 'RESTORED_STRUCTURE_MISMATCH'
-  Write-Output 'PASS missing required public extension blocked'
+  # A public-only archive does not establish an atomic C-extension restore
+  # contract. Do not mistake a namespace/version fingerprint for one.
+  Expect-Block { Get-StructureFingerprint $config $readUri } `
+    'STRUCTURE_EXTENSION_DEPENDENCY_UNPROVEN'
+  Write-Output 'PASS required public extension fails closed before backup'
   [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
       '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
       'CREATE EXTENSION hstore VERSION ''1.4'' SCHEMA public; CREATE TABLE public."SyntheticRequiredExtension" (attributes hstore);') `
@@ -670,14 +671,14 @@ datasource db {
   $targetVersion = Invoke-ReadOnlyQuery $config $restore.Uri `
     "SELECT extversion FROM pg_extension WHERE extname='hstore'" 'SYNTHETIC_EXTENSION_VERSION_TARGET_FAILED'
   Assert ($sourceVersion -ne $targetVersion) 'synthetic extension versions differ'
-  Expect-Block { Assert-StructureEqual $requiredSource `
-      (Get-StructureFingerprint $config $restore.Uri) } 'RESTORED_STRUCTURE_MISMATCH'
+  Expect-Block { Get-StructureFingerprint $config $restore.Uri } `
+    'STRUCTURE_EXTENSION_DEPENDENCY_UNPROVEN'
   [void](Invoke-PostgresTool $config $restore.Uri 'psql.exe' @(
       '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
       'DROP TABLE public."SyntheticRequiredExtension"; DROP EXTENSION hstore;') `
     'SYNTHETIC_REQUIRED_EXTENSION_TARGET_REPAIR_FAILED')
   Assert-StructureEqual $structureBefore (Get-StructureFingerprint $config $restore.Uri)
-  Write-Output 'PASS required extension version mismatch blocked'
+  Write-Output 'PASS required public extension also blocked at a different version'
   $sequenceAudit = @([pscustomobject]@{
       audit = [pscustomobject]@{ CreatedSequences = @('SyntheticSequence') }
     })
