@@ -155,12 +155,35 @@ function Save-SafeReport([object]$Config, [object]$Report) {
   $path = Join-Path (Get-ReportDirectory $Config) ($Report.runId + '.json')
   $temporary = Join-Path (Get-ReportDirectory $Config) ($Report.runId + '.new')
   $bytes = [Text.Encoding]::UTF8.GetBytes((ConvertTo-Json $Report -Depth 20))
-  [IO.File]::WriteAllBytes($temporary, $bytes)
-  Set-PrivateAcl $temporary
-  if (Test-Path -LiteralPath $path) {
-    [IO.File]::Replace($temporary, $path, $null)
-  } else { [IO.File]::Move($temporary, $path) }
-  Assert-PrivateAcl $path
+  if (Test-Path -LiteralPath $path) { Assert-PrivateAcl $path }
+  $ownedTemporary = $false
+  try {
+    # CreateNew preserves any earlier interrupted checkpoint as evidence.
+    $stream = [IO.File]::Open($temporary, [IO.FileMode]::CreateNew,
+      [IO.FileAccess]::Write, [IO.FileShare]::None)
+    $ownedTemporary = $true
+    try {
+      Set-PrivateAcl $temporary
+      $stream.Write($bytes, 0, $bytes.Length)
+      $stream.Flush($true)
+    } finally { $stream.Dispose() }
+    Assert-PrivateAcl $temporary
+    if ((Get-Sha256Bytes ([IO.File]::ReadAllBytes($temporary))) -cne
+        (Get-Sha256Bytes $bytes)) { Stop-Maintenance 'REPORT_CONTENT_MISMATCH' }
+    if (Test-Path -LiteralPath $path) {
+      # NullString passes a genuine .NET null, not PowerShell's empty string.
+      # Same-volume Replace is atomic; no backup or non-atomic fallback.
+      [IO.File]::Replace($temporary, $path, [NullString]::Value)
+    } else { [IO.File]::Move($temporary, $path) }
+    Assert-PrivateAcl $path
+    if ((Get-Sha256Bytes ([IO.File]::ReadAllBytes($path))) -cne
+        (Get-Sha256Bytes $bytes)) { Stop-Maintenance 'REPORT_CONTENT_MISMATCH' }
+  } finally {
+    if ($ownedTemporary -and (Test-Path -LiteralPath $temporary)) {
+      Assert-NotReparsePoint $temporary
+      [IO.File]::Delete($temporary)
+    }
+  }
   return $path
 }
 

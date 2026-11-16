@@ -30,6 +30,9 @@ jobs:
       - name: Sealed plan UTC and tamper tests (synthetic key only, no database)
         shell: pwsh
         run: pwsh -NoProfile -File tests/local-maintenance/plan-time-tests.ps1
+      - name: Atomic report I/O and consumed-plan tests (synthetic files only)
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/report-write-tests.ps1
       - name: Closed structure proof model tests (no database)
         shell: pwsh
         run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1

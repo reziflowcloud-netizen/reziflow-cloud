@@ -12,6 +12,7 @@ $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 . (Join-Path $repo 'scripts/local-maintenance/core.ps1')
 . (Join-Path $repo 'scripts/local-maintenance/sql-audit.ps1')
 . (Join-Path $repo 'scripts/local-maintenance/plan.ps1')
+. (Join-Path $PSScriptRoot 'report-functions.ps1')
 
 $pending = $PendingMigration
 $pgBin = 'C:\Program Files\PostgreSQL\18\bin'
@@ -283,10 +284,25 @@ Mark-PlanAttempted $config $plan
     Assert-PrivateAcl $reportPath
   }
   Write-Output 'PASS offline status after synthetic applied/error report fixtures'
+  # Real publication around a localhost migration; Mode Apply -Synthetic stays forbidden.
+  [void](Write-Report $config $planForStatus 'ATTEMPTED_UNVERIFIED' 'AWAITING_GUARDED_COMMAND')
+  if ((Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json).result -ne
+      'ATTEMPTED_UNVERIFIED') { Stop-Maintenance 'REAL_ATTEMPT_REPORT_FAILED' }
   $backupCount = @(Get-ChildItem -LiteralPath $backups -Filter '*.dump' -File).Count
   $syntheticTarget = [pscustomobject]@{ Uri = $sourceUri; Port = $source.Port;
     Database = $dbName }
   Invoke-DisposableMigration $config $syntheticTarget $repo
+  $afterLedger = @(Get-ProductionLedger $config $sourceUri)
+  $afterState = Compare-MigrationLedger $all $afterLedger @()
+  [void](Write-Report $config $planForStatus 'APPLIED' '' 'synthetic-localhost-only' $afterState)
+  if ((Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json).outcome -ne
+      'VERIFIED_APPLIED' -or -not (Test-Path -LiteralPath $attemptedMarker)) {
+    Stop-Maintenance 'REAL_FINAL_REPORT_FAILED'
+  }
+  try { Assert-PlanNotAttempted $config $planForStatus | Out-Null
+    Stop-Maintenance 'CONSUMED_SYNTHETIC_PLAN_REUSED'
+  } catch { if ($_.Exception.Message -ne 'LMR:PLAN_ALREADY_ATTEMPTED') { throw } }
+  Write-Output 'PASS real atomic reports across localhost migration lifecycle; consumed plan stays blocked'
   $skip = @(& $pwsh -NoProfile -File $runner `
       -Mode Preflight -Synthetic -NoMigration -ApprovedCommit $head `
       -ConfigPath $configFile 2>$runnerErr)
