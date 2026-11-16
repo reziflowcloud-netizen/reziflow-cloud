@@ -1,6 +1,7 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'session-pooler.ps1')
 . (Join-Path $PSScriptRoot 'structure-proof.ps1')
+. (Join-Path $PSScriptRoot 'lock-safety.ps1')
 
 function Stop-Maintenance([string]$Code) {
   throw "LMR:$Code"
@@ -969,13 +970,20 @@ function Get-RelationSize([object]$Config, [Uri]$Uri, [string]$Table) {
 
 function Assert-LockSafety([object]$Config, [Uri]$Uri, [object]$Snapshot,
     [string[]]$IndexedTables) {
-  if ([int]$Snapshot.waitingRelationLocks -gt 0 -or
-      [int]$Snapshot.longTransactions -gt 0 -or [int]$Snapshot.idleTransactions -gt 0) {
-    Stop-Maintenance 'DDL_LOCK_RISK'
-  }
   foreach ($table in @($IndexedTables | Where-Object { $_ } | Select-Object -Unique)) {
     $size = Get-RelationSize $Config $Uri $table
     if ($size -gt 67108864) { Stop-Maintenance 'DDL_INDEX_TABLE_TOO_LARGE' }
+  }
+  # Snapshot supplies identity only. Its earlier lock counters may be stale after
+  # identity/application/index checks. Sample once here; never poll until safe.
+  $current = Get-LockSafetySnapshot $Config $Uri
+  Assert-LockSafetyBinding $Config $Uri $Snapshot $current
+  $evidence = Get-LockSafetyEvidence $current
+  if ($evidence.waitingRelationLocks -gt 0 -or $evidence.longTransactions -gt 0 -or
+      $evidence.idleTransactions -gt 0) {
+    $failure = [InvalidOperationException]::new('LMR:DDL_LOCK_RISK')
+    $failure.Data['LockSafetyEvidence'] = $evidence
+    throw $failure
   }
 }
 

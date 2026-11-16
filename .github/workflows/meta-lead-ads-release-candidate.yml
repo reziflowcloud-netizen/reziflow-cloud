@@ -33,6 +33,9 @@ jobs:
       - name: Atomic report I/O and consumed-plan tests (synthetic files only)
         shell: pwsh
         run: pwsh -NoProfile -File tests/local-maintenance/report-write-tests.ps1
+      - name: Fresh lock sample model and sanitized evidence tests
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/lock-safety-tests.ps1
       - name: Closed structure proof model tests (no database)
         shell: pwsh
         run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1
@@ -47,6 +50,9 @@ jobs:
       - name: Isolated PostgreSQL structure and trigger restore (synthetic only)
         shell: pwsh
         run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1 -WithPostgres
+      - name: Actual idle, waiting-lock and long-transaction guard refusal
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/lock-safety-tests.ps1 -WithPostgres
   release-checks:
     runs-on: ubuntu-latest
     timeout-minutes: 15

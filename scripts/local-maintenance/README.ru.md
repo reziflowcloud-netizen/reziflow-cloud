@@ -99,3 +99,40 @@ ACL устанавливается до записи содержимого, в�
 `pwsh -NoProfile -File tests/local-maintenance/report-write-tests.ps1`.
 `full-preflight.ps1` проверяет публикацию checkpoint и итогового отчёта вокруг
 миграции исключительно localhost; запрет `Mode Apply -Synthetic` сохраняется.
+
+## Свежая проверка блокировок
+
+`Assert-LockSafety` больше не принимает решение по старым счётчикам из
+`Get-DatabaseSnapshot`: между ним и guard выполнялись дополнительные запросы
+identity/application. После проверки размеров индексов выполняется один новый
+read-only запрос. Он подтверждает прежние database/role/session role/OID/cluster/
+server identity, TLS и право видеть статистику других соединений. Неизвестная
+identity, скрытая статистика, ошибка запроса, отсутствующий либо нецелочисленный
+счётчик блокируют выполнение.
+
+Правила сохранены: любые waiting relation locks, внешние транзакции старше
+30 секунд или idle-in-transaction запрещают DDL. Клиентские/служебные соединения
+не исключаются; автоматического ожидания «пока станет безопасно» нет.
+При `DDL_LOCK_RISK` stderr содержит только UTC и три проверенных счётчика.
+SQL, PID, пользователи, connection strings и пути в диагностику не попадают.
+
+Короткое read-only наблюдение 16 ноября 2026, 13:56:01–13:56:45 UTC: в трёх
+из шести samples `idleTransactions=1`, в остальных ноль; waiting/long всегда
+ноль. Это подтверждает кратковременный триггер текущего общего guard.
+Точные счётчики прошлых APPLY не были сохранены; историческую причину либо
+реальный конфликт с FK нельзя выдавать за доказанный факт. Связь с объектами
+миграции не доказана, поэтому глобальная защитная политика не сужена.
+
+Проверки: `pwsh -NoProfile -File tests/local-maintenance/lock-safety-tests.ps1`;
+добавление `-WithPostgres` проверяет настоящие idle/waiting/long состояния на
+принадлежащем тесту localhost-кластере с полной остановкой/очисткой.
+
+Предлагаемое окно выпуска: **16.11.2026 16:00–16:30 Europe/Warsaw**. Это кандидат,
+а не гарантия отсутствия активности. Нужны отдельное утверждение нового SHA,
+новые временные private credentials и новый guarded PREFLIGHT; старый plan
+привязан к прежнему SHA. Затем отдельное разрешение на один APPLY, независимый
+postcheck и условный deployment со всеми Lead Ads gates OFF. Любой свежий риск
+останавливает выпуск; чужие транзакции не завершаются, guard не обходится.
+
+Источники: [PostgreSQL statistics visibility/caching](https://www.postgresql.org/docs/17/monitoring-stats.html),
+[table-level lock compatibility](https://www.postgresql.org/docs/17/explicit-locking.html).
