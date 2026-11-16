@@ -175,6 +175,8 @@ datasource db {
   $ErrorActionPreference = 'Stop'
   Write-Output 'PASS offline status'
   $planForStatus = Read-SealedPlan $config $planPath
+  Assert-PlanFresh $planForStatus
+  Write-Output 'PASS original sealed preflight plan is fresh after PowerShell7 JSON roundtrip'
   $sequenceState = [pscustomobject]@{
     audits = @([pscustomobject]@{
         # Exercise the sequence ACL revalidation against the known sequence

@@ -27,6 +27,9 @@ jobs:
       - name: Session transport model tests (no DNS or database)
         shell: pwsh
         run: pwsh -NoProfile -File tests/local-maintenance/session-pooler-tests.ps1
+      - name: Sealed plan UTC and tamper tests (synthetic key only, no database)
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/plan-time-tests.ps1
       - name: Closed structure proof model tests (no database)
         shell: pwsh
         run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1
