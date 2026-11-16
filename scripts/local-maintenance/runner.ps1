@@ -153,12 +153,18 @@ function Get-ReportDirectory([object]$Config) {
 function Save-SafeReport([object]$Config, [object]$Report) {
   if ($Report.runId -notmatch '^[0-9a-f]{12}$') { Stop-Maintenance 'REPORT_RUN_ID_INVALID' }
   $path = Join-Path (Get-ReportDirectory $Config) ($Report.runId + '.json')
-  $temporary = Join-Path (Get-ReportDirectory $Config) ($Report.runId + '.new')
+  $directory = Get-ReportDirectory $Config
+  # Preserve both legacy and current interrupted staging evidence.
+  if ((Test-Path -LiteralPath (Join-Path $directory ($Report.runId + '.new'))) -or
+      @(Get-ChildItem -LiteralPath $directory -Filter ($Report.runId + '.*.new') -Force).Count) {
+    Stop-Maintenance 'REPORT_STAGING_EXISTS'
+  }
+  $temporary = Join-Path $directory ($Report.runId + '.' + [Guid]::NewGuid().ToString('N') + '.new')
   $bytes = [Text.Encoding]::UTF8.GetBytes((ConvertTo-Json $Report -Depth 20))
   if (Test-Path -LiteralPath $path) { Assert-PrivateAcl $path }
   $ownedTemporary = $false
   try {
-    # CreateNew preserves any earlier interrupted checkpoint as evidence.
+    # A unique name prevents cleanup from deleting another writer's staging.
     $stream = [IO.File]::Open($temporary, [IO.FileMode]::CreateNew,
       [IO.FileAccess]::Write, [IO.FileShare]::None)
     $ownedTemporary = $true

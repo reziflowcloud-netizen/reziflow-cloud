@@ -55,12 +55,12 @@ try {
   try { Reject { Write-Report $config $plan 'APPLIED' } }
   finally { $held.Dispose() }
   Check ((Get-FileHash $path).Hash -ceq $checkpointHash) 'sharing I/O failure preserves checkpoint'
-  Check (-not (Test-Path $temporary)) 'I/O failure cleans only own temporary'
+  Check (@(Get-ChildItem (Get-ReportDirectory $config) -Filter '*.new' -Force).Count -eq 0) 'I/O failure cleans only own temporary'
   [IO.File]::SetAttributes($path, [IO.FileAttributes]::ReadOnly)
   try { Reject { Write-Report $config $plan 'APPLIED' } }
   finally { [IO.File]::SetAttributes($path, [IO.FileAttributes]::Normal) }
   Check ((Get-FileHash $path).Hash -ceq $checkpointHash) 'access failure preserves checkpoint'
-  Check (-not (Test-Path $temporary)) 'access failure cleans own temporary'
+  Check (@(Get-ChildItem (Get-ReportDirectory $config) -Filter '*.new' -Force).Count -eq 0) 'access failure cleans own temporary'
   # Existing interrupted evidence is never overwritten or deleted.
   [IO.File]::WriteAllText($temporary, 'synthetic interrupted evidence'); Set-PrivateAcl $temporary
   $evidenceHash = (Get-FileHash $temporary).Hash
@@ -93,6 +93,27 @@ try {
   Reject { Write-Report $config $plan 'APPLIED' } 'PRIVATE_ACL_TOO_BROAD'
   Check (-not (Test-Path $temporary)) 'unsafe destination refused before staging'
   Set-PrivateAcl $path
+  # Deterministically overlap another writer immediately after publication.
+  # Override only the test's ACL observer; the real guard still runs every time.
+  $script:originalAssert = (Get-Command Assert-PrivateAcl).ScriptBlock
+  $script:publishedChecks = 0
+  $script:overlapPath = $path
+  $script:foreignStage = Join-Path (Get-ReportDirectory $config) "$id.otherwriter.new"
+  function Assert-PrivateAcl([string]$Path) {
+    & $script:originalAssert $Path
+    if ($Path -ceq $script:overlapPath) {
+      $script:publishedChecks++
+      if ($script:publishedChecks -eq 2) {
+        [IO.File]::WriteAllText($script:foreignStage, 'other synthetic writer evidence')
+        Set-PrivateAcl $script:foreignStage
+      }
+    }
+  }
+  try { [void](Write-Report $config $plan 'APPLIED') }
+  finally { Set-Item Function:Assert-PrivateAcl $script:originalAssert }
+  Check (Test-Path $script:foreignStage) 'post-publication cleanup preserves another writer staging'
+  Reject { Write-Report $config $plan 'APPLIED' } 'REPORT_STAGING_EXISTS'
+  [IO.File]::Delete($script:foreignStage)
   Write-Output "REPORT WRITE TESTS PASS ($passed checks); synthetic files only; no Production"
 } finally {
   Assert-ChildPath $base $root | Out-Null
