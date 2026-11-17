@@ -185,7 +185,7 @@ test('Phase 3A: real assignment routes, ingestion replay, scoped outbox and secu
     await db.employee.update({ where: { id: employees[0].id }, data: { active: true } })
   })
   await t.test('Telegram and signed Meta Lead/messages/sync concurrent replay routes', async () => {
-    const settings = { leadWebhookKey: 'synthetic-webhook-key', leadWebhookEnabled: true, leadWebhookAssignmentMode: 'single', leadWebhookAssignmentUserId: first.id, facebookLeadEnabled: true, facebookMessagesEnabled: true, facebookLeadPageAccessToken: 'synthetic-token' }
+    const settings = { leadWebhookKey: 'synthetic-webhook-key', leadWebhookEnabled: true, leadWebhookAssignmentMode: 'single', leadWebhookAssignmentUserId: first.id, facebookLeadEnabled: true, facebookMessagesEnabled: true, facebookLeadPageAccessToken: 'synthetic-token', instagramMessagesPageAccessToken: 'synthetic-instagram-token' }
     await db.organization.update({ where: { id: org.id }, data: { settings } })
     const telegram = load('src/app/api/webhooks/telegram/leads/[slug]/[key]/route').POST
     const data = { message: { chat: { id: 'synthetic-chat' }, message_id: 1, text: 'Synthetic Tester +48123456789' } }
@@ -195,11 +195,13 @@ test('Phase 3A: real assignment routes, ingestion replay, scoped outbox and secu
     assert.equal(await db.notification.count({ where: { entityId: ids[0], userId: first.id } }), 1)
     const meta = load('src/app/api/webhooks/meta/leads/[slug]/route').POST
     const messages = load('src/app/api/webhooks/meta/messages/[slug]/route').POST
-    process.env.META_APP_SECRET = 'synthetic-meta-secret'; delete process.env.INSTAGRAM_APP_SECRET
-    const signed = body => req(body, { 'x-hub-signature-256': 'sha256=' + createHmac('sha256', process.env.META_APP_SECRET).update(JSON.stringify(body)).digest('hex') })
+    process.env.META_APP_SECRET = 'synthetic-meta-secret'; process.env.INSTAGRAM_APP_SECRET = 'synthetic-instagram-secret'
+    const signed = (body, secret = process.env.META_APP_SECRET) => req(body, { 'x-hub-signature-256': 'sha256=' + createHmac('sha256', secret).update(JSON.stringify(body)).digest('hex') })
     const fetchBefore = globalThis.fetch
     globalThis.fetch = async rawUrl => {
-      const url = new URL(rawUrl); assert.equal(url.hostname, 'graph.facebook.com')
+      const url = new URL(rawUrl)
+      if (url.hostname === 'graph.instagram.com') return Response.json({ id: url.pathname.split('/').pop(), name: 'Synthetic Instagram Profile', username: 'synthetic_instagram_qa' })
+      assert.equal(url.hostname, 'graph.facebook.com')
       if (url.pathname.endsWith('/conversations')) {
         const participantId = url.searchParams.get('user_id')
         return Response.json({ data: [{ messages: { data: [{ id: 'sync-' + participantId, message: 'Synthetic sync', from: { id: participantId }, created_time: '2026-10-10T12:00:00Z' }] } }] })
@@ -214,13 +216,13 @@ test('Phase 3A: real assignment routes, ingestion replay, scoped outbox and secu
       assert.ok(record); assert.equal(await db.lead.count({ where: { organizationId: org.id, messengerId: record.messengerId } }), 1)
       assert.equal(await db.notification.count({ where: { entityId: record.id, userId: first.id } }), 1)
       assert.equal((await meta(req(body), { params: { slug: org.slug } })).status, 401)
-      for (const kind of ['message', 'read']) {
-        const event = { sender: { id: 'synthetic-' + kind }, recipient: { id: 'synthetic-page' }, timestamp: 1791633600000, ...(kind === 'message' ? { message: { mid: 'synthetic-mid', text: 'Synthetic message' } } : { read: { watermark: 1791633600000 } }) }
-        const payload = { object: 'page', entry: [{ id: 'synthetic-page', messaging: [event] }] }
-        const replies = await Promise.all(Array.from({ length: 4 }, () => messages(signed(payload), { params: { slug: org.slug } })))
+      for (const channel of ['facebook', 'instagram']) for (const kind of ['message', 'read']) {
+        const event = { sender: { id: 'synthetic-' + channel + '-' + kind }, recipient: { id: 'synthetic-page' }, timestamp: 1791633600000, ...(kind === 'message' ? { message: { mid: 'synthetic-' + channel + '-mid', text: 'Synthetic message' } } : { read: { watermark: 1791633600000 } }) }
+        const payload = { object: channel === 'instagram' ? 'instagram' : 'page', entry: [{ id: 'synthetic-page', messaging: [event] }] }
+        const replies = await Promise.all(Array.from({ length: 4 }, () => messages(signed(payload, channel === 'instagram' ? process.env.INSTAGRAM_APP_SECRET : process.env.META_APP_SECRET), { params: { slug: org.slug } })))
         assert.ok(replies.every(r => r.status === 200))
-        const record = await db.lead.findFirst({ where: { organizationId: org.id, messengerId: 'facebook:synthetic-' + kind } })
-        assert.ok(record, kind + ' lead created'); assert.equal(await db.lead.count({ where: { organizationId: org.id, messengerId: record.messengerId } }), 1)
+        const record = await db.lead.findFirst({ where: { organizationId: org.id, messengerId: channel + ':synthetic-' + channel + '-' + kind } })
+        assert.ok(record, channel + ' ' + kind + ' lead created'); assert.equal(record.source, channel); assert.equal(record.assignedToId, first.id); assert.equal(record.employeeId, employees[0].id); assert.equal(await db.lead.count({ where: { organizationId: org.id, messengerId: record.messengerId } }), 1)
         assert.equal(await db.notification.count({ where: { entityId: record.id, userId: first.id } }), 1)
         assert.equal(await db.leadMessage.count({ where: { organizationId: org.id, leadId: record.id } }), 1)
       }

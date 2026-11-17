@@ -1,0 +1,81 @@
+name: Meta Lead Ads release candidate (no secrets)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'prisma/**'
+      - 'tests/**'
+      - 'scripts/local-maintenance/**'
+      - 'scripts/vercel-migrate.js'
+      - 'scripts/meta-lead-ads-worker.mjs'
+      - '.github/workflows/meta-lead-ads-release-candidate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  acl-guards:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Strict ACL model tests (no database or private paths)
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/acl-tests.ps1
+      - name: Session transport model tests (no DNS or database)
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/session-pooler-tests.ps1
+      - name: Sealed plan UTC and tamper tests (synthetic key only, no database)
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/plan-time-tests.ps1
+      - name: Atomic report I/O and consumed-plan tests (synthetic files only)
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/report-write-tests.ps1
+      - name: Fresh lock sample model and sanitized evidence tests
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/lock-safety-tests.ps1
+      - name: Strict Prisma CA and closed diagnostic evidence tests
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/prisma-transport-tests.ps1
+      - name: Closed structure proof model tests (no database)
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1
+  structure-restore:
+    runs-on: windows-2025
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Isolated PostgreSQL structure and trigger restore (synthetic only)
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1 -WithPostgres
+      - name: Actual idle, waiting-lock and long-transaction guard refusal
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/lock-safety-tests.ps1 -WithPostgres
+  release-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://synthetic@127.0.0.1:1/never_connect
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx prisma generate
+      - run: npx prisma validate
+      - run: npx tsc --noEmit
+      - run: node --test tests/meta-lead-ads.test.mjs tests/meta-lead-ads-release.test.mjs tests/staff-routing-scope.test.mjs tests/lead-responsible-visibility.test.mjs tests/notifications-policy.test.mjs
+      - run: node --test tests/local-maintenance/migration-diagnostics.test.cjs
+      - run: npm run build

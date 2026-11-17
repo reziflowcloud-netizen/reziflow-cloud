@@ -42,15 +42,24 @@ export const DEFAULT_LEAD_SOURCES: LeadSourceOption[] = LEAD_SOURCES.map((source
   system: true,
 }))
 
-export function normalizeLeadSources(value: unknown): LeadSourceOption[] {
-  if (!Array.isArray(value)) return DEFAULT_LEAD_SOURCES
+export const META_LEAD_ADS_SOURCES = [
+  { value: 'facebook_lead_ads', label: 'Facebook Lead Ads' },
+  { value: 'instagram_lead_ads', label: 'Instagram Lead Ads' },
+  { value: 'meta_lead_ads_unknown', label: 'Meta Lead Ads (unknown)' },
+]
+export function isMetaLeadAdsSource(value: string) {
+  return META_LEAD_ADS_SOURCES.some(source => source.value === value)
+}
+
+export function normalizeLeadSources(value: unknown, allowMetaLeadAds = false): LeadSourceOption[] {
+  if (!Array.isArray(value)) value = DEFAULT_LEAD_SOURCES
 
   const seen = new Set<string>()
-  const sources = value
+  const sources = (value as any[])
     .map((item: any, index) => {
       const label = String(item?.label || '').trim()
       const value = String(item?.value || '').trim()
-      if (!label || !value || seen.has(value)) return null
+      if (!label || !value || seen.has(value) || (!allowMetaLeadAds && isMetaLeadAdsSource(value))) return null
       seen.add(value)
       return {
         value,
@@ -61,9 +70,11 @@ export function normalizeLeadSources(value: unknown): LeadSourceOption[] {
     })
     .filter(Boolean) as LeadSourceOption[]
 
-  return sources.length
-    ? sources.sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
-    : DEFAULT_LEAD_SOURCES
+  if (!sources.length) sources.push(...DEFAULT_LEAD_SOURCES.map(source => ({ ...source })))
+  for (const source of allowMetaLeadAds ? META_LEAD_ADS_SOURCES : []) {
+    if (!seen.has(source.value)) sources.push({ ...source, order: Math.max(-1, ...sources.map(item => item.order)) + 1, system: true })
+  }
+  return sources.sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
 }
 
 export const LEAD_TEMPERATURES = [

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
-import { DEFAULT_LEAD_SOURCES, normalizeLeadSources } from '@/lib/leads'
+import { DEFAULT_LEAD_SOURCES, normalizeLeadSources, isMetaLeadAdsSource } from '@/lib/leads'
+import { metaLeadAdsFeatureEnabled } from '@/lib/metaLeadAdsFeature'
 import { settingsObject } from '@/lib/leadWebhook'
 
 export const dynamic = 'force-dynamic'
@@ -54,7 +55,7 @@ export async function GET() {
   const settings = settingsObject(organization?.settings)
 
   return NextResponse.json({
-    sources: normalizeLeadSources(settings.leadSources),
+    sources: normalizeLeadSources(settings.leadSources, metaLeadAdsFeatureEnabled(organizationId)),
     canManage: canManage(user),
   })
 }
@@ -67,6 +68,9 @@ export async function PATCH(request: NextRequest) {
   const organizationId = getOrganizationId(user)
   const body = await request.json().catch(() => ({}))
   const sources = normalizeIncomingSources(body.sources)
+  if (!metaLeadAdsFeatureEnabled(organizationId) && sources.some((source: any) => isMetaLeadAdsSource(source.value))) {
+    return NextResponse.json({ error: 'Source unavailable' }, { status: 403 })
+  }
   if (!sources.length) return NextResponse.json({ error: 'Добавьте хотя бы один источник' }, { status: 400 })
 
   const organization = await prisma.organization.findUnique({
@@ -87,7 +91,7 @@ export async function PATCH(request: NextRequest) {
   })
 
   return NextResponse.json({
-    sources: normalizeLeadSources(sources),
+    sources: normalizeLeadSources(sources, metaLeadAdsFeatureEnabled(organizationId)),
     canManage: true,
   })
 }

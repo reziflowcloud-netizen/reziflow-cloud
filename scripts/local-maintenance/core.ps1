@@ -1,4 +1,7 @@
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'session-pooler.ps1')
+. (Join-Path $PSScriptRoot 'structure-proof.ps1')
+. (Join-Path $PSScriptRoot 'lock-safety.ps1')
 
 function Stop-Maintenance([string]$Code) {
   throw "LMR:$Code"
@@ -43,21 +46,89 @@ function Assert-PrivateAcl([string]$Path) {
   $acl = Get-Acl -LiteralPath $Path
   $allowed = @([Security.Principal.WindowsIdentity]::GetCurrent().User.Value,
     'S-1-5-18', 'S-1-5-32-544')
-  foreach ($entry in $acl.Access) {
-    if ($entry.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow) { continue }
-    try { $sid = $entry.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value }
-    catch { Stop-Maintenance 'PRIVATE_ACL_UNVERIFIABLE' }
-    if ($sid -notin $allowed) { Stop-Maintenance 'PRIVATE_ACL_TOO_BROAD' }
+  $raw = [Security.AccessControl.RawSecurityDescriptor]::new(
+    $acl.GetSecurityDescriptorBinaryForm(), 0)
+  if ($null -eq $raw.DiscretionaryAcl) { Stop-Maintenance 'PRIVATE_ACL_TOO_BROAD' }
+  foreach ($entry in $raw.DiscretionaryAcl) {
+    if ($entry -isnot [Security.AccessControl.CommonAce] -or $entry.IsCallback -or
+        $entry.AceType -notin @([Security.AccessControl.AceType]::AccessAllowed,
+          [Security.AccessControl.AceType]::AccessDenied)) {
+      Stop-Maintenance 'PRIVATE_ACL_UNSUPPORTED'
+    }
+    if ($entry.AceType -eq [Security.AccessControl.AceType]::AccessAllowed -and
+        $entry.SecurityIdentifier.Value -notin $allowed) {
+      Stop-Maintenance 'PRIVATE_ACL_TOO_BROAD'
+    }
+  }
+}
+
+function Test-ExactPrivateAcl([object]$Acl, [bool]$IsDirectory) {
+  $allowed = @([Security.Principal.WindowsIdentity]::GetCurrent().User.Value,
+    'S-1-5-18', 'S-1-5-32-544')
+  try {
+    if ($Acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -notin $allowed -or
+        -not $Acl.AreAccessRulesProtected -or -not $Acl.AreAccessRulesCanonical) {
+      return $false
+    }
+    $raw = [Security.AccessControl.RawSecurityDescriptor]::new(
+      $Acl.GetSecurityDescriptorBinaryForm(), 0)
+    if ($null -eq $raw.DiscretionaryAcl -or $raw.DiscretionaryAcl.Count -ne 3) {
+      return $false
+    }
+    $inheritance = if ($IsDirectory) { 3 } else { 0 }
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($rule in $raw.DiscretionaryAcl) {
+      if ($rule -isnot [Security.AccessControl.CommonAce] -or $rule.IsCallback -or
+          $rule.AceType -ne [Security.AccessControl.AceType]::AccessAllowed) {
+        return $false
+      }
+      $sid = $rule.SecurityIdentifier.Value
+      if ($sid -notin $allowed -or -not $seen.Add($sid) -or
+          $rule.AccessMask -ne [int][Security.AccessControl.FileSystemRights]::FullControl -or
+          [int]$rule.AceFlags -ne $inheritance) {
+        return $false
+      }
+    }
+    return $true
+  } catch { return $false }
+}
+
+function Write-PrivateDacl([IO.FileSystemInfo]$Item, [object]$Acl) {
+  # The PowerShell Set-Acl provider first writes ALL descriptor sections.
+  # Persist only DACL/protection changes; never write owner/group/audit.
+  $descriptor = if ($Item.PSIsContainer) {
+    [Security.AccessControl.DirectorySecurity]::new()
+  } else { [Security.AccessControl.FileSecurity]::new() }
+  $descriptor.SetSecurityDescriptorBinaryForm($Acl.GetSecurityDescriptorBinaryForm(),
+    [Security.AccessControl.AccessControlSections]::Access)
+  if ($PSVersionTable.PSEdition -eq 'Desktop') {
+    $Item.SetAccessControl($descriptor)
+  } else {
+    [IO.FileSystemAclExtensions]::SetAccessControl($Item, $descriptor)
   }
 }
 
 function Set-PrivateAcl([string]$Path) {
+  Assert-NotReparsePoint $Path
+  $item = Get-Item -LiteralPath $Path -Force
   $acl = Get-Acl -LiteralPath $Path
-  $acl.SetAccessRuleProtection($true, $false)
-  foreach ($entry in @($acl.Access)) { [void]$acl.RemoveAccessRuleSpecific($entry) }
   $identity = [Security.Principal.WindowsIdentity]::GetCurrent().User
+  try { $owner = $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value }
+  catch { Stop-Maintenance 'PRIVATE_OWNER_UNVERIFIABLE' }
+  if ($owner -notin @($identity.Value, 'S-1-5-18', 'S-1-5-32-544')) {
+    Stop-Maintenance 'PRIVATE_OWNER_UNVERIFIED'
+  }
+  if (Test-ExactPrivateAcl $acl $item.PSIsContainer) {
+    Assert-PrivateAcl $Path
+    return
+  }
+  # A fresh DACL cannot retain ACE types omitted by the managed Access projection.
+  $targetAcl = if ($item.PSIsContainer) {
+    [Security.AccessControl.DirectorySecurity]::new()
+  } else { [Security.AccessControl.FileSecurity]::new() }
+  $targetAcl.SetAccessRuleProtection($true, $false)
   $inheritance = [Security.AccessControl.InheritanceFlags]::None
-  if (Test-Path -LiteralPath $Path -PathType Container) {
+  if ($item.PSIsContainer) {
     $inheritance = [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
       [Security.AccessControl.InheritanceFlags]::ObjectInherit
   }
@@ -67,15 +138,27 @@ function Set-PrivateAcl([string]$Path) {
       $sid, [Security.AccessControl.FileSystemRights]::FullControl, $inheritance,
       [Security.AccessControl.PropagationFlags]::None,
       [Security.AccessControl.AccessControlType]::Allow)
-    $acl.AddAccessRule($rule)
+    $targetAcl.AddAccessRule($rule)
   }
-  Set-Acl -LiteralPath $Path -AclObject $acl
+  Write-PrivateDacl $item $targetAcl
   Assert-PrivateAcl $Path
+  $after = Get-Acl -LiteralPath $Path
+  if (-not (Test-ExactPrivateAcl $after $item.PSIsContainer) -or
+      $after.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $owner -or
+      $after.GetGroup([Security.Principal.SecurityIdentifier]).Value -ne
+        $acl.GetGroup([Security.Principal.SecurityIdentifier]).Value) {
+    Stop-Maintenance 'PRIVATE_ACL_POSTCONDITION_FAILED'
+  }
 }
 
 function Read-MaintenanceConfig([string]$ConfigPath, [bool]$Synthetic) {
   if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) { Stop-Maintenance 'CONFIG_MISSING' }
-  try { $config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json }
+  try {
+    $json = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8
+    if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')) {
+      $config = $json | ConvertFrom-Json -DateKind String
+    } else { $config = $json | ConvertFrom-Json }
+  }
   catch { Stop-Maintenance 'CONFIG_INVALID_JSON' }
   foreach ($name in @('targetKind', 'environmentFile', 'expectedHost', 'backupDirectory',
       'privateDirectory', 'postgresBin', 'nodeBin', 'applicationRole',
@@ -128,6 +211,10 @@ function Read-MaintenanceConfig([string]$ConfigPath, [bool]$Synthetic) {
     Assert-NotReparsePoint $config.tlsRootCertFile
   }
   Assert-PrivateAcl $config.backupDirectory
+  if (Test-SessionPoolerMode $config) {
+    if ($Synthetic) { Stop-Maintenance 'SESSION_SYNTHETIC_MODE_FORBIDDEN' }
+    Assert-SessionPoolerProfile $config $false
+  }
   return $config
 }
 
@@ -138,12 +225,22 @@ function Get-PrivateDatabaseUri([object]$Config, [string]$Key, [bool]$Synthetic)
   $value = $matches[0].Substring($Key.Length + 1).Trim().Trim('"').Trim("'")
   try { $uri = [Uri]::new($value) }
   catch { Stop-Maintenance "ENV_URL_INVALID_$Key" }
-  $expectedHost = if ($Key -eq 'DATABASE_URL') { $Config.expectedApplicationHost } else { $Config.expectedHost }
+  if ($Key -in @('PREFLIGHT_SESSION_URL','PREFLIGHT_APPLICATION_SESSION_URL') -and
+      -not (Test-SessionPoolerMode $Config)) { Stop-Maintenance 'SESSION_MODE_REQUIRED' }
+  $sessionRole = if ($Key -eq 'PREFLIGHT_SESSION_URL') { $Config.maintenanceRole }
+    elseif ($Key -eq 'PREFLIGHT_APPLICATION_SESSION_URL') { $Config.applicationRole } else { '' }
+  $expectedHost = if ($sessionRole) { $Config.sessionPoolerHost }
+    elseif ($Key -eq 'DATABASE_URL') { $Config.expectedApplicationHost } else { $Config.expectedHost }
   if ($uri.Scheme -notin @('postgres', 'postgresql') -or $uri.Host -ne $expectedHost -or
       $uri.UserInfo.Split(':', 2).Count -ne 2) {
     Stop-Maintenance "ENV_TARGET_MISMATCH_$Key"
   }
   $database = $uri.AbsolutePath.TrimStart('/')
+  if ($sessionRole) {
+    if ($Synthetic) { Stop-Maintenance 'SESSION_SYNTHETIC_MODE_FORBIDDEN' }
+    Assert-SessionPoolerUri $Config $uri $sessionRole
+    return $uri
+  }
   if ($Synthetic) {
     if ($uri.Host -ne '127.0.0.1' -or $database -notmatch '^legalhub_runner_synthetic_') {
       Stop-Maintenance 'SYNTHETIC_DB_IDENTITY_INVALID'
@@ -168,7 +265,8 @@ function Get-PinnedPrismaUri([object]$Config, [Uri]$Uri, [bool]$BoundedDdl) {
   $query = 'schema=public&connect_timeout=5'
   if ($Uri.Host -eq '127.0.0.1') { $query += '&sslmode=disable' }
   else {
-    $query += '&sslmode=require&sslaccept=strict&sslrootcert=' +
+    # Prisma 5.22 reads its CA file from sslcert; sslrootcert is a libpq option.
+    $query += '&sslmode=require&sslaccept=strict&sslcert=' +
       [Uri]::EscapeDataString([string]$Config.tlsRootCertFile)
   }
   if ($BoundedDdl) {
@@ -214,11 +312,34 @@ function Invoke-WithIsolatedEnvironment([object]$Config, [Uri]$Uri,
     else {
       $safe.PGSSLMODE = 'verify-full'
       $safe.PGSSLROOTCERT = $Config.tlsRootCertFile
+      if (Test-SessionPoolerMode $Config) {
+        $login = [Uri]::UnescapeDataString($parts[0])
+        $role = if ($login -ceq ($Config.maintenanceRole + '.' + $Config.projectReference)) {
+          $Config.maintenanceRole
+        } elseif ($login -ceq ($Config.applicationRole + '.' + $Config.projectReference)) {
+          $Config.applicationRole
+        } else { Stop-Maintenance 'SESSION_ENDPOINT_INVALID' }
+        Assert-SessionPoolerUri $Config $Uri $role
+        if (-not $Config.PSObject.Properties['resolvedSessionIpv4'] -or
+            -not (Test-PublicIpv4 $Config.resolvedSessionIpv4)) {
+          Stop-Maintenance 'SESSION_IPV4_UNVERIFIED'
+        }
+        # Keep PGHOST for certificate hostname verification; pin only the socket address.
+        $safe.PGHOSTADDR = $Config.resolvedSessionIpv4
+      }
     }
   }
   foreach ($key in $Extra.Keys) {
     if ($key -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { Stop-Maintenance 'CHILD_ENV_KEY_INVALID' }
     $safe[$key] = [string]$Extra[$key]
+  }
+  if ($Uri -and $Uri.Host -ne '127.0.0.1' -and (Test-SessionPoolerMode $Config)) {
+    if ($Extra.Count -gt 0 -or $safe.PGHOST -cne $Config.sessionPoolerHost -or $safe.PGPORT -ne '5432' -or
+        $safe.PGHOSTADDR -cne $Config.resolvedSessionIpv4 -or
+        $safe.PGSSLMODE -cne 'verify-full' -or $safe.PGSSLROOTCERT -cne $Config.tlsRootCertFile -or
+        $safe.PGUSER -cne [Uri]::UnescapeDataString($Uri.UserInfo.Split(':',2)[0]) -or
+        $safe.PGPASSWORD -cne [Uri]::UnescapeDataString($Uri.UserInfo.Split(':',2)[1]) -or
+        $safe.PGDATABASE -cne 'postgres') { Stop-Maintenance 'SESSION_ENVIRONMENT_OVERRIDE_FORBIDDEN' }
   }
   try {
     foreach ($key in @($previous.Keys)) { Remove-Item -LiteralPath ("Env:$key") -ErrorAction Stop }
@@ -243,6 +364,9 @@ function Invoke-PostgresTool([object]$Config, [Uri]$Uri, [string]$Tool,
     $oldPreference = $ErrorActionPreference
     try {
       $ErrorActionPreference = 'Continue'
+      if ($Uri.Host -ne '127.0.0.1' -and (Test-SessionPoolerMode $Config)) {
+        return Invoke-BoundedSessionTool $binary $Arguments
+      }
       $output = @(& $binary @Arguments 2>$null)
       return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
     } finally { $ErrorActionPreference = $oldPreference }
@@ -252,7 +376,8 @@ function Invoke-PostgresTool([object]$Config, [Uri]$Uri, [string]$Tool,
 }
 
 function Invoke-ReadOnlyQuery([object]$Config, [Uri]$Uri, [string]$Query,
-    [string]$FailureCode, [string]$SnapshotId = '') {
+    [string]$FailureCode, [string]$SnapshotId = '',
+    [bool]$CanonicalFingerprint = $false) {
   if (-not $Uri) { Stop-Maintenance 'READ_ONLY_URI_REQUIRED' }
   $snapshotSql = ''
   if ($SnapshotId) {
@@ -261,9 +386,17 @@ function Invoke-ReadOnlyQuery([object]$Config, [Uri]$Uri, [string]$Query,
     }
     $snapshotSql = "SET TRANSACTION SNAPSHOT '$SnapshotId'; "
   }
+  # SET LOCAL affects only this read-only transaction. Exported snapshots must
+  # be imported before these settings and do not carry session GUCs themselves.
+  $fingerprintSettings = if ($CanonicalFingerprint) {
+    "SET LOCAL TimeZone = 'UTC'; SET LOCAL DateStyle = 'ISO, YMD'; " +
+      "SET LOCAL IntervalStyle = 'postgres'; SET LOCAL extra_float_digits = 1; " +
+      "SET LOCAL bytea_output = 'hex'; "
+  } else { '' }
   $sql = "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY; " +
     $snapshotSql + "SET LOCAL statement_timeout = '30s'; " +
     "SET LOCAL search_path = pg_catalog, public; " +
+    $fingerprintSettings +
     $Query + '; ROLLBACK;'
   Assert-PrivateAcl $Config.privateDirectory
   $sqlPath = Join-Path $Config.privateDirectory ('query-' + [Guid]::NewGuid().ToString('N') + '.sql')
@@ -640,6 +773,8 @@ function Get-DatabaseSnapshot([object]$Config, [Uri]$Uri) {
 SELECT json_build_object(
   'database', current_database(),
   'role', current_user,
+  'sessionRole', session_user,
+  'backendTls', (SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()),
   'databaseOid', (SELECT oid FROM pg_database WHERE datname=current_database()),
   'serverVersion', current_setting('server_version_num'),
   'leadMessageRows', (SELECT count(*) FROM public."LeadMessage"),
@@ -666,7 +801,9 @@ SELECT json_build_object(
 }
 
 function Get-DatabaseIdentityState([object]$Config, [Uri]$Uri) {
-  $sql = "SELECT json_build_object('database',current_database(),'role',current_user," +
+  $sql = "SELECT json_build_object('database',current_database(),'role',current_user,'sessionRole',session_user," +
+    "'backendTls',(SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid())," +
+    "'serverVersion',current_setting('server_version_num')," +
     "'databaseOid',(SELECT oid FROM pg_database WHERE datname=current_database())," +
     "'clusterIdentity',(SELECT system_identifier::text FROM pg_control_system()))::text"
   try {
@@ -692,6 +829,10 @@ function Get-ApplicationRoleState([object]$Config, [Uri]$ApplicationUri,
     Stop-Maintenance 'DIRECT_CLUSTER_IDENTITY_UNVERIFIABLE'
   }
   $state = Get-DatabaseIdentityState $Config $ApplicationUri
+  if (Test-SessionPoolerMode $Config) {
+    Assert-SessionIdentity $state $DirectSnapshot $Config.applicationRole
+    Assert-SessionBackendTls $state
+  }
   if ($state.database -ne $DirectSnapshot.database -or
       [string]$state.databaseOid -ne [string]$DirectSnapshot.databaseOid -or
       $state.clusterIdentity -ne $DirectSnapshot.clusterIdentity -or
@@ -830,13 +971,20 @@ function Get-RelationSize([object]$Config, [Uri]$Uri, [string]$Table) {
 
 function Assert-LockSafety([object]$Config, [Uri]$Uri, [object]$Snapshot,
     [string[]]$IndexedTables) {
-  if ([int]$Snapshot.waitingRelationLocks -gt 0 -or
-      [int]$Snapshot.longTransactions -gt 0 -or [int]$Snapshot.idleTransactions -gt 0) {
-    Stop-Maintenance 'DDL_LOCK_RISK'
-  }
   foreach ($table in @($IndexedTables | Where-Object { $_ } | Select-Object -Unique)) {
     $size = Get-RelationSize $Config $Uri $table
     if ($size -gt 67108864) { Stop-Maintenance 'DDL_INDEX_TABLE_TOO_LARGE' }
+  }
+  # Snapshot supplies identity only. Its earlier lock counters may be stale after
+  # identity/application/index checks. Sample once here; never poll until safe.
+  $current = Get-LockSafetySnapshot $Config $Uri
+  Assert-LockSafetyBinding $Config $Uri $Snapshot $current
+  $evidence = Get-LockSafetyEvidence $current
+  if ($evidence.waitingRelationLocks -gt 0 -or $evidence.longTransactions -gt 0 -or
+      $evidence.idleTransactions -gt 0) {
+    $failure = [InvalidOperationException]::new('LMR:DDL_LOCK_RISK')
+    $failure.Data['LockSafetyEvidence'] = $evidence
+    throw $failure
   }
 }
 
@@ -856,26 +1004,80 @@ function Get-RepresentativeFingerprints([object]$Config, [Uri]$Uri,
     }
     $sql = "SELECT json_build_object('count',count(*),'digest'," +
       "md5(COALESCE(string_agg(md5(($expression)::text), '' " +
-      "ORDER BY md5(($expression)::text)),'')))::text FROM public.`"$table`" t"
-    try { $result[$table] = Invoke-ReadOnlyQuery $Config $Uri $sql 'DATA_FINGERPRINT_FAILED' $SnapshotId | ConvertFrom-Json }
+      "ORDER BY decode(md5(($expression)::text), 'hex')),'')))::text FROM public.`"$table`" t"
+    try { $result[$table] = Invoke-ReadOnlyQuery $Config $Uri $sql 'DATA_FINGERPRINT_FAILED' $SnapshotId $true | ConvertFrom-Json }
     catch { if ($_.Exception.Message -like 'LMR:*') { throw }; Stop-Maintenance 'DATA_FINGERPRINT_INVALID' }
   }
   return $result
 }
 
 function Compare-RepresentativeFingerprints([object]$Before, [object]$After,
-    [bool]$SkipLedger = $false) {
-  foreach ($key in $Before.Keys) {
+    [bool]$SkipLedger = $false, [string]$Stage = 'UNSPECIFIED',
+    [hashtable]$Diagnostic = $null) {
+  if ($Stage -notin @('UNSPECIFIED', 'RESTORE', 'POST_MIGRATION')) {
+    Stop-Maintenance 'FINGERPRINT_STAGE_INVALID'
+  }
+  if ($null -ne $Diagnostic) { $Diagnostic.Clear() }
+  foreach ($key in @('_prisma_migrations', 'LeadMessage', 'Lead', 'Organization',
+      'User', 'NotificationPreference')) {
     if ($SkipLedger -and $key -eq '_prisma_migrations') { continue }
-    if (-not $After.Contains($key) -or [long]$Before[$key].count -ne [long]$After[$key].count -or
-        [string]$Before[$key].digest -ne [string]$After[$key].digest) {
+    $difference = if (-not $Before.Contains($key) -or -not $After.Contains($key)) {
+      'MISSING'
+    } elseif ([long]$Before[$key].count -ne [long]$After[$key].count) {
+      'COUNT'
+    } elseif ([string]$Before[$key].digest -ne [string]$After[$key].digest) {
+      'DIGEST'
+    } else { '' }
+    if ($difference) {
+      if ($null -ne $Diagnostic) {
+        $Diagnostic.stage = $Stage
+        $Diagnostic.table = $key
+        $Diagnostic.difference = $difference
+      }
       Stop-Maintenance 'RESTORED_DATA_MISMATCH'
     }
   }
 }
 
+function Get-SafeFingerprintMismatch([string]$ReasonCode, [hashtable]$Diagnostic) {
+  if ($ReasonCode -ne 'RESTORED_DATA_MISMATCH' -or $null -eq $Diagnostic -or
+      $Diagnostic.Count -ne 3 -or
+      $Diagnostic.stage -notin @('RESTORE', 'POST_MIGRATION') -or
+      $Diagnostic.table -notin @('_prisma_migrations', 'LeadMessage', 'Lead',
+        'Organization', 'User', 'NotificationPreference') -or
+      $Diagnostic.difference -notin @('COUNT', 'DIGEST', 'MISSING')) {
+    return $null
+  }
+  return [ordered]@{ stage = $Diagnostic.stage; table = $Diagnostic.table
+    difference = $Diagnostic.difference }
+}
+
 function Get-StructureFingerprint([object]$Config, [Uri]$Uri,
     [string]$SnapshotId = '') {
+  # PostgreSQL 18 records ordinary column NOT NULL declarations twice: in
+  # attnotnull and as pg_constraint rows. PostgreSQL 17 has only attnotnull.
+  # Suppress the duplicate catalog row only for the ordinary generated form.
+  # Named, unvalidated, inherited, or otherwise special forms fail closed.
+  $unmodeledNotNull = Invoke-ReadOnlyQuery $Config $Uri @'
+SELECT count(*) FROM pg_constraint x
+JOIN pg_class c ON c.oid=x.conrelid
+JOIN pg_namespace n ON n.oid=c.relnamespace
+LEFT JOIN pg_attribute a ON a.attrelid=c.oid
+  AND a.attnum=x.conkey[1]
+WHERE n.nspname='public' AND x.contype='n' AND NOT (
+  current_setting('server_version_num')::integer >= 180000
+  AND x.convalidated AND x.conislocal AND x.coninhcount=0
+  AND NOT x.connoinherit AND x.conparentid=0
+  AND COALESCE((to_jsonb(x)->>'conenforced')::boolean,true)
+  AND cardinality(x.conkey)=1 AND a.attnotnull
+  AND x.conname=(c.relname||'_'||a.attname||'_not_null')
+)
+'@ 'STRUCTURE_NOT_NULL_CHECK_FAILED' $SnapshotId
+  if ($unmodeledNotNull -ne '0') { Stop-Maintenance 'STRUCTURE_NOT_NULL_UNMODELED' }
+
+  # Same exported snapshot as the dump. Catalog closure alone is insufficient
+  # for string-body routines: additionally prove the closed routing contract.
+  $proof = Get-StructureProof $Config $Uri $SnapshotId
   $sql = @'
 WITH objects AS (
   SELECT 'table' AS kind, n.nspname||'.'||c.relname AS name,
@@ -894,20 +1096,26 @@ WITH objects AS (
   SELECT 'constraint', n.nspname||'.'||c.relname||'.'||x.conname,
     pg_get_constraintdef(x.oid)
   FROM pg_constraint x JOIN pg_class c ON c.oid=x.conrelid
-    JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public'
+    JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname='public' AND x.contype <> 'n'
   UNION ALL
   SELECT 'index', n.nspname||'.'||c.relname, pg_get_indexdef(c.oid)
   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
   WHERE n.nspname='public' AND c.relkind='i'
   UNION ALL
   SELECT 'extension', e.extname, e.extversion
-  FROM pg_extension e
+  FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace
+  WHERE n.nspname='public'
 )
 SELECT json_build_object('count',count(*),
   'digest',md5(COALESCE(string_agg(kind||'|'||name||'|'||definition,E'\n'
     ORDER BY kind,name,definition),'')))::text FROM objects
 '@
-  try { return Invoke-ReadOnlyQuery $Config $Uri $sql 'STRUCTURE_INVENTORY_FAILED' $SnapshotId | ConvertFrom-Json }
+  try {
+    $fingerprint = Invoke-ReadOnlyQuery $Config $Uri $sql 'STRUCTURE_INVENTORY_FAILED' $SnapshotId | ConvertFrom-Json
+    $fingerprint.digest = Get-Sha256Text ($fingerprint.digest + '|' + (Get-StructureProofDigest $proof))
+    return $fingerprint
+  }
   catch { if ($_.Exception.Message -like 'LMR:*') { throw }; Stop-Maintenance 'STRUCTURE_INVENTORY_INVALID' }
 }
 

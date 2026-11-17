@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { normalizeLeadSources } from '@/lib/leads'
+import { metaLeadAdsFeatureEnabled } from '@/lib/metaLeadAdsFeature'
 import { getLeadWebhookSettings, settingsObject } from '@/lib/leadWebhook'
 import { normalizeSourceKey } from '@/lib/leadRouting'
 import { hasDuplicateRouteMembers } from '@/lib/leadRoutingPolicy'
@@ -20,7 +21,7 @@ async function context(user: any) {
     select: { settings: true },
   })
   if (!organization) return null
-  const configured = normalizeLeadSources(settingsObject(organization.settings).leadSources)
+  const configured = normalizeLeadSources(settingsObject(organization.settings).leadSources, metaLeadAdsFeatureEnabled(organizationId))
     .filter(source => source.value !== 'manual')
   if (!configured.some(source => source.value === 'telegram')) {
     configured.push({ value: 'telegram', label: 'Telegram', order: configured.length, system: true })

@@ -715,6 +715,15 @@ function metaDiagnosticDetails(item: MetaTokenDiagnostic | undefined, text: type
 }
 
 export default function IntegrationsPage() {
+  const [leadAdsAvailable, setLeadAdsAvailable] = useState(false)
+  useEffect(() => {
+    let active = true
+    fetch('/api/meta-lead-ads/capabilities', { cache: 'no-store' })
+      .then(response => response.ok ? response.json() : null)
+      .then(data => { if (active) setLeadAdsAvailable(data?.canManage === true) })
+      .catch(() => { if (active) setLeadAdsAvailable(false) })
+    return () => { active = false }
+  }, [])
   const { lang } = useLanguage()
   const text = integrationText[lang] || integrationText.ru
   const metaText = metaOAuthText[lang] || metaOAuthText.ru
@@ -1613,6 +1622,7 @@ ${samplePayload}`}
         {!loading && settings && (
           <div className="card" style={{ marginTop: 16 }}>
             <div className="section-title" style={{ marginBottom: 4 }}><span>📣</span>{text.facebookTitle}</div>
+            {leadAdsAvailable && <p><Link href="/settings/integrations/meta-lead-ads">{lang === 'pl' ? 'Osobna integracja Meta Lead Ads →' : lang === 'uk' ? 'Окрема інтеграція Meta Lead Ads →' : 'Отдельная интеграция Meta Lead Ads →'}</Link></p>}
             <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
               {text.facebookHint}
             </div>

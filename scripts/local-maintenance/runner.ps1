@@ -5,6 +5,7 @@ param(
   [string]$ConfigPath = (Join-Path $env:LOCALAPPDATA 'LegalHubMaintenance\config.json'),
   [string]$PlanPath,
   [string]$ApprovalReference,
+  [ValidateSet('Direct', 'SupabaseSessionPooler')][string]$ConnectionMode = 'Direct',
   [switch]$NoMigration,
   [switch]$Synthetic
 )
@@ -18,6 +19,7 @@ foreach ($module in @('Microsoft.PowerShell.Management', 'Microsoft.PowerShell.S
 . (Join-Path $PSScriptRoot 'core.ps1')
 . (Join-Path $PSScriptRoot 'sql-audit.ps1')
 . (Join-Path $PSScriptRoot 'plan.ps1')
+. (Join-Path $PSScriptRoot 'migration-diagnostics.ps1')
 
 function Assert-OutsideGit([string]$Repo, [string]$Path) {
   $root = [IO.Path]::GetFullPath($Repo).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
@@ -29,6 +31,12 @@ function Assert-OutsideGit([string]$Repo, [string]$Path) {
 
 function Get-Config([string]$Repo) {
   $config = Read-MaintenanceConfig $ConfigPath ([bool]$Synthetic)
+  $selectedMode = if ($ConnectionMode -eq 'SupabaseSessionPooler') {
+    'supabase_shared_session_ipv4'
+  } else { 'direct' }
+  if ((Get-MaintenanceConnectionMode $config) -cne $selectedMode) {
+    Stop-Maintenance 'CONNECTION_MODE_NOT_EXPLICITLY_SELECTED'
+  }
   foreach ($path in @($ConfigPath, $config.environmentFile, $config.backupDirectory,
       $config.privateDirectory)) {
     Assert-OutsideGit $Repo $path
@@ -40,6 +48,13 @@ function Get-Config([string]$Repo) {
   Assert-PrivateAcl $ConfigPath
   Assert-PrivateAcl $config.environmentFile
   Assert-PrivateAcl $config.privateDirectory
+  if ($Mode -eq 'Apply') { Assert-DirectApplyConnection $config }
+  if ((Test-SessionPoolerMode $config) -and $Mode -eq 'Preflight') {
+    if ($PSVersionTable.PSVersion.Major -lt 7) { Stop-Maintenance 'SESSION_REQUIRES_POWERSHELL_7' }
+    Assert-SessionPoolerProfile $config
+    Assert-SessionCredentialBinding $config
+    Resolve-SessionPoolerIpv4 $config
+  }
   return $config
 }
 
@@ -61,6 +76,16 @@ function Get-CheckedState([object]$Config, [Uri]$Uri, [string]$Repo,
   [void](Get-GitCheckpoint $Repo $Commit ([bool]$Synthetic))
   Assert-GuardedCommand $Repo
   [void](Assert-PinnedPrismaSchema $Repo)
+  $initialSessionIdentity = $null
+  if (Test-SessionPoolerMode $Config) {
+    $initialSessionIdentity = Get-DatabaseIdentityState $Config $Uri
+    Assert-SessionBackendTls $initialSessionIdentity
+    Assert-SessionIdentity $initialSessionIdentity $initialSessionIdentity $Config.maintenanceRole
+  }
+  # Bind the closed routine/trigger contract into the sealed target identity.
+  # Both preflight and the existing final Apply rechecks must reject drift.
+  $structureProof = Get-StructureProof $Config $Uri
+  $structureProofDigest = Get-StructureProofDigest $structureProof
   $migrations = @(Get-MigrationFiles $Repo)
   $ledger = @(Get-ProductionLedger $Config $Uri)
   $ledgerResult = Compare-MigrationLedger $migrations $ledger $Expected
@@ -72,14 +97,23 @@ function Get-CheckedState([object]$Config, [Uri]$Uri, [string]$Repo,
     $audits += [pscustomobject]@{ name = $name; sha256 = $match[0].Sha256; audit = $audit }
   }
   $snapshot = Get-DatabaseSnapshot $Config $Uri
+  if ($initialSessionIdentity) {
+    Assert-SessionIdentity $snapshot $initialSessionIdentity $Config.maintenanceRole
+    Assert-SessionBackendTls $snapshot
+  }
+  $expectedRole = if (Test-SessionPoolerMode $Config) { $Config.maintenanceRole }
+    else { [Uri]::UnescapeDataString($Uri.UserInfo.Split(':', 2)[0]) }
   if ($snapshot.database -ne $Uri.AbsolutePath.TrimStart('/') -or
-      $snapshot.role -ne [Uri]::UnescapeDataString($Uri.UserInfo.Split(':', 2)[0])) {
+      $snapshot.role -cne $expectedRole) {
     Stop-Maintenance 'CONNECTED_TARGET_MISMATCH'
   }
-  $appUri = Get-PrivateDatabaseUri $Config 'DATABASE_URL' ([bool]$Synthetic)
+  $appUri = Get-PreflightApplicationUri $Config ([bool]$Synthetic)
   $appState = Get-ApplicationRoleState $Config $appUri $snapshot
   $indexed = @($audits | ForEach-Object { $_.audit.BlockingIndexTables })
   Assert-LockSafety $Config $Uri $snapshot $indexed
+  $transport = if (Test-SessionPoolerMode $Config) {
+    Get-Sha256Text (Get-SessionTransportAttestation $Config | ConvertTo-Json -Compress)
+  } else { 'direct' }
   return [pscustomobject]@{
     migrations = $migrations
     ledger = $ledgerResult
@@ -87,7 +121,7 @@ function Get-CheckedState([object]$Config, [Uri]$Uri, [string]$Repo,
     snapshot = $snapshot
     applicationRole = $appState.role
     fingerprint = Get-Sha256Text ((Get-TargetFingerprint $Uri $snapshot) + '|' +
-      $appUri.Host + '|' + $appState.role)
+      $appUri.Host + '|' + $appState.role + '|' + $transport + '|structure-proof-v1|' + $structureProofDigest)
   }
 }
 
@@ -120,14 +154,43 @@ function Get-ReportDirectory([object]$Config) {
 function Save-SafeReport([object]$Config, [object]$Report) {
   if ($Report.runId -notmatch '^[0-9a-f]{12}$') { Stop-Maintenance 'REPORT_RUN_ID_INVALID' }
   $path = Join-Path (Get-ReportDirectory $Config) ($Report.runId + '.json')
-  $temporary = Join-Path (Get-ReportDirectory $Config) ($Report.runId + '.new')
+  $directory = Get-ReportDirectory $Config
+  # Preserve both legacy and current interrupted staging evidence.
+  if ((Test-Path -LiteralPath (Join-Path $directory ($Report.runId + '.new'))) -or
+      @(Get-ChildItem -LiteralPath $directory -Filter ($Report.runId + '.*.new') -Force).Count) {
+    Stop-Maintenance 'REPORT_STAGING_EXISTS'
+  }
+  $temporary = Join-Path $directory ($Report.runId + '.' + [Guid]::NewGuid().ToString('N') + '.new')
   $bytes = [Text.Encoding]::UTF8.GetBytes((ConvertTo-Json $Report -Depth 20))
-  [IO.File]::WriteAllBytes($temporary, $bytes)
-  Set-PrivateAcl $temporary
-  if (Test-Path -LiteralPath $path) {
-    [IO.File]::Replace($temporary, $path, $null)
-  } else { [IO.File]::Move($temporary, $path) }
-  Assert-PrivateAcl $path
+  if (Test-Path -LiteralPath $path) { Assert-PrivateAcl $path }
+  $ownedTemporary = $false
+  try {
+    # A unique name prevents cleanup from deleting another writer's staging.
+    $stream = [IO.File]::Open($temporary, [IO.FileMode]::CreateNew,
+      [IO.FileAccess]::Write, [IO.FileShare]::None)
+    $ownedTemporary = $true
+    try {
+      Set-PrivateAcl $temporary
+      $stream.Write($bytes, 0, $bytes.Length)
+      $stream.Flush($true)
+    } finally { $stream.Dispose() }
+    Assert-PrivateAcl $temporary
+    if ((Get-Sha256Bytes ([IO.File]::ReadAllBytes($temporary))) -cne
+        (Get-Sha256Bytes $bytes)) { Stop-Maintenance 'REPORT_CONTENT_MISMATCH' }
+    if (Test-Path -LiteralPath $path) {
+      # NullString passes a genuine .NET null, not PowerShell's empty string.
+      # Same-volume Replace is atomic; no backup or non-atomic fallback.
+      [IO.File]::Replace($temporary, $path, [NullString]::Value)
+    } else { [IO.File]::Move($temporary, $path) }
+    Assert-PrivateAcl $path
+    if ((Get-Sha256Bytes ([IO.File]::ReadAllBytes($path))) -cne
+        (Get-Sha256Bytes $bytes)) { Stop-Maintenance 'REPORT_CONTENT_MISMATCH' }
+  } finally {
+    if ($ownedTemporary -and (Test-Path -LiteralPath $temporary)) {
+      Assert-NotReparsePoint $temporary
+      [IO.File]::Delete($temporary)
+    }
+  }
   return $path
 }
 
@@ -137,7 +200,8 @@ function Get-SafeErrorCode([object]$ErrorRecord) {
 }
 
 function Write-Report([object]$Config, [object]$Plan, [string]$Result,
-    [string]$Code = '', [string]$Approval = '', [object]$Observed = $null) {
+    [string]$Code = '', [string]$Approval = '', [object]$Observed = $null,
+    [object]$CommandDiagnostic = $null) {
   $report = [ordered]@{
     version = 1; runId = $Plan.runId; checkedUtc = [DateTime]::UtcNow.ToString('o')
     approvedCommit = $Plan.approvedCommit; plannedPending = @($Plan.pending)
@@ -158,20 +222,27 @@ function Write-Report([object]$Config, [object]$Plan, [string]$Result,
       elseif ($Result -eq 'ATTEMPTED_UNVERIFIED') { 'DIAGNOSE_LEDGER_AND_OUTCOME_NO_RETRY' }
       else { 'DIAGNOSE_NO_RETRY_RERUN_PREFLIGHT_AFTER_REVIEW' }
   }
+  if ($CommandDiagnostic) {
+    $report.commandDiagnostic = Read-GuardedMigrationDiagnostic @(
+      'GUARDED_MIGRATION_DIAGNOSTIC ' + ($CommandDiagnostic | ConvertTo-Json -Compress)) $CommandDiagnostic.exitCode
+  }
   return Save-SafeReport $Config $report
 }
 
 function Invoke-Preflight([string]$Repo) {
   $config = Get-Config $Repo
+  $sessionMode = Test-SessionPoolerMode $config
+  if ($sessionMode -and $NoMigration) { Stop-Maintenance 'SESSION_NO_MIGRATION_UNSUPPORTED' }
   $runId = [Guid]::NewGuid().ToString('N').Substring(0, 12)
   $state = $null
+  $integrityDiagnostic = @{}
   try {
     if ($NoMigration) {
       if (@($ExpectedMigrations).Count -gt 0) { Stop-Maintenance 'NO_MIGRATION_WITH_EXPECTED_SET' }
       $expected = @()
     } else { $expected = @(Get-Expected $ExpectedMigrations) }
     $commit = Get-GitCheckpoint $Repo $ApprovedCommit ([bool]$Synthetic)
-    $uri = Get-PrivateDatabaseUri $config 'DIRECT_URL' ([bool]$Synthetic)
+    $uri = Get-PreflightSourceUri $config ([bool]$Synthetic)
     $state = Get-CheckedState $config $uri $Repo $commit $expected
     if ($NoMigration) {
       [void](Save-SafeReport $config ([ordered]@{
@@ -190,18 +261,37 @@ function Invoke-Preflight([string]$Repo) {
       return
     }
     $snapshotHolder = $null
+    $snapshotError = $null
+    $snapshotCleanupError = $null
     try {
       $snapshotHolder = Start-ExportedSnapshot $config $uri
+      if ($sessionMode) { Start-SessionSnapshotProof $config $uri $snapshotHolder $state.snapshot }
       $before = Get-RepresentativeFingerprints $config $uri @{} $snapshotHolder.Id
       $beforeStructure = Get-StructureFingerprint $config $uri $snapshotHolder.Id
+      if ($sessionMode) { Assert-SessionSnapshotProof $snapshotHolder }
       $backup = New-PrivateBackup $config $uri $runId $snapshotHolder.Id
-    } finally { Stop-ExportedSnapshot $snapshotHolder }
+      if ($sessionMode) { Assert-SessionSnapshotProof $snapshotHolder }
+    } catch { $snapshotError = $_ }
+    finally {
+      try { if ($sessionMode) { Stop-SessionSnapshotProof $snapshotHolder } }
+      catch { $snapshotCleanupError = $_ }
+      try { Stop-ExportedSnapshot $snapshotHolder }
+      catch { if (-not $snapshotCleanupError) { $snapshotCleanupError = $_ } }
+    }
+    if ($snapshotError) {
+      if ($snapshotCleanupError) {
+        $snapshotError.Exception.Data['SessionCleanupCode'] = Get-SafeErrorCode $snapshotCleanupError
+      }
+      throw $snapshotError
+    }
+    if ($snapshotCleanupError) { throw $snapshotCleanupError }
     $cluster = $null
     try {
       $cluster = New-DisposableCluster $config $runId
       Restore-DisposableBackup $config $cluster $backup
       $restored = Get-RepresentativeFingerprints $config $cluster.Uri
-      Compare-RepresentativeFingerprints $before $restored
+      Compare-RepresentativeFingerprints $before $restored -Stage 'RESTORE' `
+        -Diagnostic $integrityDiagnostic
       $restoredStructure = Get-StructureFingerprint $config $cluster.Uri
       Assert-StructureEqual $beforeStructure $restoredStructure
       $restoreLedger = @(Get-ProductionLedger $config $cluster.Uri)
@@ -217,7 +307,8 @@ function Invoke-Preflight([string]$Repo) {
         }
       }
       $after = Get-RepresentativeFingerprints $config $cluster.Uri $excluded
-      Compare-RepresentativeFingerprints $restored $after $true
+      Compare-RepresentativeFingerprints $restored $after $true 'POST_MIGRATION' `
+        $integrityDiagnostic
       Assert-CreatedObjects $config $cluster.Uri $state.audits
       Assert-SequenceRolePermissions $config $uri $cluster $state.audits `
         $state.snapshot.role $state.applicationRole
@@ -227,6 +318,9 @@ function Invoke-Preflight([string]$Repo) {
       runId = $runId
       createdUtc = [DateTime]::UtcNow.ToString('o')
       approvedCommit = $commit
+      connectionMode = Get-MaintenanceConnectionMode $config
+      sessionTransport = if ($sessionMode) { Get-SessionTransportAttestation $config } else { $null }
+      sessionSnapshotAndLockProof = if ($sessionMode) { 'PASS' } else { 'NOT_APPLICABLE' }
       targetFingerprint = $state.fingerprint
       applicationRole = $state.applicationRole
       appliedCount = $state.ledger.AppliedCount
@@ -264,6 +358,10 @@ function Invoke-Preflight([string]$Repo) {
         simulation = 'UNKNOWN'; structure = 'UNKNOWN'; sequencePermissions = 'UNKNOWN'
         oldAppCompatibility = 'UNKNOWN'; apply = 'NOT_ATTEMPTED'
         result = 'PREFLIGHT_BLOCKED'; reasonCode = $code; approvalReference = ''
+        sessionCleanupCode = if ($_.Exception.Data.Contains('SessionCleanupCode')) {
+          [string]$_.Exception.Data['SessionCleanupCode']
+        } else { '' }
+        integrityMismatch = Get-SafeFingerprintMismatch $code $integrityDiagnostic
         nextAction = 'FIX_CAUSE_RERUN_PREFLIGHT'
       }))
     } catch { }
@@ -280,6 +378,7 @@ function Invoke-Apply([string]$Repo) {
   $config = Get-Config $Repo
   $actualPlanPath = if ($PlanPath) { $PlanPath } else { Get-LatestPlanPath $config }
   $plan = Read-SealedPlan $config $actualPlanPath
+  Assert-DirectApplyConnection $config $plan
   if ($plan.synthetic) { Stop-Maintenance 'SYNTHETIC_PLAN_APPLY_FORBIDDEN' }
   if ($plan.restore -ne 'PASS' -or $plan.localMigration -ne 'PASS' -or
       $plan.dataIntegrity -ne 'PASS' -or $plan.structure -ne 'PASS' -or
@@ -322,7 +421,7 @@ function Invoke-Apply([string]$Repo) {
     [void](Write-Report $config $plan 'ATTEMPTED_UNVERIFIED' `
       'AWAITING_GUARDED_COMMAND' $ApprovalReference)
     $boundedUri = Get-PinnedPrismaUri $config $uri $true
-    $exitCode = Invoke-WithIsolatedEnvironment $config $null @{
+    $execution = Invoke-WithIsolatedEnvironment $config $null @{
       DB_MIGRATE_TARGET = 'production'
       DB_MIGRATE_CONFIRM = 'production'
       DB_MIGRATE_EXPECTED_HOST = $config.expectedHost
@@ -335,21 +434,24 @@ function Invoke-Apply([string]$Repo) {
         $ErrorActionPreference = 'Continue'
         # This is the sole authorized production migration command; child output is never echoed.
         $output = @(& (Join-Path $config.nodeBin 'npm.cmd') run db:migrate:deploy 2>$null)
-        return $LASTEXITCODE
+        $nativeExit = $LASTEXITCODE
+        return [pscustomobject]@{ ExitCode = $nativeExit;
+          Diagnostic = (Read-GuardedMigrationDiagnostic $output $nativeExit) }
       } finally {
         $ErrorActionPreference = $oldPreference
         Pop-Location
       }
     }
-    if ($exitCode -ne 0) {
-      [void](Write-Report $config $plan 'APPLY_ERROR' 'GUARDED_COMMAND_FAILED' $ApprovalReference)
+    if ($execution.ExitCode -ne 0) {
+      [Console]::Error.WriteLine('MIGRATION DIAGNOSTIC: ' + ($execution.Diagnostic | ConvertTo-Json -Compress))
+      [void](Write-Report $config $plan 'APPLY_ERROR' 'GUARDED_COMMAND_FAILED' $ApprovalReference -CommandDiagnostic $execution.Diagnostic)
       Stop-Maintenance 'GUARDED_COMMAND_FAILED_DO_NOT_RETRY'
     }
     if ($databaseLock.Process.HasExited) { Stop-Maintenance 'TARGET_DATABASE_LOCK_LOST_AFTER_APPLY' }
     try {
       $ledger = @(Get-ProductionLedger $config $uri)
       $observed = Compare-MigrationLedger (Get-MigrationFiles $Repo) $ledger @()
-      [void](Write-Report $config $plan 'APPLIED' '' $ApprovalReference $observed)
+      [void](Write-Report $config $plan 'APPLIED' '' $ApprovalReference $observed $execution.Diagnostic)
       Write-Output "APPLIED; run=$($plan.runId); pending=0; failed=0"
     } catch {
       [void](Write-Report $config $plan 'POSTCHECK_FAILED' 'LEDGER_NOT_VERIFIED' $ApprovalReference)
@@ -440,6 +542,10 @@ try {
 } catch {
   $message = $_.Exception.Message
   $code = if ($message -match 'LMR:([A-Z0-9_]+)') { $Matches[1] } else { 'UNEXPECTED_ERROR' }
+  $lockEvidence = Get-LockSafetyFailureEvidence $_
+  if ($null -ne $lockEvidence) {
+    [Console]::Error.WriteLine('LOCK SAFETY: ' + ($lockEvidence | ConvertTo-Json -Compress))
+  }
   [Console]::Error.WriteLine("LOCAL MAINTENANCE BLOCKED: $code")
   if ($Synthetic -and $code -eq 'UNEXPECTED_ERROR') {
     [Console]::Error.WriteLine("SYNTHETIC DIAGNOSTIC: $($_.Exception.GetType().Name) line=$($_.InvocationInfo.ScriptLineNumber)")

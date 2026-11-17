@@ -80,7 +80,13 @@ function Read-SealedPlan([object]$Config, [string]$PlanPath) {
     }
     $expected = Get-PlanMac (Get-PlanKey $Config $false) $payload
     if (-not (Test-EqualBytes $stored $expected)) { Stop-Maintenance 'PLAN_SEAL_MISMATCH' }
-    $plan = [Text.Encoding]::UTF8.GetString($payload) | ConvertFrom-Json
+    # Preserve the signed timestamp text where the runtime supports DateKind.
+    # This matches Windows PowerShell 5.1 and prevents JSON date normalization
+    # from hiding a malformed/noncanonical timestamp before strict validation.
+    $json = [Text.Encoding]::UTF8.GetString($payload)
+    if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')) {
+      $plan = $json | ConvertFrom-Json -DateKind String
+    } else { $plan = $json | ConvertFrom-Json }
     if ($plan.version -ne 1 -or $plan.runId -notmatch '^[0-9a-f]{12}$') {
       Stop-Maintenance 'PLAN_PAYLOAD_INVALID'
     }
@@ -100,7 +106,17 @@ function Get-LatestPlanPath([object]$Config) {
 }
 
 function Assert-PlanFresh([object]$Plan) {
-  try { $created = [DateTime]::Parse($Plan.createdUtc).ToUniversalTime() }
+  try {
+    if ($Plan.createdUtc -is [DateTime]) {
+      if ($Plan.createdUtc.Kind -ne [DateTimeKind]::Utc) { throw 'UTC required' }
+      $created = $Plan.createdUtc
+    } elseif ($Plan.createdUtc -is [string]) {
+      $created = [DateTime]::ParseExact($Plan.createdUtc, 'o',
+        [Globalization.CultureInfo]::InvariantCulture,
+        [Globalization.DateTimeStyles]::RoundtripKind)
+      if ($created.Kind -ne [DateTimeKind]::Utc) { throw 'UTC required' }
+    } else { throw 'Timestamp type invalid' }
+  }
   catch { Stop-Maintenance 'PLAN_TIME_INVALID' }
   if ($created -gt [DateTime]::UtcNow.AddMinutes(2) -or
       $created -lt [DateTime]::UtcNow.AddHours(-4)) {
