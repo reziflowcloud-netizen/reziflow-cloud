@@ -1,6 +1,6 @@
 # Own-resource review and deletion procedure
 
-Prepared 17 November 2026 for owner approval with the public notice. This is an executable operating proposal, not evidence that new routines have already run. No Production or historical QA data is deleted by this document.
+Prepared 17 November 2026. The owner accepted the manual 24-hour / 7-day / 30-day procedure and authorised limited publication through PR #19 on this date. Acceptance is not evidence that a deletion has already run. No Production or historical QA data is deleted by this document.
 
 ## Scope and responsibility
 
@@ -22,6 +22,18 @@ Record an immutable UTC closure timestamp and Europe/Warsaw equivalent when the 
 | Within 24 hours | Remove the operation's temporary User/Page token copies, App Secret copy, ngrok configuration/token copy, local login credential exports and secret-bearing temporary environment/config files after use. Revocation/rotation is separate and requires its own authority; deleting a file does not revoke a provider token |
 | Within 7 days | Remove synthetic DB and copies, operation-specific receipt/notification/test data, raw diagnostic/screenshot/video working files and generated caches after approved evidence selection. If a final recording remains necessary for an open Review, its approved purpose, access and closure must be explicit; do not silently convert working copies into permanent evidence |
 | Within 30 days | Remove the deidentified outcome report from all inventoried operator-held copies unless another lawful, separately authorised retention basis applies. Do not call public review evidence anonymous if it still contains account/asset identifiers |
+
+### Final App Review video — separate, bounded purpose
+
+Only one selected, redacted final recording may be designated as evidence for the existing open Meta App Review. It is not a raw working recording or an anonymous report. Record its hash, restricted operator-held location, submitted-copy destination, purpose, submission identifier and responsible person in the private copy inventory; never retain embedded tokens, passwords or real client data. Keep the operator-held copy access-restricted and encrypted at rest, outside the disposable credential/database set. No new cloud destination is authorised by this procedure.
+
+Valentyn Verbelchuk checks the continuing need manually every 7 days. The retention event is the final Meta decision or withdrawal of that submission: record it and remove operator-held final-video copies within 7 days. If continued evidence is needed for a different submission or purpose, obtain a new documented decision rather than silently resetting closure. This exception does not extend the original credential, database, working-file or earlier QA deadlines. Meta's submitted copy is separately governed by Meta; local deletion is not proof of its erasure.
+
+### Named executor, copy register and execution mechanism
+
+**Executor and accountable operator: Valentyn Verbelchuk.** The current stopped local review environment has an access-restricted `retention-manifest.json` and shutdown proof under its unique owned private root; the private pointer is preserved outside the disposable root. Its three generated credential/config copies are inventoried as `runtime.json`, `cluster-state.json` and `reviewer-access.private.json`. No Meta credential copy or final video was created in that preparation. Source, Git and recovery backups/keys are excluded.
+
+The local-only runtime branch preserves `scripts/meta-review/record-retention.ps1`, strict path/ACL/process checks and owned STOP tools. The retention script records deadlines and proof; it does not delete data or schedule automatic deletion. Before each deadline the executor uses the private manifest to produce an exact-target inventory/preview, applies the required deletion authority and verifies absence according to the steps below. Record completion or an explicit blocker in the private register; documentation or a reminder is not completion. Current conservative deadlines remain 18 November 2026 20:04:35 Warsaw for generated credential/config copies, 24 November 20:04:35 for data/copies and 17 December 20:04:35 for the deidentified outcome. Do not renew them by restarting the environment.
 
 Confirm editors, clipboard and autosave/temporary locations without exposing their contents. Include Downloads, browser download copies and any approved external media or sync location that actually received a file. The owner previously confirmed local QA in Poland with no cloud-sync copies; a new operation must not introduce a new copy or cloud destination silently.
 

@@ -1,6 +1,6 @@
 # Final legal publication texts — owner approval copy
 
-Prepared 17 November 2026. **NOT APPROVED OR PUBLISHED.** These are replacements of the existing three routes, not new legal pages. Text is generated from the actual static publication candidate so the approval copy and rendering have the same paragraphs. The proposed publication date must be reconciled if release occurs later. No Production deployment or Meta URL change is authorised by preparing this file.
+Prepared 17 November 2026. The owner approved limited publication through PR #19 and the manual closure procedure, including minimal clarification of the final App Review video period. These are replacements of the existing three routes, not new legal pages. Text is generated from the actual static publication candidate so the approval copy and rendering have the same paragraphs. Publication and Meta URL readback are verified separately; preparing this file is not evidence that deployment completed. Reconcile the publication date if release occurs later.
 
 The owner confirmed current Vercel/Supabase account Terms and standard DPA applicability. Provider remote-access country completeness remains UNKNOWN and is not disguised as a complete residency guarantee. The government-request procedure remains an unadopted draft; the public text does not claim it is implemented. See the separate publication gate and provider-facts record.
 
@@ -83,6 +83,8 @@ Technical provider logs and provider-held copies follow the applicable service c
 
 For an isolated synthetic review session, closure is recorded when that session is stopped. The operator manually removes temporary local credential copies within 24 hours, review data and copies within 7 days, and the deidentified outcome report within 30 days after closure. This requires actual manual execution; it does not promise erasure of independent Meta or relay-provider records and does not reset earlier QA cleanup deadlines.
 
+One selected, redacted final demonstration video may be retained solely as evidence for an open Meta App Review until the final decision or withdrawal of that submission. The operator manually reviews that need every 7 days and removes operator-held copies within 7 days after the review closes. This does not extend retention of credentials, the review database or raw working recordings. A copy submitted to Meta follows Meta’s own applicable controls and retention.
+
 ### 9. Rights and deletion requests
 
 Where GDPR applies, you may have rights of access, correction, erasure, restriction, portability and objection, subject to the applicable conditions. You may withdraw consent where it is the basis and complain to a competent supervisory authority, including Poland’s UODO.
@@ -133,6 +135,8 @@ The response should distinguish deleted active records from any retained categor
 For the operator’s own review of LegalHub CRM Lead Ads App 1627116975561049, contact the same privacy address and identify the session or owned Page/form. Do not submit a real client’s details to the review form. The isolated database, notifications, credentials, diagnostics and copies are considered separately.
 
 The approved manual closure procedure is: temporary local credential copies within 24 hours, review data/copies within 7 days, and the deidentified outcome report within 30 days after the session’s recorded closure. It does not erase independent Meta/provider records or extend earlier QA deadlines. Historical QA Apps and their standalone QA notices do not authorise processing customer production data in the review environment.
+
+Only the selected, redacted final video required for an open Meta App Review has a separate purpose-based period: until the final decision or withdrawal, with a manual necessity check every 7 days and deletion of operator-held copies within 7 days after review closure. Raw recordings, credentials and the database retain their original shorter deadlines. Deleting a local video does not delete Meta’s submitted copy.
 
 ### 6. Related documents
 
