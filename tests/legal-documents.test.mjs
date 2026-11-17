@@ -35,6 +35,7 @@ for (const [route, title] of [['privacy', 'Privacy Policy'], ['data-deletion', '
     assert.match(html, /1627116975561049/)
     assert.match(html, /href="\/privacy"|href="\/data-deletion"/)
     assert.doesNotMatch(html, /<form|type="password"|NEXT_PUBLIC_META|access_token=/i)
+    assert.doesNotMatch(html, /\bSL\b|\bRAM\b/)
     assert.doesNotMatch(html, /stored primarily on servers located within the European Economic Area|Integration tokens are stored as organization settings/)
   })
 }

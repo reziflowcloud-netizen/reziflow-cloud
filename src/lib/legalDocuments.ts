@@ -55,7 +55,7 @@ export const privacyDocument: LegalDocumentContent = {
         'The dedicated Lead Ads application is LegalHub CRM Lead Ads, App ID 1627116975561049. Its features are activated only for explicitly authorised Page/form/CRM-organisation combinations. App creation, Business Verification or a description in this notice does not by itself enable customer intake or grant Advanced Access.',
         'For an enabled authorised event, the service verifies the Meta signature and exact binding, then retrieves the permitted lead ID, form ID, platform, form answers and creation time. Approved answers create one CRM Lead, staff assignment and internal notification. Separate delivery metadata and a keyed event fingerprint prevent duplicate processing; contact answers are not stored in the delivery-receipt record.',
         'LegalHub does not sell Meta Platform Data or use it for unrelated advertising or profiling. Messenger and Instagram messaging are separate integrations with their own intake and credentials. The Lead Ads application does not change those subscriptions.',
-        'Owned-resource App Review demonstrations use synthetic contacts and an isolated CRM/database, without SL, RAM or production client records. Personal administrator/account and network metadata may still be processed. Any customer connection requires its own authority, instructions and applicable Meta approvals.',
+        'Owned-resource App Review demonstrations use synthetic contacts and an isolated CRM/database, without production client records or customer organisations. Personal administrator/account and network metadata may still be processed. Any customer connection requires its own authority, instructions and applicable Meta approvals.',
       ],
     },
     {
@@ -63,7 +63,7 @@ export const privacyDocument: LegalDocumentContent = {
       paragraphs: [
         'Vercel Inc. supplies application hosting and execution. Supabase Pte. Ltd. supplies the configured PostgreSQL database service. These providers process service data under their applicable data processing agreements and use the subprocessors identified in their current published lists. They may separately act as controllers for their own account or service-generated information under their notices.',
         'Authorised users in the connected organisation receive the records and notifications needed for their role. Optional email, push, file-storage or scheduling features can involve additional providers when that feature is actually used; those flows are separate from the dedicated Lead Ads retrieval and internal-notification path. No external push or email delivery is implied by an internal CRM notification.',
-        'Historical isolated QA used Cloudflare Quick Tunnel and subsequently ngrok Free for temporary HTTPS relay. Those historical endpoints are stopped; neither is the production CRM ingress. If ngrok is used for an isolated own-resource review session, it carries that session’s HTTPS traffic under the operator’s accepted ngrok terms/DPA, with payload capture disabled. It is not used to relay SL or RAM production data. Meta also processes information under its own applicable terms and notices.',
+        'Historical isolated QA used Cloudflare Quick Tunnel and subsequently ngrok Free for temporary HTTPS relay. Those historical endpoints are stopped; neither is the production CRM ingress. If ngrok is used for an isolated own-resource review session, it carries that session’s HTTPS traffic under the operator’s accepted ngrok terms/DPA, with payload capture disabled. It is not used to relay production customer data. Meta also processes information under its own applicable terms and notices.',
       ],
       links: [
         { label: 'Vercel DPA', href: 'https://vercel.com/legal/dpa' },
@@ -151,7 +151,7 @@ export const deletionDocument: LegalDocumentContent = {
       heading: '5. Own synthetic review and historical QA',
       paragraphs: [
         'For the operator’s own review of LegalHub CRM Lead Ads App 1627116975561049, contact the same privacy address and identify the session or owned Page/form. Do not submit a real client’s details to the review form. The isolated database, notifications, credentials, diagnostics and copies are considered separately.',
-        'The approved manual closure procedure is: temporary local credential copies within 24 hours, review data/copies within 7 days, and the deidentified outcome report within 30 days after the session’s recorded closure. It does not erase independent Meta/provider records or extend earlier QA deadlines. Historical QA Apps and their standalone QA notices do not authorise processing SL or RAM data in the review environment.',
+        'The approved manual closure procedure is: temporary local credential copies within 24 hours, review data/copies within 7 days, and the deidentified outcome report within 30 days after the session’s recorded closure. It does not erase independent Meta/provider records or extend earlier QA deadlines. Historical QA Apps and their standalone QA notices do not authorise processing customer production data in the review environment.',
       ],
     },
     {
@@ -182,7 +182,7 @@ export const termsDocument: LegalDocumentContent = {
     },
     {
       heading: '3a. Meta Lead Ads',
-      paragraphs: ['Podłączenie organizacji do aplikacji LegalHub CRM Lead Ads (1627116975561049) wymaga odrębnego upoważnienia do wskazanej strony i formularza, odpowiednich zgód Meta i uzgodnionych instrukcji Klienta. Utworzenie aplikacji, weryfikacja firmy lub test na własnych zasobach nie aktywują integracji klienta. Demonstracje wewnętrzne korzystają wyłącznie z danych syntetycznych i odizolowanego środowiska; nie oznaczają podłączenia SL ani RAM. Wyłączenie integracji nie jest automatycznym usunięciem wszystkich danych.'],
+      paragraphs: ['Podłączenie organizacji do aplikacji LegalHub CRM Lead Ads (1627116975561049) wymaga odrębnego upoważnienia do wskazanej strony i formularza, odpowiednich zgód Meta i uzgodnionych instrukcji Klienta. Utworzenie aplikacji, weryfikacja firmy lub test na własnych zasobach nie aktywują integracji klienta. Demonstracje wewnętrzne korzystają wyłącznie z danych syntetycznych i odizolowanego środowiska; nie stanowią upoważnienia do przetwarzania danych rzeczywistych klientów. Wyłączenie integracji nie jest automatycznym usunięciem wszystkich danych.'],
     },
     {
       heading: '4. Dokumenty powiązane',
