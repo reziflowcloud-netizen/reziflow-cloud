@@ -1,15 +1,15 @@
 # LegalHub Legal Pages Approval Drafts
 
-**Stage B / general-service drafts only.** PR #14 now prepares separate [Stage A QA documents and approval](stage-a-qa-approval.md). These broader texts are preserved for later review; they are not deployed by the current PR, and the executable /privacy and /data-deletion pages match main. They are not approved or published. Reconcile the proposed update date with the actual future publication date. See [factual review and stage requirements](stage-a-stage-b-readiness.md) for the remaining owner/legal confirmations.
+**General-service approval drafts, revised 17 November 2026. NOT PUBLISHED OR APPROVED.** PR #14/#15's separate QA pages concern historical QA Apps and are not the notice for Production App 1627116975561049. These texts preserve the existing proposed general-service notice and make targeted factual corrections for the released adapter. No executable /privacy, /data-deletion or other public route is changed here. Set the effective date only when an accurate final version is approved and published. Remaining provider/contract/retention decisions below are not public placeholders to deploy.
 
 ## Privacy Policy
 
-Last updated: November 9, 2026
+Proposed update: to be set on approved publication (draft revised November 17, 2026)
 
 ### Service Operator and Privacy Contact:
 
-LegalHub CRM JDG Valentyn Verbelchuk  
-Adres: 02-786 Warszawa, ul. Zamiany 8, lu 202  
+VALENTYN VERBELCHUK, trading as LegalHub CRM (Polish sole proprietor)<br>
+Adres: 02-786 Warszawa, ul. Zamiany 8, lok. 202<br>
 NIP: 9512609364  
 Kontakt: [office@legalhubcrm.com](mailto:office@legalhubcrm.com)
 
@@ -21,7 +21,7 @@ LegalHub is used by business customers, such as agencies and their employees, to
 
 The agency generally acts as controller for the client and lead data whose purposes and essential means of processing it determines. Where LegalHub processes that data on the agency's documented instructions, LegalHub acts as processor under the applicable data processing arrangement. LegalHub acts as controller for processing whose purposes and essential means it determines itself, such as its own service administration and security. The roles depend on the actual processing and contractual arrangements, not only on which system stores the data.
 
-In the internal QA pilot, LegalHub determines the testing purposes for its own test App, Page, form and isolated CRM organization. The pilot is intended for synthetic submissions only. Meta administrator and account identifiers, access records and other technical information may still relate to individuals. An internal CRM organization is not by itself a separate legal entity.
+For its own internal review and testing, LegalHub determines the purposes of processing associated with its own App, Page, form and isolated CRM organization. Contact submissions are restricted to synthetic data. Meta administrator and account identifiers, access records and other technical information may still relate to individuals. An internal CRM organization is not by itself a separate legal entity. The Production Lead Ads App is LegalHub CRM Lead Ads, ID 1627116975561049; its creation and review preparation do not activate customer lead intake.
 
 ### 2. Information We Process
 
@@ -71,7 +71,9 @@ For organizations using the dedicated Lead Ads adapter, a Meta webhook identifie
 
 LegalHub does not sell personal information. Information may be processed by trusted service providers used to operate the CRM, such as hosting, database, file storage and deployment providers. Access is limited to what is necessary to provide the service and maintain security.
 
-Vercel provides hosting and application execution. Depending on the enabled feature, database, document-storage, email, scheduling and device-notification providers may also process information. The isolated QA Lead Ads flow uses Meta, an operator-managed local CRM and PostgreSQL database, and a temporary Cloudflare HTTPS relay when enabled. It does not route test lead records through the production CRM database. Meta also processes information under its own applicable terms and notices.
+Vercel provides hosting and application execution; Supabase provides the configured production PostgreSQL database. Other enabled features may use document-storage, email, scheduling and device-notification providers, which must be identified for the actual flow. Meta also processes information under its own applicable terms and notices.
+
+Historical isolated QA used an operator-managed local CRM/PostgreSQL in Poland and, during separately controlled tests, Cloudflare Quick Tunnel followed by ngrok Free as HTTPS relays. Those temporary test endpoints are stopped; neither is the current production Lead Ads ingress. A future isolated review demonstration must identify its actual providers before it starts. Synthetic contact answers do not eliminate personal administrator, network or account metadata. The public QA notice remains limited to its identified historical App and process; it is not a customer-service notice for App 1627116975561049.
 
 ### 6. Data Storage and Security
 
@@ -79,13 +81,13 @@ LegalHub uses technical and organizational measures designed to protect data aga
 
 ### 7. Data Location
 
-The current production Vercel deployment executes application functions in the United States (Washington, D.C. region, iad1). Database, backup, network and other processing locations depend on the provider and configuration. An EU database region does not mean that all service processing remains in the EEA. Test environments may use local infrastructure and a temporary HTTPS relay. A test environment's location is not evidence of the location of the production service. Information about applicable provider locations and international-transfer arrangements can be requested from the privacy contact below.
+The configured production PostgreSQL database is in Ireland. The confirmed Vercel production deployment executes application functions in the United States (Washington, D.C. region, iad1). Database residency does not mean all service processing remains in the EEA. Network, support, logs, backups and optional services may have additional locations; the approved provider schedule must identify the applicable processing and transfer arrangements. Local encrypted release-recovery copies held by the operator in Poland are distinct from provider backups. A test environment's location is not evidence of the production service's location.
 
 ### 8. Data Retention
 
 Data is retained while the agency uses LegalHub and as needed for operational, legal or security reasons. Agencies can delete records inside the CRM where the product provides deletion controls, or request broader deletion as described in our data deletion instructions.
 
-Lead records, internal notifications, diagnostic records and delivery receipts are separate data categories. Minimal records used to prevent duplicate imports may be kept longer than ordinary diagnostic records. The dedicated Lead Ads adapter provides a separate operator-run mechanism to remove direct lead references from eligible older terminal delivery records, retain a minimal keyed record to prevent duplicate processing, and later remove that record. It is not an automatic deletion schedule and does not itself delete CRM leads, notifications, diagnostic files or backups. Deleting a lead or disabling an integration does not automatically erase every related record. Retention and deletion must follow the applicable documented procedure for each data category and environment, including any justified legal or security retention.
+Lead records, internal notifications, diagnostic records and delivery receipts are separate data categories. The dedicated adapter's operator-run receipt cleanup can remove direct lead references from eligible terminal records older than 30 days and retain a minimal keyed deduplication record. Minimal-record removal becomes eligible only after 366 days from the original receipt creation; pending/processing records are excluded. These are code-enforced eligibility limits, not proof of a running automatic cleanup schedule or an adopted retention timetable. The mechanism does not delete CRM Leads, notifications, logs or backups. Disabling the integration or deleting a Lead does not automatically erase every related record. Customer retention criteria and an operator-run schedule must be approved for each actual category/flow; the historical QA cleanup schedule does not govern SL customer data.
 
 ### 9. Your Rights and Data Deletion
 
@@ -101,7 +103,7 @@ For privacy or data deletion requests, contact the organization that manages you
 
 ## Data Deletion Instructions
 
-Last updated: November 9, 2026
+Proposed update: to be set on approved publication (draft revised November 17, 2026)
 
 These instructions explain how to request deletion of personal data processed by LegalHub, including data received through Facebook Messenger, Instagram Direct and Facebook Lead Ads integrations.
 
@@ -148,3 +150,15 @@ Minimal records used to prevent duplicate imports may be kept longer than ordina
 ### 6. Privacy Policy
 
 More information about how LegalHub processes data is available in the [Privacy Policy](https://legalhubcrm.com/privacy).
+
+---
+
+## Approval gates — not part of the public notice
+
+1. Complete the provider schedule for the actual review/customer route: contracting entity, enabled service, applicable accepted DPA/transfer basis, storage and remote-access countries. Vercel's US function region and Supabase's Ireland database alone do not answer Meta's all-countries question. Public supplier-country lists do not prove every listed optional service receives Platform Data. Do not publish a fabricated SCC/EEA-only assurance.
+2. Approve concrete retention criteria and an operator/frequency for Leads, notifications, pending/terminal receipts, minimal dedupe records, logs and backups. No customer policy is enacted by the 30/366-day code limits. Do not silently extend the historical QA deadlines.
+3. Approve an executable linked-record deletion procedure: verify the controller and request scope privately; disable only the relevant binding if requested; identify related Lead/Notification/receipt/log/copy records; use reviewed product controls or a separately authorised exact-target maintenance operation; record lawful exceptions and backup reconciliation. A draft is not permission to run Production deletion SQL or erase independent Meta/provider records. On restore, reconcile recorded deletion decisions before resuming use; do not promise immediate physical deletion of all provider backups.
+4. Historical QA manual cleanup remains the separately approved 24-hour credentials / 7-day QA artifacts / 30-day deidentified report procedure, subject to its existing exact deadlines and authorisations. A new review operation requires an explicit closure timestamp and copy inventory; it does not reset old deadlines.
+5. Owner confirmed no Meta-data national-security disclosures in the previous twelve months and no listed government-request measures currently implemented. The [proposed procedure](government-data-requests-draft.md) is for separate actual adoption; it is not an existing security claim to copy into Meta or this policy.
+6. A signed SL DPA and SL form notice are required before its actual instructed customer flow, not as prerequisites for a demonstration using only owned resources and synthetic contacts. Preserve the [Article 28 draft](article-28-dpa-draft.md) as unsigned until the parties and schedules are completed.
+7. Review the final publication text, cross-links, date and exact App scope separately. No approval, legal-page deployment or Meta Privacy/Deletion URL assignment is performed by editing this file.

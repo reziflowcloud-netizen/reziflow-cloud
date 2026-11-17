@@ -1,0 +1,82 @@
+{
+  "purpose": "Preparation inventory only; not an executable deployment or an activation approval",
+  "productionAppId": "1627116975561049",
+  "productionBusinessId": "1499778915546174",
+  "callbackUrl": "https://legalhubcrm.com/api/webhooks/meta/lead-ads",
+  "disabledEnvironment": {
+    "META_LEAD_ADS_APP_ID": "1627116975561049",
+    "META_LEAD_ADS_GRAPH_VERSION": "v27.0",
+    "META_LEAD_ADS_ENABLED": "false",
+    "META_LEAD_ADS_UI_ENABLED": "false",
+    "META_LEAD_ADS_UI_ORGANIZATION_IDS": "",
+    "META_LEAD_ADS_WORKER_ENABLED": "false",
+    "META_LEAD_ADS_SCHEDULER_ENABLED": "false",
+    "META_LEAD_ADS_SHADOW_ORGANIZATION_IDS": "",
+    "META_LEAD_ADS_LIVE_ORGANIZATION_IDS": "",
+    "META_LEAD_ADS_PILOT_ORGANIZATION_ID": "",
+    "META_LEAD_ADS_APPROVED_TUPLES": "[]",
+    "META_LEAD_ADS_ACTIVATED_AT": "",
+    "META_LEAD_ADS_RETENTION_ENABLED": "false",
+    "META_LEAD_ADS_RETENTION_ORGANIZATION_IDS": ""
+  },
+  "secretRequirements": [
+    { "name": "META_LEAD_ADS_APP_SECRET", "minimumLength": 24, "owner": "Dedicated Production App only; never reuse messaging secrets" },
+    { "name": "META_LEAD_ADS_VERIFY_TOKEN", "minimumLength": 24, "owner": "Dedicated webhook; secret-safe GET challenge logging required" },
+    { "name": "META_LEAD_ADS_RECEIPT_HMAC_KEY", "minimumLength": 32, "owner": "Stable dedupe key; distinct from other secrets" },
+    { "name": "META_LEAD_ADS_WORKER_SECRET", "minimumLength": 32, "owner": "Dedicated worker; never reuse notification CRON_SECRET" },
+    { "namePattern": "META_LEAD_ADS_PAGE_TOKEN_<EXACT_APPROVED_PAGE_ID>", "owner": "Private provenance verified, expiry monitored; no client token created during preparation" }
+  ],
+  "secretStorage": {
+    "productionDestination": "Existing Vercel project Production Sensitive server variables, after explicit approval",
+    "clientVisible": false,
+    "temporaryCopyAllowedOnlyUnderNamedOperation": true,
+    "valuesIncludedInThisFile": false,
+    "resourcesCreatedByThisFile": false
+  },
+  "ownReviewResources": {
+    "pageId": "1336008826271813",
+    "pageName": "LegalHub CRM",
+    "ownerBusinessId": "1499778915546174",
+    "unpublishedDraftFormName": "LegalHub Review Synthetic v1",
+    "draftSavedOn": "2026-11-17",
+    "draftIsPublishedOrApprovedForUse": false,
+    "formId": null,
+    "isolatedOrganizationId": null,
+    "credentialsProvisioned": false,
+    "syntheticContactsOnly": true,
+    "slOrRamAllowed": false,
+    "forbiddenQaPageId": "1449474971582722",
+    "forbiddenQaFormId": "2046130655900851"
+  },
+  "schedulerPreparation": {
+    "status": "NOT INSTALLED OR ENABLED",
+    "program": "scripts/meta-lead-ads-worker.mjs",
+    "minimumNodeVersion": "22.18",
+    "destination": "https://legalhubcrm.com/api/internal/meta-lead-ads",
+    "method": "POST",
+    "cadenceSeconds": 60,
+    "requestDeadlineSeconds": 55,
+    "maximumTicksPerRun": 1440,
+    "managedHost": null,
+    "serviceAccount": null,
+    "restartPolicyApproved": false,
+    "alertDestination": null,
+    "independentHeartbeatMonitorInstalled": false,
+    "proposedHeartbeatAlarmSeconds": 180,
+    "existingNotificationScheduleMustRemainUnchanged": true,
+    "reviewLoopbackWarning": "This Production scheduler refuses local/QA destinations. An isolated reviewer runtime needs its separately approved private worker procedure, not a relaxed URL guard."
+  },
+  "activationRequires": [
+    "Required Meta business/access approvals for the actual route",
+    "Accurate approved published legal pages and applicable provider/customer instructions",
+    "Exact tenant Owner/Admin, active linked Employee/User, routing and notification checks",
+    "Page token debug/provenance/expiry proof and a freshly verified exact tuple",
+    "Own App Page-leadgen and exact Page subscribed_apps proof",
+    "Approved worker host, alert reception, stopped-host detection and SL-only STOP rehearsal",
+    "One CRM writer per event and an agreed Sheets overlap/gap ledger",
+    "Separate exact-tenant activation approval; all flags stay OFF until then"
+  ],
+  "credentialsGenerated": false,
+  "productionConfigurationChanged": false,
+  "slActivated": false
+}
