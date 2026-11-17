@@ -127,12 +127,31 @@ SQL, PID, пользователи, connection strings и пути в диагн
 добавление `-WithPostgres` проверяет настоящие idle/waiting/long состояния на
 принадлежащем тесту localhost-кластере с полной остановкой/очисткой.
 
-Предлагаемое окно выпуска: **16.11.2026 16:00–16:30 Europe/Warsaw**. Это кандидат,
-а не гарантия отсутствия активности. Нужны отдельное утверждение нового SHA,
-новые временные private credentials и новый guarded PREFLIGHT; старый plan
-привязан к прежнему SHA. Затем отдельное разрешение на один APPLY, независимый
-postcheck и условный deployment со всеми Lead Ads gates OFF. Любой свежий риск
-останавливает выпуск; чужие транзакции не завершаются, guard не обходится.
+Следующее окно выпуска (до 60 минут) согласуется с владельцем после проверки
+исправления. Владелец подтверждает предупреждение организации и приостановку
+работы в CRM; фоновые процессы не останавливаются без отдельного разрешения.
+Новый SHA утверждается до Production PREFLIGHT. Нужен новый sealed plan;
+attempted plans сохраняются и не используются повторно. Затем личный Read-Host
+владельца, один APPLY, независимый postcheck и условный deployment со всеми
+Lead Ads gates OFF. Любой свежий риск останавливает выпуск; чужие транзакции
+не завершаются, guard не обходится.
+
+### Prisma 5.22: строгий TLS и безопасная диагностика команды
+
+Prisma URL использует `sslmode=require&sslaccept=strict&sslcert=<CA file>`.
+В [парсере установленного engine 5.22](https://github.com/prisma/prisma-engines/blob/605197351a3c8bdd595af2d2a9bc3025bca48ea2/quaint/src/connector/postgres/url.rs)
+`sslcert` загружает CA, а `sslrootcert` не обрабатывается. Для libpq сохраняются
+`PGSSLMODE=verify-full` и `PGSSLROOTCERT`; настройки Production не меняются.
+На локальной TLS-копии старый параметр воспроизводит P1011, правильный CA
+проходит, неправильный CA и hostname отклоняются. TLS и advisory locks не отключаются.
+
+Guarded entry point ограничивает stdout/stderr Prisma 64 КиБ на поток и
+публикует только версионированный набор кодов ошибок. Runner повторно проверяет
+закрытый формат перед сохранением в защищённом отчёте. Полный вывод, SQL,
+credentials, URI и пути не публикуются. Неизвестный/повреждённый формат становится
+`DIAGNOSTIC_UNAVAILABLE`; ненулевой exit code по-прежнему запрещает повтор SQL.
+Ограничение вывода или сбой процесса означает неизвестный результат команды,
+а не доказательство отсутствия изменений; attempted marker сохраняется.
 
 Источники: [PostgreSQL statistics visibility/caching](https://www.postgresql.org/docs/17/monitoring-stats.html),
 [table-level lock compatibility](https://www.postgresql.org/docs/17/explicit-locking.html).

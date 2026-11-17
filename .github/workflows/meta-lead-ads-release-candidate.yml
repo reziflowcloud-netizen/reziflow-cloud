@@ -36,6 +36,9 @@ jobs:
       - name: Fresh lock sample model and sanitized evidence tests
         shell: pwsh
         run: pwsh -NoProfile -File tests/local-maintenance/lock-safety-tests.ps1
+      - name: Strict Prisma CA and closed diagnostic evidence tests
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/prisma-transport-tests.ps1
       - name: Closed structure proof model tests (no database)
         shell: pwsh
         run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1
@@ -73,4 +76,5 @@ jobs:
       - run: npx prisma validate
       - run: npx tsc --noEmit
       - run: node --test tests/meta-lead-ads.test.mjs tests/meta-lead-ads-release.test.mjs tests/staff-routing-scope.test.mjs tests/lead-responsible-visibility.test.mjs tests/notifications-policy.test.mjs
+      - run: node --test tests/local-maintenance/migration-diagnostics.test.cjs
       - run: npm run build

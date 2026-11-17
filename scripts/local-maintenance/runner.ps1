@@ -19,6 +19,7 @@ foreach ($module in @('Microsoft.PowerShell.Management', 'Microsoft.PowerShell.S
 . (Join-Path $PSScriptRoot 'core.ps1')
 . (Join-Path $PSScriptRoot 'sql-audit.ps1')
 . (Join-Path $PSScriptRoot 'plan.ps1')
+. (Join-Path $PSScriptRoot 'migration-diagnostics.ps1')
 
 function Assert-OutsideGit([string]$Repo, [string]$Path) {
   $root = [IO.Path]::GetFullPath($Repo).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
@@ -199,7 +200,8 @@ function Get-SafeErrorCode([object]$ErrorRecord) {
 }
 
 function Write-Report([object]$Config, [object]$Plan, [string]$Result,
-    [string]$Code = '', [string]$Approval = '', [object]$Observed = $null) {
+    [string]$Code = '', [string]$Approval = '', [object]$Observed = $null,
+    [object]$CommandDiagnostic = $null) {
   $report = [ordered]@{
     version = 1; runId = $Plan.runId; checkedUtc = [DateTime]::UtcNow.ToString('o')
     approvedCommit = $Plan.approvedCommit; plannedPending = @($Plan.pending)
@@ -219,6 +221,10 @@ function Write-Report([object]$Config, [object]$Plan, [string]$Result,
       elseif ($Result -eq 'PREFLIGHT_ONLY') { 'SEPARATE_OWNER_DECISION_REQUIRED' }
       elseif ($Result -eq 'ATTEMPTED_UNVERIFIED') { 'DIAGNOSE_LEDGER_AND_OUTCOME_NO_RETRY' }
       else { 'DIAGNOSE_NO_RETRY_RERUN_PREFLIGHT_AFTER_REVIEW' }
+  }
+  if ($CommandDiagnostic) {
+    $report.commandDiagnostic = Read-GuardedMigrationDiagnostic @(
+      'GUARDED_MIGRATION_DIAGNOSTIC ' + ($CommandDiagnostic | ConvertTo-Json -Compress)) $CommandDiagnostic.exitCode
   }
   return Save-SafeReport $Config $report
 }
@@ -415,7 +421,7 @@ function Invoke-Apply([string]$Repo) {
     [void](Write-Report $config $plan 'ATTEMPTED_UNVERIFIED' `
       'AWAITING_GUARDED_COMMAND' $ApprovalReference)
     $boundedUri = Get-PinnedPrismaUri $config $uri $true
-    $exitCode = Invoke-WithIsolatedEnvironment $config $null @{
+    $execution = Invoke-WithIsolatedEnvironment $config $null @{
       DB_MIGRATE_TARGET = 'production'
       DB_MIGRATE_CONFIRM = 'production'
       DB_MIGRATE_EXPECTED_HOST = $config.expectedHost
@@ -428,21 +434,24 @@ function Invoke-Apply([string]$Repo) {
         $ErrorActionPreference = 'Continue'
         # This is the sole authorized production migration command; child output is never echoed.
         $output = @(& (Join-Path $config.nodeBin 'npm.cmd') run db:migrate:deploy 2>$null)
-        return $LASTEXITCODE
+        $nativeExit = $LASTEXITCODE
+        return [pscustomobject]@{ ExitCode = $nativeExit;
+          Diagnostic = (Read-GuardedMigrationDiagnostic $output $nativeExit) }
       } finally {
         $ErrorActionPreference = $oldPreference
         Pop-Location
       }
     }
-    if ($exitCode -ne 0) {
-      [void](Write-Report $config $plan 'APPLY_ERROR' 'GUARDED_COMMAND_FAILED' $ApprovalReference)
+    if ($execution.ExitCode -ne 0) {
+      [Console]::Error.WriteLine('MIGRATION DIAGNOSTIC: ' + ($execution.Diagnostic | ConvertTo-Json -Compress))
+      [void](Write-Report $config $plan 'APPLY_ERROR' 'GUARDED_COMMAND_FAILED' $ApprovalReference -CommandDiagnostic $execution.Diagnostic)
       Stop-Maintenance 'GUARDED_COMMAND_FAILED_DO_NOT_RETRY'
     }
     if ($databaseLock.Process.HasExited) { Stop-Maintenance 'TARGET_DATABASE_LOCK_LOST_AFTER_APPLY' }
     try {
       $ledger = @(Get-ProductionLedger $config $uri)
       $observed = Compare-MigrationLedger (Get-MigrationFiles $Repo) $ledger @()
-      [void](Write-Report $config $plan 'APPLIED' '' $ApprovalReference $observed)
+      [void](Write-Report $config $plan 'APPLIED' '' $ApprovalReference $observed $execution.Diagnostic)
       Write-Output "APPLIED; run=$($plan.runId); pending=0; failed=0"
     } catch {
       [void](Write-Report $config $plan 'POSTCHECK_FAILED' 'LEDGER_NOT_VERIFIED' $ApprovalReference)

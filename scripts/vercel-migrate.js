@@ -1,7 +1,9 @@
 // Explicit maintenance command only. Never call this from install or build.
 const { spawnSync } = require('child_process')
+const { PREFIX, CAPTURE_BYTES, summarizeMigrationResult, guardRefusalDiagnostic } = require('./local-maintenance/migration-diagnostics.cjs')
 
 function refuse(reason) {
+  console.log(PREFIX + JSON.stringify(guardRefusalDiagnostic()))
   console.error(`Migration refused: ${reason}`)
   process.exit(1)
 }
@@ -45,12 +47,17 @@ const result = spawnSync(
   process.execPath,
   [require.resolve('prisma/build/index.js'), 'migrate', 'deploy'],
   {
-    stdio: 'inherit',
+    // Bound both streams; never forward raw engine output containing URLs or SQL.
+    stdio: ['ignore', 'pipe', 'pipe'],
+    encoding: 'utf8',
+    maxBuffer: CAPTURE_BYTES,
     env: { ...process.env, DATABASE_URL: directUrl },
   },
 )
+const diagnostic = summarizeMigrationResult(result)
+console.log(PREFIX + JSON.stringify(diagnostic))
 if (result.error) {
-  console.error('Migration command failed to start')
+  console.error('Migration command outcome is unverified; do not retry automatically')
   process.exit(1)
 }
-process.exit(result.status ?? 1)
+process.exit(diagnostic.exitCode)

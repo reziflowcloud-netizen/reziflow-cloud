@@ -265,7 +265,8 @@ function Get-PinnedPrismaUri([object]$Config, [Uri]$Uri, [bool]$BoundedDdl) {
   $query = 'schema=public&connect_timeout=5'
   if ($Uri.Host -eq '127.0.0.1') { $query += '&sslmode=disable' }
   else {
-    $query += '&sslmode=require&sslaccept=strict&sslrootcert=' +
+    # Prisma 5.22 reads its CA file from sslcert; sslrootcert is a libpq option.
+    $query += '&sslmode=require&sslaccept=strict&sslcert=' +
       [Uri]::EscapeDataString([string]$Config.tlsRootCertFile)
   }
   if ($BoundedDdl) {

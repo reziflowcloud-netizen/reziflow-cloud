@@ -4,6 +4,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../../scripts/local-maintenance/core.ps1')
 . (Join-Path $PSScriptRoot '../../scripts/local-maintenance/plan.ps1')
+. (Join-Path $PSScriptRoot '../../scripts/local-maintenance/migration-diagnostics.ps1')
 . (Join-Path $PSScriptRoot 'report-functions.ps1')
 $passed = 0
 function Check([bool]$Value, [string]$Name) {
@@ -49,6 +50,15 @@ try {
   [void](Write-Report $config $plan 'ATTEMPTED_UNVERIFIED' 'AWAITING_GUARDED_COMMAND')
   Check ((Get-Content $path -Raw | ConvertFrom-Json).result -ceq 'ATTEMPTED_UNVERIFIED') 'real atomic overwrite after marker'
   Check ((Get-Acl $path).Sddl -ceq $acl) 'ACL survives replacement'
+  $diagnostic = Read-GuardedMigrationDiagnostic @('GUARDED_MIGRATION_DIAGNOSTIC {"version":1,"exitCode":1,"category":"TLS","prismaCodes":["P1011"],"sqlstates":[],"processError":null,"outputLimited":false}') 1
+  [void](Write-Report $config $plan 'APPLY_ERROR' 'GUARDED_COMMAND_FAILED' -CommandDiagnostic $diagnostic)
+  $observed = Get-Content $path -Raw | ConvertFrom-Json
+  Check ($observed.commandDiagnostic.category -ceq 'TLS' -and $observed.commandDiagnostic.prismaCodes[0] -ceq 'P1011') 'safe command evidence survives atomic publication'
+  Check ((Get-FileHash $attempt).Hash -ceq $attemptHash) 'diagnostic publication preserves consumed marker'
+  $diagnostic | Add-Member -NotePropertyName secret -NotePropertyValue 'synthetic-private-secret'
+  [void](Write-Report $config $plan 'APPLY_ERROR' 'GUARDED_COMMAND_FAILED' -CommandDiagnostic $diagnostic)
+  Check ((Get-Content $path -Raw) -notmatch 'synthetic-private-secret') 'unknown diagnostic text never reaches report'
+  Check ((Get-Content $path -Raw | ConvertFrom-Json).commandDiagnostic.category -ceq 'DIAGNOSTIC_UNAVAILABLE') 'invalid evidence is explicit without hiding failed command'
   $checkpointHash = (Get-FileHash $path).Hash
   $temporary = Join-Path (Get-ReportDirectory $config) "$id.new"
   $held = [IO.File]::Open($path, 'Open', 'Read', 'Read')
