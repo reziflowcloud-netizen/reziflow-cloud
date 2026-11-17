@@ -178,7 +178,10 @@ export const termsDocument: LegalDocumentContent = {
     },
     {
       heading: '3. Powierzenie przetwarzania danych',
-      paragraphs: ['Klient ustala cele przetwarzania danych swoich klientów i leadów i w tym zakresie jest administratorem danych. LegalHub przetwarza uzgodnione dane na udokumentowane polecenie Klienta jako podmiot przetwarzający. Powierzenie wymaga wiążących warunków zgodnych z art. 28 RODO, obejmujących rzeczywisty zakres, podwykonawców, transfery, czas przetwarzania i zakończenie usługi. Sama Polityka Prywatności ani projekt DPA nie zastępują kompletnych uzgodnionych warunków. Własna administracja kontami LegalHub stanowi odrębny zakres odpowiedzialności.'],
+      paragraphs: [
+        'Klient ustala cele przetwarzania danych swoich klientów i leadów i w tym zakresie jest administratorem danych. LegalHub przetwarza uzgodnione dane na udokumentowane polecenie Klienta jako podmiot przetwarzający. Powierzenie wymaga wiążących warunków zgodnych z art. 28 RODO, obejmujących rzeczywisty zakres, podwykonawców, transfery, czas przetwarzania i zakończenie usługi. Sama Polityka Prywatności ani projekt DPA nie zastępują kompletnych uzgodnionych warunków. Własna administracja kontami LegalHub stanowi odrębny zakres odpowiedzialności.',
+        'Niniejsza aktualizacja nie zmienia automatycznie indywidualnie zawartych umów ani udokumentowanych poleceń Klienta. Nie włącza nowych integracji i nie rozszerza ich uprawnień.',
+      ],
     },
     {
       heading: '3a. Meta Lead Ads',

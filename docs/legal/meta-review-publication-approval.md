@@ -8,6 +8,8 @@ Read [the complete final Privacy, Deletion and Regulamin texts](meta-review-fina
 
 The candidate corrects the operator/controller/processor distinction, the blanket contract-basis statement, actual Lead Ads token storage, form-field purposes, provider names/known countries and applicable DPA/SCC framework, manual receipt eligibility, linked deletion and backup limitations. It describes the new owned synthetic review scope without representing SL as connected. It does not announce an automatic erasure timer, executed SL DPA, globally available Lead Ads feature or implemented government-request policy.
 
+The Regulamin clarification does not automatically amend individually executed agreements or documented customer instructions and does not activate/expand an existing integration. No existing private customer agreement was inspected or declared complete by this preparation.
+
 The owner confirmed existing Vercel/Supabase Terms and standard DPA applicability on behalf of LegalHub on 17 November. See [provider evidence and its limits](meta-review-provider-facts.md). **Do not equate known Ireland/US regions and supplier-country lists with Meta's required exhaustive remote-processing country answer.** That remains an App Review gate, separately from the bounded truthful public disclosure.
 
 ## Procedures and proposed implementation

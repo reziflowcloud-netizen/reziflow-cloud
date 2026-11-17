@@ -161,6 +161,8 @@ Klientem jest organizacja korzystająca z LegalHub CRM. Operatorem usługi jest 
 
 Klient ustala cele przetwarzania danych swoich klientów i leadów i w tym zakresie jest administratorem danych. LegalHub przetwarza uzgodnione dane na udokumentowane polecenie Klienta jako podmiot przetwarzający. Powierzenie wymaga wiążących warunków zgodnych z art. 28 RODO, obejmujących rzeczywisty zakres, podwykonawców, transfery, czas przetwarzania i zakończenie usługi. Sama Polityka Prywatności ani projekt DPA nie zastępują kompletnych uzgodnionych warunków. Własna administracja kontami LegalHub stanowi odrębny zakres odpowiedzialności.
 
+Niniejsza aktualizacja nie zmienia automatycznie indywidualnie zawartych umów ani udokumentowanych poleceń Klienta. Nie włącza nowych integracji i nie rozszerza ich uprawnień.
+
 ### 3a. Meta Lead Ads
 
 Podłączenie organizacji do aplikacji LegalHub CRM Lead Ads (1627116975561049) wymaga odrębnego upoważnienia do wskazanej strony i formularza, odpowiednich zgód Meta i uzgodnionych instrukcji Klienta. Utworzenie aplikacji, weryfikacja firmy lub test na własnych zasobach nie aktywują integracji klienta. Demonstracje wewnętrzne korzystają wyłącznie z danych syntetycznych i odizolowanego środowiska; nie stanowią upoważnienia do przetwarzania danych rzeczywistych klientów. Wyłączenie integracji nie jest automatycznym usunięciem wszystkich danych.
