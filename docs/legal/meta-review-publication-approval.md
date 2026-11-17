@@ -20,9 +20,9 @@ The owner confirmed existing Vercel/Supabase Terms and standard DPA applicabilit
 
 - [ ] Final text/version reviewed by the owner; reconcile the publication date if different.
 - [ ] Public statement about the manual review-closure deadlines accepted and an operator/inventory available for actual execution.
-- [ ] Static render/content/link tests, TypeScript and visual mobile/desktop checks PASS on the exact candidate.
-- [ ] Review confirms no CRM business logic, migration/schema, Production variables, callback or existing integration changes.
-- [ ] Draft PR exact HEAD/files read back. Its branch has automatic Vercel deployment disabled, so unapproved text is not published through a Preview build using an unknown environment.
+- [x] Four real static server-component render/escaping checks PASS; TypeScript noEmit PASS. Anonymous HTTP 200/link navigation and desktop/mobile 390px layout verified using the isolated app, without Production DB access. A later text-only correction removes unnecessary client aliases; the component/layout is unchanged and the render checks cover the final text again.
+- [x] Scope/security review: static server content only; no hooks, data fetches, DB/auth import, unsafe HTML interpretation or secret props. No CRM business logic, migration/schema, Production variables, callback or existing integration changes. The unsigned DPA and unadopted government-request proposal are not represented as implemented.
+- [x] Draft PR #19 scope read back: legal server routes/component/content, render CI/tests and preparation documents only. Its branch has automatic Vercel deployment disabled, so unapproved text is not published through a Preview build using an unknown environment. Recheck exact final HEAD and CI before any authorised merge.
 
 ## Later release, only after approval
 

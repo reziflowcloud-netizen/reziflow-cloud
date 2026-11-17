@@ -2,6 +2,19 @@
 
 Prepared and updated **17 November 2026**. **DRAFT, NOT SUBMITTED; NOT READY TO SUBMIT YET.** Reuse this checkpoint; do not create another App, repeat Business Verification or activate SL to prepare the review.
 
+### Final-preparation checkpoint
+
+- Scoped **Draft PR [#19](https://github.com/reziflowcloud-netizen/reziflow-cloud/pull/19)** prepares replacements of the existing three public routes, not duplicate policies. [Complete exact approval texts](legal/meta-review-final-texts.md), [publication gate](legal/meta-review-publication-approval.md), [provider evidence](legal/meta-review-provider-facts.md), [cleanup/deletion runbook](legal/meta-review-deletion-runbook.md). No merge/publication performed.
+- The owner now confirms both Vercel and Supabase accounts are used on behalf of LegalHub under accepted standard Terms/DPAs without an excluding agreement. This is account-specific evidence in addition to the official DPA/SCC text. Exhaustive remote-processing countries are still **UNKNOWN**; do not certify the regions alone as complete.
+- Prepared a **new separate synthetic local review environment**, not the historical QA App. Its database has 54 migrations, drift 0; CRM build PASS. Three review-tenant users include two active linked staff members, three native routing channels and in-app assignment preferences; a separate synthetic tenant/canary is used for isolation checks.
+- Actual HTTP and browser login PASS. Review credentials use tenant **admin**, not global **owner**: session reports canManageAll false. A foreign synthetic Lead is denied and the control account can read its own canary. Anonymous API access is denied; all three proposed legal pages render anonymously and their links/mobile layout pass. Native Lead Ads screen is closed/unconfigured; no binding exists.
+- Source/native process protections remain in place: approved PowerShell 7/RemoteSigned, exact loopback/random DB, marked private root/ACL, cleared child environment and the unchanged reviewed kill-on-close Windows Job component. Thirty positive/negative profile tests and the exact PostgreSQL process-path tests PASS. Original PR #16 pins and Production feature guards were not weakened.
+- Local runtime/tooling is preserved on **local-only** branch `codex/meta-review-local-runtime-20261117`; it is not part of PR #19 and was not pushed. The tested app copy's source head is recorded privately. Return to that branch before invoking its `scripts/meta-review` tools. Do not substitute the old QA supervisor, which pins other resources.
+- Browser logout, owned App Job stop and exact synthetic PostgreSQL shutdown **VERIFIED**; no listeners remain. No public relay, Meta token/App Secret copy, original event, test Lead, recording, callback, subscription or global Production activation was created in this preparation. Local accounts are prepared; external reviewer access and a real recording are **NOT READY**.
+- Three generated local credential/config copies are inventoried under the new private root. A conservative owned-marker creation anchor prevents retention renewal: credentials **18 November 2026 20:04:35 Warsaw**, data/copies **24 November 20:04:35**, deidentified outcome **17 December 20:04:35**. Old QA deadlines are unchanged; no policy-blocked deletion was attempted. Private paths/credentials remain outside Git.
+
+**First required owner decision:** approve the concrete legal texts/publication gate before they replace the live pages. Do not collect an expiring Meta token while the notice/Form/runtime gates cannot yet use it. After approved publication, finish the owned Form, compatible public gateway/provenance procedure and one bounded fresh-credential recording session; exercise the actual new App instead of rerunning the old QA E2E.
+
 ## Exact application and verification
 
 | Item | Observed state |
@@ -52,7 +65,7 @@ Sources: [Meta permissions](https://developers.facebook.com/documentation/develo
 - **Privacy and Data Deletion instructions URLs remain empty** pending an accurate approved public notice/procedure. Existing `/privacy` and `/data-deletion` are reachable, but their token-storage/location/role wording is not a truthful complete notice for this route. Existing QA pages concern another App and must not be substituted.
 - No App Secret displayed, copied or rotated; no optional DPO identity invented.
 
-[Existing legal approval drafts](legal/legal-pages-approval-texts.md) were reconciled for the actual Lead Ads token storage, database Ireland / function US distinction, historical relay status and manual receipt retention. Unverified contractual/country schedules remain explicit approval gates. No public legal route was changed or deployed.
+[Final publication texts](legal/meta-review-final-texts.md) and PR #19 now make the targeted corrections to the existing routes. Their code is prepared and locally tested, not deployed. Account-specific DPA applicability is owner-confirmed; complete remote-access countries remain unverified. Earlier [general approval drafts](legal/legal-pages-approval-texts.md) remain historical working material, not a separate publication package.
 
 ## Own synthetic demonstration resources
 
@@ -72,7 +85,7 @@ The Website reviewer form now exists. Saved: **Facebook Login integrated: No**, 
 
 The native adapter implements **administrator-assisted onboarding and server-side provenance attestation**. It does not implement a self-service Facebook Login for Business button/OAuth callback. Demonstrate the real supported workflow. Do not describe Graph Explorer as the CRM's login flow. Acceptance of that manual authorisation path by Meta has not been proved.
 
-A working reviewer URL/account and a true recording remain necessary. The public login URL alone cannot exercise a hidden OFF integration. A separately isolated synthetic CRM/DB, review-only accounts, exact owned App/Page/Form credentials and protected webhook runtime must be prepared and exercised without enabling Production's global flags or exposing SL/RAM.
+A working external reviewer URL and a true recording remain necessary. The public Production login URL alone cannot exercise a hidden OFF integration. The separate synthetic CRM/DB and local tenant-admin accounts are now prepared and tested. Exact owned App/Page/Form credentials, published Form and protected external review/gateway availability still require completion without enabling Production's global flags or exposing SL/RAM.
 
 ### Recording sequence and acceptance criteria
 
@@ -85,7 +98,7 @@ A working reviewer URL/account and a true recording remain necessary. The public
 
 The pilot currently requires the exact Lead ID before acceptance, whereas Meta can deliver immediately after creation. Resolve that ordering with a verified supported operator procedure; never substitute a wildcard/live customer mode or race a manual allowlist update. Do not present sample POST or old QA video as the new App's original E2E.
 
-The production scheduler intentionally rejects local/QA URLs. An isolated reviewer runtime needs the existing compatible QA supervisor/private worker procedure; do not weaken its canonical-Production URL guard. No supervisor, CRM, DB or tunnel was started here. A recording becomes a final artifact only after an actual safe demonstration succeeds.
+The production scheduler intentionally rejects local/QA URLs. Preserve that canonical-Production guard. A new closed local review profile was prepared and tested, using its own loopback app/database and unchanged owned-Job component. All were stopped after inspection. It is not a completed public HMAC relay/worker launcher for the new published Form; do not present its structural profile tests as real Graph or webhook evidence. A recording becomes a final artifact only after the actual new-App demonstration succeeds.
 
 ## Data Handling — truthful saved answers
 
@@ -99,7 +112,7 @@ The production scheduler intentionally rejects local/QA URLs. An isolated review
 | Proposed procedure | [Approval draft](legal/government-data-requests-draft.md); not adopted and not evidence of existing practice |
 | Completed Data Handling assessment | **No**; no final assessment or submission |
 
-Country evidence: database Ireland and Vercel function region US are confirmed; these are not every provider's processing location. [Vercel's public subprocessor table](https://security.vercel.com/?itemName=legal&itemUid=e3fae2ca-94a9-416b-b577-5c90e382df57), last updated 21 August 2026, lists US, Spain and UK supplier locations. [Supabase's 12 October 2026 list](https://supabase.com/legal/subprocessor-list/October-12-2026.pdf) includes US, Singapore and Hungary supplier locations. Neither list alone proves which optional services process this App's Platform Data, every remote-support location, or the LegalHub account's accepted contractual arrangements. Do not assert all listed AI/account suppliers receive lead answers, or select just Ireland/US and certify completeness.
+Country evidence: database Ireland and Vercel function region US are confirmed; these are not every provider's processing location. [Vercel's public subprocessor table](https://security.vercel.com/?itemName=legal&itemUid=e3fae2ca-94a9-416b-b577-5c90e382df57), last updated 21 August 2026, lists US, Spain and UK supplier locations. [Supabase's 12 October 2026 list](https://supabase.com/legal/subprocessor-list/October-12-2026.pdf) includes US, Singapore and Hungary supplier locations. The owner confirms accepted applicable DPAs, but those lists alone do not prove which optional services process this App's Platform Data or every remote-support location. Do not assert all listed AI/account suppliers receive lead answers, or select just Ireland/US and certify completeness.
 
 No full processor entry was saved with an invented country list. Complete the exact provider/service/remote-access evidence before submitting. The limited own-review flow does not require a signed SL DPA; its personal administrator/technical data still need a truthful notice and applicable provider terms.
 
@@ -120,10 +133,10 @@ The released foreground worker script has serial requests, bounded cadence/deadl
 | Gate | Can be prepared without Meta approval | Depends on |
 | --- | --- | --- |
 | Permission texts and five-scope draft | **DONE**, saved in Meta | Actual test-call/recording evidence and owner's permitted-use confirmation before submit |
-| Basic settings | Domain, Terms, category, icon, Website **DONE** | Approved accurate public Privacy/Deletion and complete applicable provider facts |
+| Basic settings | Domain, Terms, category, icon, Website **DONE**; exact replacement texts/scoped legal PR prepared | Owner approval/publication and complete applicable provider-country facts |
 | Government questionnaire | Truthful No/None **DONE** | Owner adoption if implementing the draft procedure; do not imply adoption required merely to save No/None |
 | Owned resources | Page confirmed; one Form draft **SAVED** | Accurate form notice and controlled publication; no SL required |
-| Demo/access/video | Exact storyboard and access fields prepared | Compatible isolated runtime, owner-only credential grant and actual synthetic exercise; no dependence on signed SL contract |
+| Demo/access/video | Storyboard/access fields plus actual synthetic DB/build/tenant-admin login and isolation checks **PASS** | Public gateway/reviewer availability, owner-only fresh Meta grant, actual API calls and recording; no dependence on signed SL contract |
 | Business Verification | **APPROVED**, read back in both Meta screens | No resubmission; handle any future Meta request only if one actually appears |
 | Advanced Access / App Review | Unsubmitted draft prepared | Completed truthful evidence, relevant Meta business/access gate, separate owner submission approval |
 | SL activation | OFF template, routing/token/alert/Sheets/DPA procedures prepared | Customer facts/instructions, exact grants/tuple, operational host/alerts and one-writer cutover; separate activation approval |
