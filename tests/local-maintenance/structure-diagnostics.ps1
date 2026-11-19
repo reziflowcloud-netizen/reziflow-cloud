@@ -9,7 +9,14 @@ function Get-SyntheticStructureState([object]$Config,[Uri]$Uri,[string]$Stage) {
   $inventory=Invoke-ReadOnlyQuery $Config $Uri ($cte.Value+"`nSELECT COALESCE(jsonb_agg(to_jsonb(objects) ORDER BY kind,name,definition),'[]'::jsonb)::text FROM objects") 'SYNTHETIC_DIAGNOSTIC_FAILED'|ConvertFrom-Json
   $proof=Invoke-ReadOnlyQuery $Config $Uri (Get-StructureProofSql $Config.applicationRole) 'SYNTHETIC_DIAGNOSTIC_FAILED'|ConvertFrom-Json
   $rows=@(@($inventory|ForEach-Object {[ordered]@{kind=('inventory.'+$_.kind);name=$_.name;definition=$_.definition.Replace("`r`n","`n")}})+@($proof.descriptors|ForEach-Object {
-    [ordered]@{kind=('proof.'+$_.kind);name=$_.name;definition=$_.definition.Replace("`r`n","`n")}
+    $definition=$_.definition
+    if($_.kind -ceq 'routine'){
+      $routine=$definition|ConvertFrom-Json
+      $routine.source=$routine.source.Replace("`r`n","`n")
+      $routine.definition=$routine.definition.Replace("`r`n","`n")
+      $definition=ConvertTo-Json $routine -Depth 8 -Compress
+    }
+    [ordered]@{kind=('proof.'+$_.kind);name=$_.name;definition=$definition.Replace("`r`n","`n")}
   }))
   $state=[pscustomobject]@{count=$rows.Count;digest=(Get-Sha256Text (ConvertTo-Json -InputObject $rows -Depth 12 -Compress));rows=$rows}
   Write-Host "STRUCTURE_STATE stage=$Stage count=$($state.count) digest=$($state.digest)"

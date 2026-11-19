@@ -141,7 +141,9 @@ test('F1/F2/F5: actual leased operations, constrained PostgreSQL and real SDK HT
     const operation = await op(entry, 'reconcile'); assert.equal(operation.phase, 'manual_review'); assert.ok(operation.invoiceId)
     assert.equal(operation.errorCode, 'ADMINISTRATIVE_CHANGE')
     const before = fixture.requests.length
-    assert.equal((await signed(event)).status, 409); assert.equal(fixture.requests.length, before)
+    const retry = await signed(event)
+    assert.equal(retry.status, 409); assert.equal((await retry.json()).code, 'MANUAL_REVIEW_REQUIRED')
+    assert.equal(fixture.requests.length, before)
     const saved = await stored(entry)
     for (const [key, value] of Object.entries(data)) assert.deepEqual(saved[key], value)
     assert.notEqual(saved.plan, 'starter')
