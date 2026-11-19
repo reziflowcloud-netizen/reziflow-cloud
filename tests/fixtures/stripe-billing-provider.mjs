@@ -42,6 +42,7 @@ export async function stripeFixture({ timeout = 2000 } = {}) {
     if (key && pendingKeys.has(key)) return send({ error: { type: 'idempotency_error', code: 'idempotency_key_in_use', message: 'Synthetic in-flight request' } }, 409)
     if (key) pendingKeys.add(key)
     try {
+    if (control.waitFor) await control.waitFor
     if (control.delayMs) await new Promise(resolve => setTimeout(resolve, control.delayMs))
     if (control.status) {
       const data = { error: { type: control.status === 429 ? 'rate_limit_error' : 'api_error', message: 'Synthetic provider failure' } }

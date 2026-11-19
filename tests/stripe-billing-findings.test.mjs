@@ -84,10 +84,10 @@ test('F1/F2/F5: actual leased operations, constrained PostgreSQL and real SDK HT
     return stripeBillingWebhook(new Request('http://127.0.0.1/api/billing/stripe/webhook', { method: 'POST', body,
       headers: { 'stripe-signature': fixture.stripe.webhooks.generateTestHeaderString({ payload: body, secret: fixture.config.webhookSecret }) } }), context)
   }
-  const delayedPaid = async entry => {
+  const delayedPaid = async (entry, control = { delayMs: 700 }) => {
     const sub = await makeSubscription(entry), event = fixture.event(sub.latest_invoice, 'invoice.paid')
     const before = fixture.requests.length
-    fixture.control('GET', `/v1/subscriptions/${sub.id}`, { delayMs: 700 })
+    fixture.control('GET', `/v1/subscriptions/${sub.id}`, control)
     const response = signed(event)
     await until(() => fixture.requests.slice(before).some(r => r.path === `/v1/subscriptions/${sub.id}`))
     return { sub, event, response }
@@ -99,17 +99,24 @@ test('F1/F2/F5: actual leased operations, constrained PostgreSQL and real SDK HT
       leadWebhookKey: 'synthetic-webhook-key', leadWebhookAssignmentMode: 'round_robin', leadWebhookAssignmentUserIds: [entry.user.id], leadWebhookAssignmentCursor: 0 } } })
     assert.equal(await db.leadChannelRoute.count({ where: { organizationId: entry.org.id } }), 0)
     const legacy = await legacyHttpFixture(db, entry.org.slug); t.after(() => legacy.close())
-    const { sub, event, response } = await delayedPaid(entry)
-    assert.equal((await stored(entry)).plan, 'free')
-    assert.equal((await op(entry, 'reconcile')).phase, 'in_flight')
-    const concurrent = await signed(event); assert.equal(concurrent.status, 503)
-    await assert.rejects(createStripeCheckout(entry.actor, 'pro', runtime), /BILLING_BUSY/)
-    const leadResponse = await fetch(legacy.url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ eventId: `fallback-${entry.org.id}`, source: 'website', fullName: 'Synthetic R6 Sheet', rawSheetRow: { source: 'Google Sheets' } }) })
-    assert.equal(leadResponse.status, 201)
-    assert.equal((await stored(entry)).settings.leadWebhookAssignmentCursor, 1)
-    const lead = await db.lead.findFirstOrThrow({ where: { organizationId: entry.org.id } })
-    assert.equal(lead.assignedToId, entry.user.id); assert.equal(lead.employeeId, employee.id)
+    const gate = Promise.withResolvers()
+    const deadline = setTimeout(gate.resolve, 10000)
+    t.after(() => { clearTimeout(deadline); gate.resolve() })
+    const { sub, event, response } = await delayedPaid(entry, { waitFor: gate.promise })
+    try {
+      assert.equal((await stored(entry)).plan, 'free')
+      assert.equal((await op(entry, 'reconcile')).phase, 'in_flight')
+      const concurrent = await signed(event); assert.equal(concurrent.status, 503)
+      await assert.rejects(createStripeCheckout(entry.actor, 'pro', runtime), /BILLING_BUSY/)
+      const leadResponse = await fetch(legacy.url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: `fallback-${entry.org.id}`, source: 'website', fullName: 'Synthetic R6 Sheet', rawSheetRow: { source: 'Google Sheets' } }) })
+      assert.equal(leadResponse.status, 201)
+      assert.equal((await stored(entry)).settings.leadWebhookAssignmentCursor, 1)
+      const lead = await db.lead.findFirstOrThrow({ where: { organizationId: entry.org.id } })
+      assert.equal(lead.assignedToId, entry.user.id); assert.equal(lead.employeeId, employee.id)
+      assert.equal((await stored(entry)).plan, 'free', 'fallback commits before the provider response is released')
+      assert.equal((await op(entry, 'reconcile')).phase, 'in_flight')
+    } finally { clearTimeout(deadline); gate.resolve() }
     assert.equal((await response).status, 200)
     const projected = await stored(entry)
     assert.equal(projected.plan, 'starter'); assert.equal(projected.billingSubscriptionId, sub.id)
