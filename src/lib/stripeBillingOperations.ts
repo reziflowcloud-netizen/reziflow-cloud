@@ -21,9 +21,13 @@ export function fingerprint(value: unknown): string {
 }
 export function organizationFingerprint(org: Organization) {
   const { plan, status, billingProvider, billingStatus, billingCustomerId, billingSubscriptionId, billingPriceId,
-    trialStartedAt, trialEndsAt, currentPeriodEndsAt, cancelAtPeriodEnd, graceEndsAt, settings } = org
+    trialStartedAt, trialEndsAt, currentPeriodEndsAt, cancelAtPeriodEnd, graceEndsAt } = org
+  // CRM routing, UI and notification writes share settings. Only the billing
+  // override belongs to this fence; all administrative billing columns remain.
+  const settings = org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings) ? org.settings : {}
+  const billingLimits = 'billingLimits' in settings ? settings.billingLimits : null
   return fingerprint({ plan, status, billingProvider, billingStatus, billingCustomerId, billingSubscriptionId,
-    billingPriceId, trialStartedAt, trialEndsAt, currentPeriodEndsAt, cancelAtPeriodEnd, graceEndsAt, settings })
+    billingPriceId, trialStartedAt, trialEndsAt, currentPeriodEndsAt, cancelAtPeriodEnd, graceEndsAt, billingLimits })
 }
 
 // This module accepts database callbacks only. Provider work belongs between
@@ -165,20 +169,21 @@ export async function finalizeBillingOperation<T>(args: {
     }
     // Persist the provider identifier even when an override/revocation wins.
     // A DB failure rolls this back too; immutable key replay remains bounded.
-    const ignored = args.event && rejected?.code === 'ADMINISTRATIVE_CHANGE'
+    // A rejected projection is not a completed event. Retain verified financial
+    // references and a durable manual-review operation for genuine overrides.
     const result = !rejected ? await args.apply(tx, org, coordinator) : { ignored: true as const }
-    if (args.event && (!rejected || ignored)) await tx.stripeBillingEvent.create({ data: {
+    if (args.event && !rejected) await tx.stripeBillingEvent.create({ data: {
       id: args.event.id, organizationId: org.id, type: args.event.type, stripeCreated: args.event.created,
     } })
     await tx.stripeBillingOperation.update({ where: { id: args.lease.operation.id }, data: {
       ...args.financialRefs, ...(args.providerId ? { providerId: args.providerId } : {}), resultJson: JSON.stringify(args.result),
-      phase: !rejected || ignored ? 'complete' : rejected.code === 'BILLING_UNAVAILABLE' ? 'uncertain' : 'manual_review',
+      phase: !rejected ? 'complete' : rejected.code === 'BILLING_UNAVAILABLE' ? 'uncertain' : 'manual_review',
       errorCode: rejected?.code || null,
     } })
     await tx.stripeBillingCoordinator.update({ where: { organizationId: org.id }, data: {
-      leaseToken: null, leaseUntil: null, ...(!rejected || ignored ? { operationId: null } : {}),
+      leaseToken: null, leaseUntil: null, ...(!rejected ? { operationId: null } : {}),
     } })
-    return { result, rejected: ignored ? null : rejected }
+    return { result, rejected }
   })
   if (outcome.rejected) throw outcome.rejected
   return outcome.result

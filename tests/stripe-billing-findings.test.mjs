@@ -6,6 +6,7 @@ import { createRequire } from 'node:module'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { PrismaClient } from '@prisma/client'
 import { createStripeCheckout, createStripePortal, processStripeEvent } from '../src/lib/stripeBilling.ts'
+import { stripeBillingWebhook } from '../src/lib/stripeBillingHttp.ts'
 import { effectiveStripePlan } from '../src/lib/stripeBillingPolicy.ts'
 import { stripeFixture } from './fixtures/stripe-billing-provider.mjs'
 import { legacyHttpFixture } from './fixtures/stripe-billing-legacy.mjs'
@@ -76,6 +77,85 @@ test('F1/F2/F5: actual leased operations, constrained PostgreSQL and real SDK HT
     await db.$disconnect(); await observer.$disconnect()
     evidence.networkCallsOutsideTransactions = networkCalls
     await mkdir('.qa/stripe-findings', { recursive: true }); await writeFile('.qa/stripe-findings/report.json', JSON.stringify(evidence, null, 2) + '\n')
+  })
+
+  const signed = (event, context = runtime) => {
+    const body = JSON.stringify(event)
+    return stripeBillingWebhook(new Request('http://127.0.0.1/api/billing/stripe/webhook', { method: 'POST', body,
+      headers: { 'stripe-signature': fixture.stripe.webhooks.generateTestHeaderString({ payload: body, secret: fixture.config.webhookSecret }) } }), context)
+  }
+  const delayedPaid = async entry => {
+    const sub = await makeSubscription(entry), event = fixture.event(sub.latest_invoice, 'invoice.paid')
+    const before = fixture.requests.length
+    fixture.control('GET', `/v1/subscriptions/${sub.id}`, { delayMs: 700 })
+    const response = signed(event)
+    await until(() => fixture.requests.slice(before).some(r => r.path === `/v1/subscriptions/${sub.id}`))
+    return { sub, event, response }
+  }
+  await run('R6: signed paid webhook survives actual HTTP fallback round robin and duplicate/concurrent deliveries', async () => {
+    const entry = await setup()
+    const employee = await db.employee.create({ data: { organizationId: entry.org.id, userId: entry.user.id, name: 'Synthetic Fallback' } })
+    await db.organization.update({ where: { id: entry.org.id }, data: { settings: { leadWebhookEnabled: true,
+      leadWebhookKey: 'synthetic-webhook-key', leadWebhookAssignmentMode: 'round_robin', leadWebhookAssignmentUserIds: [entry.user.id], leadWebhookAssignmentCursor: 0 } } })
+    assert.equal(await db.leadChannelRoute.count({ where: { organizationId: entry.org.id } }), 0)
+    const legacy = await legacyHttpFixture(db, entry.org.slug); t.after(() => legacy.close())
+    const { sub, event, response } = await delayedPaid(entry)
+    assert.equal((await stored(entry)).plan, 'free')
+    assert.equal((await op(entry, 'reconcile')).phase, 'in_flight')
+    const concurrent = await signed(event); assert.equal(concurrent.status, 503)
+    await assert.rejects(createStripeCheckout(entry.actor, 'pro', runtime), /BILLING_BUSY/)
+    const leadResponse = await fetch(legacy.url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventId: `fallback-${entry.org.id}`, source: 'website', fullName: 'Synthetic R6 Sheet', rawSheetRow: { source: 'Google Sheets' } }) })
+    assert.equal(leadResponse.status, 201)
+    assert.equal((await stored(entry)).settings.leadWebhookAssignmentCursor, 1)
+    const lead = await db.lead.findFirstOrThrow({ where: { organizationId: entry.org.id } })
+    assert.equal(lead.assignedToId, entry.user.id); assert.equal(lead.employeeId, employee.id)
+    assert.equal((await response).status, 200)
+    const projected = await stored(entry)
+    assert.equal(projected.plan, 'starter'); assert.equal(projected.billingSubscriptionId, sub.id)
+    assert.equal(projected.currentPeriodEndsAt.getTime(), sub.items.data[0].current_period_end * 1000)
+    const generation = (await db.stripeBillingCoordinator.findUniqueOrThrow({ where: { organizationId: entry.org.id } })).generation
+    const before = fixture.requests.length
+    for (const result of await Promise.all([signed(event), signed(event)])) assert.equal(result.status, 200)
+    assert.equal(fixture.requests.length, before)
+    assert.equal(await db.stripeBillingEvent.count({ where: { id: event.id } }), 1)
+    assert.equal(await db.stripeBillingOperation.count({ where: { dedupeKey: `event:${event.id}` } }), 1)
+    assert.equal((await db.stripeBillingCoordinator.findUniqueOrThrow({ where: { organizationId: entry.org.id } })).generation, generation)
+    assert.equal((await stored(entry)).plan, 'starter')
+  })
+  for (const key of ['uiTheme', 'notificationPreferences', 'googleSheetsSyncState']) await run(`R6: unrelated ${key} update preserves payment projection`, async () => {
+    const entry = await setup(), { event, response } = await delayedPaid(entry)
+    await db.organization.update({ where: { id: entry.org.id }, data: { settings: { [key]: { synthetic: true } } } })
+    assert.equal((await response).status, 200); assert.equal((await stored(entry)).plan, 'starter')
+    assert.equal(await db.stripeBillingEvent.count({ where: { id: event.id } }), 1)
+  })
+  for (const [label, data] of [
+    ['billingLimits', { settings: { billingLimits: { leads: 73 } } }],
+    ['Manual', { billingProvider: 'manual', plan: 'pro' }], ['Agency', { plan: 'agency' }],
+    ['disabled', { status: 'disabled' }], ['subscription replacement', { billingSubscriptionId: 'sub_syntheticReplacement' }],
+  ]) await run(`R6: genuine ${label} override is durable manual review, never a completed payment event`, async () => {
+    const entry = await setup(), { event, response } = await delayedPaid(entry)
+    await db.organization.update({ where: { id: entry.org.id }, data })
+    const result = await response; assert.equal(result.status, 409); assert.equal((await result.json()).code, 'ADMINISTRATIVE_CHANGE')
+    assert.equal(await db.stripeBillingEvent.count({ where: { id: event.id } }), 0)
+    const operation = await op(entry, 'reconcile'); assert.equal(operation.phase, 'manual_review'); assert.ok(operation.invoiceId)
+    assert.equal(operation.errorCode, 'ADMINISTRATIVE_CHANGE')
+    const before = fixture.requests.length
+    assert.equal((await signed(event)).status, 409); assert.equal(fixture.requests.length, before)
+    const saved = await stored(entry)
+    for (const [key, value] of Object.entries(data)) assert.deepEqual(saved[key], value)
+    assert.notEqual(saved.plan, 'starter')
+  })
+  await run('R6: failed payment finalization rolls back ledger and ordinary retry applies once', async () => {
+    const entry = await setup(), sub = await makeSubscription(entry), event = fixture.event(sub.latest_invoice, 'invoice.paid')
+    let crash = true
+    const crashingDb = db.$extends({ query: { stripeBillingEvent: { async create({ args, query }) {
+      if (crash) { crash = false; throw new Error('Synthetic reconciliation commit crash') } return query(args)
+    } } } })
+    assert.equal((await signed(event, { ...runtime, db: crashingDb })).status, 503)
+    assert.equal((await stored(entry)).plan, 'free'); assert.equal(await db.stripeBillingEvent.count({ where: { id: event.id } }), 0)
+    assert.equal((await signed(event)).status, 200); assert.equal((await stored(entry)).plan, 'starter')
+    assert.equal((await signed(event)).status, 200); assert.equal(await db.stripeBillingEvent.count({ where: { id: event.id } }), 1)
   })
 
   await run('F1: 15s Stripe delay, ten Checkouts, same-tenant real Google Sheets HTTP ingestion/routing, other tenant, two DB connections', async () => {
