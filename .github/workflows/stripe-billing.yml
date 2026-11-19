@@ -1,0 +1,71 @@
+name: Stripe Billing (synthetic only)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/lib/*billing*'
+      - 'src/lib/*Billing*'
+      - 'src/components/*Billing*'
+      - 'src/app/api/billing/**'
+      - 'src/app/api/webhooks/stripe/**'
+      - 'src/app/settings/billing/**'
+      - 'src/app/globals.css'
+      - 'src/middleware.ts'
+      - 'prisma/**'
+      - 'tests/stripe-billing*'
+      - 'tests/fixtures/stripe-billing*'
+      - 'scripts/qa-stripe-billing*'
+      - 'package*.json'
+      - '.github/workflows/stripe-billing.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-billing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: billing_qa
+          POSTGRES_PASSWORD: synthetic_only
+          POSTGRES_DB: legalhub_billing_qa
+        ports: ['55439:5432']
+        options: >-
+          --health-cmd 'pg_isready -U billing_qa -d legalhub_billing_qa'
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://billing_qa:synthetic_only@127.0.0.1:55439/legalhub_billing_qa
+      STRIPE_BILLING_TEST_DATABASE_URL: postgresql://billing_qa:synthetic_only@127.0.0.1:55439/legalhub_billing_qa
+      STRIPE_BILLING_COMPAT_DATABASE_URL: postgresql://billing_qa:synthetic_only@127.0.0.1:55439/legalhub_billing_compat_qa
+      NEXT_TELEMETRY_DISABLED: '1'
+      JWT_SECRET: synthetic-build-only-secret
+      CIRCLE_NODE_TOTAL: '3'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx prisma generate && npx prisma validate && npx tsc --noEmit
+      - name: Existing Local Maintenance Runner SQL audit
+        shell: pwsh
+        run: ./tests/stripe-billing-sql-audit.ps1
+      - run: npx prisma migrate deploy
+      - run: node --test tests/stripe-billing.test.mjs
+      - name: Create isolated compatibility database
+        run: psql postgresql://billing_qa:synthetic_only@127.0.0.1:55439/postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE legalhub_billing_compat_qa;'
+      - run: node scripts/qa-stripe-billing-compat.mjs
+      - name: Safe build (no database connections)
+        env:
+          DATABASE_URL: postgresql://synthetic@127.0.0.1:1/never_connect
+        run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Select Playwright Chromium
+        run: node -e 'require("node:fs").appendFileSync(process.env.GITHUB_ENV, "CHROMIUM_PATH=" + require("playwright").chromium.executablePath() + "\n")'
+      - run: node scripts/qa-stripe-billing-browser.mjs

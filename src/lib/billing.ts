@@ -1,5 +1,7 @@
-import { prisma } from '@/lib/prisma'
+import { prisma } from './prisma.ts'
 import type { Prisma } from '@prisma/client'
+import { stripeBillingConfig } from './stripeBillingConfig.ts'
+import { canStartStripeCheckout, effectiveStripePlan, stripeManaged } from './stripeBillingPolicy.ts'
 
 export type BillingMetricKey = 'users' | 'clients' | 'cases' | 'leads'
 
@@ -30,6 +32,14 @@ export type BillingSnapshot = {
   usage: Record<BillingMetricKey, number>
   softLimitWarnings: BillingMetricKey[]
   customLimitKeys: BillingMetricKey[]
+  stripe: {
+    enabled: boolean
+    eligible: boolean
+    managed: boolean
+    graceDays: number | null
+    graceEndsAt: string | null
+    subscriptionPlan: string
+  }
 }
 
 const BILLING_METRIC_KEYS: BillingMetricKey[] = ['users', 'clients', 'cases', 'leads']
@@ -132,7 +142,7 @@ export const BILLING_METRIC_LABELS: Record<BillingMetricKey, string> = {
 }
 
 export function canManageBilling(user: any) {
-  return user?.role === 'admin' || user?.role === 'owner'
+  return (user?.role === 'admin' || user?.role === 'owner') && user?.restrictedAccess !== true
 }
 
 export function normalizePlanKey(plan?: string | null) {
@@ -304,6 +314,10 @@ export async function getBillingSnapshot(organizationId: string, db: BillingDbCl
       plan: true,
       status: true,
       billingStatus: true,
+      billingProvider: true,
+      billingCustomerId: true,
+      billingSubscriptionId: true,
+      graceEndsAt: true,
       trialEndsAt: true,
       currentPeriodEndsAt: true,
       cancelAtPeriodEnd: true,
@@ -322,7 +336,9 @@ export async function getBillingSnapshot(organizationId: string, db: BillingDbCl
     db.lead.count({ where: { organizationId } }),
   ])
 
-  const plan = applyBillingLimitOverrides(getPlanDefinition(organization.plan), organization.settings)
+  const stripeConfig = stripeBillingConfig()
+  const effectivePlan = effectiveStripePlan(organization, Boolean(stripeConfig), stripeConfig?.graceDays || 0)
+  const plan = applyBillingLimitOverrides(getPlanDefinition(effectivePlan), organization.settings)
   const usage = { users, clients, cases, leads }
   const customLimitKeys = Object.keys(getBillingLimitOverrides(organization.settings)) as BillingMetricKey[]
   const softLimitWarnings = (Object.keys(usage) as BillingMetricKey[])
@@ -343,5 +359,13 @@ export async function getBillingSnapshot(organizationId: string, db: BillingDbCl
     usage,
     softLimitWarnings,
     customLimitKeys,
+    stripe: {
+      enabled: Boolean(stripeConfig),
+      eligible: Boolean(stripeConfig) && canStartStripeCheckout(organization),
+      managed: Boolean(stripeConfig) && stripeManaged(organization),
+      graceDays: stripeConfig?.graceDays ?? null,
+      graceEndsAt: organization.graceEndsAt?.toISOString() ?? null,
+      subscriptionPlan: organization.plan,
+    },
   }
 }

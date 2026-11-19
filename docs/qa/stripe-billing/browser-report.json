@@ -1,0 +1,423 @@
+{
+  "provider": "LOOPBACK SDK FIXTURE; real Stripe-hosted flow SKIP",
+  "app": "built Next.js application",
+  "checks": [
+    {
+      "name": "real browser button → authenticated API → SDK fixture → persisted open Checkout; no paid entitlement",
+      "result": "PASS"
+    },
+    {
+      "name": "real public raw webhook → PostgreSQL update → refreshed Billing renders Starter",
+      "result": "PASS"
+    },
+    {
+      "name": "real Customer Portal API uses the tenant Customer and configured safe portal",
+      "result": "PASS"
+    },
+    {
+      "name": "RU/UA/PL × Light/Dark/Slate × 390/414/430/768/1024/1440 without horizontal overflow",
+      "result": "PASS"
+    },
+    {
+      "name": "failed renewal warning and grace date render after verified webhook",
+      "result": "PASS"
+    },
+    {
+      "name": "cancel-at-period-end notice and canceled/free state render without data deletion",
+      "result": "PASS"
+    },
+    {
+      "name": "localized error and loading states, duplicate-click suppression",
+      "result": "PASS"
+    },
+    {
+      "name": "existing Manual plan shows administrator fallback, with no purchase button",
+      "result": "PASS"
+    },
+    {
+      "name": "flag OFF keeps the existing Billing contact fallback and disables Stripe APIs",
+      "result": "PASS"
+    }
+  ],
+  "visualMatrix": [
+    {
+      "lang": "ru",
+      "theme": "light",
+      "width": 390,
+      "result": "PASS",
+      "screenshot": "390-ru-light.png"
+    },
+    {
+      "lang": "ru",
+      "theme": "light",
+      "width": 414,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "ru",
+      "theme": "light",
+      "width": 430,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "ru",
+      "theme": "light",
+      "width": 768,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "ru",
+      "theme": "light",
+      "width": 1024,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "ru",
+      "theme": "light",
+      "width": 1440,
+      "result": "PASS",
+      "screenshot": "1440-ru-light.png"
+    },
+    {
+      "lang": "ru",
+      "theme": "dark",
+      "width": 390,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "ru",
+      "theme": "dark",
+      "width": 414,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "ru",
+      "theme": "dark",
+      "width": 430,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "ru",
+      "theme": "dark",
+      "width": 768,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "ru",
+      "theme": "dark",
+      "width": 1024,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "ru",
+      "theme": "dark",
+      "width": 1440,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "ru",
+      "theme": "slate",
+      "width": 390,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "ru",
+      "theme": "slate",
+      "width": 414,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "ru",
+      "theme": "slate",
+      "width": 430,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "ru",
+      "theme": "slate",
+      "width": 768,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "ru",
+      "theme": "slate",
+      "width": 1024,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "ru",
+      "theme": "slate",
+      "width": 1440,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "light",
+      "width": 390,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "light",
+      "width": 414,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "light",
+      "width": 430,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "light",
+      "width": 768,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "light",
+      "width": 1024,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "light",
+      "width": 1440,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "dark",
+      "width": 390,
+      "result": "PASS",
+      "screenshot": "390-uk-dark.png"
+    },
+    {
+      "lang": "uk",
+      "theme": "dark",
+      "width": 414,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "dark",
+      "width": 430,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "dark",
+      "width": 768,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "dark",
+      "width": 1024,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "dark",
+      "width": 1440,
+      "result": "PASS",
+      "screenshot": "1440-uk-dark.png"
+    },
+    {
+      "lang": "uk",
+      "theme": "slate",
+      "width": 390,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "slate",
+      "width": 414,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "slate",
+      "width": 430,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "slate",
+      "width": 768,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "slate",
+      "width": 1024,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "uk",
+      "theme": "slate",
+      "width": 1440,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "light",
+      "width": 390,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "light",
+      "width": 414,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "light",
+      "width": 430,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "light",
+      "width": 768,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "light",
+      "width": 1024,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "light",
+      "width": 1440,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "dark",
+      "width": 390,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "dark",
+      "width": 414,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "dark",
+      "width": 430,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "dark",
+      "width": 768,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "dark",
+      "width": 1024,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "dark",
+      "width": 1440,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "slate",
+      "width": 390,
+      "result": "PASS",
+      "screenshot": "390-pl-slate.png"
+    },
+    {
+      "lang": "pl",
+      "theme": "slate",
+      "width": 414,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "slate",
+      "width": 430,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "slate",
+      "width": 768,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "slate",
+      "width": 1024,
+      "result": "PASS",
+      "screenshot": null
+    },
+    {
+      "lang": "pl",
+      "theme": "slate",
+      "width": 1440,
+      "result": "PASS",
+      "screenshot": "1440-pl-slate.png"
+    }
+  ],
+  "consoleErrors": []
+}

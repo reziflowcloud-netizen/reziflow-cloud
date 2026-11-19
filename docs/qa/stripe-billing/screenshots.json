@@ -1,0 +1,30 @@
+[
+  {
+    "file": "1440-pl-slate.png",
+    "sha256": "d30582ebdee041e56c5dd067e51a7ad6ee593ba66466c0cf45fe354f6c08c3a3"
+  },
+  {
+    "file": "1440-ru-light.png",
+    "sha256": "01f9a25691d50f7eaf400f42562c327b91909007797749517fd9086dddba9429"
+  },
+  {
+    "file": "1440-uk-dark.png",
+    "sha256": "f06886960cb81f549fa2054ee54bf639f21ae5b8ea4db7d2151d97bec9aeb216"
+  },
+  {
+    "file": "390-pl-slate-payment-due.png",
+    "sha256": "bdc30d0885ea7774ab2856afe58b55039be6b213ae24cd0d29e56cb7609d913b"
+  },
+  {
+    "file": "390-pl-slate.png",
+    "sha256": "63e5076271cbc050cd3071f7d0b26957972333bcbc16e30bb7de29ca2ab9dc0e"
+  },
+  {
+    "file": "390-ru-light.png",
+    "sha256": "de4e891b93d48ad1e5d6e898811d51c4ed1987326726bdd77f02f2976779a093"
+  },
+  {
+    "file": "390-uk-dark.png",
+    "sha256": "204ca48c0305f59a12bd49ddd5a5ce56c628dd0faef3038ece6c1fabf6b9406d"
+  }
+]

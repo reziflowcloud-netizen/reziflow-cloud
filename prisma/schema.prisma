@@ -108,6 +108,8 @@ model Organization {
   metaLeadAdsDeliveries MetaLeadAdsDelivery[]
   leadPhones            LeadPhone[]
   clientPhones          ClientPhone[]
+  stripeBillingState    StripeBillingState?
+  stripeBillingEvents   StripeBillingEvent[]
   referralAttribution   ReferralAttribution?
   referralCommissions   ReferralCommission[]
   leadChannelRoutes     LeadChannelRoute[]
@@ -1021,4 +1023,26 @@ model ConferenceEvent {
   @@index([anonymousSessionId, createdAt])
   @@index([utmContent, createdAt])
   @@index([language, createdAt])
+}
+
+// Isolated Test Mode state. No payloads, payment methods or personal data.
+model StripeBillingState {
+  organizationId     String       @id
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customerKey        String       @unique
+  checkoutKey        String       @unique
+  checkoutSessionId  String?      @unique
+  checkoutExpiresAt  DateTime?
+  updatedAt          DateTime     @updatedAt
+}
+
+model StripeBillingEvent {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  type           String
+  stripeCreated  Int
+  processedAt    DateTime     @default(now())
+
+  @@index([organizationId, processedAt])
 }

@@ -1,0 +1,42 @@
+[
+  {
+    "path": "src/lib/leadWebhookHandler.ts",
+    "sha256": "3fcd255f97d84fdf06650bafc2b274698220ec0f1c57c5e2e31540d8f0e438f1",
+    "unchanged": true
+  },
+  {
+    "path": "src/lib/leadWebhook.ts",
+    "sha256": "22882ef118f355c67c415c37c17f7aa96b19c55b378ad6766200c130e37d4451",
+    "unchanged": true
+  },
+  {
+    "path": "src/app/api/webhooks/meta/leads/[slug]/route.ts",
+    "sha256": "5b3fcc0952cd3dc3f470f2a53c98ac7ae9465682c14ff837b837a95ce6a14de5",
+    "unchanged": true
+  },
+  {
+    "path": "src/app/api/webhooks/meta/messages/[slug]/route.ts",
+    "sha256": "937841aa181b2436812590bad6fbe9f6fd092f51e20f5e61cc4e66989a6d5902",
+    "unchanged": true
+  },
+  {
+    "path": "src/lib/notifications.ts",
+    "sha256": "30dba6acdff75fcf8d250740a81251271b01c0652d5b423a7e5c0f05278137cb",
+    "unchanged": true
+  },
+  {
+    "path": "src/lib/staffScope.ts",
+    "sha256": "48f6099b81b46c8818743fcc91d954ca4ceb381628007925b896b2da73d17bcd",
+    "unchanged": true
+  },
+  {
+    "path": "src/lib/auth.ts",
+    "sha256": "8f08737940067b6a290945db099efb1c391053e126040fe32a97b8dee2dabf1a",
+    "unchanged": true
+  },
+  {
+    "path": "src/lib/apiScope.ts",
+    "sha256": "d5c3e7085be380209ffd3cb5b4440c9896f8a2630325de741b9fbbce86b730eb",
+    "unchanged": true
+  }
+]
