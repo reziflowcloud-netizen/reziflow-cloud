@@ -2,6 +2,7 @@
   "baseline": "41efb9a65c4aa04d61c3ece52e53f3bb5edf8b04",
   "migration": "ADDITIVE",
   "oldAppNewDb": "PASS",
+  "newAppOldDbFlagOff": "PASS",
   "unchangedExistingTables": 50,
   "baselineBillingSnapshot": "PASS",
   "oldClientReadWrite": "PASS",

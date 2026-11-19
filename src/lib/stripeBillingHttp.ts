@@ -3,7 +3,9 @@ import { createStripeCheckout, createStripePortal, stripeRuntime, verifyStripeEv
 
 const headers = { 'Cache-Control': 'no-store' }
 export function stripeBillingFailure(error: unknown) {
-  if (error instanceof StripeBillingError) return Response.json({ error: error.code, code: error.code }, { status: error.status, headers })
+  if (error instanceof StripeBillingError) return Response.json({ error: error.code, code: error.code }, {
+    status: error.status, headers: { ...headers, ...(error.code === 'BILLING_BUSY' ? { 'Retry-After': '2' } : {}) },
+  })
   // Never serialize/log Stripe errors: they may contain request data or PII.
   return Response.json({ error: 'BILLING_RETRY', code: 'BILLING_RETRY' }, { status: 503, headers })
 }

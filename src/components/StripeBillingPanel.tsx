@@ -34,6 +34,7 @@ export default function StripeBillingPanel({ billing, organization, effectivePla
   const selectable = billing.eligible && (!billing.managed || ended || organization.billingStatus === 'incomplete')
   const errorText = error === 'SUBSCRIPTION_EXISTS' || error === 'PAYMENT_CONFIRMATION_PENDING' ? text.exists
     : error === 'FORBIDDEN' || error === 'UNAUTHORIZED' ? text.forbidden
+    : ['MANUAL_REVIEW_REQUIRED', 'IDEMPOTENCY_WINDOW_EXPIRED', 'CACHED_PROVIDER_FAILURE', 'ADMINISTRATIVE_CHANGE'].includes(error || '') ? text.review
     : error === 'MANUAL_BILLING_REQUIRED' ? text.manual
     : error === 'BILLING_UNAVAILABLE' || error === 'PORTAL_CONFIGURATION_INVALID' ? text.unavailable : text.error
 
@@ -62,7 +63,7 @@ export default function StripeBillingPanel({ billing, organization, effectivePla
     {params.get('checkout') === 'canceled' && <p role="status">{text.canceledCheckout}</p>}
     {billing.managed && <div className="stripe-subscription card">
       <div><span className="billing-usage-label">{text.status}</span><strong><BillingStatusLabel status={organization.billingStatus} /></strong></div>
-      {organization.currentPeriodEndsAt && <div><span className="billing-usage-label">{organization.cancelAtPeriodEnd || ended ? text.until : text.next}</span><strong><BillingDate value={organization.currentPeriodEndsAt} /></strong></div>}
+      {organization.currentPeriodEndsAt && <div><span className="billing-usage-label">{organization.cancelAtPeriodEnd || ended || organization.billingStatus === 'manual_review_required' ? text.until : text.next}</span><strong><BillingDate value={organization.currentPeriodEndsAt} /></strong></div>}
       <div className="billing-actions">
         <button type="button" className="btn btn-primary" disabled={Boolean(pending)} onClick={() => openStripe('portal')}>{pending === 'portal' ? text.loading : text.manage}</button>
         <button type="button" className="btn btn-secondary" disabled={Boolean(pending) || refreshing} onClick={() => startRefresh(() => router.refresh())}>{refreshing ? text.loading : text.refresh}</button>
@@ -70,6 +71,7 @@ export default function StripeBillingPanel({ billing, organization, effectivePla
     </div>}
     {billing.managed && organization.cancelAtPeriodEnd && !ended && <div className="billing-warning" role="status">{text.ending}</div>}
     {billing.managed && ended && <div className="billing-warning" role="status">{text.ended}</div>}
+    {billing.managed && billing.reviewRequired && <div className="billing-warning" role="alert">{text.review}</div>}
     {billing.managed && attention && <div className="billing-warning stripe-payment-notice" role="alert">
       <strong>{text.attention}</strong>
       <span>{effectivePlan !== 'free' && billing.graceEndsAt ? <>{text.grace} <BillingDate value={billing.graceEndsAt} />.</> : text.limited}</span>

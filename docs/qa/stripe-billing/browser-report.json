@@ -35,6 +35,10 @@
       "result": "PASS"
     },
     {
+      "name": "unsupported settlement has a distinct manual-review notice in RU/UA/PL and no purchase CTA",
+      "result": "PASS"
+    },
+    {
       "name": "flag OFF keeps the existing Billing contact fallback and disables Stripe APIs",
       "result": "PASS"
     }

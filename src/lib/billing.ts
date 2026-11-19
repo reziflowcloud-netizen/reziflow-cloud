@@ -39,11 +39,12 @@ export type BillingSnapshot = {
     graceDays: number | null
     graceEndsAt: string | null
     subscriptionPlan: string
+    reviewRequired: boolean
   }
 }
 
 const BILLING_METRIC_KEYS: BillingMetricKey[] = ['users', 'clients', 'cases', 'leads']
-type BillingDbClient = Pick<Prisma.TransactionClient, 'organization' | 'user' | 'client' | 'case' | 'lead'>
+type BillingDbClient = Pick<Prisma.TransactionClient, 'organization' | 'user' | 'client' | 'case' | 'lead' | 'stripeBillingCoordinator'>
 const INACTIVE_CASE_STATUS_TERMS = [
   'архив',
   'архів',
@@ -337,6 +338,8 @@ export async function getBillingSnapshot(organizationId: string, db: BillingDbCl
   ])
 
   const stripeConfig = stripeBillingConfig()
+  const coordinator = stripeConfig ? await db.stripeBillingCoordinator.findUnique({ where: { organizationId }, select: { financialHoldSubscriptionId: true } }) : null
+  const reviewRequired = Boolean(coordinator?.financialHoldSubscriptionId) || organization.billingStatus === 'manual_review_required'
   const effectivePlan = effectiveStripePlan(organization, Boolean(stripeConfig), stripeConfig?.graceDays || 0)
   const plan = applyBillingLimitOverrides(getPlanDefinition(effectivePlan), organization.settings)
   const usage = { users, clients, cases, leads }
@@ -361,11 +364,12 @@ export async function getBillingSnapshot(organizationId: string, db: BillingDbCl
     customLimitKeys,
     stripe: {
       enabled: Boolean(stripeConfig),
-      eligible: Boolean(stripeConfig) && canStartStripeCheckout(organization),
+      eligible: Boolean(stripeConfig) && !reviewRequired && canStartStripeCheckout(organization),
       managed: Boolean(stripeConfig) && stripeManaged(organization),
       graceDays: stripeConfig?.graceDays ?? null,
       graceEndsAt: organization.graceEndsAt?.toISOString() ?? null,
       subscriptionPlan: organization.plan,
+      reviewRequired,
     },
   }
 }

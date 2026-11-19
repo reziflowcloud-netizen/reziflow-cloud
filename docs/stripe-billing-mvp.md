@@ -1,80 +1,90 @@
 # Stripe Billing MVP — Test Mode only
 
-Baseline: `41efb9a65c4aa04d61c3ece52e53f3bb5edf8b04`, fetched from `origin/main` on 2026-11-19. Branch: `feature/stripe-billing-mvp`; separate checkout: `/workspace/stripe-billing-mvp`. The original checkout was left clean. No deployment, production database access, live Stripe requests, real payments, merges, Meta account changes, FakturaXL API or KSeF API actions were performed.
+Production baseline: `41efb9a65c4aa04d61c3ece52e53f3bb5edf8b04`. Security-reviewed implementation: `596dabf48169e3c8f10beee431b1e20d4ab5b782`. All F1–F5 corrections stay in `feature/stripe-billing-mvp`, isolated checkout `/workspace/stripe-billing-mvp`, existing Draft PR #20. No production access, deployment, merge, real Stripe payment, real organization edit, or Meta/RAM/SL change is authorized.
 
-The implementation is reviewable with the flag OFF. **Actual Stripe-hosted Test Checkout, actual Stripe webhook delivery and Test Clock advancement remain SKIP:** this environment has no test credentials or webhook endpoint secret, and `api.stripe.com` is outside its configured network allowlist. The Windows handoff was unavailable locally. Its existence, test prices and portal were subsequently corroborated by the final messages in the chat “Work Stripe Registration & Verification”; those are **REPORTED**, not a fresh account/API verification. Do not paste credentials into chat, source, PRs or test reports.
+## Configuration
 
-## Configuration and boundaries
+The server-only variables in `.env.example` remain required. The feature defaults **OFF**; invalid/missing configuration, Live keys, `VERCEL_ENV=production`, and a production LegalHub return origin disable it. The branch remains excluded from Vercel Git deployments. Use only private development settings; never paste credentials in chat, GitHub, reports or Work artifacts.
 
-Use the server-only variables in `.env.example` in a private **development** environment. No remote environment variables were read or changed. `STRIPE_BILLING_ENABLED` defaults OFF. Missing/invalid configuration, a live key, `VERCEL_ENV=production`, a production LegalHub return URL, duplicate Price IDs or missing explicit grace days disable the integration. This branch is also excluded from Vercel Git deployments in `vercel.json`.
-
-| Variable | Meaning |
+| Variable | Requirement |
 | --- | --- |
-| `STRIPE_SECRET_KEY` | Test secret/restricted key only (`sk_test_…` / `rk_test_…`) |
+| `STRIPE_SECRET_KEY` | Test secret/restricted key only |
 | `STRIPE_WEBHOOK_SECRET` | Development endpoint signing secret |
-| `STRIPE_STARTER_PRICE_ID` | Allowlisted active monthly PLN Price for 24900 grosz |
-| `STRIPE_PRO_PRICE_ID` | Allowlisted active monthly PLN Price for 49900 grosz |
-| `STRIPE_PORTAL_CONFIGURATION_ID` | Test portal configuration; payment method update + end-of-period cancellation |
-| `STRIPE_BILLING_APP_URL` | Fixed loopback/development HTTPS origin, no path/query/credentials |
-| `STRIPE_BILLING_GRACE_DAYS` | **7**, approved by the owner in this chat on 2026-11-19; explicitly required |
+| `STRIPE_STARTER_PRICE_ID` | Server allowlisted active licensed monthly PLN Price, 24900 grosz |
+| `STRIPE_PRO_PRICE_ID` | Server allowlisted active licensed monthly PLN Price, 49900 grosz |
+| `STRIPE_PORTAL_CONFIGURATION_ID` | Test Portal; payment method changes and period-end cancellation only |
+| `STRIPE_BILLING_APP_URL` | Fixed loopback/development HTTPS origin, no query/path/credentials |
+| `STRIPE_BILLING_GRACE_DAYS` | Explicit **7**, owner approved on 2026-11-19 |
 
-The official SDK is pinned to `stripe@23.2.0` and API `2026-11-18.endive`, the version documented by that SDK's generated API definitions and `cjs/apiVersion.js`. In this API Checkout uses `allowed_payment_method_types`, subscription periods live on subscription items, and invoice subscription references are under `parent.subscription_details`. Align the development webhook endpoint to this API version. This implementation makes no live-mode activation path available.
+Official SDK: `stripe@23.2.0`, API `2026-11-18.endive`. Checkout uses `allowed_payment_method_types`; subscription periods are on items; invoice subscription references are under `parent.subscription_details`; settlement sources use InvoicePayment → PaymentIntent → Charge. These fields/relationships were checked against the installed official generated definitions. Align the development endpoint API version before actual Test Mode acceptance.
 
-## Request and payment flow
+## F1/F2: durable operations without network-held database locks
 
-1. An authenticated Owner/Admin sends only `{ "plan": "starter" }` or `{ "plan": "pro" }` to `POST /api/billing/checkout`. Extra identifiers and fields are rejected. Current database role, restricted access, tenant membership and session version are rechecked, including after acquiring the organization lock. Origin must match the configured development origin.
-2. Only a Free organization explicitly opting in, or an already managed `stripe_test` organization, can use Checkout. Existing manual Starter/Pro, Agency, Manual, trial/status overrides and organizations with custom limits cannot be silently migrated. Customer metadata is generated on the server; no contact information is copied into Stripe automatically.
-3. Customer and Checkout idempotency keys are committed before external requests. The Customer mapping commits before any Checkout is created. An organization row lock serializes competing attempts. Existing nonterminal subscriptions block another Checkout. Repeated selection resumes the existing open session; selecting a different card does not create a second session. Expiration/cancellation is verified with Stripe before rotating a committed key. A replacement starts on Free and gains no grace from its canceled predecessor.
-4. Checkout return URLs are informational. Only a signature-verified webhook can update payment state. First payment and paid renewals require a current Stripe subscription, allowlisted price, expected quantity/currency/amount/period, matching Customer/subscription and a settled current invoice. Unpaid, incomplete and unrecognized states cannot grant a new paid tier.
-5. `POST /api/webhooks/stripe` is public through middleware and validates the Stripe signature against the raw body. Relevant events lock the mapped organization, re-read current Stripe state **inside** that lock and commit the projection with the event ledger. Payload timestamps and cached payload statuses do not drive entitlement. A late event for an old subscription cannot replace the subscription associated with the current server-created Checkout. Failed processing leaves no completed ledger row and returns non-2xx for retry.
-6. The API returns stable error codes, never provider errors or request payloads. The UI accepts HTTPS redirects only to `checkout.stripe.com` / `billing.stripe.com`. No card data, payment methods, bank data, raw webhook payloads or keys are stored in CRM or its new tables.
+`StripeBillingOperation` stores tenant, intended action, immutable request JSON, fingerprint, idempotency key, first-attempt/POST timestamps, conservative retention deadline, phase, sanitized provider IDs/result and error code. The actor snapshot contains only user ID, tenant and session version; the credential fingerprint is a hash, never the key. Requests retain original plan/Price/return URLs across later button selections or configuration changes.
 
-Supported events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `customer.subscription.created/updated/deleted`, `invoice.paid`, `invoice.payment_succeeded`, `invoice.payment_failed`. Unknown unrelated events are ignored; live/connected-account events are rejected. An unmapped managed event racing persistence is retried.
+`StripeBillingCoordinator` stores one organization work slot, generation, token and a 60-second lease. It also stores the last strictly verified paid-through date and an explicit financial-review hold. A composite FK prevents binding an operation to another tenant's coordinator.
 
-## Entitlements, grace and cancellation
+1. A **short database-only** transaction authorizes the current Owner/Admin, checks tenant eligibility and claims a durable operation/lease. Organization locking exists only inside these short transactions. Lock timeout is 750ms, statement timeout 2500ms, interactive transaction timeout 5s and pool acquisition wait 1s; contention becomes a controlled `BILLING_BUSY`/503 with Retry-After.
+2. All Stripe reads and writes happen **outside** transactions, with no retained connection or row lock. Immediately before a provider POST, another short transaction records `postStartedAt` and rechecks lease/fence, actor, feature flag and administrative snapshot. The POST follows after commit. SDK request timeout is 8s with configured network retries 0; the official SDK may still retry one connection-reset error, always using the same immutable key.
+3. A short final transaction verifies operation ID/generation/token/unexpired lease, current actor and organization fingerprint. An expired/stale worker cannot commit or release a newer lease. Manual/Agency/trial/custom/settings changes during I/O win; returned provider IDs remain journaled for reconciliation without overwriting those settings. Flag disablement preserves the remote identifier and leaves recovery pending.
+4. Reconciliation updates projection and event ledger atomically. Concurrent work returns retryable busy rather than retaining connections while waiting for Stripe. Retried events fetch current Stripe state after a fresh reservation; timestamps/cached event status do not drive entitlements. Old-subscription events cannot replace the subscription linked to the server-created Checkout.
 
-| Verified state | CRM behavior |
+The journal phases distinguish reserved/in-flight/POST-started, uncertain, completed, safe read/precondition failure and manual review. No cleanup job silently deletes or rotates uncertain operations. Retain operations and event receipts for replay safety; hard organization deletion remains restricted by FKs. All included QA cleanup targets synthetic disposable tenants/databases only.
+
+### Crash, timeout and retention recovery
+
+- Customer mapping commits before a Checkout is possible. Customer-success/mapping-failure retries use the same Customer request/key. If no provider ID is known after the conservative **23-hour window from reservation**, automatic POST replay stops for manual reconciliation; a UUID is not an indefinite idempotency guarantee.
+- Checkout recovery uses the original operation metadata to locate the existing Customer-scoped session. Exactly one match may be retrieved without another POST. Unknown/paginated/ambiguous outcomes require manual review; a changed Price or return URL never mutates an existing request.
+- A completed Checkout recovered after a lost commit is mapped, but returns confirmation pending. It never grants access itself; only a subsequent verified webhook can grant the tier. Its matching active subscription is identified by the original operation metadata, rather than blindly treating every active subscription as permission to create or abandon another session.
+- Within the retained window, unresolved mutation retries use the same key/parameters. In-flight idempotency conflicts are retryable. Executed/cached provider 500 failures and parameter-integrity errors require manual reconciliation, without new keys or objects.
+- An expired mutating operation blocks unrelated tenant billing work until the original request is resumed or an operator reconciles it. It does **not** block legacy ingestion/routing or other CRM work. There is no background recovery scheduler in this MVP. After crashes or missed delivery, the operator must resume the original request and resend the original Test Mode event as necessary; if the original actor was revoked or uncertainty cannot be resolved, stop for manual review.
+- A recovered original Price remains verifiable from the fingerprint-checked server Checkout intent even if the current Price configuration changed. A credential change during pending recovery is conservative: manual reconciliation is required rather than silently rebinding accounts.
+
+## Authorization and compatibility
+
+Only current database Owner/Admin with the matching tenant/session and without restricted access may manage billing. Clients send only `plan`; arbitrary tenant/Customer/Price fields and hostile Origins are rejected. Stripe Customer/subscription metadata and the server-created Checkout relationship are verified. Raw webhook signatures use the official SDK; Live/connected-account events are rejected. Browser redirects are restricted to hosted Stripe domains and never confirm payment.
+
+Existing manually administered Starter/Pro, Manual, Agency, trial and custom-limit organizations are not automatically migrated. Webhooks do not rewrite organization status, trial dates or settings. Custom billing limits continue to override the effective plan. Flag OFF preserves existing billing snapshot/creation-limit behavior and the localized administrator-contact fallback, without querying the new operation/coordinator tables. It also stops webhook processing; reconcile events and operations before re-enabling a pilot.
+
+## F4: access boundaries
+
+| State | Effective access |
 | --- | --- |
-| First payment incomplete/failed | Free; no paid grace |
-| Active + settled invoice covering current period | Starter/Pro and current paid period |
-| Failed renewal / unpaid active period | At most 7 days from the failed period's start; repeated events never extend grace |
-| Grace expired | Free limits for creation of new records; existing data remains available |
-| `cancel_at_period_end=true` while active | Retain paid access through the paid period; show cancellation notice |
-| Cancellation undone before expiry | Retain paid access and show renewal date again |
-| Canceled immediately or at period end | Free limits; never delete CRM records |
-| `unpaid`, `paused`, `incomplete_expired` | Free limits; payment-status notice |
-| Paid recovery / new paid subscription | Restore verified tier and clear grace |
-| Missing renewal webhook | Existing paid period plus the agreed grace bounds access; operator must reconcile/resend missing events |
-| Manual/Agency/trial override | Preserve the existing administrative workflow |
+| Initial incomplete/failed payment | Free, no paid grace |
+| Verified standard paid active period | Verified Starter/Pro |
+| Ordinary failed renewal | At most 7 days from failed period start; repeats never extend it |
+| Known period-end cancellation | End at the last actually paid boundary, with **no renewal grace**, even if final cancellation delivery is missing |
+| Verified cancellation reversal | Resume normal bounded renewal/grace policy |
+| Canceled immediately / unpaid / paused / incomplete expired | Free creation limits |
+| Missing/invalid period bound | Free; never indefinitely paid |
+| Missing ordinary renewal delivery | Current period plus bounded renewal grace; operator reconciliation required |
+| Unsupported settlement/adjustment | Manual review; no new tier or paid-period extension; previously strictly verified access is bounded by its existing paid-through date |
 
-The existing organization `status`, trial dates and settings are not rewritten by webhooks. Individual `billingLimits` continue to override the effective plan, including after a subscription state changes. No new broad write-denial or data-removal path was added. Turning the flag OFF restores the legacy snapshot/limits behavior and contact fallback; it also stops webhook processing, so disabling an already enabled pilot requires an operational handoff and event reconciliation before re-enabling.
+Only creation limits change; no automatic deletion of clients, Leads, cases, documents or users occurs. Cancellation during an unpaid renewal uses the **last verified paid-through** boundary, not the end of the new unpaid Stripe item period.
 
-Notifications in this MVP are persistent, localized **Billing-page** notices for overdue payment, grace, cancellation and pending confirmation. No new email/push/Notification Center pipeline is claimed. Existing notification code was not changed.
+## F5: explicit financial MVP policy
 
-### Plan changes and Portal
+Automatic grant/renewal supports only one standard Starter/Pro card settlement: a matching Test invoice/subscription/customer, one full-price quantity-one line covering the exact item period, PLN, expected subtotal/total/amount_due/amount_paid, zero amount remaining, zero balances/discounts/credits/credit notes/off-Stripe payment, and the ordinary automatic subscription-create/cycle invoice. There must be exactly one paid InvoicePayment for that invoice with the expected amounts, one succeeded PaymentIntent with the expected amount received/customer/currency, and its matching paid/captured card Charge with the full capture, no refund and no dispute.
 
-Self-service Starter ↔ Pro changes, proration, coupons, trials and immediate cancellation are not offered. A client with a nonterminal subscription uses the Portal for payment-method updates and cancellation at period end; plan changes go through the administrator. The server rejects a portal configuration enabling subscription updates or immediate cancellation. After confirmed terminal cancellation, a new Checkout may purchase a different tier. No existing manual paying customer is automatically transferred.
+A normal still-open, wholly unpaid invoice is a failed/pending payment eligible for ordinary renewal grace only when a previous paid tier exists. Zero totals, zero `amount_paid` marked paid, discounts, customer balance credits, partial settlement, out-of-band payments, alternate/multiple settlement sources, taxes/lines outside this narrow policy, and incomplete financial proof are **UNSUPPORTED_SETTLEMENT / MANUAL_REVIEW_REQUIRED**, not assertions that legitimate credits are invalid. The public billing status is `manual_review_required`; localized UI tells the owner to contact the administrator and not pay again.
 
-Before a real Test Mode pilot, verify the handoff's Portal configuration against these guardrails. Its invoice download settings also require the accounting review described below. Do not modify the live portal or prices as part of this work.
+Refund, credit-note and dispute events latch a durable review hold for the subscription. Neither late paid events nor a later standard invoice automatically clear it or extend access. Previously verified paid-through access remains bounded; no new Checkout is offered while the hold exists. There is no automatic refund, re-charge, subscription replacement, cancellation or CRM data deletion. Financial hold resolution requires an explicit owner/accounting decision and controlled reconciliation; no generic self-service “clear review” endpoint is included.
 
-## Database and operations
+Relevant events include subscription/Checkout/invoice lifecycle events, `invoice_payment.paid`, `charge.refunded`, `refund.created/updated/failed`, `credit_note.created/updated/voided`, and dispute created/updated/closed/funds events. Verified invoice/intent/charge identifiers are indexed in the tenant operation journal. Adjustment events resolve ownership through those verified relationships **before any Stripe call**. An adjustment arriving before its relationship is known receives retryable `FINANCIAL_MAPPING_PENDING`, never guessed ownership or silent grant. After acquiring a lease, current subscription/invoice/payment state is fetched and verified again. No financial/card/customer payload is retained in the journal.
 
-The additive migration `20261119170000_stripe_billing_test_mvp` creates only `StripeBillingState` and `StripeBillingEvent`, their indexes and organization FKs. It does not add/change existing columns or update existing rows. The existing provider/customer/subscription/price/status/period/grace fields are reused. The provider value `stripe_test` deliberately distinguishes this pilot from manually administered tenants.
+## Database and rollout constraints
 
-Existing Local Maintenance Runner `Test-MigrationSql` accepts all six SQL statements. It classifies blocking indexes as MEDIUM risk; all four indexes belong to new empty tables. Migration deployment ran only on disposable loopback PostgreSQL. OLD APP + NEW DB used the actual baseline-generated Prisma client and baseline `billing.ts`; hashes of all 50 existing application tables were unchanged before/after the migration, and old-client reads/writes passed.
+The original additive migration creates state/events. New migration `20261119190000_stripe_billing_operations` creates only the operation/coordinator tables, seven indexes on the new journal and tenant/composite FKs. Existing table columns/data are untouched. Both migrations pass the existing Local Maintenance Runner SQL audit; blocking-index MEDIUM classification concerns only new empty tables. Migration deployment is limited to disposable PostgreSQL in this work.
 
-The new audit/state rows use `ON DELETE RESTRICT`. Hard deletion of a Stripe-managed organization therefore requires a separate retention/cleanup decision. Existing tenants without billing rows retain their existing deletion behavior. Do not delete the ledger as an idempotency retry mechanism.
+OLD APP + NEW DB uses the actual baseline client/billing code and verifies unchanged hashes of all 50 existing application tables. NEW APP + OLD DB with flag OFF verifies a real baseline DB without the coordinator table before running all new migrations. Activation must follow migration and independent re-review; enabled use against an old DB is intentionally unsupported.
 
-For transient failures, retry the same Checkout request; stable keys recover external success after a database rollback. For webhook outages, inspect only sanitized status codes, confirm the endpoint/key/API version, and resend the original event from **Test Mode**. Unknown customer or subscription mismatches require manual investigation rather than rebinding client-supplied IDs. Preserve ledger history; no recurring reconciliation job is included.
+Self-service plan changes/proration, coupons/trials and immediate Portal cancellation remain disabled. Portal configuration is rechecked outside a transaction and finalized under a short fence. FakturaXL accounting invoices and KSeF submission remain manual. No VAT-inclusion promise is shown. Accountant/owner agreement on VAT exemption and Stripe invoice/PDF/email/Portal document policy remains a Live gate.
 
-### Test Clocks
+## Secure actual Test Mode E2E plan — not executed here
 
-The installed official SDK exposes `testHelpers.testClocks.create/advance/retrieve` and `customers.create({ test_clock })`. Test Clocks are suitable for deterministic subscription renewals and dunning. A clock must be attached at Customer creation; existing Checkout-created customers cannot be retrofitted. A dedicated disposable fixture must provision a clock-bound synthetic Customer, its server-side metadata/mapping and the corresponding checkout state before use. Advance one billing period, wait for the clock to be `ready`, then assert the verified invoice/webhook result. Actual clock creation/advancement was **SKIP** without test credentials. The local suite models renewal/failure periods but does not claim Stripe Test Clock execution.
+1. After F1–F5 re-review, use only the existing Poland account in **Test Mode**, a separate development database, synthetic Users/Organizations and a development-only origin. Enter test API/signing secrets privately in protected local settings, never chat, artifacts or GitHub. Verify account/mode, pinned API version, both Price amounts/currency/recurrence and safe Portal/document settings.
+2. Use Stripe CLI development forwarding or a separately approved development HTTPS endpoint. Exercise hosted Starter/Pro success, decline/authentication, repeated submissions and signed delivery. No Production endpoint or Live settings.
+3. For Test Clocks, provision a clock-bound synthetic Customer through a controlled development fixture at Customer creation, with the server metadata/mapping/operation journal; existing Customers cannot be retrofitted. Advance renewal/dunning, wait for clock readiness and verify grace, cancellation/reversal, replay, adjustments and payment recovery against actual signed events.
+4. Capture sanitized assertions/IDs only and retire only synthetic fixtures. Actual hosted Checkout, external deliveries and Test Clock advancement remain **SKIP** in this task. Live credentials are neither needed nor requested.
 
-## Accounting and activation gates
-
-Stripe automates payment collection/subscriptions. FakturaXL remains the manually operated accounting system. The owner verifies each accounting invoice before sending it to KSeF. No automatic FakturaXL invoice creation or KSeF submission is implemented. UI prices carry no VAT-inclusion promise.
-
-**Live activation remains prohibited.** VAT exemption basis, buyer-facing Stripe invoices/PDFs/email/Portal downloads and the single accounting invoice policy still need accountant/owner confirmation. Also pending: actual hosted Test Checkout/payment failure, actual signed webhook delivery, Test Clock renewal, safe Portal configuration verification and independent Engineering Manager Security Review. The independent reviewer should inspect tenant authorization, committed idempotency keys, transaction rollback/replay, out-of-order subscription adoption, paid-invoice proof, custom/manual compatibility, grace and the additive SQL. No merge or deployment is authorized.
-
-See [QA report](qa/stripe-billing/report.md) for actual PASS / REPORTED / SKIP outcomes and command exit codes. CI in `.github/workflows/stripe-billing.yml` uses synthetic credentials, loopback PostgreSQL and a loopback Stripe SDK fixture only; CI results are pending until the Draft PR runs.
+See [current QA evidence](qa/stripe-billing/report.md). The exact new HEAD and actual CI run/step results are published in PR #20 after push. Keep Draft; no merge or deployment. Next step: Engineering Manager independent Security Re-review.

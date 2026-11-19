@@ -5,10 +5,22 @@ import Stripe from 'stripe'
 import { PrismaClient } from '@prisma/client'
 import { stripeBillingConfig, STRIPE_API_VERSION } from '../src/lib/stripeBillingConfig.ts'
 import { effectiveStripePlan, canStartStripeCheckout } from '../src/lib/stripeBillingPolicy.ts'
-import { createStripeCheckout, createStripePortal, authorizeStripeBilling, processStripeEvent, verifyStripeEvent } from '../src/lib/stripeBilling.ts'
+import { createStripeCheckout as checkoutOnce, createStripePortal, authorizeStripeBilling, processStripeEvent as eventOnce, verifyStripeEvent } from '../src/lib/stripeBilling.ts'
 import { stripeBillingAction, stripeBillingWebhook } from '../src/lib/stripeBillingHttp.ts'
 import { getBillingSnapshot, assertBillingLimit, canManageBilling } from '../src/lib/billing.ts'
 import { stripeFixture, syntheticConfig } from './fixtures/stripe-billing-provider.mjs'
+
+async function retryBusy(work) {
+  const until = Date.now() + 5000
+  while (true) {
+    try { return await work() } catch (error) {
+      if (error.code !== 'BILLING_BUSY' || Date.now() >= until) throw error
+      await new Promise(resolve => setTimeout(resolve, 25))
+    }
+  }
+}
+const createStripeCheckout = (...args) => retryBusy(() => checkoutOnce(...args))
+const processStripeEvent = (...args) => retryBusy(() => eventOnce(...args))
 
 const configEnv = {
   STRIPE_BILLING_ENABLED: 'true', STRIPE_SECRET_KEY: syntheticConfig.secretKey,
@@ -51,6 +63,8 @@ test('billing lifecycle with real PostgreSQL locks/transactions and local SDK HT
   const orgIds = []
   t.after(async () => {
     await fixture.close()
+    await db.stripeBillingCoordinator.deleteMany({ where: { organizationId: { in: orgIds } } })
+    await db.stripeBillingOperation.deleteMany({ where: { organizationId: { in: orgIds } } })
     await db.stripeBillingEvent.deleteMany({ where: { organizationId: { in: orgIds } } })
     await db.stripeBillingState.deleteMany({ where: { organizationId: { in: orgIds } } })
     await db.user.deleteMany({ where: { organizationId: { in: orgIds } } })

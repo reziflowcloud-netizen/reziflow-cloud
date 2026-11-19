@@ -7,6 +7,7 @@ import { resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 import ts from 'typescript'
 import { PrismaClient } from '@prisma/client'
+import { getBillingSnapshot as newBillingSnapshot } from '../src/lib/billing.ts'
 
 const root = resolve(import.meta.dirname, '..')
 const target = new URL(process.env.STRIPE_BILLING_COMPAT_DATABASE_URL || 'http://invalid')
@@ -50,6 +51,10 @@ try {
     return result
   }
   const before = await hashes(), snapshot = await oldBilling.getBillingSnapshot(org.id, old)
+  process.env.STRIPE_BILLING_ENABLED = 'false'
+  const absent = await current.$queryRaw`SELECT to_regclass('public."StripeBillingCoordinator"')::text AS relation`
+  assert.equal(absent[0].relation, null)
+  assert.equal((await newBillingSnapshot(org.id, current)).plan.limits.clients, 777)
   prisma(['migrate', 'deploy'])
   assert.deepEqual(await hashes(), before, 'Every existing table/data value unchanged by additive migration')
   assert.deepEqual(await oldBilling.getBillingSnapshot(org.id, old), snapshot)
@@ -57,7 +62,9 @@ try {
   assert.equal((await current.client.findUnique({ where: { id: client.id } })).lastName, 'Legacy Updated')
   assert.equal(await current.stripeBillingState.count(), 0)
   assert.equal(await current.stripeBillingEvent.count(), 0)
-  const report = { baseline, migration: 'ADDITIVE', oldAppNewDb: 'PASS', unchangedExistingTables: tables.length,
+  assert.equal(await current.stripeBillingOperation.count(), 0)
+  assert.equal(await current.stripeBillingCoordinator.count(), 0)
+  const report = { baseline, migration: 'ADDITIVE', oldAppNewDb: 'PASS', newAppOldDbFlagOff: 'PASS', unchangedExistingTables: tables.length,
     baselineBillingSnapshot: 'PASS', oldClientReadWrite: 'PASS', noExistingDataChanges: 'PASS' }
   await writeFile(resolve(dir, 'compat-report.json'), JSON.stringify(report, null, 2) + '\n')
   console.log(JSON.stringify(report, null, 2))

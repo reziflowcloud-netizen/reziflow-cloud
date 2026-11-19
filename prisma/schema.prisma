@@ -108,6 +108,8 @@ model Organization {
   metaLeadAdsDeliveries MetaLeadAdsDelivery[]
   leadPhones            LeadPhone[]
   clientPhones          ClientPhone[]
+  stripeBillingCoordinator StripeBillingCoordinator?
+  stripeBillingOperations StripeBillingOperation[]
   stripeBillingState    StripeBillingState?
   stripeBillingEvents   StripeBillingEvent[]
   referralAttribution   ReferralAttribution?
@@ -1045,4 +1047,51 @@ model StripeBillingEvent {
   processedAt    DateTime     @default(now())
 
   @@index([organizationId, processedAt])
+}
+
+// Immutable provider requests and bounded leases; never keep a DB transaction
+// open across provider I/O. Result data excludes payment/card/customer payloads.
+model StripeBillingOperation {
+  id                      String @id
+  organizationId          String
+  organization            Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  dedupeKey               String @unique
+  kind                    String
+  phase                   String
+  idempotencyKey          String @unique
+  paramsJson              String
+  requestFingerprint      String
+  organizationFingerprint String
+  providerId              String?
+  invoiceId               String?
+  paymentIntentId         String?
+  chargeId                String?
+  resultJson              String?
+  errorCode               String?
+  firstAttemptAt          DateTime?
+  postStartedAt           DateTime?
+  idempotencyExpiresAt    DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  activeFor               StripeBillingCoordinator[] @relation("ActiveBillingOperation")
+
+  @@unique([id, organizationId])
+  @@index([organizationId, kind, createdAt])
+  @@index([invoiceId])
+  @@index([paymentIntentId])
+  @@index([chargeId])
+}
+
+model StripeBillingCoordinator {
+  organizationId              String @id
+  organization                Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  generation                  Int @default(0)
+  operationId                 String?
+  operation                   StripeBillingOperation? @relation("ActiveBillingOperation", fields: [operationId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  leaseToken                  String?
+  leaseUntil                  DateTime?
+  paidThrough                 DateTime?
+  financialHoldSubscriptionId String?
+  reviewReason                String?
+  updatedAt                   DateTime @updatedAt
 }

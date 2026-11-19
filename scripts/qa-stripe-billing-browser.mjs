@@ -158,6 +158,24 @@ try {
     await page.getByText(stripeBillingText.pl.manual, { exact: true }).waitFor()
     assert.equal(await page.locator('.billing-actions').first().getByRole('button').count(), 1)
   })
+  await run('unsupported settlement has a distinct manual-review notice in RU/UA/PL and no purchase CTA', async () => {
+    const reviewAccount = await makeOrg()
+    await context.addCookies([{ name: 'auth-token', value: reviewAccount.token, url: origin, httpOnly: true, sameSite: 'Lax' }])
+    const checkout = await context.request.post(`${origin}/api/billing/checkout`, { headers: { Origin: origin }, data: { plan: 'starter' } })
+    assert.equal(checkout.status(), 200)
+    const state = await db.stripeBillingState.findUniqueOrThrow({ where: { organizationId: reviewAccount.org.id } })
+    const sub = fixture.complete(state.checkoutSessionId)
+    sub.latest_invoice.amount_paid = 0
+    await send(sub.latest_invoice, 'invoice.paid')
+    await page.goto(`${origin}/settings/billing`)
+    for (const lang of ['ru', 'uk', 'pl']) {
+      await page.evaluate(lang => { localStorage.setItem('rezi_lang', lang); window.dispatchEvent(new CustomEvent('langchange', { detail: lang })) }, lang)
+      await page.getByRole('alert').filter({ hasText: stripeBillingText[lang].review }).waitFor()
+    }
+    assert.equal(await page.getByRole('button', { name: 'Wybierz Starter', exact: true }).count(), 0)
+    assert.equal((await db.organization.findUnique({ where: { id: reviewAccount.org.id } })).plan, 'free')
+    await page.screenshot({ path: resolve(dir, '390-pl-slate-manual-review.png'), fullPage: true })
+  })
   await run('flag OFF keeps the existing Billing contact fallback and disables Stripe APIs', async () => {
     await new Promise(resolve => { app.once('exit', resolve); app.kill('SIGTERM') })
     env.STRIPE_BILLING_ENABLED = 'false'
@@ -174,6 +192,8 @@ try {
   console.log(`PASS ${report.visualMatrix.length} language/theme/viewport combinations; no browser exceptions`)
 } finally {
   await browser?.close(); app?.kill('SIGTERM'); await fixture.close()
+  await db.stripeBillingCoordinator.deleteMany({ where: { organizationId: { in: orgIds } } })
+  await db.stripeBillingOperation.deleteMany({ where: { organizationId: { in: orgIds } } })
   await db.stripeBillingEvent.deleteMany({ where: { organizationId: { in: orgIds } } })
   await db.stripeBillingState.deleteMany({ where: { organizationId: { in: orgIds } } })
   await db.user.deleteMany({ where: { organizationId: { in: orgIds } } })

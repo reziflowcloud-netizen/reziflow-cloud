@@ -104,6 +104,7 @@ const statusLabels: Record<string, Record<string, string>> = {
   ru: {
     trialing: 'Пробный период',
     active: 'Активна',
+    manual_review_required: 'Требуется ручная проверка',
     past_due: 'Требует оплаты',
     incomplete: 'Ожидает оплаты',
     incomplete_expired: 'Оплата не завершена',
@@ -116,6 +117,7 @@ const statusLabels: Record<string, Record<string, string>> = {
   uk: {
     trialing: 'Пробний період',
     active: 'Активна',
+    manual_review_required: 'Потрібна ручна перевірка',
     past_due: 'Потребує оплати',
     incomplete: 'Очікує оплати',
     incomplete_expired: 'Оплату не завершено',
@@ -128,6 +130,7 @@ const statusLabels: Record<string, Record<string, string>> = {
   pl: {
     trialing: 'Okres próbny',
     active: 'Aktywna',
+    manual_review_required: 'Wymagana ręczna weryfikacja',
     past_due: 'Wymaga płatności',
     incomplete: 'Oczekuje na płatność',
     incomplete_expired: 'Płatność niezakończona',

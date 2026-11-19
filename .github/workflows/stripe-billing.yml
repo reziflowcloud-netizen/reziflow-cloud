@@ -33,7 +33,7 @@ jobs:
           POSTGRES_DB: legalhub_billing_qa
         ports: ['55439:5432']
         options: >-
-          --health-cmd 'pg_isready -U billing_qa -d legalhub_billing_qa'
+          --health-cmd "pg_isready -U billing_qa -d legalhub_billing_qa"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://billing_qa:synthetic_only@127.0.0.1:55439/legalhub_billing_qa
@@ -46,6 +46,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -57,7 +58,7 @@ jobs:
         shell: pwsh
         run: ./tests/stripe-billing-sql-audit.ps1
       - run: npx prisma migrate deploy
-      - run: node --test tests/stripe-billing.test.mjs
+      - run: npm run test:billing
       - name: Create isolated compatibility database
         run: psql postgresql://billing_qa:synthetic_only@127.0.0.1:55439/postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE legalhub_billing_compat_qa;'
       - run: node scripts/qa-stripe-billing-compat.mjs
