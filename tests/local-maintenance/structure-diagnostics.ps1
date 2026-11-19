@@ -6,7 +6,7 @@ function Get-SyntheticStructureState([object]$Config,[Uri]$Uri,[string]$Stage) {
   $body=(Get-Command Get-StructureFingerprint).Definition
   $cte=[regex]::Match($body,'(?s)WITH objects AS \(.*?(?=\r?\nSELECT json_build_object)')
   if(-not $cte.Success){throw 'SYNTHETIC_DIAGNOSTIC_INVENTORY_MISSING'}
-  $inventory=Invoke-ReadOnlyQuery $Config $Uri ($cte.Value+"`nSELECT COALESCE(json_agg(objects ORDER BY kind,name,definition),'[]'::json)::text FROM objects") 'SYNTHETIC_DIAGNOSTIC_FAILED'|ConvertFrom-Json
+  $inventory=Invoke-ReadOnlyQuery $Config $Uri ($cte.Value+"`nSELECT COALESCE(jsonb_agg(to_jsonb(objects) ORDER BY kind,name,definition),'[]'::jsonb)::text FROM objects") 'SYNTHETIC_DIAGNOSTIC_FAILED'|ConvertFrom-Json
   $proof=Invoke-ReadOnlyQuery $Config $Uri (Get-StructureProofSql $Config.applicationRole) 'SYNTHETIC_DIAGNOSTIC_FAILED'|ConvertFrom-Json
   $rows=@(@($inventory|ForEach-Object {[ordered]@{kind=('inventory.'+$_.kind);name=$_.name;definition=$_.definition.Replace("`r`n","`n")}})+@($proof.descriptors|ForEach-Object {
     [ordered]@{kind=('proof.'+$_.kind);name=$_.name;definition=$_.definition.Replace("`r`n","`n")}
