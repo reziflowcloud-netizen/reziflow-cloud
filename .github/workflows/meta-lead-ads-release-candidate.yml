@@ -45,12 +45,23 @@ jobs:
         run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1
   structure-restore:
     runs-on: windows-2025
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+          fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Previous successful guard under the same runner and tools (diagnostic comparison)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $comparisonRoot = Join-Path $env:RUNNER_TEMP 'structure-prior-guard'
+          New-Item -ItemType Directory -Path $comparisonRoot | Out-Null
+          git archive 596dabf48169e3c8f10beee431b1e20d4ab5b782 scripts/local-maintenance | tar -x -C $comparisonRoot
+          if ($LASTEXITCODE -ne 0) { throw 'PRIOR_GUARD_EXTRACTION_FAILED' }
+          Write-Host 'STRUCTURE_COMPARISON ref=596dabf48169e3c8f10beee431b1e20d4ab5b782'
+          pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1 -WithPostgres -CoreRoot $comparisonRoot
       - name: Isolated PostgreSQL structure and trigger restore (synthetic only)
         shell: pwsh
         run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1 -WithPostgres

@@ -1,9 +1,11 @@
 #requires -Version 7
-param([switch]$WithPostgres,[string]$PostgresBin)
+param([switch]$WithPostgres,[string]$PostgresBin,[string]$CoreRoot)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-. (Join-Path $repo 'scripts/local-maintenance/core.ps1')
+if(-not $CoreRoot){$CoreRoot=$repo}
+. (Join-Path $CoreRoot 'scripts/local-maintenance/core.ps1')
+. (Join-Path $PSScriptRoot 'structure-diagnostics.ps1')
 $passed=0
 function Assert-Test([bool]$Value,[string]$Name) {
   if(-not $Value){throw "STRUCTURE_TEST_FAILED:$Name"}
@@ -88,6 +90,12 @@ if(-not $PostgresBin){
   if(-not $installed.Count){throw 'SYNTHETIC_POSTGRES_UNAVAILABLE'}
   $PostgresBin=Join-Path $installed[0].FullName 'bin'
 }
+Write-Host "STRUCTURE_ENV powershell=$($PSVersionTable.PSVersion) runnerOS=$env:ImageOS runnerVersion=$env:ImageVersion"
+foreach($tool in @('postgres','initdb','pg_dump','pg_restore')){
+  $version=& (Join-Path $PostgresBin ($tool+'.exe')) --version
+  Write-Host "STRUCTURE_TOOL tool=$tool version=$version"
+}
+foreach($file in @('core.ps1','structure-proof.ps1')){Write-Host "STRUCTURE_GUARD file=$file sha256=$((Get-FileHash (Join-Path $CoreRoot ('scripts/local-maintenance/'+$file))).Hash)"}
 $id=[Guid]::NewGuid().ToString('N').Substring(0,12)
 $base=Join-Path $env:LOCALAPPDATA 'LegalHubMaintenanceStructureProofTests'
 if(-not(Test-Path -LiteralPath $base)){[void](New-Item -ItemType Directory -Path $base);Set-PrivateAcl $base}
@@ -132,6 +140,8 @@ ALTER TABLE public."LeadChannelRouteMember" ENABLE ROW LEVEL SECURITY;
 CREATE SEQUENCE public."QaSequence";
 '@
   Invoke-FixtureSql $source.Uri ($fixture+"`n"+$routineSql+"`n"+$triggerSql)
+  Write-Host "STRUCTURE_SERVER version=$(Invoke-ReadOnlyQuery $config $source.Uri 'SHOW server_version' 'SYNTHETIC_SERVER_VERSION_FAILED')"
+  $baselineState=Get-SyntheticStructureState $config $source.Uri 'source-baseline'
   $baseline=Get-StructureFingerprint $config $source.Uri
   Assert-Test $true 'real catalog closure accepts approved function with unrelated external hstore'
   Test-TriggerInsert $source.Uri 'source-Żółć-テスト'
@@ -154,17 +164,26 @@ CREATE SEQUENCE public."QaSequence";
     @('CREATE SCHEMA qa_cast; CREATE FUNCTION qa_cast.fake_text(integer) RETURNS text LANGUAGE sql AS $$ SELECT ''fake''::text $$; CREATE CAST(integer AS text) WITH FUNCTION qa_cast.fake_text(integer) AS ASSIGNMENT;','DROP CAST(integer AS text); DROP FUNCTION qa_cast.fake_text(integer); DROP SCHEMA qa_cast;','custom integer-text cast')
   )
   foreach($case in $cases){
+    $mutationBefore=Get-SyntheticStructureState $config $source.Uri ('before-'+$case[2])
     Invoke-FixtureSql $source.Uri $case[0]
+    $null=Get-SyntheticStructureState $config $source.Uri ('applied-'+$case[2])
     $codes=if($case.Count -gt 3){@($case[3])}else{@('STRUCTURE_EXTENSION_DEPENDENCY_UNPROVEN')}
     Expect-Block {Get-StructureFingerprint $config $source.Uri} ('real '+$case[2]) $codes
     Invoke-FixtureSql $source.Uri $case[1]
+    $mutationAfter=Get-SyntheticStructureState $config $source.Uri ('undone-'+$case[2])
+    if($mutationBefore.digest -cne $mutationAfter.digest){Write-SyntheticStructureDifference $mutationBefore $mutationAfter ('undo-'+$case[2])}
   }
   foreach($replacement in @("BEGIN RETURN NEW; END;","BEGIN EXECUTE 'SELECT 1'; RETURN NEW; END;","BEGIN PERFORM extensions.hstore('a','b'); RETURN NEW; END;")){
+    $mutationBefore=Get-SyntheticStructureState $config $source.Uri 'before-routine-replacement'
     Invoke-FixtureSql $source.Uri ('CREATE OR REPLACE FUNCTION public.staff_routing_v2_seed_legacy_member() RETURNS trigger LANGUAGE plpgsql AS $$'+$replacement+'$$;')
+    $null=Get-SyntheticStructureState $config $source.Uri 'applied-routine-replacement'
     Expect-Block {Get-StructureFingerprint $config $source.Uri} 'real modified/dynamic/indirect same-name function'
     Invoke-FixtureSql $source.Uri ($routineSql.Replace('CREATE FUNCTION','CREATE OR REPLACE FUNCTION'))
+    $mutationAfter=Get-SyntheticStructureState $config $source.Uri 'undone-routine-replacement'
+    if($mutationBefore.digest -cne $mutationAfter.digest){Write-SyntheticStructureDifference $mutationBefore $mutationAfter 'undo-routine-replacement'}
   }
-  Assert-StructureEqual $baseline (Get-StructureFingerprint $config $source.Uri)
+  $sourceState=Get-SyntheticStructureState $config $source.Uri 'source-pre-backup'
+  Assert-SyntheticStructureEqual $baseline (Get-StructureFingerprint $config $source.Uri) $baselineState $sourceState 'source-pre-backup-after-reversible-ddl'
   $holder=Start-ExportedSnapshot $config $source.Uri
   try{
     $before=Get-StructureFingerprint $config $source.Uri $holder.Id
@@ -173,17 +192,22 @@ CREATE SEQUENCE public."QaSequence";
   $target=New-DisposableCluster $config ('prooftarget'+$id)
   Restore-DisposableBackup $config $target $backup
   $after=Get-StructureFingerprint $config $target.Uri
-  Assert-StructureEqual $before $after
+  $targetState=Get-SyntheticStructureState $config $target.Uri 'target-post-restore'
+  Assert-SyntheticStructureEqual $before $after $sourceState $targetState 'target-post-pg-dump-restore'
   Assert-Test $true 'snapshot pg_dump/restore preserves routine, trigger, RLS, sequence and rowtype structure'
   Test-TriggerInsert $target.Uri 'restored-Żółć-テスト'
   foreach($mutation in @(
     @('DROP TRIGGER "LeadChannelRoute_seed_legacy_member" ON public."LeadChannelRoute"; DROP FUNCTION public.staff_routing_v2_seed_legacy_member();',($routineSql+"`n"+$triggerSql),'missing restored routine and trigger','STRUCTURE_EXTENSION_DEPENDENCY_UNPROVEN'),
     @('ALTER TABLE public."LeadChannelRouteMember" DISABLE ROW LEVEL SECURITY;','ALTER TABLE public."LeadChannelRouteMember" ENABLE ROW LEVEL SECURITY;','lost RLS'),
     @('ALTER SEQUENCE public."QaSequence" INCREMENT BY 2;','ALTER SEQUENCE public."QaSequence" INCREMENT BY 1;','changed sequence semantics'))){
+    $mutationBefore=Get-SyntheticStructureState $config $target.Uri ('before-'+$mutation[2])
     Invoke-FixtureSql $target.Uri $mutation[0]
+    $mutationApplied=Get-SyntheticStructureState $config $target.Uri ('applied-'+$mutation[2])
     $code=if($mutation.Count -gt 3){$mutation[3]}else{'RESTORED_STRUCTURE_MISMATCH'}
-    Expect-Block {Assert-StructureEqual $before (Get-StructureFingerprint $config $target.Uri)} $mutation[2] $code
+    Expect-Block {Assert-SyntheticStructureEqual $before (Get-StructureFingerprint $config $target.Uri) $targetState $mutationApplied ('negative-'+$mutation[2])} $mutation[2] $code
     Invoke-FixtureSql $target.Uri $mutation[1]
+    $mutationAfter=Get-SyntheticStructureState $config $target.Uri ('undone-'+$mutation[2])
+    if($mutationBefore.digest -cne $mutationAfter.digest){Write-SyntheticStructureDifference $mutationBefore $mutationAfter ('undo-'+$mutation[2])}
   }
   Invoke-FixtureSql $source.Uri 'ALTER EXTENSION hstore SET SCHEMA public;'
   Expect-Block {Get-StructureFingerprint $config $source.Uri} 'required/public extension has no closed restore contract'
