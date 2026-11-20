@@ -129,3 +129,34 @@ Before first push, the branch uses the existing
 `git.deploymentEnabled["fix/maintenance-runner-stripe-release-gates"]=false`
 mechanism, with no conflicting true rule:
 [Vercel branch exclusions and precedence](https://vercel.com/docs/project-configuration/git-configuration#git.deploymentenabled).
+
+
+## Combined candidate integration (2026-11-20)
+
+The integration branch `qa/stripe-maintenance-combined-20261120` preserves reviewed
+Stripe head `b623fd21b8fe21672a308f911b8adee9ba57768b` and maintenance head
+`bdcbb4edb22aacf05a0a7001061282c56b9d40ca` as ancestors, based on
+`41efb9a65c4aa04d61c3ece52e53f3bb5edf8b04`. No PR #10 commits are transferred.
+
+On this branch, `stripe-release-preflight.ps1` runs the actual clean combined HEAD,
+not the private synthetic Git commit used for the maintenance-only PR. It requires
+both reviewed ancestors, exactly 58 migration files and the four reviewed raw Git
+SQL hashes. Only the old schema/client, seeded source database and disposable
+restore targets are fixtures. The old Billing module is exported from the pinned
+main baseline. The source ledger is synthetic 54 applied + 4 pending; Production
+ledger remains UNKNOWN. The sealed synthetic plan binds the actual combined HEAD.
+
+The existing one-pending/no-pending suite now uses the final Stripe migration as
+its explicit one-pending boundary. The historical 53+1 checksum regression remains
+limited to its original 54-file main chain and asserts that count. Structure tests
+retain all 90 model and 129 total real assertions from maintenance plus Stripe
+diagnostics, with target-version tools for cross-version restore. The optional
+previous-guard diagnostic uses its original Stripe harness; mandatory current
+tests never fall back to the previous implementation.
+
+Application code and all four SQL blobs are unchanged from reviewed PR #20.
+Maintenance runtime is unchanged from reviewed PR #21. Integration glue changes
+tests, their diagnostic workflow, documentation and the combined branch Vercel
+exclusion. This branch is review-only, feature flag OFF and Test Mode only.
+A separate owner decision is required for every Production PREFLIGHT, APPLY and
+merge/deployment. No synthetic plan or prior approval authorizes those actions.

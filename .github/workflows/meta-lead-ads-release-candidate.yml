@@ -61,7 +61,9 @@ jobs:
           git archive 596dabf48169e3c8f10beee431b1e20d4ab5b782 scripts/local-maintenance | tar -x -C $comparisonRoot
           if ($LASTEXITCODE -ne 0) { throw 'PRIOR_GUARD_EXTRACTION_FAILED' }
           Write-Host 'STRUCTURE_COMPARISON ref=596dabf48169e3c8f10beee431b1e20d4ab5b782'
-          pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1 -WithPostgres -CoreRoot $comparisonRoot
+          git archive b623fd21b8fe21672a308f911b8adee9ba57768b tests/local-maintenance/structure-proof-tests.ps1 tests/local-maintenance/structure-diagnostics.ps1 prisma/migrations/20260922140000_staff_routing_v2 | tar -x -C $comparisonRoot
+          if ($LASTEXITCODE -ne 0) { throw 'PRIOR_HARNESS_EXTRACTION_FAILED' }
+          pwsh -NoProfile -File "$comparisonRoot/tests/local-maintenance/structure-proof-tests.ps1" -WithPostgres -CoreRoot $comparisonRoot
       - name: Isolated PostgreSQL structure and trigger restore (synthetic only)
         shell: pwsh
         run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1 -WithPostgres

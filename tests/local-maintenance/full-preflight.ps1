@@ -1,7 +1,7 @@
 param(
   [switch]$InjectPartialStartStopFailure,
   [string]$InjectedTestId,
-  [string]$PendingMigration = '20261027120000_meta_lead_ads_multitenant',
+  [string]$PendingMigration = '20261120121000_stripe_billing_cancel_boundary',
   [string]$PostgresBin = 'C:\Program Files\PostgreSQL\18\bin'
 )
 if ($PSVersionTable.PSVersion.Major -lt 7) {

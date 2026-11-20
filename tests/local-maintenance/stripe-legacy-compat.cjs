@@ -10,7 +10,7 @@ assert.match(url.pathname, /^\/legalhub_runner_/)
 assert.notEqual(url.port, '5432')
 const { PrismaClient } = require(path.join(root, '.qa/main-baseline/old-client'))
 const ts = require(path.join(root, 'node_modules/typescript'))
-const source = fs.readFileSync(path.join(root, 'src/lib/billing.ts'), 'utf8')
+const source = fs.readFileSync(path.join(root, '.qa/main-baseline/billing.ts'), 'utf8')
   .replace("import { prisma } from '@/lib/prisma'", 'const prisma = undefined')
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText
 const billing = {}

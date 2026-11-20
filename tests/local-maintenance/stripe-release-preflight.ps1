@@ -1,8 +1,8 @@
 #requires -Version 7
 param([string]$PostgresBin='C:\Program Files\PostgreSQL\18\bin',
   [string]$StripeCommit='b623fd21b8fe21672a308f911b8adee9ba57768b')
-# The candidate branch contains no Stripe SQL/application changes. Construct a
-# separate owned Git fixture with the exact reviewed SQL for an honest 54+4 run.
+# Exercise the actual clean, pinned combined checkout. Only the baseline schema,
+# old client and synthetic databases are fixtures; no replacement Git commit is built.
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
@@ -38,31 +38,23 @@ foreach($dir in @('private','backups')){[void](New-Item -ItemType Directory -Pat
 $config=[pscustomobject]@{targetKind='synthetic';environmentFile=(Join-Path $root 'synthetic.env');expectedHost='127.0.0.1';expectedApplicationHost='127.0.0.1';
   privateDirectory=(Join-Path $root 'private');backupDirectory=(Join-Path $root 'backups');postgresBin=$PostgresBin;
   nodeBin=(Split-Path (Get-Command node.exe).Source);applicationRole='restore_admin'}
-$fixture=Join-Path $root 'fixture'
+$fixture=$repo
 $source=$null;$target=$null
 try{
-  & git clone --quiet --no-hardlinks --no-checkout $repo $fixture
-  if($LASTEXITCODE -ne 0){throw 'FIXTURE_CLONE_FAILED'}
-  & git -C $fixture checkout --quiet --detach 41efb9a65c4aa04d61c3ece52e53f3bb5edf8b04
-  if($LASTEXITCODE -ne 0){throw 'FIXTURE_BASE_CHECKOUT_FAILED'}
-  & git -C $fixture remote set-url origin git@github.com:reziflowcloud-netizen/reziflow-cloud.git
-  & git -C $fixture config user.name 'Synthetic Maintenance Test'
-  & git -C $fixture config user.email 'synthetic@example.invalid'
-  Copy-Item -LiteralPath (Join-Path $repo 'scripts/local-maintenance/runner.ps1') -Destination (Join-Path $fixture 'scripts/local-maintenance/runner.ps1')
-  Copy-Item -LiteralPath (Join-Path $repo 'scripts/local-maintenance/structure-proof.ps1') -Destination (Join-Path $fixture 'scripts/local-maintenance/structure-proof.ps1')
-  for($i=0;$i -lt $pending.Count;$i++){
-    $dir=Join-Path $fixture ('prisma/migrations/'+$pending[$i]);[void](New-Item -ItemType Directory -Path $dir)
-    $file=Join-Path $dir 'migration.sql'
-    Export-Blob ($StripeCommit+':prisma/migrations/'+$pending[$i]+'/migration.sql') $file
-    Assert-Test ((Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant() -ceq $approvedHashes[$i]) ('reviewed SQL '+$pending[$i])
-    [void](Test-MigrationSql $file)
+  $head=(& git -C $repo rev-parse HEAD).Trim()
+  if($LASTEXITCODE -ne 0 -or (& git -C $repo status --porcelain)){throw 'ACTUAL_COMBINED_CHECKOUT_NOT_CLEAN'}
+  foreach($reviewed in @($approvedStripe,'bdcbb4edb22aacf05a0a7001061282c56b9d40ca')){
+    & git -C $repo merge-base --is-ancestor $reviewed $head
+    if($LASTEXITCODE -ne 0){throw 'REVIEWED_SOURCE_NOT_IN_COMBINED_HISTORY'}
   }
-  Export-Blob ($StripeCommit+':prisma/schema.prisma') (Join-Path $fixture 'prisma/schema.prisma')
-  & git -C $fixture add scripts/local-maintenance/runner.ps1 scripts/local-maintenance/structure-proof.ps1 prisma
-  & git -C $fixture commit --quiet -m 'Synthetic only: candidate Runner with reviewed four Stripe migrations'
-  if($LASTEXITCODE -ne 0){throw 'SYNTHETIC_FIXTURE_COMMIT_FAILED'}
-  $head=(& git -C $fixture rev-parse HEAD).Trim()
-  Write-Output "SYNTHETIC_PINNED_FIXTURE_HEAD=$head StripeSQL=$StripeCommit"
+  $actualFiles=@(Get-MigrationFiles $repo)
+  Assert-Test ($actualFiles.Count -eq 58) 'actual combined checkout has exactly 58 migrations'
+  for($i=0;$i -lt $pending.Count;$i++){
+    $file=@($actualFiles|Where-Object Name -ceq $pending[$i])[0]
+    Assert-Test ($file.ApprovedSha256 -ceq $approvedHashes[$i] -and $file.PendingExecutableSafe) ('actual reviewed SQL '+$pending[$i])
+    [void](Test-MigrationSql $file.Path)
+  }
+  Write-Output "ACTUAL_COMBINED_HEAD=$head StripeSQL=$StripeCommit"
   $source=New-DisposableCluster $config ('source'+$id)
   $dbName='legalhub_runner_synthetic_'+$id
   [void](Invoke-PostgresTool $config $source.Uri 'createdb.exe' @('-T','template0',$dbName) 'SYNTHETIC_CREATE_FAILED')
@@ -75,19 +67,18 @@ try{
   [IO.File]::WriteAllText((Join-Path $baseline 'schema.prisma'),$schema)
   [void](New-Item -ItemType Directory -Path (Join-Path $baseline 'migrations'))
   Copy-Item -LiteralPath (Join-Path $repo 'prisma/migrations/migration_lock.toml') -Destination (Join-Path $baseline 'migrations/migration_lock.toml')
-  $mainFiles=@(Get-MigrationFiles $repo)
+  $mainFiles=@($actualFiles|Where-Object {$_.Name -cnotin $pending})
   Assert-Test ($mainFiles.Count -eq 54) 'main baseline contains exactly 54 migrations'
   foreach($migration in $mainFiles){
     $dir=Join-Path $baseline ('migrations/'+$migration.Name);[void](New-Item -ItemType Directory -Path $dir)
     [IO.File]::WriteAllBytes((Join-Path $dir 'migration.sql'),(Get-ApprovedMigrationBytes $repo $migration.Name))
   }
+  Export-Blob '41efb9a65c4aa04d61c3ece52e53f3bb5edf8b04:src/lib/billing.ts' (Join-Path $baseline 'billing.ts')
   $compat=Join-Path $fixture '.qa/stripe-legacy-compat.cjs'
   Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'stripe-legacy-compat.cjs') -Destination $compat
   Invoke-WithIsolatedEnvironment $config $null @{DATABASE_URL=$sourceUri.AbsoluteUri;DIRECT_URL=$sourceUri.AbsoluteUri;STRIPE_BILLING_ENABLED='false';NEXT_TELEMETRY_DISABLED='1'} {
     Push-Location $fixture
     try{
-      $output=@(& (Join-Path $config.nodeBin 'npm.cmd') ci --ignore-scripts --no-audit --no-fund 2>$null)
-      if($LASTEXITCODE -ne 0){throw 'SYNTHETIC_NPM_CI_FAILED'}
       $cli=Join-Path $fixture 'node_modules/prisma/build/index.js'
       $output=@(& (Join-Path $config.nodeBin 'node.exe') $cli migrate deploy --schema (Join-Path $baseline 'schema.prisma') 2>$null)
       if($LASTEXITCODE -ne 0){throw 'SYNTHETIC_MAIN_MIGRATIONS_FAILED'}
@@ -124,7 +115,7 @@ if($?){exit 0}else{exit 1}
   $plans=@(Get-ChildItem (Join-Path $config.privateDirectory 'plans') -Filter '*.sealed.json' -File)
   Assert-Test ($plans.Count -eq 1) 'one sealed PASS plan exists'
   $plan=Read-SealedPlan $config $plans[0].FullName;Assert-PlanFresh $plan
-  Assert-Test ($plan.synthetic -eq $true -and $plan.approvedCommit -ceq $head -and $plan.appliedCount -eq 54) 'sealed plan pins synthetic fixture commit and baseline'
+  Assert-Test ($plan.synthetic -eq $true -and $plan.approvedCommit -ceq $head -and $plan.appliedCount -eq 54) 'sealed plan pins actual combined commit and synthetic baseline'
   Assert-Test (@($plan.pending).Count -eq 4 -and ($plan.pending -join '|') -ceq ($pending -join '|') -and
     @($plan.pending|Where-Object {$_ -isnot [string]}).Count -eq 0) 'sealed pending set contains four scalar ordered names'
   Assert-Test (($plan.migrations.name -join '|') -ceq ($pending -join '|')) 'sealed migration manifest order is exact'

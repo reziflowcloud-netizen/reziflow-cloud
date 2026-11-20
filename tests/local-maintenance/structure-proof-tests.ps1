@@ -1,24 +1,5 @@
 #requires -Version 7
 param([switch]$WithPostgres,[string]$PostgresBin,[string]$CoreRoot,[string]$TargetPostgresBin,[string]$ToolsBin)
-   $target=New-DisposableCluster $targetConfig ('prooftarget'+$id)
-  Restore-DisposableBackup $targetConfig $target $backup
-  $after=Get-StructureFingerprint $targetConfig $target.Uri
-  $targetState=Get-SyntheticStructureState $targetConfig $target.Uri 'target-post-restore'
-  Assert-SyntheticStructureEqual $before $after $sourceState $targetState 'target-post-pg-dump-restore'
-     @('ALTER TABLE public."OptionProbe" ENABLE ROW LEVEL SECURITY;','ALTER TABLE public."OptionProbe" DISABLE ROW LEVEL SECURITY;','unexpected RLS on'),
-    @('ALTER TABLE public."LeadChannelRouteMember" FORCE ROW LEVEL SECURITY;','ALTER TABLE public."LeadChannelRouteMember" NO FORCE ROW LEVEL SECURITY;','changed FORCE RLS'),
-    @('ALTER SEQUENCE public."QaSequence" INCREMENT BY 2;','ALTER SEQUENCE public."QaSequence" INCREMENT BY 1;','changed sequence semantics'),
-    @('ALTER TABLE public."OptionProbe" ALTER COLUMN "id" SET (n_distinct=0.6);','ALTER TABLE public."OptionProbe" ALTER COLUMN "id" RESET (n_distinct,n_distinct_inherited); ALTER TABLE public."OptionProbe" ALTER COLUMN "id" SET (n_distinct=0.5,n_distinct_inherited=-0.25);','changed user n_distinct'),
-    @('ALTER TABLE public."OptionProbe" ALTER COLUMN "id" SET (n_distinct_inherited=-0.5);','ALTER TABLE public."OptionProbe" ALTER COLUMN "id" RESET (n_distinct,n_distinct_inherited); ALTER TABLE public."OptionProbe" ALTER COLUMN "id" SET (n_distinct=0.5,n_distinct_inherited=-0.25);','changed user inherited option'),
-    @('ALTER TABLE public."OptionProbe" ALTER COLUMN "value" TYPE bigint;','ALTER TABLE public."OptionProbe" ALTER COLUMN "value" TYPE integer;','changed column type'),
-    @('ALTER TABLE public."OptionProbe" ALTER COLUMN "value" SET DEFAULT 8;','ALTER TABLE public."OptionProbe" ALTER COLUMN "value" SET DEFAULT 7;','changed column default'),
-    @('DROP INDEX public."OptionProbe_value_idx";','CREATE INDEX "OptionProbe_value_idx" ON public."OptionProbe"("value");','missing index'),
-    @('ALTER TABLE public."OptionProbe" DROP CONSTRAINT "OptionProbe_positive";','ALTER TABLE public."OptionProbe" ADD CONSTRAINT "OptionProbe_positive" CHECK ("id">0);','removed named constraint'),
-    @('ALTER TABLE public."OptionProbe" DROP CONSTRAINT "OptionProbe_positive"; ALTER TABLE public."OptionProbe" ADD CONSTRAINT "OptionProbe_positive" CHECK ("id">=0);','ALTER TABLE public."OptionProbe" DROP CONSTRAINT "OptionProbe_positive"; ALTER TABLE public."OptionProbe" ADD CONSTRAINT "OptionProbe_positive" CHECK ("id">0);','changed named constraint'))){
-    $mutationBefore=Get-SyntheticStructureState $targetConfig $target.Uri ('before-'+$mutation[2])
-     $mutationAfter=Get-SyntheticStructureState $targetConfig $target.Uri ('undone-'+$mutation[2])
-    if($mutationBefore.digest -cne $mutationAfter.digest){Write-SyntheticStructureDifference $mutationBefore $mutationAfter ('undo-'+$mutation[2])}
-    Assert-StructureEqual $before (Get-StructureFingerprint $targetConfig $target.Uri)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
@@ -244,6 +225,11 @@ CREATE INDEX "OptionProbe_value_idx" ON public."OptionProbe"("value");
     $before=Get-StructureFingerprint $config $source.Uri $holder.Id
     $backup=New-PrivateBackup $dumpConfig $source.Uri $id $holder.Id
   }finally{Stop-ExportedSnapshot $holder}
+  $target=New-DisposableCluster $targetConfig ('prooftarget'+$id)
+  Restore-DisposableBackup $targetConfig $target $backup
+  $after=Get-StructureFingerprint $targetConfig $target.Uri
+  $targetState=Get-SyntheticStructureState $targetConfig $target.Uri 'target-post-restore'
+  Assert-SyntheticStructureEqual $before $after $sourceState $targetState 'target-post-pg-dump-restore'
   Assert-Test $true 'snapshot pg_dump/restore preserves routine, trigger, RLS, sequence and rowtype structure'
   $optionQuery='SELECT to_json(attoptions)::text FROM pg_attribute WHERE attrelid=''public."OptionProbe"''::regclass AND attname=''id'''
   $sourceOptions=Invoke-ReadOnlyQuery $config $source.Uri $optionQuery 'SYNTHETIC_OPTIONS_FAILED'
@@ -256,11 +242,25 @@ CREATE INDEX "OptionProbe_value_idx" ON public."OptionProbe"("value");
   foreach($mutation in @(
     @('DROP TRIGGER "LeadChannelRoute_seed_legacy_member" ON public."LeadChannelRoute"; DROP FUNCTION public.staff_routing_v2_seed_legacy_member();',($routineSql+"`n"+$triggerSql),'missing restored routine and trigger','STRUCTURE_EXTENSION_DEPENDENCY_UNPROVEN'),
     @('ALTER TABLE public."LeadChannelRouteMember" DISABLE ROW LEVEL SECURITY;','ALTER TABLE public."LeadChannelRouteMember" ENABLE ROW LEVEL SECURITY;','lost RLS'),
+    @('ALTER TABLE public."OptionProbe" ENABLE ROW LEVEL SECURITY;','ALTER TABLE public."OptionProbe" DISABLE ROW LEVEL SECURITY;','unexpected RLS on'),
+    @('ALTER TABLE public."LeadChannelRouteMember" FORCE ROW LEVEL SECURITY;','ALTER TABLE public."LeadChannelRouteMember" NO FORCE ROW LEVEL SECURITY;','changed FORCE RLS'),
+    @('ALTER SEQUENCE public."QaSequence" INCREMENT BY 2;','ALTER SEQUENCE public."QaSequence" INCREMENT BY 1;','changed sequence semantics'),
+    @('ALTER TABLE public."OptionProbe" ALTER COLUMN "id" SET (n_distinct=0.6);','ALTER TABLE public."OptionProbe" ALTER COLUMN "id" RESET (n_distinct,n_distinct_inherited); ALTER TABLE public."OptionProbe" ALTER COLUMN "id" SET (n_distinct=0.5,n_distinct_inherited=-0.25);','changed user n_distinct'),
+    @('ALTER TABLE public."OptionProbe" ALTER COLUMN "id" SET (n_distinct_inherited=-0.5);','ALTER TABLE public."OptionProbe" ALTER COLUMN "id" RESET (n_distinct,n_distinct_inherited); ALTER TABLE public."OptionProbe" ALTER COLUMN "id" SET (n_distinct=0.5,n_distinct_inherited=-0.25);','changed user inherited option'),
+    @('ALTER TABLE public."OptionProbe" ALTER COLUMN "value" TYPE bigint;','ALTER TABLE public."OptionProbe" ALTER COLUMN "value" TYPE integer;','changed column type'),
+    @('ALTER TABLE public."OptionProbe" ALTER COLUMN "value" SET DEFAULT 8;','ALTER TABLE public."OptionProbe" ALTER COLUMN "value" SET DEFAULT 7;','changed column default'),
+    @('DROP INDEX public."OptionProbe_value_idx";','CREATE INDEX "OptionProbe_value_idx" ON public."OptionProbe"("value");','missing index'),
+    @('ALTER TABLE public."OptionProbe" DROP CONSTRAINT "OptionProbe_positive";','ALTER TABLE public."OptionProbe" ADD CONSTRAINT "OptionProbe_positive" CHECK ("id">0);','removed named constraint'),
+    @('ALTER TABLE public."OptionProbe" DROP CONSTRAINT "OptionProbe_positive"; ALTER TABLE public."OptionProbe" ADD CONSTRAINT "OptionProbe_positive" CHECK ("id">=0);','ALTER TABLE public."OptionProbe" DROP CONSTRAINT "OptionProbe_positive"; ALTER TABLE public."OptionProbe" ADD CONSTRAINT "OptionProbe_positive" CHECK ("id">0);','changed named constraint'))){
+    $mutationBefore=Get-SyntheticStructureState $targetConfig $target.Uri ('before-'+$mutation[2])
     Invoke-FixtureSql $target.Uri $mutation[0]
     $mutationApplied=Get-SyntheticStructureState $targetConfig $target.Uri ('applied-'+$mutation[2])
     $code=if($mutation.Count -gt 3){$mutation[3]}else{'RESTORED_STRUCTURE_MISMATCH'}
     Expect-Block {Assert-SyntheticStructureEqual $before (Get-StructureFingerprint $targetConfig $target.Uri) $targetState $mutationApplied ('negative-'+$mutation[2])} $mutation[2] $code
     Invoke-FixtureSql $target.Uri $mutation[1]
+    $mutationAfter=Get-SyntheticStructureState $targetConfig $target.Uri ('undone-'+$mutation[2])
+    if($mutationBefore.digest -cne $mutationAfter.digest){Write-SyntheticStructureDifference $mutationBefore $mutationAfter ('undo-'+$mutation[2])}
+    Assert-StructureEqual $before (Get-StructureFingerprint $targetConfig $target.Uri)
   }
   $badArchive=Join-Path $config.backupDirectory 'corrupt-synthetic.dump'
   [IO.File]::WriteAllText($badArchive,'not a PostgreSQL archive');Set-PrivateAcl $badArchive

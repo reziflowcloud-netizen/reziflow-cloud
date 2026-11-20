@@ -1059,7 +1059,9 @@ datasource db {
       'exact approved Unicode literal bytes remain accepted'
   } finally { [IO.File]::WriteAllBytes($unicodeFile, $convertedUnicode) }
 
-  $productionFiles = @(Get-MigrationFiles $repo)
+  # Keep the historical 53+1 checksum regression pinned to the original main chain.
+  $productionFiles = @(Get-MigrationFiles $repo | Where-Object { $_.Name -cle '20261027120000_meta_lead_ads_multitenant' })
+  Assert ($productionFiles.Count -eq 54) 'historical main fixture has exactly 54 migrations'
   $historical = @($productionFiles | Where-Object Name -eq '20261011180000_document_checklist_v2')[0]
   Assert ('95254cd60c62e2013b2f92696a012ab6698bfd0452b272f6d22049bcbdcbbe0b' -in
       $historical.AllowedAppliedSha256) 'historical mixed-EOL exact checksum'
