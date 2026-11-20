@@ -1,5 +1,7 @@
-import { prisma } from '@/lib/prisma'
+import { prisma } from './prisma.ts'
 import type { Prisma } from '@prisma/client'
+import { stripeBillingConfig } from './stripeBillingConfig.ts'
+import { canStartStripeCheckout, effectiveStripePlan, stripeManaged } from './stripeBillingPolicy.ts'
 
 export type BillingMetricKey = 'users' | 'clients' | 'cases' | 'leads'
 
@@ -25,15 +27,25 @@ export type BillingSnapshot = {
     trialEndsAt: string | null
     currentPeriodEndsAt: string | null
     cancelAtPeriodEnd: boolean
+    scheduledCancelAt?: string | null
   }
   plan: PlanDefinition
   usage: Record<BillingMetricKey, number>
   softLimitWarnings: BillingMetricKey[]
   customLimitKeys: BillingMetricKey[]
+  stripe: {
+    enabled: boolean
+    eligible: boolean
+    managed: boolean
+    graceDays: number | null
+    graceEndsAt: string | null
+    subscriptionPlan: string
+    reviewRequired: boolean
+  }
 }
 
 const BILLING_METRIC_KEYS: BillingMetricKey[] = ['users', 'clients', 'cases', 'leads']
-type BillingDbClient = Pick<Prisma.TransactionClient, 'organization' | 'user' | 'client' | 'case' | 'lead'>
+type BillingDbClient = Pick<Prisma.TransactionClient, 'organization' | 'user' | 'client' | 'case' | 'lead' | 'stripeBillingCoordinator'>
 const INACTIVE_CASE_STATUS_TERMS = [
   'архив',
   'архів',
@@ -132,7 +144,7 @@ export const BILLING_METRIC_LABELS: Record<BillingMetricKey, string> = {
 }
 
 export function canManageBilling(user: any) {
-  return user?.role === 'admin' || user?.role === 'owner'
+  return (user?.role === 'admin' || user?.role === 'owner') && user?.restrictedAccess !== true
 }
 
 export function normalizePlanKey(plan?: string | null) {
@@ -304,6 +316,10 @@ export async function getBillingSnapshot(organizationId: string, db: BillingDbCl
       plan: true,
       status: true,
       billingStatus: true,
+      billingProvider: true,
+      billingCustomerId: true,
+      billingSubscriptionId: true,
+      graceEndsAt: true,
       trialEndsAt: true,
       currentPeriodEndsAt: true,
       cancelAtPeriodEnd: true,
@@ -322,7 +338,11 @@ export async function getBillingSnapshot(organizationId: string, db: BillingDbCl
     db.lead.count({ where: { organizationId } }),
   ])
 
-  const plan = applyBillingLimitOverrides(getPlanDefinition(organization.plan), organization.settings)
+  const stripeConfig = stripeBillingConfig()
+  const coordinator = stripeConfig ? await db.stripeBillingCoordinator.findUnique({ where: { organizationId }, select: { financialHoldSubscriptionId: true, scheduledCancelAt: true, cancelAtPaidThrough: true } }) : null
+  const reviewRequired = Boolean(coordinator?.financialHoldSubscriptionId) || organization.billingStatus === 'manual_review_required'
+  const effectivePlan = effectiveStripePlan({ ...organization, scheduledCancelAt: coordinator?.scheduledCancelAt, cancelAtPaidThrough: coordinator?.cancelAtPaidThrough }, Boolean(stripeConfig), stripeConfig?.graceDays || 0)
+  const plan = applyBillingLimitOverrides(getPlanDefinition(effectivePlan), organization.settings)
   const usage = { users, clients, cases, leads }
   const customLimitKeys = Object.keys(getBillingLimitOverrides(organization.settings)) as BillingMetricKey[]
   const softLimitWarnings = (Object.keys(usage) as BillingMetricKey[])
@@ -338,10 +358,20 @@ export async function getBillingSnapshot(organizationId: string, db: BillingDbCl
       trialEndsAt: organization.trialEndsAt ? organization.trialEndsAt.toISOString() : null,
       currentPeriodEndsAt: organization.currentPeriodEndsAt ? organization.currentPeriodEndsAt.toISOString() : null,
       cancelAtPeriodEnd: organization.cancelAtPeriodEnd,
+      scheduledCancelAt: coordinator?.scheduledCancelAt?.toISOString() ?? null,
     },
     plan,
     usage,
     softLimitWarnings,
     customLimitKeys,
+    stripe: {
+      enabled: Boolean(stripeConfig),
+      eligible: Boolean(stripeConfig) && !reviewRequired && canStartStripeCheckout(organization),
+      managed: Boolean(stripeConfig) && stripeManaged(organization),
+      graceDays: stripeConfig?.graceDays ?? null,
+      graceEndsAt: organization.graceEndsAt?.toISOString() ?? null,
+      subscriptionPlan: organization.plan,
+      reviewRequired,
+    },
   }
 }

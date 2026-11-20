@@ -1,6 +1,8 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useId, useRef, useState } from 'react'
+import { useLanguage } from '@/context/LanguageContext'
+import { billingContactText } from '@/lib/billingContactI18n'
 
 const OFFICE_EMAIL = 'office@legalhubcrm.com'
 const OFFICE_PHONE = '+48 730 382 448'
@@ -23,6 +25,10 @@ export default function BillingContactButton({
   initialContact = '',
   initialCompany = '',
 }: BillingContactButtonProps) {
+  const { lang } = useLanguage()
+  const text = billingContactText[lang] || billingContactText.ru
+  const id = useId()
+  const dialog = useRef<HTMLElement>(null)
   const [open, setOpen] = useState(false)
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
@@ -37,11 +43,19 @@ export default function BillingContactButton({
 
   useEffect(() => {
     if (!open) return
+    const previous = document.activeElement as HTMLElement | null
+    dialog.current?.querySelector<HTMLButtonElement>('button')?.focus()
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') setOpen(false)
+      if (event.key !== 'Tab') return
+      const fields = dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input, textarea, a[href]')
+      if (!fields?.length) return
+      const first = fields[0], last = fields[fields.length - 1]
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
     }
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    return () => { window.removeEventListener('keydown', handleKeyDown); previous?.focus() }
   }, [open])
 
   function setField<Key extends keyof ContactForm>(key: Key, value: ContactForm[Key]) {
@@ -66,7 +80,7 @@ export default function BillingContactButton({
     setSent(false)
 
     if (!form.name.trim() || !form.contact.trim()) {
-      setError('Заполните имя и контакт для связи.')
+      setError(text.required)
       return
     }
 
@@ -79,8 +93,7 @@ export default function BillingContactButton({
     setSending(false)
 
     if (!response?.ok) {
-      const data = await response?.json().catch(() => null)
-      setError(data?.error || `Не удалось отправить заявку. Напишите нам напрямую: ${OFFICE_EMAIL}`)
+      setError(`${text.error} ${OFFICE_EMAIL}`)
       return
     }
 
@@ -91,27 +104,28 @@ export default function BillingContactButton({
   return (
     <>
       <button type="button" className="btn btn-secondary" onClick={() => setOpen(true)}>
-        Связаться
+        {text.button}
       </button>
 
       {open && (
         <div className="billing-contact-overlay" role="presentation" onMouseDown={() => setOpen(false)}>
           <section
+            ref={dialog}
             className="billing-contact-modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="billing-contact-title"
+            aria-labelledby={`${id}-title`}
             onMouseDown={event => event.stopPropagation()}
           >
             <div className="billing-contact-head">
               <div>
-                <h2 id="billing-contact-title">Связаться с LegalHub</h2>
-                <p>Оставьте заявку, и мы поможем с тарифом, демо или переносом базы.</p>
+                <h2 id={`${id}-title`}>{text.title}</h2>
+                <p>{text.description}</p>
               </div>
               <button
                 type="button"
                 className="billing-contact-close"
-                aria-label="Закрыть окно"
+                aria-label={text.close}
                 onClick={() => setOpen(false)}
               >
                 ×
@@ -124,74 +138,78 @@ export default function BillingContactButton({
                 <strong>{OFFICE_EMAIL}</strong>
               </div>
               <button type="button" className="btn btn-secondary" onClick={copyEmail}>
-                {copied ? 'Скопировано' : 'Скопировать email'}
+                {copied ? text.copied : text.copy}
               </button>
               <div>
-                <span>Телефон</span>
+                <span>{text.phone}</span>
                 <strong>{OFFICE_PHONE}</strong>
               </div>
             </div>
 
             {sent && (
-              <div className="billing-contact-success">
-                Заявка отправлена. Мы свяжемся с вами по указанному контакту.
+              <div className="billing-contact-success" role="status">
+                {text.sent}
               </div>
             )}
             {error && (
-              <div className="billing-contact-error">
+              <div className="billing-contact-error" role="alert">
                 {error}
               </div>
             )}
 
             <form className="billing-contact-form" onSubmit={handleSubmit}>
               <div className="form-group">
-                <label className="label">Ваше имя *</label>
+                <label className="label" htmlFor={`${id}-name`}>{text.name} *</label>
                 <input
                   className="input"
                   value={form.name}
                   onChange={event => setField('name', event.target.value)}
-                  placeholder="Напр.: Анна"
+                  id={`${id}-name`}
+                  placeholder={text.namePlaceholder}
                   required
                 />
               </div>
 
               <div className="form-group">
-                <label className="label">Телефон, email или Telegram *</label>
+                <label className="label" htmlFor={`${id}-contact`}>{text.contact} *</label>
                 <input
                   className="input"
                   value={form.contact}
                   onChange={event => setField('contact', event.target.value)}
-                  placeholder="+48..., email или @username"
+                  id={`${id}-contact`}
+                  placeholder={text.contactPlaceholder}
                   required
                 />
               </div>
 
               <div className="form-group">
-                <label className="label">Компания</label>
+                <label className="label" htmlFor={`${id}-company`}>{text.company}</label>
                 <input
                   className="input"
                   value={form.company}
                   onChange={event => setField('company', event.target.value)}
-                  placeholder="Название компании"
+                  id={`${id}-company`}
+                  placeholder={text.companyPlaceholder}
                 />
               </div>
 
               <div className="form-group">
-                <label className="label">Что хотите уточнить?</label>
+                <label className="label" htmlFor={`${id}-message`}>{text.message}</label>
                 <textarea
                   className="input"
                   rows={5}
                   value={form.message}
                   onChange={event => setField('message', event.target.value)}
-                  placeholder="Например: хочу попробовать CRM, перенести базу или посмотреть демо"
+                  id={`${id}-message`}
+                  placeholder={text.messagePlaceholder}
                 />
               </div>
 
               <button className="btn btn-primary billing-contact-submit" type="submit" disabled={sending}>
-                {sending ? 'Отправляем...' : 'Отправить заявку'}
+                {sending ? text.sending : text.send}
               </button>
               <p className="billing-contact-note">
-                Обязательные поля только имя и контакт. Можно также просто позвонить по номеру выше.
+                {text.note}
               </p>
             </form>
           </section>
