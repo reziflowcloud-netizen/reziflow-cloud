@@ -60,15 +60,20 @@ function Get-Config([string]$Repo) {
 
 function Get-Expected([string[]]$Names) {
   if (@($Names).Count -eq 0) { Stop-Maintenance 'EXPECTED_MIGRATIONS_REQUIRED' }
-  $names = @($Names | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-  if (@($names).Count -ne @($Names).Count -or
-      @($names | Select-Object -Unique).Count -ne @($names).Count) {
+  [string[]]$validatedNames = @($Names | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+  if ($validatedNames.Count -ne $Names.Count -or
+      @($validatedNames | Select-Object -Unique).Count -ne $validatedNames.Count) {
     Stop-Maintenance 'EXPECTED_MIGRATIONS_DUPLICATE_OR_EMPTY'
   }
-  foreach ($name in $names) {
+  foreach ($name in $validatedNames) {
     if ($name -notmatch '^[0-9]{14}_[a-z0-9_]+$') { Stop-Maintenance 'EXPECTED_MIGRATION_NAME_INVALID' }
   }
-  return ,$names
+  for ($index = 1; $index -lt $validatedNames.Count; $index++) {
+    if ([StringComparer]::Ordinal.Compare($validatedNames[$index - 1], $validatedNames[$index]) -ge 0) {
+      Stop-Maintenance 'EXPECTED_MIGRATIONS_ORDER_INVALID'
+    }
+  }
+  return ,$validatedNames
 }
 
 function Get-CheckedState([object]$Config, [Uri]$Uri, [string]$Repo,
@@ -240,7 +245,7 @@ function Invoke-Preflight([string]$Repo) {
     if ($NoMigration) {
       if (@($ExpectedMigrations).Count -gt 0) { Stop-Maintenance 'NO_MIGRATION_WITH_EXPECTED_SET' }
       $expected = @()
-    } else { $expected = @(Get-Expected $ExpectedMigrations) }
+    } else { [string[]]$expected = Get-Expected $ExpectedMigrations }
     $commit = Get-GitCheckpoint $Repo $ApprovedCommit ([bool]$Synthetic)
     $uri = Get-PreflightSourceUri $config ([bool]$Synthetic)
     $state = Get-CheckedState $config $uri $Repo $commit $expected
@@ -378,6 +383,7 @@ function Invoke-Apply([string]$Repo) {
   $config = Get-Config $Repo
   $actualPlanPath = if ($PlanPath) { $PlanPath } else { Get-LatestPlanPath $config }
   $plan = Read-SealedPlan $config $actualPlanPath
+  [void](Get-Expected @($plan.pending))
   Assert-DirectApplyConnection $config $plan
   if ($plan.synthetic) { Stop-Maintenance 'SYNTHETIC_PLAN_APPLY_FORBIDDEN' }
   if ($plan.restore -ne 'PASS' -or $plan.localMigration -ne 'PASS' -or

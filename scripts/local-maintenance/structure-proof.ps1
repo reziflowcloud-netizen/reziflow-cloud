@@ -86,6 +86,7 @@ WITH RECURSIVE roots AS (
 )
 SELECT json_build_object(
  'version',1,'serverMajor',current_setting('server_version_num')::integer/10000,
+ 'serverVersionNum',current_setting('server_version_num')::integer,
  'serverUtf8',current_setting('server_encoding')='UTF8',
  'contractExpected',EXISTS(SELECT 1 FROM pg_class WHERE relnamespace='public'::regnamespace AND relname IN('LeadChannelRoute','LeadChannelRouteMember')),
  'unknownRoots',(SELECT count(*) FROM roots WHERE classid NOT IN('pg_class'::regclass,'pg_proc'::regclass,'pg_type'::regclass,'pg_attrdef'::regclass,'pg_constraint'::regclass,'pg_trigger'::regclass,'pg_rewrite'::regclass,'pg_policy'::regclass,'pg_namespace'::regclass)),
@@ -135,14 +136,51 @@ function Test-StructureSearchPath([string]$Path) {
   return (($parts -join ',') -cin @('public','public,extensions','public,pg_temp','public,extensions,pg_temp'))
 }
 
+function Get-PortableColumnDefinition([string]$Definition, [int]$ServerVersionNum) {
+  $code = 'STRUCTURE_COLUMN_OPTIONS_UNMODELED'
+  try { $column = ConvertFrom-Json -InputObject $Definition -ErrorAction Stop }
+  catch { Stop-Maintenance $code }
+  if (-not $column -or -not $column.PSObject.Properties['options']) { Stop-Maintenance $code }
+  $portable = [Collections.Generic.List[string]]::new()
+  $internalCount = 0
+  if ($null -ne $column.options -and $column.options -isnot [Array]) { Stop-Maintenance $code }
+  foreach ($option in @($column.options)) {
+    if ($null -eq $option -and $null -eq $column.options) { continue }
+    if ($option -isnot [string]) { Stop-Maintenance $code }
+    if ($option.StartsWith('pg_', [StringComparison]::OrdinalIgnoreCase)) {
+      # Only this exact key and decimal uint64 encoding is a reviewed internal
+      # attribute version (WAL LSN), introduced by the 17.12 / 18.7 backpatch.
+      # Unknown internal keys and malformed/duplicate versions fail closed.
+      $version = [uint64]0
+      if ($option -cnotmatch '\Apg_attver=([1-9][0-9]*)\z' -or
+          -not [uint64]::TryParse($Matches[1], [Globalization.NumberStyles]::None,
+            [Globalization.CultureInfo]::InvariantCulture, [ref]$version) -or
+          -not (($ServerVersionNum -ge 170012 -and $ServerVersionNum -lt 180000) -or
+                ($ServerVersionNum -ge 180007 -and $ServerVersionNum -lt 190000))) {
+        Stop-Maintenance $code
+      }
+      $internalCount++
+      if ($internalCount -ne 1) { Stop-Maintenance $code }
+    } else { $portable.Add($option) }
+  }
+  if ($internalCount) {
+    $column.options = if ($portable.Count) { ,$portable.ToArray() } else { $null }
+  }
+  # Canonicalize JSON on both old and new minors, preserving every user option
+  # and its order. Do not change source catalogs, archive SQL or restore flags.
+  return ConvertTo-Json -InputObject $column -Depth 8 -Compress
+}
+
 function Assert-StructureProof([object]$Proof) {
   $code = 'STRUCTURE_EXTENSION_DEPENDENCY_UNPROVEN'
-  foreach ($name in @('version','serverMajor','serverUtf8','contractExpected','unknownRoots','unsafeDependencies','publicExtensions','inheritance','abnormalInternalTriggers',
+  foreach ($name in @('version','serverMajor','serverVersionNum','serverUtf8','contractExpected','unknownRoots','unsafeDependencies','publicExtensions','inheritance','abnormalInternalTriggers',
       'unsupportedRelations','unsupportedTypes','policies','routines','triggers','descriptors')) {
     if (-not $Proof -or -not $Proof.PSObject.Properties[$name]) { Stop-Maintenance $code }
   }
   if ($Proof.version -isnot [int] -and $Proof.version -isnot [long]) { Stop-Maintenance $code }
   if ($Proof.serverMajor -isnot [int] -and $Proof.serverMajor -isnot [long]) { Stop-Maintenance $code }
+  if (($Proof.serverVersionNum -isnot [int] -and $Proof.serverVersionNum -isnot [long]) -or
+      [math]::Floor($Proof.serverVersionNum / 10000) -ne $Proof.serverMajor) { Stop-Maintenance $code }
   if ($Proof.version -ne 1 -or $Proof.serverMajor -notin @(17,18) -or $Proof.contractExpected -isnot [bool] -or
       $Proof.serverUtf8 -isnot [bool] -or -not $Proof.serverUtf8) { Stop-Maintenance $code }
   foreach ($name in @('unknownRoots','unsafeDependencies','publicExtensions','inheritance','abnormalInternalTriggers','unsupportedRelations','unsupportedTypes','policies')) {
@@ -155,6 +193,9 @@ function Assert-StructureProof([object]$Proof) {
         -not $descriptor.PSObject.Properties['name'] -or -not $descriptor.PSObject.Properties['definition'] -or
         $descriptor.definition -isnot [string] -or
         $descriptor.kind -cnotin @('routine','trigger','table_flags','column_flags','type','sequence','rule')) { Stop-Maintenance $code }
+    if ($descriptor.kind -ceq 'column_flags') {
+      [void](Get-PortableColumnDefinition $descriptor.definition $Proof.serverVersionNum)
+    }
   }
   if (@($Proof.descriptors | Where-Object kind -CEQ 'routine').Count -ne $routines.Count -or
       @($Proof.descriptors | Where-Object kind -CEQ 'trigger').Count -ne $triggers.Count) { Stop-Maintenance $code }
@@ -225,6 +266,9 @@ function Get-StructureProofDigest([object]$Proof) {
   # cannot pass merely because the remaining routines form an empty valid set.
   $descriptors = @($Proof.descriptors | ForEach-Object {
     $definition=$_.definition
+    if ($_.kind -ceq 'column_flags') {
+      $definition=Get-PortableColumnDefinition $definition $Proof.serverVersionNum
+    }
     if ($_.kind -ceq 'routine') {
       $routine=$definition|ConvertFrom-Json
       $routine.source=$routine.source.Replace("`r`n","`n")
