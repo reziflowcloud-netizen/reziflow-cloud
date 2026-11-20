@@ -225,7 +225,7 @@ function Write-Report([object]$Config, [object]$Plan, [string]$Result,
     nextAction = if ($Result -eq 'APPLIED') { 'APPLICATION_SMOKE_AND_INDEPENDENT_REVIEW' }
       elseif ($Result -eq 'PREFLIGHT_ONLY') { 'SEPARATE_OWNER_DECISION_REQUIRED' }
       elseif ($Result -eq 'ATTEMPTED_UNVERIFIED') { 'DIAGNOSE_LEDGER_AND_OUTCOME_NO_RETRY' }
-      else { 'DIAGNOSE_NO_RETRY_RERUN_PREFLIGHT_AFTER_REVIEW' }
+      else { 'INDEPENDENT_DIAGNOSIS_AND_NEW_OWNER_AUTHORIZATION' }
   }
   if ($CommandDiagnostic) {
     $report.commandDiagnostic = Read-GuardedMigrationDiagnostic @(
@@ -367,7 +367,8 @@ function Invoke-Preflight([string]$Repo) {
           [string]$_.Exception.Data['SessionCleanupCode']
         } else { '' }
         integrityMismatch = Get-SafeFingerprintMismatch $code $integrityDiagnostic
-        nextAction = 'FIX_CAUSE_RERUN_PREFLIGHT'
+        postgresDiagnostic = Get-SafePostgresDiagnostic $_
+        nextAction = 'INDEPENDENT_DIAGNOSIS_AND_NEW_OWNER_AUTHORIZATION'
       }))
     } catch { }
     throw

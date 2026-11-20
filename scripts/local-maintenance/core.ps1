@@ -1,4 +1,5 @@
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'process-diagnostics.ps1')
 . (Join-Path $PSScriptRoot 'session-pooler.ps1')
 . (Join-Path $PSScriptRoot 'structure-proof.ps1')
 . (Join-Path $PSScriptRoot 'lock-safety.ps1')
@@ -359,19 +360,25 @@ function Invoke-PostgresTool([object]$Config, [Uri]$Uri, [string]$Tool,
     [string[]]$Arguments, [string]$FailureCode) {
   if (-not $Uri) { Stop-Maintenance 'DATABASE_URI_REQUIRED' }
   $binary = Join-Path $Config.postgresBin $Tool
-  if ($Tool -eq 'psql.exe') { $Arguments = @('-w') + $Arguments }
+  if ($Tool -eq 'psql.exe') { $Arguments = @('-w','-v','VERBOSITY=sqlstate','-v','SHOW_CONTEXT=never') + $Arguments }
   $result = Invoke-WithIsolatedEnvironment $Config $Uri @{} {
     $oldPreference = $ErrorActionPreference
     try {
       $ErrorActionPreference = 'Continue'
       if ($Uri.Host -ne '127.0.0.1' -and (Test-SessionPoolerMode $Config)) {
-        return Invoke-BoundedSessionTool $binary $Arguments
+        return Invoke-BoundedSessionTool $binary $Arguments -FailureCode $FailureCode
+      }
+      if ($Tool -eq 'psql.exe') {
+        return Invoke-DiagnosticPostgresProcess $binary $Arguments 'Direct' $FailureCode
       }
       $output = @(& $binary @Arguments 2>$null)
       return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
     } finally { $ErrorActionPreference = $oldPreference }
   }
-  if ($result.ExitCode -ne 0) { Stop-Maintenance $FailureCode }
+  if ($result.ExitCode -ne 0) {
+    if ($result.PSObject.Properties['Diagnostic']) { Throw-PostgresDiagnostic $FailureCode $result.Diagnostic }
+    Stop-Maintenance $FailureCode
+  }
   return @($result.Output)
 }
 
@@ -405,11 +412,16 @@ function Invoke-ReadOnlyQuery([object]$Config, [Uri]$Uri, [string]$Query,
     [IO.FileAccess]::Write, [IO.FileShare]::None)
   try { $stream.Write($bytes, 0, $bytes.Length) } finally { $stream.Dispose() }
   Set-PrivateAcl $sqlPath
+  $queryError=$null
   try {
     $lines = @(Invoke-PostgresTool $Config $Uri 'psql.exe' @(
         '-X', '-q', '-A', '-t', '-v', 'ON_ERROR_STOP=1', '-f', $sqlPath) $FailureCode)
-  } finally {
-    if (Test-Path -LiteralPath $sqlPath -PathType Leaf) { [IO.File]::Delete($sqlPath) }
+  } catch { $queryError=$_; throw } finally {
+    try { if (Test-Path -LiteralPath $sqlPath -PathType Leaf) { [IO.File]::Delete($sqlPath) } }
+    catch {
+      if ($queryError) { $queryError.Exception.Data['QueryFileCleanupFailed']=$true }
+      else { Stop-Maintenance 'QUERY_FILE_CLEANUP_FAILED' }
+    }
   }
   $data = @($lines | Where-Object { $_ -is [string] -and $_.Trim() -and
         $_ -notmatch '^(BEGIN|SET|ROLLBACK)$' })

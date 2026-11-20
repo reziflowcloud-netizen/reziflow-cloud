@@ -2,6 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
+      "qa/stripe-maintenance-diagnostics-20261120": false,
+      "fix/maintenance-preflight-diagnostics-20261120": false,
       "qa/stripe-maintenance-combined-20261120": false,
       "fix/maintenance-runner-stripe-release-gates": false,
       "codex/meta-production-review-preparation-20261117": false,
