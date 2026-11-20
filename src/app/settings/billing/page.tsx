@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import { getOrganizationId, getUser } from '@/lib/auth'
 import { isSystemAdmin } from '@/lib/organizationProvisioning'
 import BillingContactButton from '@/components/BillingContactButton'
+import StripeBillingPanel from '@/components/StripeBillingPanel'
+import { authorizeStripeBilling } from '@/lib/stripeBilling'
 import {
   BillingDate,
   BillingFeature,
@@ -38,7 +40,8 @@ export default async function BillingSettingsPage() {
   const user = await getUser()
   if (!user) redirect('/')
 
-  if (!canManageBilling(user)) {
+  const authorized = await authorizeStripeBilling(user).then(() => true, () => false)
+  if (!canManageBilling(user) || !authorized) {
     return (
       <div className="fade-in">
         <div className="page-header">
@@ -61,7 +64,7 @@ export default async function BillingSettingsPage() {
   }
 
   const snapshot = await getBillingSnapshot(getOrganizationId(user))
-  const displayName = planDisplayName(snapshot.organization.plan, snapshot.organization.billingStatus)
+  const displayName = planDisplayName(snapshot.stripe.managed ? snapshot.plan.key : snapshot.organization.plan, snapshot.organization.billingStatus)
   const trialDaysLeft = getTrialDaysLeft(snapshot.organization.trialEndsAt)
   const metrics = Object.keys(snapshot.usage) as BillingMetricKey[]
   const hasWarnings = snapshot.softLimitWarnings.length > 0
@@ -114,6 +117,8 @@ export default async function BillingSettingsPage() {
             </div>
           </div>
         </section>
+
+        <StripeBillingPanel billing={snapshot.stripe} organization={snapshot.organization} effectivePlan={snapshot.plan.key} />
 
         {hasWarnings && (
           <div className="billing-warning">

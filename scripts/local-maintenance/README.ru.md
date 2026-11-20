@@ -1,5 +1,13 @@
 # Локальный раннер миграций LegalHub
 
+Исправления M1/M2: [portable pg_attver и несколько pending migrations](../../docs/local-maintenance-stripe-release-gates.md).
+Исключается только валидная внутренняя версия `pg_attver` на PG17.12+/18.7+;
+пользовательские column options сохраняются, неизвестные внутренние options блокируются.
+Pending migrations передаются плоским упорядоченным `string[]`; неверный набор,
+порядок, checksum и изменённый sealed plan по-прежнему блокируют операцию.
+Эти исправления не доказывают причину старого Production data mismatch и не дают
+разрешения на Production PREFLIGHT/APPLY или deployment.
+
 BAT-оператор работает через **Windows PowerShell 5.1**. Синтетические тесты требуют **PowerShell 7** (`pwsh`): они проверяют версию и сразу отказывают в 5.1. Нужны Git, Node.js/npm, зависимости из `npm ci` (`node_modules`), а также PostgreSQL **18** с `initdb`, `pg_ctl`, `psql`, `pg_isready`, `createdb`, `pg_dump` и `pg_restore`. Используйте чистый отдельный checkout утверждённого commit.
 
 При отдельно разрешённом использовании PowerShell 7 можно запускать тот же `scripts/local-maintenance/runner.ps1` через `pwsh -NoProfile -File`, с теми же режимом и guards; BAT-файлы не изменены. Не менять Execution Policy и не выбирать другой интерпретатор для обхода отказа. UTC-время sealed plan сохраняется как исходная строка на версиях с `ConvertFrom-Json -DateKind String`; строгая проверка также принимает UTC `DateTime` старых версий PowerShell 7 без преобразования через локаль. Строки должны иметь исходный round-trip формат `o` с `Z`. Срок четыре часа и допуск будущего времени две минуты сохранены. Изменение даты не продлевает план: HMAC проверяется до чтения payload, редактирование без правильного seal отклоняется. Новый SHA требует нового preflight и не наследует старый plan/approval.
