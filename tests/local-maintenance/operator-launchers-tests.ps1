@@ -5,6 +5,7 @@ $ErrorActionPreference='Stop'
 if(-not $IsWindows){throw 'OPERATOR_TEST_REQUIRES_WINDOWS'}
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 . (Join-Path $repo 'scripts/local-maintenance/core.ps1')
+. (Join-Path $repo 'scripts/local-maintenance/plan.ps1')
 . (Join-Path $PSScriptRoot 'report-functions.ps1')
 $passed=0
 function Assert-Test([bool]$Value,[string]$Name){if(-not $Value){throw ('OPERATOR_TEST_FAILED:'+ $Name)};$script:passed++;Write-Output ('PASS '+$Name)}
