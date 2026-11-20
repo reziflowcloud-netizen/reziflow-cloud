@@ -155,6 +155,8 @@ SQL, catalog contents, hostnames, role/database values or credentials are emitte
 Native stderr remains bounded transient memory and is discarded, never persisted.
 Temporary input SQL is removed only if created by this invocation. Reports and
 attempt markers use CreateNew in the protected private directory.
+Known marker prefixes distinguish identity/proof from a later ROLLBACK failure;
+malformed native output uses UNKNOWN stage rather than guessing an operation.
 
 SQLSTATE is retained only from the reviewed exact one-line psql sqlstate frame for
 the generated file, native exit3, complete untruncated stderr and the existing

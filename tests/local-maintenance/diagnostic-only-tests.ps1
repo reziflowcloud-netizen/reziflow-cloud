@@ -170,6 +170,13 @@ try {
   }
   $c=[LegalHubMaintenanceDiagnostics.Result]::new();$c.ExitCode=0;$c.Output="LHD_IDENTITY_OK`nLHD_STRUCTURE_OK`nLHD_ROLLBACK_OK`n";$c.CleanupFailed=$true
   Check ((Convert-DiagnosticCapture $c 'unused.sql').status -ceq 'FAILED') 'unverified cleanup never succeeds'
+  $c=[LegalHubMaintenanceDiagnostics.Result]::new();$c.ExitCode=2;$c.Output="LHD_IDENTITY_OK`nLHD_STRUCTURE_OK`n"
+  $d=Convert-DiagnosticCapture $c 'unused.sql'
+  Check ($d.status -ceq 'FAILED' -and $d.stage -ceq 'ROLLBACK' -and $d.verifiedIdentity) 'failure after proof retains verified identity and rollback stage'
+  $c.Output="LHD_IDENTITY_MISMATCH`n";$d=Convert-DiagnosticCapture $c 'unused.sql'
+  Check ($d.status -ceq 'FAILED' -and $d.stage -ceq 'ROLLBACK' -and -not $d.verifiedIdentity) 'failure after mismatch is rollback stage without identity proof'
+  $c.Output=$canary;$d=Convert-DiagnosticCapture $c 'unused.sql'
+  Check ($d.status -ceq 'FAILED' -and $d.stage -ceq 'UNKNOWN' -and $d.reason -ceq 'UNEXPECTED_OUTPUT' -and ($d|ConvertTo-Json -Compress) -notmatch $canary) 'malformed output never guesses a query stage'
   # Enforced bounded process kill on owned sleeping child, not a PostgreSQL retry.
   $sleep=Join-Path $private 'sleep.ps1';Write-DiagnosticNewFile $sleep 'Start-Sleep -Seconds 20'
   $x=Get-DiagnosticContext $specPath;$safe=New-DiagnosticChildEnvironment $x 'deadline-test'

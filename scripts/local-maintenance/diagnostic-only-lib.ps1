@@ -254,13 +254,20 @@ function New-DiagnosticChildEnvironment($x,[string]$RunId) {
 function Convert-DiagnosticCapture($capture,[string]$QueryFile) {
   # Closed markers, no arbitrary native output is ever returned, saved or thrown.
   $normalized=$capture.Output.Replace("`r`n","`n")
-  $lines=@($normalized.TrimEnd("`n") -split "`n")
-  $joined=$lines -join '|'
-  $identity=$joined -cin @('LHD_IDENTITY_OK','LHD_IDENTITY_OK|LHD_STRUCTURE_OK|LHD_ROLLBACK_OK')
-  $stage=if($identity){'STRUCTURE_PROOF'}else{'IDENTITY'}
+  $identity=$false;$stage='UNKNOWN';$validPrefix=$true
+  switch -CaseSensitive ($normalized) {
+    '' {$stage='IDENTITY'}
+    "LHD_IDENTITY_OK`n" {$stage='STRUCTURE_PROOF';$identity=$true}
+    "LHD_IDENTITY_OK`nLHD_STRUCTURE_OK`n" {$stage='ROLLBACK';$identity=$true}
+    "LHD_IDENTITY_OK`nLHD_STRUCTURE_OK`nLHD_ROLLBACK_OK`n" {$stage='STRUCTURE_PROOF';$identity=$true}
+    "LHD_IDENTITY_MISMATCH`n" {$stage='ROLLBACK'}
+    "LHD_IDENTITY_MISMATCH`nLHD_ROLLBACK_OK`n" {$stage='IDENTITY'}
+    default {$validPrefix=$false}
+  }
   $d=New-SafePostgresDiagnostic $capture 'Direct' $stage 'DIAGNOSTIC_QUERY_FAILED' $QueryFile
   $status='FAILED';$reason='NATIVE_ERROR'
   if ($capture.Failure -or $capture.CleanupFailed -or $capture.ErrorTruncated) { $reason='PROCESS_FAILURE' }
+  elseif (-not $validPrefix) { $reason='UNEXPECTED_OUTPUT';if($capture.ExitCode -eq 0){$status='BLOCKED'} }
   elseif ($capture.ExitCode -eq 0 -and $capture.Errors.Length -eq 0 -and
       $normalized -ceq "LHD_IDENTITY_OK`nLHD_STRUCTURE_OK`nLHD_ROLLBACK_OK`n") { $status='QUERY_COMPLETED';$reason='NONE' }
   elseif ($capture.ExitCode -eq 0 -and $capture.Errors.Length -eq 0 -and
