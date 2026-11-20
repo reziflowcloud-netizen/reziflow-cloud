@@ -3,7 +3,7 @@ on:
   push:
     branches: [fix/maintenance-runner-stripe-release-gates]
   pull_request:
-    branches: [main]
+    branches: [main, qa/stripe-maintenance-diagnostics-20261120]
     paths:
       - 'scripts/local-maintenance/**'
       - 'tests/local-maintenance/**'
