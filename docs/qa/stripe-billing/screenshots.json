@@ -1,0 +1,34 @@
+[
+  {
+    "file": "1440-pl-slate.png",
+    "sha256": "d30582ebdee041e56c5dd067e51a7ad6ee593ba66466c0cf45fe354f6c08c3a3"
+  },
+  {
+    "file": "1440-ru-light.png",
+    "sha256": "ecd3cb25cf8b4f18b17be8b830d59da41a93fda2a914733f7e7b69eeeb3ca2bc"
+  },
+  {
+    "file": "1440-uk-dark.png",
+    "sha256": "f06886960cb81f549fa2054ee54bf639f21ae5b8ea4db7d2151d97bec9aeb216"
+  },
+  {
+    "file": "390-pl-slate-manual-review.png",
+    "sha256": "cbf239a38f8f0d00fccfb98c8c41927854c2e2b591245de79827a787f992dacd"
+  },
+  {
+    "file": "390-pl-slate-payment-due.png",
+    "sha256": "9edb24d723213672eda459eed36299ac68bb2efe289e62a568949675d1fa9d4a"
+  },
+  {
+    "file": "390-pl-slate.png",
+    "sha256": "d30858874a3434565ebaf2fc99cd3f35dd85b0a507751f1e4e134a8acdae8879"
+  },
+  {
+    "file": "390-ru-light.png",
+    "sha256": "ec505acd5fb1559710d95f6baac8de03c5d840a2493c2519bd57838643e8f64f"
+  },
+  {
+    "file": "390-uk-dark.png",
+    "sha256": "204ca48c0305f59a12bd49ddd5a5ce56c628dd0faef3038ece6c1fabf6b9406d"
+  }
+]
