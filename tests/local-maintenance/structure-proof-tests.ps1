@@ -271,6 +271,23 @@ CREATE INDEX "OptionProbe_value_idx" ON public."OptionProbe"("value");
   $versions=Invoke-ReadOnlyQuery $config $source.Uri "SELECT count(DISTINCT version) FROM pg_available_extension_versions WHERE name='hstore'" 'SYNTHETIC_EXTENSION_VERSIONS_FAILED'
   Assert-Test ([int]$versions -gt 1) 'extension version inventory remains available'
   Write-Output "STRUCTURE_POSTGRES_PASS count=$passed"
+}catch{
+  $primary=$_
+  # A recurrence must retain the validated native fields before transient fixture
+  # cleanup. Never write raw stderr/Exception/Data; preserve the original refusal.
+  try{
+    $diagnostic=Get-SafePostgresDiagnostic $primary
+    if($diagnostic){
+      . (Join-Path $PSScriptRoot 'report-functions.ps1')
+      $failureRoot=Assert-ChildPath $base (Join-Path $base ('failure-'+$id))
+      [void](New-Item -ItemType Directory -Path $failureRoot);Set-PrivateAcl $failureRoot
+      [void](Save-SafeReport ([pscustomobject]@{privateDirectory=$failureRoot}) ([ordered]@{
+        runId=$id;result='SYNTHETIC_STRUCTURE_FAILED';postgresDiagnostic=$diagnostic
+      }))
+      Write-Output 'STRUCTURE_SAFE_NATIVE_FAILURE_RETAINED'
+    }
+  }catch{Write-Output 'STRUCTURE_SAFE_DIAGNOSTIC_PERSIST_FAILED'}
+  throw $primary
 }finally{
   if($target){Stop-DisposableCluster $targetConfig $target}
   if($source){Stop-DisposableCluster $config $source}

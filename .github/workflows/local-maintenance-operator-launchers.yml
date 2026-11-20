@@ -1,0 +1,37 @@
+name: Maintenance operator BAT launchers (synthetic only)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '*.bat'
+      - 'scripts/local-maintenance/**'
+      - 'tests/local-maintenance/**'
+      - '.github/workflows/local-maintenance-operator-launchers.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actual-bat-launchers:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://synthetic@127.0.0.1:1/never_connect
+      DIRECT_URL: postgresql://synthetic@127.0.0.1:1/never_connect
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Hash-pinned synthetic PostgreSQL
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/install-test-postgres.ps1 -Version '18.7' -Destination "$env:RUNNER_TEMP/operator-pg"
+      - name: Actual BAT modes, argv, exits, runtime refusals and unchanged policy
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/operator-launchers-tests.ps1 -PostgresBin "$env:RUNNER_TEMP/operator-pg/pgsql/bin"

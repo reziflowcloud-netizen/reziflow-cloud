@@ -10,6 +10,12 @@ param(
   [switch]$Synthetic
 )
 
+# Every operator mode requires Core 7, before importing modules or compiling C#.
+if ($PSVersionTable.PSVersion.Major -lt 7 -or $PSVersionTable.PSEdition -ne 'Core') {
+  [Console]::Error.WriteLine('LOCAL MAINTENANCE BLOCKED: OPERATOR_REQUIRES_POWERSHELL_7')
+  exit 78
+}
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 foreach ($module in @('Microsoft.PowerShell.Management', 'Microsoft.PowerShell.Security',
