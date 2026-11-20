@@ -103,8 +103,8 @@ psql `--version` locally reports18.6; this is not the Production server version.
 No independent known-good hash/package reference was available. Matching old local
 hashes and version metadata does not close authenticity or replacement risk.
 
-Fresh conservative PATH inventory:36 entries,21 with operator/group Allow-write
-ACEs,14 not fully verified,0 broad-group Allow-write matches,0 inspected executable
+Fresh conservative raw-SID PATH inventory:36 entries,21 with operator/group Allow-write
+ACEs,0 unverified entries,0 broad-group Allow-write matches,0 inspected executable
 overrides in the candidate working directory. This is not an effective-access or
 anti-tamper proof. No installation, permissions, PATH or Execution Policy was changed.
 
