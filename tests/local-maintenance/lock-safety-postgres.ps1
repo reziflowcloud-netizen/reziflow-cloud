@@ -10,8 +10,8 @@ $root = Assert-ChildPath $base (Join-Path $base $id)
 [void](New-Item -ItemType Directory -Path $root); Set-PrivateAcl $root
 $marker = Join-Path $root 'lock-test-owned.txt'
 [IO.File]::WriteAllText($marker, $id); Set-PrivateAcl $marker
-$pg = 'C:\Program Files\PostgreSQL\18\bin'
-if (-not (Test-Path -LiteralPath (Join-Path $pg 'initdb.exe'))) {
+$pg = if ($PostgresBin) { $PostgresBin } else { 'C:\Program Files\PostgreSQL\18\bin' }
+if (-not $PostgresBin -and -not (Test-Path -LiteralPath (Join-Path $pg 'initdb.exe'))) {
   $pg = 'C:\Program Files\PostgreSQL\17\bin'
 }
 $config = [pscustomobject]@{ targetKind = 'synthetic'; privateDirectory = $root

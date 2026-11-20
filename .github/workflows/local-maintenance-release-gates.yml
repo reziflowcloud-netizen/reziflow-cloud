@@ -1,0 +1,124 @@
+name: Local Maintenance Runner release gates (synthetic only)
+on:
+  push:
+    branches: [fix/maintenance-runner-stripe-release-gates]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/local-maintenance/**'
+      - 'tests/local-maintenance/**'
+      - 'docs/local-maintenance-*.md'
+      - '.github/workflows/local-maintenance-release-gates.yml'
+      - 'vercel.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  structure-matrix:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['17.11', '17.12', '18.6', '18.7']
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Fetch hash-pinned native PostgreSQL test tools
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/install-test-postgres.ps1 -Version '${{ matrix.postgres }}' -Destination "$env:RUNNER_TEMP/pg"
+      - name: Strict real restore and semantic mutation negatives
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1 -WithPostgres -PostgresBin "$env:RUNNER_TEMP/pg/pgsql/bin"
+      - name: Pending set, seal, report and final-recheck guards
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/pending-migrations-tests.ps1
+  cross-version:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - source: '17.11'
+            target: '17.12'
+          - source: '17.11'
+            target: '18.6'
+          - source: '17.11'
+            target: '18.7'
+          - source: '17.12'
+            target: '18.7'
+          - source: '18.6'
+            target: '18.7'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Fetch exact source and target test binaries
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tests/local-maintenance/install-test-postgres.ps1 -Version '${{ matrix.source }}' -Destination "$env:RUNNER_TEMP/source"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pwsh -NoProfile -File tests/local-maintenance/install-test-postgres.ps1 -Version '${{ matrix.target }}' -Destination "$env:RUNNER_TEMP/target"
+          exit $LASTEXITCODE
+      - name: Restore with target-version tools and retain all semantic guards
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1 -WithPostgres -PostgresBin "$env:RUNNER_TEMP/source/pgsql/bin" -TargetPostgresBin "$env:RUNNER_TEMP/target/pgsql/bin" -ToolsBin "$env:RUNNER_TEMP/target/pgsql/bin"
+  guarded-preflight:
+    runs-on: windows-2025
+    timeout-minutes: 35
+    env:
+      DATABASE_URL: postgresql://synthetic@127.0.0.1:1/never_connect
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies without lifecycle scripts
+        shell: pwsh
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Fetch patched PostgreSQL 18.7 test tools
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/install-test-postgres.ps1 -Version '18.7' -Destination "$env:RUNNER_TEMP/pg"
+      - name: Complete maintenance Runner suite
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/runner-tests.ps1 -PostgresBin "$env:RUNNER_TEMP/pg/pgsql/bin"
+      - name: ACL, transport, seal, reports and strict CA model regressions
+        shell: pwsh
+        run: |
+          foreach ($test in @('acl-tests','session-pooler-tests','plan-time-tests','report-write-tests','prisma-transport-tests')) {
+            pwsh -NoProfile -File "tests/local-maintenance/$test.ps1"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          node --test tests/local-maintenance/migration-diagnostics.test.cjs
+          exit $LASTEXITCODE
+      - name: Actual idle, waiting-lock and long-transaction refusal on 18.7
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/lock-safety-tests.ps1 -WithPostgres -PostgresBin "$env:RUNNER_TEMP/pg/pgsql/bin"
+      - name: Existing one-pending and no-migration end-to-end preflight
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/full-preflight.ps1 -PostgresBin "$env:RUNNER_TEMP/pg/pgsql/bin"
+      - name: Actual 54+4 Stripe preflight, sealed plan and old app compatibility
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/stripe-release-preflight.ps1 -PostgresBin "$env:RUNNER_TEMP/pg/pgsql/bin"
+      - name: Main Prisma and TypeScript validation
+        shell: pwsh
+        run: |
+          npx prisma generate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx prisma validate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx tsc --noEmit
+          exit $LASTEXITCODE
+      - name: Main build with an unreachable synthetic database
+        shell: pwsh
+        run: npm run build
