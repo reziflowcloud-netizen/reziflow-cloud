@@ -1,0 +1,33 @@
+name: Safe maintenance diagnostics (synthetic only)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/local-maintenance/**'
+      - 'tests/local-maintenance/**'
+      - '.github/workflows/local-maintenance-diagnostics.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-diagnostics:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['17.12', '18.7']
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - name: Verify hash-pinned native PostgreSQL tools
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/install-test-postgres.ps1 -Version '${{ matrix.postgres }}' -Destination "$env:RUNNER_TEMP/diagnostic-pg"
+      - name: Native error, canary, timeout, report and fail-closed tests
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/process-diagnostics-tests.ps1 -WithPostgres -PostgresBin "$env:RUNNER_TEMP/diagnostic-pg/pgsql/bin"

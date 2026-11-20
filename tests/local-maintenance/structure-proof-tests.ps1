@@ -1,9 +1,11 @@
 #requires -Version 7
-param([switch]$WithPostgres,[string]$PostgresBin)
+param([switch]$WithPostgres,[string]$PostgresBin,[string]$CoreRoot,[string]$TargetPostgresBin,[string]$ToolsBin)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-. (Join-Path $repo 'scripts/local-maintenance/core.ps1')
+if(-not $CoreRoot){$CoreRoot=$repo}
+. (Join-Path $CoreRoot 'scripts/local-maintenance/core.ps1')
+. (Join-Path $PSScriptRoot 'structure-diagnostics.ps1')
 $passed=0
 function Assert-Test([bool]$Value,[string]$Name) {
   if(-not $Value){throw "STRUCTURE_TEST_FAILED:$Name"}
@@ -32,7 +34,7 @@ function New-Model {
       [pscustomobject]@{table=$table;column=$column;type=$(if($column -in @('employeeId','position')){'integer'}else{'text'});notNull=$true}
     }
   })
-  return [pscustomobject]@{version=1;serverMajor=17;serverUtf8=$true;contractExpected=$true;unknownRoots=0;unsafeDependencies=0;publicExtensions=0;inheritance=0;abnormalInternalTriggers=0;unsupportedRelations=0;unsupportedTypes=0;policies=0;
+  return [pscustomobject]@{version=1;serverMajor=17;serverVersionNum=170011;serverUtf8=$true;contractExpected=$true;unknownRoots=0;unsafeDependencies=0;publicExtensions=0;inheritance=0;abnormalInternalTriggers=0;unsupportedRelations=0;unsupportedTypes=0;policies=0;
     routines=@($r);triggers=@($t);searchPaths=@('"\$user", public, extensions');userSchemaAbsent=$true;targetColumns=$columns;
     targetBinding=$true;builtinBindings=$true;descriptors=@(
       [pscustomobject]@{kind='routine';name=$r.name;definition=($r|ConvertTo-Json -Depth 6 -Compress)},
@@ -81,6 +83,32 @@ Assert-Test ((Get-StructureProofDigest $empty) -cne (Get-StructureProofDigest $m
 foreach($badCount in @('0',$false,$null)){$bad=New-Model;$bad.unsafeDependencies=$badCount;Expect-Block {Assert-StructureProof $bad} 'reject missing or wrong-type count'}
 Expect-Block {Get-StructureProofSql "bad';select"} 'reject application-role SQL injection' 'STRUCTURE_EXECUTION_ROLE_INVALID'
 Write-Output "STRUCTURE_MODEL_PASS count=$passed"
+function Column-Definition($Options) {
+  return ConvertTo-Json ([ordered]@{collation=$null;identity='';generated='';storage='p';compression='';options=$Options}) -Compress
+}
+$plain=Get-PortableColumnDefinition (Column-Definition $null) 170011
+foreach($version in @(170012,180007)){
+  Assert-Test ((Get-PortableColumnDefinition (Column-Definition @('pg_attver=123')) $version) -ceq $plain) "portable internal version $version"
+  Assert-Test ((Get-PortableColumnDefinition (Column-Definition @('pg_attver=456')) $version) -ceq $plain) "different internal version $version"
+  $user=Get-PortableColumnDefinition (Column-Definition @('n_distinct=0.5','n_distinct_inherited=-0.25')) $version
+  Assert-Test ((Get-PortableColumnDefinition (Column-Definition @('pg_attver=123','n_distinct=0.5','n_distinct_inherited=-0.25')) $version) -ceq $user) 'preserve both user options and array shape'
+  Assert-Test ((Get-PortableColumnDefinition (Column-Definition @('pg_attver=123','n_distinct=0.6','n_distinct_inherited=-0.25')) $version) -cne $user) 'real user option change changes portable definition'
+}
+foreach($options in @(
+  ,@('pg_unknown=1'),,@('PG_attver=1'),,@('pg_attver=0'),,@('pg_attver=-1'),
+  ,@('pg_attver=01'),,@('pg_attver=1x'),,@("pg_attver=1`n"),,@('pg_attver=18446744073709551616'),
+  ,@('pg_attver=1','pg_attver=2'),,@('pg_attver=1','pg_future=2'),,@('pg_attver=1',$null))){
+  Expect-Block {Get-PortableColumnDefinition (Column-Definition $options) 170012} 'reject unknown or malformed internal option' 'STRUCTURE_COLUMN_OPTIONS_UNMODELED'
+}
+foreach($version in @(170011,180006,190000)){
+  Expect-Block {Get-PortableColumnDefinition (Column-Definition @('pg_attver=1')) $version} 'reject internal option outside reviewed versions' 'STRUCTURE_COLUMN_OPTIONS_UNMODELED'
+}
+$bad=New-Model;$bad.serverVersionNum=180007
+Expect-Block {Assert-StructureProof $bad} 'reject inconsistent server version'
+$bad=New-Model;$bad.serverVersionNum=170012
+$bad.descriptors+= [pscustomobject]@{kind='column_flags';name='Probe.id';definition=(Column-Definition @('pg_unknown=1'))}
+Expect-Block {Assert-StructureProof $bad} 'closed proof rejects unknown internal option' 'STRUCTURE_COLUMN_OPTIONS_UNMODELED'
+Write-Output "STRUCTURE_OPTIONS_MODEL_PASS count=$passed"
 if(-not $WithPostgres){exit 0}
 
 if(-not $PostgresBin){
@@ -88,6 +116,12 @@ if(-not $PostgresBin){
   if(-not $installed.Count){throw 'SYNTHETIC_POSTGRES_UNAVAILABLE'}
   $PostgresBin=Join-Path $installed[0].FullName 'bin'
 }
+Write-Host "STRUCTURE_ENV powershell=$($PSVersionTable.PSVersion) runnerOS=$env:ImageOS runnerVersion=$env:ImageVersion"
+foreach($tool in @('postgres','initdb','pg_dump','pg_restore')){
+  $version=& (Join-Path $PostgresBin ($tool+'.exe')) --version
+  Write-Host "STRUCTURE_TOOL tool=$tool version=$version"
+}
+foreach($file in @('core.ps1','structure-proof.ps1')){Write-Host "STRUCTURE_GUARD file=$file sha256=$((Get-FileHash (Join-Path $CoreRoot ('scripts/local-maintenance/'+$file))).Hash)"}
 $id=[Guid]::NewGuid().ToString('N').Substring(0,12)
 $base=Join-Path $env:LOCALAPPDATA 'LegalHubMaintenanceStructureProofTests'
 if(-not(Test-Path -LiteralPath $base)){[void](New-Item -ItemType Directory -Path $base);Set-PrivateAcl $base}
@@ -99,6 +133,11 @@ foreach($folder in @('private','backups')){[void](New-Item -ItemType Directory -
 $config=[pscustomobject]@{targetKind='synthetic';environmentFile=(Join-Path $root 'unused.env');expectedHost='127.0.0.1';expectedApplicationHost='127.0.0.1';
   privateDirectory=(Join-Path $root 'private');backupDirectory=(Join-Path $root 'backups');postgresBin=$PostgresBin;
   nodeBin=(Split-Path (Get-Command node.exe -ErrorAction Stop).Source);applicationRole='restore_admin'}
+$targetConfig=$config.PSObject.Copy()
+if($TargetPostgresBin){$targetConfig.postgresBin=$TargetPostgresBin}
+$dumpConfig=$config.PSObject.Copy()
+if($ToolsBin){$dumpConfig.postgresBin=$ToolsBin}
+Write-Output ("STRUCTURE_ENV powershell="+$PSVersionTable.PSVersion+" source="+$PostgresBin+" target="+$targetConfig.postgresBin+" tools="+$dumpConfig.postgresBin)
 $source=$null;$target=$null;$clean=$false
 function Invoke-FixtureSql([Uri]$Uri,[string]$Sql){
   if($Uri.Host -cne '127.0.0.1' -or $Uri.AbsolutePath -notmatch '^/legalhub_runner_'){throw 'SYNTHETIC_TARGET_REQUIRED'}
@@ -130,9 +169,16 @@ CREATE TABLE public."LeadChannelRoute"("id" text NOT NULL PRIMARY KEY,"organizat
 CREATE TABLE public."LeadChannelRouteMember"("id" text NOT NULL PRIMARY KEY,"organizationId" text NOT NULL,"routeId" text NOT NULL REFERENCES public."LeadChannelRoute"("id"),"employeeId" integer NOT NULL,"position" integer NOT NULL);
 ALTER TABLE public."LeadChannelRouteMember" ENABLE ROW LEVEL SECURITY;
 CREATE SEQUENCE public."QaSequence";
+CREATE TABLE public."OptionProbe"("id" integer CONSTRAINT "OptionProbe_positive" CHECK ("id">0),"value" integer DEFAULT 7);
+ALTER TABLE public."OptionProbe" ALTER COLUMN "id" SET (n_distinct=0.5,n_distinct_inherited=-0.25);
+INSERT INTO public."OptionProbe" VALUES(1,7),(2,8);
+CREATE INDEX "OptionProbe_value_idx" ON public."OptionProbe"("value");
 '@
   Invoke-FixtureSql $source.Uri ($fixture+"`n"+$routineSql+"`n"+$triggerSql)
+  Write-Host "STRUCTURE_SERVER version=$(Invoke-ReadOnlyQuery $config $source.Uri 'SHOW server_version' 'SYNTHETIC_SERVER_VERSION_FAILED')"
+  $baselineState=Get-SyntheticStructureState $config $source.Uri 'source-baseline'
   $baseline=Get-StructureFingerprint $config $source.Uri
+  Write-Output ('STRUCTURE_SERVER source='+(Invoke-ReadOnlyQuery $config $source.Uri 'SHOW server_version' 'SYNTHETIC_VERSION_FAILED'))
   Assert-Test $true 'real catalog closure accepts approved function with unrelated external hstore'
   Test-TriggerInsert $source.Uri 'source-Żółć-テスト'
   $cases=@(
@@ -154,44 +200,96 @@ CREATE SEQUENCE public."QaSequence";
     @('CREATE SCHEMA qa_cast; CREATE FUNCTION qa_cast.fake_text(integer) RETURNS text LANGUAGE sql AS $$ SELECT ''fake''::text $$; CREATE CAST(integer AS text) WITH FUNCTION qa_cast.fake_text(integer) AS ASSIGNMENT;','DROP CAST(integer AS text); DROP FUNCTION qa_cast.fake_text(integer); DROP SCHEMA qa_cast;','custom integer-text cast')
   )
   foreach($case in $cases){
+    $mutationBefore=Get-SyntheticStructureState $config $source.Uri ('before-'+$case[2])
     Invoke-FixtureSql $source.Uri $case[0]
+    $null=Get-SyntheticStructureState $config $source.Uri ('applied-'+$case[2])
     $codes=if($case.Count -gt 3){@($case[3])}else{@('STRUCTURE_EXTENSION_DEPENDENCY_UNPROVEN')}
     Expect-Block {Get-StructureFingerprint $config $source.Uri} ('real '+$case[2]) $codes
     Invoke-FixtureSql $source.Uri $case[1]
+    $mutationAfter=Get-SyntheticStructureState $config $source.Uri ('undone-'+$case[2])
+    if($mutationBefore.digest -cne $mutationAfter.digest){Write-SyntheticStructureDifference $mutationBefore $mutationAfter ('undo-'+$case[2])}
   }
   foreach($replacement in @("BEGIN RETURN NEW; END;","BEGIN EXECUTE 'SELECT 1'; RETURN NEW; END;","BEGIN PERFORM extensions.hstore('a','b'); RETURN NEW; END;")){
+    $mutationBefore=Get-SyntheticStructureState $config $source.Uri 'before-routine-replacement'
     Invoke-FixtureSql $source.Uri ('CREATE OR REPLACE FUNCTION public.staff_routing_v2_seed_legacy_member() RETURNS trigger LANGUAGE plpgsql AS $$'+$replacement+'$$;')
+    $null=Get-SyntheticStructureState $config $source.Uri 'applied-routine-replacement'
     Expect-Block {Get-StructureFingerprint $config $source.Uri} 'real modified/dynamic/indirect same-name function'
     Invoke-FixtureSql $source.Uri ($routineSql.Replace('CREATE FUNCTION','CREATE OR REPLACE FUNCTION'))
+    $mutationAfter=Get-SyntheticStructureState $config $source.Uri 'undone-routine-replacement'
+    if($mutationBefore.digest -cne $mutationAfter.digest){Write-SyntheticStructureDifference $mutationBefore $mutationAfter 'undo-routine-replacement'}
   }
-  Assert-StructureEqual $baseline (Get-StructureFingerprint $config $source.Uri)
+  $sourceState=Get-SyntheticStructureState $config $source.Uri 'source-pre-backup'
+  Assert-SyntheticStructureEqual $baseline (Get-StructureFingerprint $config $source.Uri) $baselineState $sourceState 'source-pre-backup-after-reversible-ddl'
   $holder=Start-ExportedSnapshot $config $source.Uri
   try{
     $before=Get-StructureFingerprint $config $source.Uri $holder.Id
-    $backup=New-PrivateBackup $config $source.Uri $id $holder.Id
+    $backup=New-PrivateBackup $dumpConfig $source.Uri $id $holder.Id
   }finally{Stop-ExportedSnapshot $holder}
-  $target=New-DisposableCluster $config ('prooftarget'+$id)
-  Restore-DisposableBackup $config $target $backup
-  $after=Get-StructureFingerprint $config $target.Uri
-  Assert-StructureEqual $before $after
+  $target=New-DisposableCluster $targetConfig ('prooftarget'+$id)
+  Restore-DisposableBackup $targetConfig $target $backup
+  $after=Get-StructureFingerprint $targetConfig $target.Uri
+  $targetState=Get-SyntheticStructureState $targetConfig $target.Uri 'target-post-restore'
+  Assert-SyntheticStructureEqual $before $after $sourceState $targetState 'target-post-pg-dump-restore'
   Assert-Test $true 'snapshot pg_dump/restore preserves routine, trigger, RLS, sequence and rowtype structure'
+  $optionQuery='SELECT to_json(attoptions)::text FROM pg_attribute WHERE attrelid=''public."OptionProbe"''::regclass AND attname=''id'''
+  $sourceOptions=Invoke-ReadOnlyQuery $config $source.Uri $optionQuery 'SYNTHETIC_OPTIONS_FAILED'
+  $targetOptions=Invoke-ReadOnlyQuery $targetConfig $target.Uri $optionQuery 'SYNTHETIC_OPTIONS_FAILED'
+  Write-Output ("STRUCTURE_RAW_OPTIONS source="+$sourceOptions+" target="+$targetOptions)
+  Assert-Test ($sourceOptions.Contains('n_distinct=0.5') -and $targetOptions.Contains('n_distinct=0.5') -and
+    $sourceOptions.Contains('n_distinct_inherited=-0.25') -and $targetOptions.Contains('n_distinct_inherited=-0.25')) 'user column options survive actual dump/restore'
+  Write-Output ('STRUCTURE_SERVER target='+(Invoke-ReadOnlyQuery $targetConfig $target.Uri 'SHOW server_version' 'SYNTHETIC_VERSION_FAILED'))
   Test-TriggerInsert $target.Uri 'restored-Żółć-テスト'
   foreach($mutation in @(
     @('DROP TRIGGER "LeadChannelRoute_seed_legacy_member" ON public."LeadChannelRoute"; DROP FUNCTION public.staff_routing_v2_seed_legacy_member();',($routineSql+"`n"+$triggerSql),'missing restored routine and trigger','STRUCTURE_EXTENSION_DEPENDENCY_UNPROVEN'),
     @('ALTER TABLE public."LeadChannelRouteMember" DISABLE ROW LEVEL SECURITY;','ALTER TABLE public."LeadChannelRouteMember" ENABLE ROW LEVEL SECURITY;','lost RLS'),
-    @('ALTER SEQUENCE public."QaSequence" INCREMENT BY 2;','ALTER SEQUENCE public."QaSequence" INCREMENT BY 1;','changed sequence semantics'))){
+    @('ALTER TABLE public."OptionProbe" ENABLE ROW LEVEL SECURITY;','ALTER TABLE public."OptionProbe" DISABLE ROW LEVEL SECURITY;','unexpected RLS on'),
+    @('ALTER TABLE public."LeadChannelRouteMember" FORCE ROW LEVEL SECURITY;','ALTER TABLE public."LeadChannelRouteMember" NO FORCE ROW LEVEL SECURITY;','changed FORCE RLS'),
+    @('ALTER SEQUENCE public."QaSequence" INCREMENT BY 2;','ALTER SEQUENCE public."QaSequence" INCREMENT BY 1;','changed sequence semantics'),
+    @('ALTER TABLE public."OptionProbe" ALTER COLUMN "id" SET (n_distinct=0.6);','ALTER TABLE public."OptionProbe" ALTER COLUMN "id" RESET (n_distinct,n_distinct_inherited); ALTER TABLE public."OptionProbe" ALTER COLUMN "id" SET (n_distinct=0.5,n_distinct_inherited=-0.25);','changed user n_distinct'),
+    @('ALTER TABLE public."OptionProbe" ALTER COLUMN "id" SET (n_distinct_inherited=-0.5);','ALTER TABLE public."OptionProbe" ALTER COLUMN "id" RESET (n_distinct,n_distinct_inherited); ALTER TABLE public."OptionProbe" ALTER COLUMN "id" SET (n_distinct=0.5,n_distinct_inherited=-0.25);','changed user inherited option'),
+    @('ALTER TABLE public."OptionProbe" ALTER COLUMN "value" TYPE bigint;','ALTER TABLE public."OptionProbe" ALTER COLUMN "value" TYPE integer;','changed column type'),
+    @('ALTER TABLE public."OptionProbe" ALTER COLUMN "value" SET DEFAULT 8;','ALTER TABLE public."OptionProbe" ALTER COLUMN "value" SET DEFAULT 7;','changed column default'),
+    @('DROP INDEX public."OptionProbe_value_idx";','CREATE INDEX "OptionProbe_value_idx" ON public."OptionProbe"("value");','missing index'),
+    @('ALTER TABLE public."OptionProbe" DROP CONSTRAINT "OptionProbe_positive";','ALTER TABLE public."OptionProbe" ADD CONSTRAINT "OptionProbe_positive" CHECK ("id">0);','removed named constraint'),
+    @('ALTER TABLE public."OptionProbe" DROP CONSTRAINT "OptionProbe_positive"; ALTER TABLE public."OptionProbe" ADD CONSTRAINT "OptionProbe_positive" CHECK ("id">=0);','ALTER TABLE public."OptionProbe" DROP CONSTRAINT "OptionProbe_positive"; ALTER TABLE public."OptionProbe" ADD CONSTRAINT "OptionProbe_positive" CHECK ("id">0);','changed named constraint'))){
+    $mutationBefore=Get-SyntheticStructureState $targetConfig $target.Uri ('before-'+$mutation[2])
     Invoke-FixtureSql $target.Uri $mutation[0]
+    $mutationApplied=Get-SyntheticStructureState $targetConfig $target.Uri ('applied-'+$mutation[2])
     $code=if($mutation.Count -gt 3){$mutation[3]}else{'RESTORED_STRUCTURE_MISMATCH'}
-    Expect-Block {Assert-StructureEqual $before (Get-StructureFingerprint $config $target.Uri)} $mutation[2] $code
+    Expect-Block {Assert-SyntheticStructureEqual $before (Get-StructureFingerprint $targetConfig $target.Uri) $targetState $mutationApplied ('negative-'+$mutation[2])} $mutation[2] $code
     Invoke-FixtureSql $target.Uri $mutation[1]
+    $mutationAfter=Get-SyntheticStructureState $targetConfig $target.Uri ('undone-'+$mutation[2])
+    if($mutationBefore.digest -cne $mutationAfter.digest){Write-SyntheticStructureDifference $mutationBefore $mutationAfter ('undo-'+$mutation[2])}
+    Assert-StructureEqual $before (Get-StructureFingerprint $targetConfig $target.Uri)
   }
+  $badArchive=Join-Path $config.backupDirectory 'corrupt-synthetic.dump'
+  [IO.File]::WriteAllText($badArchive,'not a PostgreSQL archive');Set-PrivateAcl $badArchive
+  $corrupt=[pscustomobject]@{Path=$badArchive;Sha256=(Get-FileHash $badArchive -Algorithm SHA256).Hash.ToLowerInvariant()}
+  Expect-Block {Restore-DisposableBackup $targetConfig $target $corrupt} 'real pg_restore failure stays blocked' 'ISOLATED_RESTORE_FAILED'
   Invoke-FixtureSql $source.Uri 'ALTER EXTENSION hstore SET SCHEMA public;'
   Expect-Block {Get-StructureFingerprint $config $source.Uri} 'required/public extension has no closed restore contract'
   $versions=Invoke-ReadOnlyQuery $config $source.Uri "SELECT count(DISTINCT version) FROM pg_available_extension_versions WHERE name='hstore'" 'SYNTHETIC_EXTENSION_VERSIONS_FAILED'
   Assert-Test ([int]$versions -gt 1) 'extension version inventory remains available'
   Write-Output "STRUCTURE_POSTGRES_PASS count=$passed"
+}catch{
+  $primary=$_
+  # A recurrence must retain the validated native fields before transient fixture
+  # cleanup. Never write raw stderr/Exception/Data; preserve the original refusal.
+  try{
+    $diagnostic=Get-SafePostgresDiagnostic $primary
+    if($diagnostic){
+      . (Join-Path $PSScriptRoot 'report-functions.ps1')
+      $failureRoot=Assert-ChildPath $base (Join-Path $base ('failure-'+$id))
+      [void](New-Item -ItemType Directory -Path $failureRoot);Set-PrivateAcl $failureRoot
+      [void](Save-SafeReport ([pscustomobject]@{privateDirectory=$failureRoot}) ([ordered]@{
+        runId=$id;result='SYNTHETIC_STRUCTURE_FAILED';postgresDiagnostic=$diagnostic
+      }))
+      Write-Output 'STRUCTURE_SAFE_NATIVE_FAILURE_RETAINED'
+    }
+  }catch{Write-Output 'STRUCTURE_SAFE_DIAGNOSTIC_PERSIST_FAILED'}
+  throw $primary
 }finally{
-  if($target){Stop-DisposableCluster $config $target}
+  if($target){Stop-DisposableCluster $targetConfig $target}
   if($source){Stop-DisposableCluster $config $source}
   [void](Assert-ChildPath $base $root);Assert-NotReparsePoint $root;Assert-PrivateAcl $root
   if([IO.File]::ReadAllText($marker) -cne $id){throw 'STRUCTURE_CLEANUP_MARKER_MISMATCH'}

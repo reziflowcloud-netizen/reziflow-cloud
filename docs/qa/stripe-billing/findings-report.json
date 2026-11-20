@@ -1,0 +1,127 @@
+{
+  "checks": [
+    {
+      "name": "F1: 15s Stripe delay, ten Checkouts, same-tenant real Google Sheets HTTP ingestion/routing, other tenant, two DB connections",
+      "result": "PASS"
+    },
+    {
+      "name": "F2: Starter success/DB crash then Pro + changed Price/return URL recovers exact original request",
+      "result": "PASS"
+    },
+    {
+      "name": "F2: completed Checkout after lost DB commit is mapped without a new session; only the verified webhook grants access",
+      "result": "PASS"
+    },
+    {
+      "name": "F2: expired uncertain Checkout and cached Checkout 500 require manual reconciliation, without new objects",
+      "result": "PASS"
+    },
+    {
+      "name": "F2: Customer success/mapping crash retries same immutable Customer and rejects expired uncertain key",
+      "result": "PASS"
+    },
+    {
+      "name": "F1/F2: Stripe 429, cached 500, disconnect and network timeout fail safely without duplicate Customers",
+      "result": "PASS"
+    },
+    {
+      "name": "F1: Manual/Agency/trial/custom settings and authorization/flag changes during I/O win finalization",
+      "result": "PASS"
+    },
+    {
+      "name": "F1: expired reconciliation lease fences the stale response and atomically completes only current event",
+      "result": "PASS"
+    },
+    {
+      "name": "F1/F2: expired mutating lease keeps the same key; in-flight provider conflict cannot make a duplicate session",
+      "result": "PASS"
+    },
+    {
+      "name": "F1: bounded Organization lock wait returns controlled BILLING_BUSY before provider I/O",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: standard settled starter proves InvoicePayment → PaymentIntent → captured card Charge",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: standard settled pro proves InvoicePayment → PaymentIntent → captured card Charge",
+      "result": "PASS"
+    },
+    {
+      "name": "F4: failed renewal plus known cancellation uses the last actually paid boundary; verified reversal restores renewal grace",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: unsupported zero_total never grants new paid access or creates another subscription",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: unsupported zero_paid never grants new paid access or creates another subscription",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: unsupported discount never grants new paid access or creates another subscription",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: unsupported balance_credit never grants new paid access or creates another subscription",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: unsupported partial never grants new paid access or creates another subscription",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: unsupported out_of_band never grants new paid access or creates another subscription",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: unsupported credit_note never grants new paid access or creates another subscription",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: unsupported full_refund never grants new paid access or creates another subscription",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: unsupported partial_refund never grants new paid access or creates another subscription",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: unsupported dispute never grants new paid access or creates another subscription",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: unsupported uncaptured never grants new paid access or creates another subscription",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: refund event resolves verified tenant relationship, latches review and cannot extend prior paid period",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: credit_note event resolves verified tenant relationship, latches review and cannot extend prior paid period",
+      "result": "PASS"
+    },
+    {
+      "name": "F5: dispute event resolves verified tenant relationship, latches review and cannot extend prior paid period",
+      "result": "PASS"
+    },
+    {
+      "name": "tenant operation FK rejects cross-organization lease binding; missing financial mapping retries without provider I/O",
+      "result": "PASS"
+    }
+  ],
+  "slowNetwork": {
+    "providerDelayMs": 15000,
+    "concurrentCheckouts": 10,
+    "legacyHttpRequests": 6,
+    "legacyMs": 140,
+    "poolConnections": 2,
+    "idleTransactions": 0,
+    "organizationLocksDuringDelay": 0,
+    "idleTransactionSamples": 7
+  },
+  "networkCallsOutsideTransactions": 454
+}

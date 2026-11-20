@@ -95,33 +95,9 @@ function Test-PublicIpv4([string]$Address) {
 }
 
 function Invoke-BoundedSessionTool([string]$Binary, [string[]]$Arguments,
-    [ValidateRange(50,150000)][int]$DeadlineMs = 150000) {
-  $psi = [Diagnostics.ProcessStartInfo]::new()
-  $psi.FileName = $Binary
-  $psi.UseShellExecute = $false
-  $psi.CreateNoWindow = $true
-  $psi.RedirectStandardOutput = $true
-  $psi.RedirectStandardError = $true
-  foreach ($argument in $Arguments) { $psi.ArgumentList.Add($argument) }
-  $process = [Diagnostics.Process]::Start($psi)
-  try {
-    $output = $process.StandardOutput.ReadToEndAsync()
-    $errors = $process.StandardError.ReadToEndAsync()
-    if (-not $process.WaitForExit($DeadlineMs)) {
-      $process.Kill($true)
-      [void]$process.WaitForExit(10000)
-      Stop-Maintenance 'SESSION_TOOL_DEADLINE_EXCEEDED'
-    }
-    if (-not $output.Wait(10000) -or -not $errors.Wait(10000)) {
-      Stop-Maintenance 'SESSION_TOOL_DRAIN_FAILED'
-    }
-    # Never publish raw libpq stderr (may contain private identifiers/paths).
-    if ($output.Result.Length -gt 4MB) { Stop-Maintenance 'SESSION_TOOL_OUTPUT_TOO_LARGE' }
-    return [pscustomobject]@{ ExitCode = $process.ExitCode; Output = @($output.Result -split '\r?\n' | Where-Object { $_ }) }
-  } finally {
-    if (-not $process.HasExited) { $process.Kill($true); [void]$process.WaitForExit(10000) }
-    $process.Dispose()
-  }
+    [ValidateRange(50,150000)][int]$DeadlineMs = 150000,
+    [string]$FailureCode = 'SESSION_TOOL_FAILED') {
+  return Invoke-DiagnosticPostgresProcess $Binary $Arguments 'Session' $FailureCode $DeadlineMs
 }
 
 function Resolve-SessionPoolerIpv4([object]$Config) {

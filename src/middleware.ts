@@ -35,6 +35,7 @@ const PUBLIC_PATHS = [
   '/api/internal/notifications',
   '/api/internal/meta-lead-ads',
   '/api/webhooks/meta/lead-ads',
+  '/api/webhooks/stripe',
   '/api/auth/login',
   '/api/auth/register',
   '/api/auth/forgot-password',

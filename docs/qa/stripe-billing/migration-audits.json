@@ -1,0 +1,70 @@
+[
+  {
+    "Sha256": "2ffda4bdc897c43a469e4e1fa8099e94f0beaee6ccd35014ab7d8d3dafa52ee3",
+    "StatementCount": 6,
+    "Kinds": [
+      "CREATE_TABLE",
+      "CREATE_INDEX_BLOCKING",
+      "CREATE_INDEX_BLOCKING",
+      "CREATE_INDEX_BLOCKING",
+      "CREATE_TABLE",
+      "CREATE_INDEX_BLOCKING"
+    ],
+    "AddedColumns": {},
+    "BlockingIndexTables": [
+      "StripeBillingState",
+      "StripeBillingEvent"
+    ],
+    "CreatedIndexes": [
+      "StripeBillingState_customerKey_key",
+      "StripeBillingState_checkoutKey_key",
+      "StripeBillingState_checkoutSessionId_key",
+      "StripeBillingEvent_organizationId_processedAt_idx"
+    ],
+    "CreatedSequences": [],
+    "CreatedConstraints": [
+      "StripeBillingState_pkey",
+      "StripeBillingState_organizationId_fkey",
+      "StripeBillingEvent_pkey",
+      "StripeBillingEvent_organizationId_fkey"
+    ],
+    "Risk": "MEDIUM"
+  },
+  {
+    "Sha256": "56f645f52c1d4e50c7091f95468a255ad2059a5320dc2ac91adbba8b6f59ee3f",
+    "StatementCount": 9,
+    "Kinds": [
+      "CREATE_TABLE",
+      "CREATE_INDEX_BLOCKING",
+      "CREATE_INDEX_BLOCKING",
+      "CREATE_INDEX_BLOCKING",
+      "CREATE_INDEX_BLOCKING",
+      "CREATE_INDEX_BLOCKING",
+      "CREATE_INDEX_BLOCKING",
+      "CREATE_INDEX_BLOCKING",
+      "CREATE_TABLE"
+    ],
+    "AddedColumns": {},
+    "BlockingIndexTables": [
+      "StripeBillingOperation"
+    ],
+    "CreatedIndexes": [
+      "StripeBillingOperation_dedupeKey_key",
+      "StripeBillingOperation_idempotencyKey_key",
+      "StripeBillingOperation_id_organizationId_key",
+      "StripeBillingOperation_organizationId_kind_createdAt_idx",
+      "StripeBillingOperation_invoiceId_idx",
+      "StripeBillingOperation_paymentIntentId_idx",
+      "StripeBillingOperation_chargeId_idx"
+    ],
+    "CreatedSequences": [],
+    "CreatedConstraints": [
+      "StripeBillingOperation_pkey",
+      "StripeBillingOperation_organizationId_fkey",
+      "StripeBillingCoordinator_pkey",
+      "StripeBillingCoordinator_organizationId_fkey",
+      "StripeBillingCoordinator_operationId_organizationId_fkey"
+    ],
+    "Risk": "MEDIUM"
+  }
+]

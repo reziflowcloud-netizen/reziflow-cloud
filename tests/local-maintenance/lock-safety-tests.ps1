@@ -1,5 +1,5 @@
 #requires -Version 7
-param([switch]$WithPostgres, [string]$PrivateTestRoot)
+param([switch]$WithPostgres, [string]$PrivateTestRoot, [string]$PostgresBin)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../../scripts/local-maintenance/core.ps1')
