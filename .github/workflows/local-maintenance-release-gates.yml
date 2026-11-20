@@ -28,13 +28,13 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Fetch hash-pinned native PostgreSQL test tools
         shell: pwsh
-        run: ./tests/local-maintenance/install-test-postgres.ps1 -Version '${{ matrix.postgres }}' -Destination "$env:RUNNER_TEMP/pg"
+        run: pwsh -NoProfile -File tests/local-maintenance/install-test-postgres.ps1 -Version '${{ matrix.postgres }}' -Destination "$env:RUNNER_TEMP/pg"
       - name: Strict real restore and semantic mutation negatives
         shell: pwsh
-        run: ./tests/local-maintenance/structure-proof-tests.ps1 -WithPostgres -PostgresBin "$env:RUNNER_TEMP/pg/pgsql/bin"
+        run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1 -WithPostgres -PostgresBin "$env:RUNNER_TEMP/pg/pgsql/bin"
       - name: Pending set, seal, report and final-recheck guards
         shell: pwsh
-        run: ./tests/local-maintenance/pending-migrations-tests.ps1
+        run: pwsh -NoProfile -File tests/local-maintenance/pending-migrations-tests.ps1
   cross-version:
     runs-on: windows-2025
     timeout-minutes: 20
@@ -60,11 +60,13 @@ jobs:
       - name: Fetch exact source and target test binaries
         shell: pwsh
         run: |
-          ./tests/local-maintenance/install-test-postgres.ps1 -Version '${{ matrix.source }}' -Destination "$env:RUNNER_TEMP/source"
-          ./tests/local-maintenance/install-test-postgres.ps1 -Version '${{ matrix.target }}' -Destination "$env:RUNNER_TEMP/target"
+          pwsh -NoProfile -File tests/local-maintenance/install-test-postgres.ps1 -Version '${{ matrix.source }}' -Destination "$env:RUNNER_TEMP/source"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pwsh -NoProfile -File tests/local-maintenance/install-test-postgres.ps1 -Version '${{ matrix.target }}' -Destination "$env:RUNNER_TEMP/target"
+          exit $LASTEXITCODE
       - name: Restore with target-version tools and retain all semantic guards
         shell: pwsh
-        run: ./tests/local-maintenance/structure-proof-tests.ps1 -WithPostgres -PostgresBin "$env:RUNNER_TEMP/source/pgsql/bin" -TargetPostgresBin "$env:RUNNER_TEMP/target/pgsql/bin" -ToolsBin "$env:RUNNER_TEMP/target/pgsql/bin"
+        run: pwsh -NoProfile -File tests/local-maintenance/structure-proof-tests.ps1 -WithPostgres -PostgresBin "$env:RUNNER_TEMP/source/pgsql/bin" -TargetPostgresBin "$env:RUNNER_TEMP/target/pgsql/bin" -ToolsBin "$env:RUNNER_TEMP/target/pgsql/bin"
   guarded-preflight:
     runs-on: windows-2025
     timeout-minutes: 35
@@ -86,10 +88,10 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Fetch patched PostgreSQL 18.7 test tools
         shell: pwsh
-        run: ./tests/local-maintenance/install-test-postgres.ps1 -Version '18.7' -Destination "$env:RUNNER_TEMP/pg"
+        run: pwsh -NoProfile -File tests/local-maintenance/install-test-postgres.ps1 -Version '18.7' -Destination "$env:RUNNER_TEMP/pg"
       - name: Complete maintenance Runner suite
         shell: pwsh
-        run: ./tests/local-maintenance/runner-tests.ps1 -PostgresBin "$env:RUNNER_TEMP/pg/pgsql/bin"
+        run: pwsh -NoProfile -File tests/local-maintenance/runner-tests.ps1 -PostgresBin "$env:RUNNER_TEMP/pg/pgsql/bin"
       - name: ACL, transport, seal, reports and strict CA model regressions
         shell: pwsh
         run: |
@@ -101,13 +103,13 @@ jobs:
           exit $LASTEXITCODE
       - name: Actual idle, waiting-lock and long-transaction refusal on 18.7
         shell: pwsh
-        run: ./tests/local-maintenance/lock-safety-tests.ps1 -WithPostgres -PostgresBin "$env:RUNNER_TEMP/pg/pgsql/bin"
+        run: pwsh -NoProfile -File tests/local-maintenance/lock-safety-tests.ps1 -WithPostgres -PostgresBin "$env:RUNNER_TEMP/pg/pgsql/bin"
       - name: Existing one-pending and no-migration end-to-end preflight
         shell: pwsh
-        run: ./tests/local-maintenance/full-preflight.ps1 -PostgresBin "$env:RUNNER_TEMP/pg/pgsql/bin"
+        run: pwsh -NoProfile -File tests/local-maintenance/full-preflight.ps1 -PostgresBin "$env:RUNNER_TEMP/pg/pgsql/bin"
       - name: Actual 54+4 Stripe preflight, sealed plan and old app compatibility
         shell: pwsh
-        run: ./tests/local-maintenance/stripe-release-preflight.ps1 -PostgresBin "$env:RUNNER_TEMP/pg/pgsql/bin"
+        run: pwsh -NoProfile -File tests/local-maintenance/stripe-release-preflight.ps1 -PostgresBin "$env:RUNNER_TEMP/pg/pgsql/bin"
       - name: Main Prisma and TypeScript validation
         shell: pwsh
         run: |
