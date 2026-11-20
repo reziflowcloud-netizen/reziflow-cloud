@@ -1091,6 +1091,8 @@ model StripeBillingCoordinator {
   leaseToken                  String?
   leaseUntil                  DateTime?
   paidThrough                 DateTime?
+  scheduledCancelAt           DateTime?
+  cancelAtPaidThrough          Boolean?
   financialHoldSubscriptionId String?
   reviewReason                String?
   updatedAt                   DateTime @updatedAt

@@ -3,7 +3,7 @@ import type Stripe from 'stripe'
 export function stripeObjectId(value: unknown): string | null {
   return typeof value === 'string' ? value : value && typeof value === 'object' && 'id' in value ? String(value.id) : null
 }
-export type Settlement = { state: 'paid' | 'unpaid' | 'manual_review'; reason: string; paidThrough?: Date; invoiceId?: string; paymentIntentId?: string; chargeId?: string }
+export type Settlement = { state: 'paid' | 'pending' | 'unpaid' | 'manual_review'; reason: string; paidThrough?: Date; invoiceId?: string; paymentIntentId?: string; chargeId?: string }
 
 // Conservative MVP scope, not an assertion that credits/discounts are invalid.
 // All calls are READS and run between durable reservation and short finalization.
@@ -16,6 +16,18 @@ export async function verifyStripeSettlement(stripe: Stripe, subscription: Strip
   if (invoice.livemode !== false || stripeObjectId(invoice.customer) !== customerId ||
       stripeObjectId(invoice.parent?.subscription_details?.subscription) !== subscription.id || invoice.currency !== 'pln') return review('INVOICE_RELATIONSHIP')
   refs.invoiceId = invoice.id
+  // Draft totals/balances are provisional (ending_balance is normally null).
+  // They prove no payment and must not permanently poison the next paid cycle.
+  // Explicit adjustments still require review, including on a draft invoice.
+  if (invoice.status === 'draft') {
+    if ((invoice.pre_payment_credit_notes_amount ?? 0) !== 0 || (invoice.post_payment_credit_notes_amount ?? 0) !== 0) return review('CREDIT_NOTE')
+    if (invoice.discounts?.length || invoice.total_discount_amounts?.length || invoice.total_pretax_credit_amounts?.length) return review('DISCOUNT_OR_CREDIT')
+    if ((invoice.starting_balance ?? 0) !== 0 || (invoice.ending_balance != null && invoice.ending_balance !== 0)) return review('CUSTOMER_BALANCE')
+    if ((invoice.amount_paid_off_stripe ?? 0) !== 0 || (invoice.amount_paid ?? 0) !== 0) return review('DRAFT_SETTLEMENT')
+    if (invoice.total_taxes?.some(tax => tax.amount !== 0) || invoice.collection_method !== 'charge_automatically' ||
+        !['subscription_create', 'subscription_cycle'].includes(invoice.billing_reason || '')) return review('UNSUPPORTED_INVOICE')
+    return { state: 'pending', reason: 'INVOICE_DRAFT', ...refs }
+  }
   if (invoice.pre_payment_credit_notes_amount !== 0 || invoice.post_payment_credit_notes_amount !== 0) return review('CREDIT_NOTE')
   if (invoice.discounts?.length || invoice.total_discount_amounts?.length || invoice.total_pretax_credit_amounts?.length) return review('DISCOUNT_OR_CREDIT')
   if (invoice.starting_balance !== 0 || invoice.ending_balance !== 0) return review('CUSTOMER_BALANCE')

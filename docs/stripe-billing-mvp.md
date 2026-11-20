@@ -1,6 +1,6 @@
 # Stripe Billing MVP — Test Mode only
 
-Production baseline: `41efb9a65c4aa04d61c3ece52e53f3bb5edf8b04`. Security-reviewed implementation: `596dabf48169e3c8f10beee431b1e20d4ab5b782`. All F1–F5 corrections stay in `feature/stripe-billing-mvp`, isolated checkout `/workspace/stripe-billing-mvp`, existing Draft PR #20. No production access, deployment, merge, real Stripe payment, real organization edit, or Meta/RAM/SL change is authorized.
+Production baseline: `41efb9a65c4aa04d61c3ece52e53f3bb5edf8b04`. R7/R8 intake: `4c06aacaa3a695d977cb46f06bf8610f94a2d88a`. All corrections stay in `feature/stripe-billing-mvp`, existing Draft PR #20. The R7/R8 correction and actual Stripe Test Mode acceptance ran locally on Windows against an isolated synthetic database. No production access, deployment, merge, real Stripe payment, real organization edit, or Meta/RAM/SL change is authorized.
 
 ## Configuration
 
@@ -16,7 +16,7 @@ The server-only variables in `.env.example` remain required. The feature default
 | `STRIPE_BILLING_APP_URL` | Fixed loopback/development HTTPS origin, no query/path/credentials |
 | `STRIPE_BILLING_GRACE_DAYS` | Explicit **7**, owner approved on 2026-11-19 |
 
-Official SDK: `stripe@23.2.0`, API `2026-11-18.endive`. Checkout uses `allowed_payment_method_types`; subscription periods are on items; invoice subscription references are under `parent.subscription_details`; settlement sources use InvoicePayment → PaymentIntent → Charge. These fields/relationships were checked against the installed official generated definitions. Align the development endpoint API version before actual Test Mode acceptance.
+Official SDK: `stripe@23.2.0`, API `2026-11-18.endive`. Checkout uses `allowed_payment_method_types`; subscription periods are on items; invoice subscription references are under `parent.subscription_details`; settlement sources use InvoicePayment → PaymentIntent → Charge. The local CLI actually delivered `2026-10-28.endive` events despite requesting latest. Raw signatures remained mandatory; event references selected current resources retrieved through the pinned November API. Actual Test acceptance passed this observed combination, not every possible API version. Account defaults were not changed.
 
 ## F1/F2: durable operations without network-held database locks
 
@@ -54,6 +54,7 @@ Existing manually administered Starter/Pro, Manual, Agency, trial and custom-lim
 | Verified standard paid active period | Verified Starter/Pro |
 | Ordinary failed renewal | At most 7 days from failed period start; repeats never extend it |
 | Known period-end cancellation | End at the last actually paid boundary, with **no renewal grace**, even if final cancellation delivery is missing |
+| Absolute `cancel_at` schedule | Store/display its date separately; no grace beyond that boundary, no shortening of an already verified paid period. Later schedules permit intervening renewals and only ordinary bounded grace |
 | Verified cancellation reversal | Resume normal bounded renewal/grace policy |
 | Canceled immediately / unpaid / paused / incomplete expired | Free creation limits |
 | Missing/invalid period bound | Free; never indefinitely paid |
@@ -62,11 +63,15 @@ Existing manually administered Starter/Pro, Manual, Agency, trial and custom-lim
 
 Only creation limits change; no automatic deletion of clients, Leads, cases, documents or users occurs. Cancellation during an unpaid renewal uses the **last verified paid-through** boundary, not the end of the new unpaid Stripe item period.
 
+R8 normalizes both `cancel_at` and `cancel_at_period_end` into the cancellation notice. Nullable coordinator fields `scheduledCancelAt` and `cancelAtPaidThrough` retain the actual date and raw period-end instruction respectively. A verified reversal clears the date/instruction and restores only the original bounded renewal window. An earlier schedule alone cannot revoke proven paid time; a later schedule alone cannot grant unverified paid months. New Checkout clears prior paid proof and cancellation state after the previous subscription has become terminal.
+
 ## F5: explicit financial MVP policy
 
 Automatic grant/renewal supports only one standard Starter/Pro card settlement: a matching Test invoice/subscription/customer, one full-price quantity-one line covering the exact item period, PLN, expected subtotal/total/amount_due/amount_paid, zero amount remaining, zero balances/discounts/credits/credit notes/off-Stripe payment, and the ordinary automatic subscription-create/cycle invoice. There must be exactly one paid InvoicePayment for that invoice with the expected amounts, one succeeded PaymentIntent with the expected amount received/customer/currency, and its matching paid/captured card Charge with the full capture, no refund and no dispute.
 
 A normal still-open, wholly unpaid invoice is a failed/pending payment eligible for ordinary renewal grace only when a previous paid tier exists. Zero totals, zero `amount_paid` marked paid, discounts, customer balance credits, partial settlement, out-of-band payments, alternate/multiple settlement sources, taxes/lines outside this narrow policy, and incomplete financial proof are **UNSUPPORTED_SETTLEMENT / MANUAL_REVIEW_REQUIRED**, not assertions that legitimate credits are invalid. The public billing status is `manual_review_required`; localized UI tells the owner to contact the administrator and not pay again.
+
+R7 treats a normal draft invoice, including provisional `ending_balance=null`, as pending without a financial hold. It grants no payment proof. Explicit draft adjustments still require review. Projection retains the last strictly verified paid-through date and finite grace until finalization/full settlement. Paid-through never regresses on an older paid resource read. Existing financial holds, including false holds created by an older build, are not silently cleared; they still require controlled reconciliation.
 
 Refund, credit-note and dispute events latch a durable review hold for the subscription. Neither late paid events nor a later standard invoice automatically clear it or extend access. Previously verified paid-through access remains bounded; no new Checkout is offered while the hold exists. There is no automatic refund, re-charge, subscription replacement, cancellation or CRM data deletion. Financial hold resolution requires an explicit owner/accounting decision and controlled reconciliation; no generic self-service “clear review” endpoint is included.
 
@@ -76,15 +81,16 @@ Relevant events include subscription/Checkout/invoice lifecycle events, `invoice
 
 The original additive migration creates state/events. New migration `20261119190000_stripe_billing_operations` creates only the operation/coordinator tables, seven indexes on the new journal and tenant/composite FKs. Existing table columns/data are untouched. Both migrations pass the existing Local Maintenance Runner SQL audit; blocking-index MEDIUM classification concerns only new empty tables. Migration deployment is limited to disposable PostgreSQL in this work.
 
+R7/R8 add `20261120120000_stripe_billing_scheduled_cancel` and `20261120121000_stripe_billing_cancel_boundary`: one nullable coordinator column each, with no default, backfill, index or destructive DDL. The existing SQL auditor accepts both. The preserved local Test E2E database retained identical values for every pre-existing column across 54 tables after these migrations.
+
 OLD APP + NEW DB uses the actual baseline client/billing code and verifies unchanged hashes of all 50 existing application tables. NEW APP + OLD DB with flag OFF verifies a real baseline DB without the coordinator table before running all new migrations. Activation must follow migration and independent re-review; enabled use against an old DB is intentionally unsupported.
 
 Self-service plan changes/proration, coupons/trials and immediate Portal cancellation remain disabled. Portal configuration is rechecked outside a transaction and finalized under a short fence. FakturaXL accounting invoices and KSeF submission remain manual. No VAT-inclusion promise is shown. Accountant/owner agreement on VAT exemption and Stripe invoice/PDF/email/Portal document policy remains a Live gate.
 
-## Secure actual Test Mode E2E plan — not executed here
+## Actual local Test Mode acceptance — 2026-11-20
 
-1. After F1–F5 re-review, use only the existing Poland account in **Test Mode**, a separate development database, synthetic Users/Organizations and a development-only origin. Enter test API/signing secrets privately in protected local settings, never chat, artifacts or GitHub. Verify account/mode, pinned API version, both Price amounts/currency/recurrence and safe Portal/document settings.
-2. Use Stripe CLI development forwarding or a separately approved development HTTPS endpoint. Exercise hosted Starter/Pro success, decline/authentication, repeated submissions and signed delivery. No Production endpoint or Live settings.
-3. For Test Clocks, provision a clock-bound synthetic Customer through a controlled development fixture at Customer creation, with the server metadata/mapping/operation journal; existing Customers cannot be retrofitted. Advance renewal/dunning, wait for clock readiness and verify grace, cancellation/reversal, replay, adjustments and payment recovery against actual signed events.
-4. Capture sanitized assertions/IDs only and retire only synthetic fixtures. Actual hosted Checkout, external deliveries and Test Clock advancement remain **SKIP** in this task. Live credentials are neither needed nor requested.
+The existing Poland account, protected external-to-Git Test configuration and owned loopback PostgreSQL cluster were revalidated. Two new synthetic organizations used the ordinary login/Checkout flow. Actual hosted Starter/Pro Checkout, signed CLI delivery, Test Clock renewal, draft/open/paid, failed renewal/recovery, Test refund review, Portal `cancel_at` cancellation/reversal, expiry without grace and new Checkout after cancellation passed. The pinned Test API accepted a Test Clock `customer` parameter on each original app-created synthetic Customer; customer mapping and operation journals were preserved without rewriting provider IDs.
 
-See [F1–F5 QA evidence](qa/stripe-billing/report.md) and [R6/Windows correction evidence](qa/stripe-billing/r6-report.md). The exact new HEAD and actual CI run/step results are published in PR #20 after push. Keep Draft; no merge or deployment. Next step: Engineering Manager independent Security Re-review.
+Only original signed bytes were forwarded/replayed, within signature tolerance. Concurrent busy responses required explicit original-event retries; automatic upstream retry scheduling and indefinite delayed delivery are not claimed. Local E2E processes and the owned cluster were stopped afterward, preserving prior/current data and evidence. Feature remains OFF outside the isolated child process.
+
+See [R7/R8 local and actual Test evidence](qa/stripe-billing/r7r8-report.md), [F1–F5 QA evidence](qa/stripe-billing/report.md) and [R6/Windows evidence](qa/stripe-billing/r6-report.md). The exact new HEAD and actual CI run/step results are published in PR #20 after push. Keep Draft; no merge or deployment. Historical Windows root cause remains UNKNOWN and a separate production gate. Next: independent Engineering Manager Security Re-review of the new HEAD.

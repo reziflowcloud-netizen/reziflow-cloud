@@ -158,6 +158,7 @@ export async function createStripeCheckout(actor: Actor | null, plan: StripePlan
           await tx.stripeBillingState.update({ where: { organizationId }, data: {
             checkoutSessionId: session.id, checkoutExpiresAt: new Date(session.expires_at * 1000),
           } })
+          await tx.stripeBillingCoordinator.update({ where: { organizationId }, data: { paidThrough: null, scheduledCancelAt: null, cancelAtPaidThrough: null } })
           return tx.organization.update({ where: { id: org.id }, data: {
             plan: 'free', billingStatus: 'incomplete', billingSubscriptionId: null, billingPriceId: null,
             currentPeriodEndsAt: null, cancelAtPeriodEnd: false, graceEndsAt: null,
@@ -219,23 +220,41 @@ async function eventReferences(event: Stripe.Event, db: PrismaClient): Promise<R
 async function projectSubscription(tx: Prisma.TransactionClient, org: Organization, coordinator: Lease['coordinator'], subscription: Stripe.Subscription,
   plan: StripePlan, settlement: Settlement, adjustment: string | undefined, graceDays: number) {
   const item = subscription.items.data[0]
+  const cancelAt = subscription.cancel_at
+  if (cancelAt != null && (!Number.isSafeInteger(cancelAt) || cancelAt <= 0 || !Number.isFinite(new Date(cancelAt * 1000).getTime()))) {
+    throw new StripeBillingError('SUBSCRIPTION_CANCELLATION_INVALID')
+  }
+  const scheduledCancelAt = cancelAt != null ? new Date(cancelAt * 1000)
+    : subscription.cancel_at_period_end ? new Date(item.current_period_end * 1000) : null
+  const cancellationScheduled = scheduledCancelAt !== null
   const reason = adjustment || (coordinator.financialHoldSubscriptionId === subscription.id ? coordinator.reviewReason || 'MANUAL_REVIEW_REQUIRED'
     : settlement.state === 'manual_review' ? settlement.reason : null)
   const manualReview = Boolean(reason)
   const paid = settlement.state === 'paid' && !manualReview && subscription.status === 'active'
   const status = TERMINAL.has(subscription.status) ? subscription.status : manualReview ? 'manual_review_required'
     : subscription.status === 'active' && !paid ? 'past_due' : subscription.status
-  const graceEndsAt = status === 'past_due' && org.plan !== 'free'
-    ? new Date(Math.min(org.graceEndsAt?.getTime() ?? Infinity, (item.current_period_start + graceDays * 86400) * 1000)) : null
-  const paidThrough = paid ? settlement.paidThrough! : coordinator.paidThrough
+  const sameCancellation = org.cancelAtPeriodEnd === cancellationScheduled &&
+    coordinator.scheduledCancelAt?.getTime() === scheduledCancelAt?.getTime() &&
+    Boolean(coordinator.cancelAtPaidThrough) === subscription.cancel_at_period_end
+  // A verified reversal removes only the cancellation cap. The original paid
+  // boundary and failed-period start still impose the same seven-day ceiling.
+  const priorGrace = sameCancellation ? org.graceEndsAt?.getTime() ?? Infinity : Infinity
+  const graceEndsAt = status === 'past_due' && org.plan !== 'free' && coordinator.paidThrough
+    ? new Date(Math.min(priorGrace, (item.current_period_start + graceDays * 86400) * 1000,
+      coordinator.paidThrough.getTime() + graceDays * 86400000,
+      subscription.cancel_at_period_end ? coordinator.paidThrough.getTime()
+        : scheduledCancelAt ? Math.max(coordinator.paidThrough.getTime(), scheduledCancelAt.getTime()) : Infinity)) : null
+  const paidThrough = paid ? new Date(Math.max(settlement.paidThrough!.getTime(), coordinator.paidThrough?.getTime() ?? 0)) : coordinator.paidThrough
   await tx.stripeBillingCoordinator.update({ where: { organizationId: org.id }, data: {
-    ...(paid ? { paidThrough: settlement.paidThrough! } : {}),
+    scheduledCancelAt,
+    cancelAtPaidThrough: subscription.cancel_at_period_end,
+    ...(paid ? { paidThrough } : {}),
     ...(manualReview ? { financialHoldSubscriptionId: subscription.id, reviewReason: reason } : {}),
   } })
   await tx.organization.update({ where: { id: org.id }, data: {
     billingSubscriptionId: subscription.id, billingPriceId: item.price.id, billingStatus: status,
-    currentPeriodEndsAt: manualReview || subscription.cancel_at_period_end ? paidThrough : new Date(item.current_period_end * 1000),
-    cancelAtPeriodEnd: subscription.cancel_at_period_end, graceEndsAt, ...(paid ? { plan } : {}),
+    currentPeriodEndsAt: paidThrough,
+    cancelAtPeriodEnd: cancellationScheduled, graceEndsAt, ...(paid ? { plan } : {}),
   } })
   return { processed: true, ...(manualReview ? { manualReview: true, reason } : {}) }
 }

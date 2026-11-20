@@ -53,7 +53,7 @@ const makeOrg = async (plan = 'free') => {
 try {
   const account = await makeOrg()
   await startApp()
-  browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', headless: true, args: ['--no-sandbox'] })
+  browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', headless: true, args: process.platform === 'linux' ? ['--no-sandbox'] : [] })
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
   await context.addCookies([{ name: 'auth-token', value: account.token, url: origin, httpOnly: true, sameSite: 'Lax' }])
   const page = await context.newPage()
@@ -93,6 +93,9 @@ try {
     const call = fixture.requests.find(r => r.path === '/v1/billing_portal/sessions')
     assert.equal(call.form.customer, subscription.customer)
   })
+  subscription.cancel_at = subscription.items.data[0].current_period_end
+  subscription.cancel_at_period_end = false
+  await send(subscription, 'customer.subscription.updated')
   await run('RU/UA/PL × Light/Dark/Slate × 390/414/430/768/1024/1440 without horizontal overflow', async () => {
     for (const lang of ['ru', 'uk', 'pl']) for (const theme of ['light', 'dark', 'slate']) for (const width of [390, 414, 430, 768, 1024, 1440]) {
       await page.setViewportSize({ width, height: 1000 })
@@ -103,6 +106,8 @@ try {
       const layout = await page.evaluate(() => ({ width: innerWidth, content: document.documentElement.scrollWidth }))
       assert.ok(layout.content <= width + 1, `Overflow ${lang}/${theme}/${width}: ${layout.content}`)
       assert.equal(await page.locator('.stripe-plan-card').count(), 2)
+      assert.equal(await page.getByText(stripeBillingText[lang].scheduled, { exact: true }).count(), 1)
+      await page.getByRole('status').filter({ hasText: stripeBillingText[lang].ending }).waitFor()
       const contact = page.getByRole('button', { name: billingContactText[lang].button, exact: true })
       assert.equal(await contact.count(), 1)
       if (width === 390) {
@@ -118,11 +123,16 @@ try {
       report.visualMatrix.push({ lang, theme, width, result: 'PASS', screenshot })
     }
   })
-  const send = async (object, type) => {
+  async function send(object, type) {
     const payload = JSON.stringify(fixture.event(object, type)), signature = fixture.stripe.webhooks.generateTestHeaderString({ payload, secret: syntheticConfig.webhookSecret })
     const response = await fetch(`${origin}/api/webhooks/stripe`, { method: 'POST', headers: { 'stripe-signature': signature }, body: payload })
     assert.equal(response.status, 200, await response.text())
   }
+  await run('R8 timestamp cancellation reversal clears the displayed schedule', async () => {
+    subscription.cancel_at = null
+    await send(subscription, 'customer.subscription.updated'); await page.goto(`${origin}/settings/billing`)
+    assert.equal(await page.getByText(stripeBillingText.pl.scheduled, { exact: true }).count(), 0)
+  })
   await run('failed renewal warning and grace date render after verified webhook', async () => {
     subscription.status = 'past_due'; subscription.latest_invoice = fixture.invoice(subscription, false)
     await send(subscription.latest_invoice, 'invoice.payment_failed')

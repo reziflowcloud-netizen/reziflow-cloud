@@ -27,6 +27,7 @@ export type BillingSnapshot = {
     trialEndsAt: string | null
     currentPeriodEndsAt: string | null
     cancelAtPeriodEnd: boolean
+    scheduledCancelAt?: string | null
   }
   plan: PlanDefinition
   usage: Record<BillingMetricKey, number>
@@ -338,9 +339,9 @@ export async function getBillingSnapshot(organizationId: string, db: BillingDbCl
   ])
 
   const stripeConfig = stripeBillingConfig()
-  const coordinator = stripeConfig ? await db.stripeBillingCoordinator.findUnique({ where: { organizationId }, select: { financialHoldSubscriptionId: true } }) : null
+  const coordinator = stripeConfig ? await db.stripeBillingCoordinator.findUnique({ where: { organizationId }, select: { financialHoldSubscriptionId: true, scheduledCancelAt: true, cancelAtPaidThrough: true } }) : null
   const reviewRequired = Boolean(coordinator?.financialHoldSubscriptionId) || organization.billingStatus === 'manual_review_required'
-  const effectivePlan = effectiveStripePlan(organization, Boolean(stripeConfig), stripeConfig?.graceDays || 0)
+  const effectivePlan = effectiveStripePlan({ ...organization, scheduledCancelAt: coordinator?.scheduledCancelAt, cancelAtPaidThrough: coordinator?.cancelAtPaidThrough }, Boolean(stripeConfig), stripeConfig?.graceDays || 0)
   const plan = applyBillingLimitOverrides(getPlanDefinition(effectivePlan), organization.settings)
   const usage = { users, clients, cases, leads }
   const customLimitKeys = Object.keys(getBillingLimitOverrides(organization.settings)) as BillingMetricKey[]
@@ -357,6 +358,7 @@ export async function getBillingSnapshot(organizationId: string, db: BillingDbCl
       trialEndsAt: organization.trialEndsAt ? organization.trialEndsAt.toISOString() : null,
       currentPeriodEndsAt: organization.currentPeriodEndsAt ? organization.currentPeriodEndsAt.toISOString() : null,
       cancelAtPeriodEnd: organization.cancelAtPeriodEnd,
+      scheduledCancelAt: coordinator?.scheduledCancelAt?.toISOString() ?? null,
     },
     plan,
     usage,

@@ -16,7 +16,7 @@ const baseline = '41efb9a65c4aa04d61c3ece52e53f3bb5edf8b04'
 const dir = resolve(root, '.qa/stripe-old-app')
 await mkdir(dir, { recursive: true })
 const archive = execFileSync('git', ['archive', baseline, 'prisma'], { cwd: root, maxBuffer: 10 * 1024 * 1024 })
-execFileSync('tar', ['-x', '-C', dir], { input: archive })
+execFileSync('tar', ['-x', '-f', '-', '-C', dir], { input: archive })
 const show = path => execFileSync('git', ['show', `${baseline}:${path}`], { cwd: root, encoding: 'utf8' })
 const schema = show('prisma/schema.prisma').replace('provider = "prisma-client-js"', 'provider = "prisma-client-js"\n  output = "./old-client"')
 const schemaPath = resolve(dir, 'prisma/schema.prisma')

@@ -4,7 +4,7 @@ export type BillingOrganization = {
   plan: string; status: string; billingProvider: string; billingStatus: string
   billingSubscriptionId: string | null; billingCustomerId: string | null
   cancelAtPeriodEnd: boolean; currentPeriodEndsAt: Date | null; graceEndsAt: Date | null; trialEndsAt: Date | null
-  settings: unknown
+  settings: unknown; scheduledCancelAt?: Date | null; cancelAtPaidThrough?: boolean | null
 }
 
 export function hasCustomBillingLimits(settings: unknown) {
@@ -31,12 +31,19 @@ export function effectiveStripePlan(org: BillingOrganization, enabled: boolean, 
   if (!enabled || !stripeManaged(org)) return org.plan
   const end = org.currentPeriodEndsAt?.getTime()
   if (!end || !Number.isFinite(end)) return 'free'
-  // A known cancellation has no renewal to grace, even if the final event is lost.
-  if (org.cancelAtPeriodEnd && now.getTime() >= end) return 'free'
+  // A future scheduled cancellation can still have legitimate intervening
+  // renewals. It never extends paid access; ordinary grace remains capped by
+  // the verified paid boundary + grace, and ends at the cancellation boundary.
+  // A schedule alone must not shorten a period we already proved was paid.
+  const scheduled = org.scheduledCancelAt?.getTime()
+  const cancellation = org.cancelAtPeriodEnd || (scheduled != null && Number.isFinite(scheduled))
+  const cancellationEnd = cancellation ? org.cancelAtPaidThrough ? end
+    : Math.max(end, scheduled && Number.isFinite(scheduled) ? scheduled : end) : Infinity
+  if (now.getTime() >= cancellationEnd) return 'free'
   if (['canceled', 'unpaid', 'incomplete', 'incomplete_expired', 'paused'].includes(org.billingStatus)) return 'free'
   if (org.billingStatus === 'manual_review_required') return now.getTime() < end ? org.plan : 'free'
   if (org.billingStatus === 'past_due') return org.graceEndsAt && Number.isFinite(org.graceEndsAt.getTime()) &&
     now < org.graceEndsAt && now.getTime() < end + graceDays * 86400000 ? org.plan : 'free'
-  if (org.billingStatus === 'active' && now.getTime() < end + (org.cancelAtPeriodEnd ? 0 : graceDays * 86400000)) return org.plan
+  if (org.billingStatus === 'active' && now.getTime() < Math.min(end + graceDays * 86400000, cancellationEnd)) return org.plan
   return 'free'
 }

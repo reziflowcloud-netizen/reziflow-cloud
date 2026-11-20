@@ -64,6 +64,7 @@ export default function StripeBillingPanel({ billing, organization, effectivePla
     {billing.managed && <div className="stripe-subscription card">
       <div><span className="billing-usage-label">{text.status}</span><strong><BillingStatusLabel status={organization.billingStatus} /></strong></div>
       {organization.currentPeriodEndsAt && <div><span className="billing-usage-label">{organization.cancelAtPeriodEnd || ended || organization.billingStatus === 'manual_review_required' ? text.until : text.next}</span><strong><BillingDate value={organization.currentPeriodEndsAt} /></strong></div>}
+      {organization.scheduledCancelAt && <div><span className="billing-usage-label">{text.scheduled}</span><strong><BillingDate value={organization.scheduledCancelAt} /></strong></div>}
       <div className="billing-actions">
         <button type="button" className="btn btn-primary" disabled={Boolean(pending)} onClick={() => openStripe('portal')}>{pending === 'portal' ? text.loading : text.manage}</button>
         <button type="button" className="btn btn-secondary" disabled={Boolean(pending) || refreshing} onClick={() => startRefresh(() => router.refresh())}>{refreshing ? text.loading : text.refresh}</button>
