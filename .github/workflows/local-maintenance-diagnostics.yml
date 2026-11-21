@@ -1,7 +1,7 @@
 name: Safe maintenance diagnostics (synthetic only)
 on:
   pull_request:
-    branches: [main]
+    branches: [main, qa/stripe-maintenance-diagnostics-20261120]
     paths:
       - 'scripts/local-maintenance/**'
       - 'tests/local-maintenance/**'
@@ -31,3 +31,9 @@ jobs:
       - name: Native error, canary, timeout, report and fail-closed tests
         shell: pwsh
         run: pwsh -NoProfile -File tests/local-maintenance/process-diagnostics-tests.ps1 -WithPostgres -PostgresBin "$env:RUNNER_TEMP/diagnostic-pg/pgsql/bin"
+      - name: One-connection diagnostic entrypoint and execution envelope (synthetic only)
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/diagnostic-only-tests.ps1 -PostgresBin "$env:RUNNER_TEMP/diagnostic-pg/pgsql/bin"
+      - name: Numeric IPv6 one-shot entrypoint and disposable verify-full TLS
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/local-maintenance/diagnostic-ipv6-tests.ps1 -PostgresBin "$env:RUNNER_TEMP/diagnostic-pg/pgsql/bin"

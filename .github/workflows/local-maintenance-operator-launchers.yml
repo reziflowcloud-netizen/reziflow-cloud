@@ -1,7 +1,7 @@
 name: Maintenance operator BAT launchers (synthetic only)
 on:
   pull_request:
-    branches: [main]
+    branches: [main, qa/stripe-maintenance-diagnostics-20261120]
     paths:
       - '*.bat'
       - 'scripts/local-maintenance/**'

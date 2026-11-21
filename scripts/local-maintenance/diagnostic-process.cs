@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 namespace LegalHubMaintenanceDiagnostics {
     public sealed class Capture {
         public string Text = "";
@@ -38,6 +39,11 @@ namespace LegalHubMaintenanceDiagnostics {
             } catch { return false; }
         }
         public static Result Run(string binary, string[] args, int deadlineMs) {
+            return RunIsolated(binary, args, deadlineMs, null, null);
+        }
+        // Child-only isolation: never mutate the operator's environment/PATH.
+        public static Result RunIsolated(string binary, string[] args, int deadlineMs,
+                IDictionary<string, string> environment, string workingDirectory) {
             var result = new Result();
             var timer = Stopwatch.StartNew();
             var info = new ProcessStartInfo(binary) {
@@ -47,6 +53,11 @@ namespace LegalHubMaintenanceDiagnostics {
                 StandardErrorEncoding = new UTF8Encoding(false)
             };
             foreach (var arg in args) info.ArgumentList.Add(arg);
+            if (environment != null) {
+                info.Environment.Clear();
+                foreach (var pair in environment) info.Environment[pair.Key] = pair.Value;
+            }
+            if (workingDirectory != null) info.WorkingDirectory = workingDirectory;
             // Client formatting only; no database GUC/timeout/transport changes.
             info.Environment["LC_ALL"] = "C";
             info.Environment["LANG"] = "C";

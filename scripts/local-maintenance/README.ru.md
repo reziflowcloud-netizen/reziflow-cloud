@@ -12,6 +12,10 @@ Pending migrations передаются плоским упорядоченны�
 
 Можно запускать тот же `scripts/local-maintenance/runner.ps1` напрямую через `pwsh -NoProfile -File`, с теми же режимом и guards. BAT передают аргументы без дополнительного `call`/повторного parsing и возвращают исходный exit code раннера. Пути с пробелами заключайте в двойные кавычки по правилам Windows native argv. Например: `STATUS.bat -ConfigPath "C:\LegalHub Private\config.json"`. Launchers не задают `-ExecutionPolicy`, не меняют политику и не используют Bypass. Если действующая политика запрещает выполнение, остановитесь; её нельзя обходить выбором другого интерпретатора. UTC-время sealed plan сохраняется как исходная строка на версиях с `ConvertFrom-Json -DateKind String`; строгая проверка также принимает UTC `DateTime` старых версий PowerShell 7 без преобразования через локаль. Строки должны иметь исходный round-trip формат `o` с `Z`. Срок четыре часа и допуск будущего времени две минуты сохранены. Изменение даты не продлевает план: HMAC проверяется до чтения payload, редактирование без правильного seal отклоняется. Новый SHA требует нового preflight и не наследует старый plan/approval.
 
+## Отдельный диагностический кандидат — REVIEW ONLY
+
+[Diagnostic-only contract](../../docs/local-maintenance-diagnostic-only.md) описывает отдельный инструмент с одним соединением и максимум двумя SELECT. Его подготовка и synthetic CI не разрешают Production-подключение. Текущие trust/identity prerequisites неполны; Production eligibility NO. Это не PREFLIGHT, не sealed migration plan и не разрешение повторить прежнюю попытку. Использовать можно только после независимого review и нового отдельного решения владельца с точными приватными pins и SHA envelope.
+
 ## Три действия оператора
 
 Уточнение проверки структуры: [закрытый контракт public-only restore](../../docs/local-maintenance-structure-proof.md).
