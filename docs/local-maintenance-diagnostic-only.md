@@ -32,11 +32,13 @@ No credentials, PATH, policy or installed-tool permissions are changed.
 
 One `psql.exe -w -X -q -A -t -v ON_ERROR_STOP=1 -v VERBOSITY=sqlstate
 -v SHOW_CONTEXT=never -f <private generated file>` runs with a cleared child-only
-environment. Its single host address is an independently pinned numeric IPv4;
+environment. Its single host address is an independently pinned numeric IPv4 (v1)
+or explicitly selected numeric IPv4/IPv6 (v2);
 PGHOST retains the expected hostname for `verify-full`, PGSSLMODE is verify-full,
 PGSSLROOTCERT is the hash-bound private CA file, and GSS encryption negotiation is
 disabled. No DNS fallback, service file, startup rc or inherited PG override is used.
-Only the loopback/prefixed-database synthetic profile permits TLS disabled.
+Only the existing v1/IPv4 loopback synthetic profile permits TLS disabled.
+The protected v2 IPv6 loopback fixture requires verify-full TLS as well.
 
 Maximum: **one database connection attempt, two read-only SELECT statements,
 six SQL statements**. Nested SELECT expressions/CTEs belong to the same top-level
@@ -76,11 +78,22 @@ the first connection, a client version or an old failed run.
 
 Private specification schema (all paths absolute and local):
 
-- version:1; configPath; pwshPath; pins.
+- version:1 or2; configPath; pwshPath; pins. v1 retains its original IPv4 semantics.
 - pins: database, maintenanceRole, applicationRole, databaseOid,
-  systemIdentifier, serverVersionNum, ipv4. Every pin is mandatory.
+  systemIdentifier, serverVersionNum. Every identity pin remains mandatory.
+- v1 address pin: ipv4 only. v2-only address fields in v1 are rejected; IPv6 is
+  never inferred from a v1 field or envelope.
+- v2 address pins: addressFamily (exact IPv4 or IPv6) and address (one canonical
+  numeric literal). ipv4/ipv6 aliases, lists, DNS names, brackets, scope IDs,
+  mapped IPv4 and family mismatches are rejected. No fallback is added.
 - Production additionally: caSha256, candidateCommit, gitPath,
   trustReviewReference (independent GitHub review comment), toolReferences.
+- v2 Production additionally: addressAttestationFile and addressAttestationSha256.
+  This private ACL-protected dossier must match version:1, addressFamily, address,
+  hostname, providerReference (HTTPS) and reviewReference (the same independent
+  trustReviewReference). Its hash is bound both in the specification and envelope.
+  Syntax/matching values DO NOT authenticate a provider statement: source,
+  project association, freshness and provenance require independent review.
 - Each tool reference: path, independently established sha256 and independentSource.
   Required closure includes pwsh, Git, psql, all adjacent psql DLLs and all adjacent
   runtime DLLs. Protected installation ownership/write ACLs and ancestors are checked
@@ -91,6 +104,57 @@ independent human assessment. A self-authored manifest of current hashes or a UR
 string is not an authenticity proof. Do not turn unknown prerequisites into PASS by
 populating them with local hashes. These checks are not a sandbox against an operator
 who already controls credentials and can edit executable source or approval records.
+
+## Minimal Direct IPv6 extension
+
+This extension starts from independently reviewed PR24 HEAD
+`1700f46d0496ac328ccd80811e78a7b0651720fa`. The original proof SELECT source,
+identity criteria, read-only transaction, counts, deadlines, capture, safe-output,
+owner approval and one-shot protections are unchanged. v1 generated SQL is checked
+byte-for-byte against fixed synthetic/Production model hashes from that HEAD.
+
+v2 adds a validated transport comment to the generated script and an explicit
+transportSha256 binding of `addressFamily|address`. The SELECT payloads are not
+modified. Envelope version must equal specification version; old source/script/
+specification bindings cannot be reinterpreted as a new IPv6 target. A changed
+family/address requires new hashes, offline Prepare and independent approval.
+
+Production IPv6 admits only conservative native global-unicast destinations in
+2000::/3, excluding IETF protocol assignments2001::/23, documentation2001:db8::/32
+and3fff::/20,6to4 2002::/16 and AS112 2620:4f:8000::/48. Other non-global,
+unspecified, loopback, link-local, multicast, translation and mapped/scoped forms
+are excluded. This is an intentionally narrow eligibility filter, not a provider
+ownership/routability attestation. Expansion needs separate review.
+See [IANA's registry](https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml).
+
+The one raw numeric IPv6 goes in PGHOSTADDR, without brackets or an address list.
+PGHOST stays the attested hostname for verify-full, never the IP literal.
+[libpq documents IPv6 hostaddr and hostname verification](https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-CONNECT-HOSTADDR).
+No DNS lookup is used to discover/fill an expected pin, and no IPv6-to-IPv4 or
+Session fallback occurs. CA binding and all exact database/role/cluster/version
+requirements remain mandatory.
+
+Synthetic ::1 is limited to version2/targetKind synthetic, hostname localhost,
+prefixed synthetic database, non5432 owned port, protected fixture root beneath
+privateDirectory/isolated, the reviewed runner ownership marker, matching fixture
+descriptor and postmaster startup metadata. It also requires a hash-bound test CA,
+verify-full and backend TLS. Production paths never accept this exception. No core
+Runner loopback/backup/restore/guard behavior is widened.
+
+The disposable IPv6 suite creates an ephemeral CA and DNS-only localhost server
+certificate, never installs a trust-store certificate, and exercises the actual
+public entrypoint. Server traces prove ::1 peer, one backend and6/5/4 statements
+for success/mismatch/first-query permission error. A same-CA wrong-host certificate
+must fail before SQL. A separate phase leaves IPv4 available while ::1 is absent;
+the IPv6 invocation must fail rather than fall back. Marker/hash/version negatives
+and secret/fail-closed output checks remain mandatory on PG17.12 and18.7. An
+unavailable real IPv6 fixture is a failed/blocked test, never a skipped PASS.
+
+WARP is transport only. Its Split Tunnels/profile and network/UDP restrictions
+must permit the pinned IPv6. Its egress/source IP may differ from the destination
+pin and must satisfy provider restrictions. DNS/WARP success does not establish
+pin/endpoint ownership, CA provenance, toolchain trust or current database identity.
+No WARP/Supabase setting changes or Production checks are part of this extension.
 
 ## Current offline prerequisites
 
@@ -115,7 +179,7 @@ rechecked. These are configured expectations, not independent ownership/identity
 attestation. CA content is not proof of the live peer's chain/hostname.
 
 **MISSING:** independently trusted project/cluster/database identity attestation,
-database OID, system identifier, exact server-version expectation, approved IPv4 pin,
+database OID, system identifier, exact server-version expectation, approved IP pin,
 independent CA/toolchain provenance, fully verified operator environment.
 **ACTUAL: NOT YET VERIFIED.** No Production query, DNS inference, ledger or backup
 was used. A Production envelope cannot be prepared from these incomplete inputs.

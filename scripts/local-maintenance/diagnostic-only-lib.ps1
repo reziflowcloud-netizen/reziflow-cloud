@@ -76,7 +76,57 @@ function Get-DiagnosticSourceBinding {
   }
   return Get-Sha256Text ($binding | ConvertTo-Json -Compress)
 }
-function Assert-DiagnosticPins($p) {
+function Get-DiagnosticAddress($p,[int]$Version=1) {
+  $ip=$null
+  if ($Version -eq 1) {
+    if (@($p.Keys | Where-Object {$_ -cin @('addressFamily','address','ipv6')}).Count -or
+        -not [Net.IPAddress]::TryParse([string]$p.ipv4,[ref]$ip) -or
+        $ip.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetwork -or
+        $ip.ToString() -cne $p.ipv4) { Stop-Diagnostic 'EXPECTED_IP_PIN_REQUIRED' }
+    return @{family='IPv4';address=[string]$p.ipv4}
+  }
+  if ($Version -ne 2 -or @($p.Keys | Where-Object {$_ -cin @('ipv4','ipv6')}).Count -or
+      $p.addressFamily -cnotin @('IPv4','IPv6') -or $p.address -isnot [string] -or
+      $p.address -cmatch '[^0-9a-f:.]' -or
+      -not [Net.IPAddress]::TryParse($p.address,[ref]$ip) -or $ip.ToString() -cne $p.address) {
+    Stop-Diagnostic 'EXPECTED_IP_PIN_REQUIRED'
+  }
+  $family=if($ip.AddressFamily -eq [Net.Sockets.AddressFamily]::InterNetwork){'IPv4'}else{'IPv6'}
+  if ($family -cne $p.addressFamily -or ($family -ceq 'IPv6' -and
+      ($ip.IsIPv4MappedToIPv6 -or $ip.ScopeId -ne 0))) { Stop-Diagnostic 'EXPECTED_IP_PIN_REQUIRED' }
+  return @{family=$family;address=$p.address}
+}
+function Assert-DiagnosticExternalAddress($address) {
+  if ($address.family -ceq 'IPv4') {
+    # Preserve the reviewed v1 IPv4 semantics; this patch does not widen it.
+    if ($address.address -like '127.*') { Stop-Diagnostic 'PRODUCTION_TLS_BINDING' }
+    return
+  }
+  $b=([Net.IPAddress]::Parse($address.address)).GetAddressBytes()
+  # Conservative native global-unicast policy. No special-purpose services,
+  # transitions, documentation, local/multicast/mapped/scoped destinations.
+  # IANA IPv6 Special-Purpose Registry (snapshot 2025-10-09); not ownership proof.
+  if (($b[0] -band 0xe0) -ne 0x20 -or
+      ($b[0] -eq 0x20 -and $b[1] -eq 0x01 -and $b[2] -lt 2) -or
+      ($b[0] -eq 0x20 -and $b[1] -eq 0x01 -and $b[2] -eq 0x0d -and $b[3] -eq 0xb8) -or
+      ($b[0] -eq 0x20 -and $b[1] -eq 0x02) -or
+      ($b[0] -eq 0x26 -and $b[1] -eq 0x20 -and $b[2] -eq 0 -and $b[3] -eq 0x4f -and $b[4] -eq 0x80 -and $b[5] -eq 0) -or
+      ($b[0] -eq 0x3f -and $b[1] -eq 0xff -and ($b[2] -band 0xf0) -eq 0)) {
+    Stop-Diagnostic 'PRODUCTION_IPV6_DESTINATION_FORBIDDEN'
+  }
+}
+function Assert-DiagnosticAddressAttestation($s,$address,[string]$Hostname) {
+  if (@(@('addressAttestationFile','addressAttestationSha256','trustReviewReference') | Where-Object {$_ -cnotin $s.Keys}).Count -or
+      $s.addressAttestationFile -isnot [string] -or -not $s.addressAttestationFile -or
+      $s.addressAttestationSha256 -cnotmatch '^[a-f0-9]{64}$') { Stop-Diagnostic 'ADDRESS_ATTESTATION_BINDING_REQUIRED' }
+  $a=Read-DiagnosticJson $s.addressAttestationFile
+  if ((Get-DiagnosticHash $s.addressAttestationFile) -cne $s.addressAttestationSha256 -or
+      $a.version -ne 1 -or $a.addressFamily -cne $address.family -or $a.address -cne $address.address -or
+      $a.hostname -cne $Hostname -or $a.providerReference -cnotmatch '^https://' -or
+      $a.reviewReference -cne $s.trustReviewReference) { Stop-Diagnostic 'ADDRESS_ATTESTATION_BINDING_REQUIRED' }
+  # A matching private dossier is not authentication; independent source/freshness review is mandatory.
+}
+function Assert-DiagnosticPins($p,[int]$Version=1) {
   foreach($key in @('database','maintenanceRole','applicationRole')) {
     if ($p[$key] -isnot [string] -or $p[$key] -cnotmatch '^[A-Za-z_][A-Za-z0-9_.-]{0,100}$') {
       Stop-Diagnostic 'EXPECTED_PINS_INCOMPLETE'
@@ -86,19 +136,16 @@ function Assert-DiagnosticPins($p) {
     if ([string]$p[$key] -cnotmatch '^[1-9][0-9]{0,19}$') { Stop-Diagnostic 'EXPECTED_PINS_INCOMPLETE' }
   }
   if ([string]$p.serverVersionNum -cnotmatch '^(17|18)[0-9]{4}$') { Stop-Diagnostic 'SERVER_VERSION_UNREVIEWED' }
-  $ip=$null
-  if (-not [Net.IPAddress]::TryParse([string]$p.ipv4,[ref]$ip) -or
-      $ip.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetwork -or
-      $ip.ToString() -cne $p.ipv4) { Stop-Diagnostic 'EXPECTED_IP_PIN_REQUIRED' }
+  [void](Get-DiagnosticAddress $p $Version)
 }
-function Get-DiagnosticSql($p,[bool]$Synthetic) {
-  Assert-DiagnosticPins $p
+function Get-DiagnosticSql($p,[bool]$Synthetic,[int]$Version=1,[bool]$SyntheticTls=$false) {
+  Assert-DiagnosticPins $p $Version
   $source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'structure-proof.ps1')).Replace("`r`n","`n")
   if ((Get-Sha256Text $source) -cne '0532f81930ead043012c1d88d65719577084a46980ce047c0c1c72062e844085') {
     Stop-Diagnostic 'REVIEWED_STRUCTURE_SOURCE_CHANGED'
   }
   $proof=(Get-StructureProofSql $p.applicationRole).Replace("`r`n","`n")
-  $tls=if($Synthetic){'false'}else{'true'}
+  $tls=if($Synthetic -and -not $SyntheticTls){'false'}else{'true'}
   # Input alphabet excludes SQL quoting/metacommands. All expected values are offline pins.
   $identity=@"
 SELECT COALESCE((current_database()='$($p.database)' AND current_user='$($p.maintenanceRole)'
@@ -132,13 +179,47 @@ $proof
 ROLLBACK;
 \echo LHD_ROLLBACK_OK
 "@
-  return @{script=$script.Replace("`r`n","`n")+"`n";proofSha256=(Get-Sha256Text $proof);
+  $script=$script.Replace("`r`n","`n")+"`n"
+  if ($Version -eq 2) {
+    $address=Get-DiagnosticAddress $p $Version
+    $script='-- LHD transport '+$address.family+' '+$address.address+"`n"+$script
+  }
+  return @{script=$script;proofSha256=(Get-Sha256Text $proof);
     identitySha256=(Get-Sha256Text $identity)}
+}
+function Get-DiagnosticIpv6FixtureUri($c) {
+  # Test-only ::1 exception requires a private, owned, running disposable cluster.
+  # No general loopback exemption is added to the Production branch or core Runner.
+  $root=$c.diagnosticIpv6Fixture
+  Assert-DiagnosticLocalPath $root; Assert-PrivateAcl $root
+  [void](Assert-ChildPath (Join-Path $c.privateDirectory 'isolated') $root)
+  $marker=Join-Path $root 'runner-owned.txt'; Assert-PrivateAcl $marker
+  $run=[IO.File]::ReadAllText($marker).Trim()
+  if ($run -cnotmatch '^synthetic_[a-z0-9]{8,60}$' -or (Split-Path $root -Leaf) -cne $run) { Stop-Diagnostic 'SYNTHETIC_IPV6_FIXTURE_INVALID' }
+  $fixture=Read-DiagnosticJson (Join-Path $root 'diagnostic-ipv6-fixture.json')
+  $pidFile=Join-Path $root 'cluster/postmaster.pid';Assert-PrivateAcl $pidFile
+  $pidLines=[IO.File]::ReadAllLines($pidFile)
+  if ($fixture.version -ne 1 -or $fixture.runId -cne $run -or $fixture.port -eq 5432 -or
+      $fixture.port -lt 1 -or $fixture.port -gt 65535 -or
+      $pidLines.Count -lt 4 -or $pidLines[0] -cnotmatch '^[1-9][0-9]*$' -or
+      [IO.Path]::GetFullPath($pidLines[1]) -cne [IO.Path]::GetFullPath((Join-Path $root 'cluster')) -or
+      $pidLines[3] -cne [string]$fixture.port -or $c.expectedHost -cne 'localhost' -or
+      $c.expectedApplicationHost -cne 'localhost' -or $c.tlsPolicy -cne 'verify-full' -or
+      $c.backendTlsRequired -ne $true) { Stop-Diagnostic 'SYNTHETIC_IPV6_FIXTURE_INVALID' }
+  $lines=@(Get-Content -LiteralPath $c.environmentFile -Encoding UTF8 | Where-Object {$_ -cmatch '^DIRECT_URL='})
+  if ($lines.Count -ne 1) { Stop-Diagnostic 'SYNTHETIC_IPV6_FIXTURE_INVALID' }
+  try {$uri=[Uri]::new($lines[0].Substring(11).Trim().Trim('"').Trim("'"))}catch{Stop-Diagnostic 'SYNTHETIC_IPV6_FIXTURE_INVALID'}
+  if ($uri.Scheme -cnotin @('postgres','postgresql') -or $uri.Host -cne 'localhost' -or
+      $uri.Port -ne $fixture.port -or $uri.UserInfo.Split(':',2).Count -ne 2 -or
+      $uri.AbsolutePath.TrimStart('/') -cne $fixture.database -or
+      $fixture.database -cnotmatch '^legalhub_runner_synthetic_[a-z0-9_]+$' -or
+      $uri.Query -cnotin @('','?schema=public') -or $uri.Fragment) { Stop-Diagnostic 'SYNTHETIC_IPV6_FIXTURE_INVALID' }
+  return $uri
 }
 function Get-DiagnosticContext([string]$Specification) {
   $s=Read-DiagnosticJson $Specification
-  if ($s.version -ne 1 -or @($s.Keys | Where-Object {$_ -cnotin @('version','configPath','pwshPath','pins',
-      'caSha256','trustReviewReference','toolReferences','gitPath','candidateCommit')}).Count) { Stop-Diagnostic 'SPECIFICATION_VERSION_OR_FIELDS' }
+  if ($s.version -notin @(1,2) -or @($s.Keys | Where-Object {$_ -cnotin @('version','configPath','pwshPath','pins',
+      'caSha256','trustReviewReference','toolReferences','gitPath','candidateCommit','addressAttestationFile','addressAttestationSha256')}).Count) { Stop-Diagnostic 'SPECIFICATION_VERSION_OR_FIELDS' }
   $c=Read-DiagnosticJson $s.configPath
   if ($c.connectionMode -cne 'direct' -or $c.targetKind -cnotin @('synthetic','production')) {
     Stop-Diagnostic 'DIRECT_TARGET_REQUIRED'
@@ -149,22 +230,31 @@ function Get-DiagnosticContext([string]$Specification) {
   if ([IO.Path]::GetFullPath($s.pwshPath) -cne [Environment]::ProcessPath) {
     Stop-Diagnostic 'POWERSHELL_PATH_MISMATCH'
   }
-  $uri=Get-PrivateDatabaseUri ([pscustomobject]$c) 'DIRECT_URL' $synthetic
+  Assert-DiagnosticPins $s.pins $s.version
+  $address=Get-DiagnosticAddress $s.pins $s.version
+  $syntheticTls=$synthetic -and $s.version -eq 2 -and $address.family -ceq 'IPv6'
+  if ($syntheticTls) {
+    if ($address.address -cne '::1') { Stop-Diagnostic 'SYNTHETIC_ISOLATION' }
+    $uri=Get-DiagnosticIpv6FixtureUri $c
+  } else {$uri=Get-PrivateDatabaseUri ([pscustomobject]$c) 'DIRECT_URL' $synthetic}
   if ($uri.Port -lt 1 -or $uri.Port -gt 65535 -or $uri.Fragment) { Stop-Diagnostic 'EXPLICIT_PORT_AND_NO_FRAGMENT_REQUIRED' }
   if (-not [Uri]::UnescapeDataString($uri.UserInfo.Split(':',2)[1])) { Stop-Diagnostic 'PASSWORD_REQUIRED_NO_PASSFILE_FALLBACK' }
-  Assert-DiagnosticPins $s.pins
   if ($c.applicationRole -cne $s.pins.applicationRole -or
       [Uri]::UnescapeDataString($uri.UserInfo.Split(':',2)[0]) -cne $s.pins.maintenanceRole -or
       $uri.AbsolutePath.TrimStart('/') -cne $s.pins.database) { Stop-Diagnostic 'PROFILE_PIN_MISMATCH' }
   if ($synthetic) {
-    if ($uri.Port -eq 5432 -or $s.pins.ipv4 -cne '127.0.0.1') { Stop-Diagnostic 'SYNTHETIC_ISOLATION' }
+    if ($uri.Port -eq 5432 -or (-not $syntheticTls -and $address.address -cne '127.0.0.1')) { Stop-Diagnostic 'SYNTHETIC_ISOLATION' }
   } else {
     if ($c.expectedHost -notmatch '(^|\.)supabase\.(co|com)$' -or
         $c.expectedApplicationHost -notmatch '(^|\.)supabase\.(co|com)$') { Stop-Diagnostic 'PRODUCTION_PROFILE_INVALID' }
     # Production execution cannot be enabled by a self-asserted boolean in config.
     # An independently reviewed, hash-approved private envelope is mandatory below.
-    if ($s.pins.ipv4 -like '127.*' -or $c.backendTlsRequired -ne $true -or $c.tlsPolicy -cne 'verify-full') {
+    Assert-DiagnosticExternalAddress $address
+    if ($c.backendTlsRequired -ne $true -or $c.tlsPolicy -cne 'verify-full') {
       Stop-Diagnostic 'PRODUCTION_TLS_BINDING'
+    }
+    if ($s.version -eq 2) {
+      Assert-DiagnosticAddressAttestation $s $address $uri.Host
     }
     Assert-DiagnosticLocalPath $c.tlsRootCertFile
     Assert-DiagnosticOutsideGit $c.tlsRootCertFile
@@ -191,8 +281,12 @@ function Get-DiagnosticContext([string]$Specification) {
     }
     Assert-DiagnosticGitCheckpoint $s
   }
-  $sql=Get-DiagnosticSql $s.pins $synthetic
-  return @{spec=$s;config=$c;uri=$uri;synthetic=$synthetic;sql=$sql}
+  if ($syntheticTls) {
+    Assert-DiagnosticLocalPath $c.tlsRootCertFile;Assert-DiagnosticOutsideGit $c.tlsRootCertFile;Assert-PrivateAcl $c.tlsRootCertFile
+    if ((Get-DiagnosticHash $c.tlsRootCertFile) -cne $s.caSha256) { Stop-Diagnostic 'CA_PIN_MISMATCH' }
+  }
+  $sql=Get-DiagnosticSql $s.pins $synthetic $s.version $syntheticTls
+  return @{spec=$s;config=$c;uri=$uri;synthetic=$synthetic;syntheticTls=$syntheticTls;address=$address;sql=$sql}
 }
 function Assert-DiagnosticGitCheckpoint($s) {
   # No PATH command lookup, hooks, credentials, fsmonitor, network or global Git config.
@@ -218,7 +312,7 @@ function Assert-DiagnosticGitCheckpoint($s) {
 }
 function Get-DiagnosticBindings($x,[string]$Specification) {
   $c=$x.config
-  return [ordered]@{specificationSha256=(Get-DiagnosticHash $Specification);
+  $bindings=[ordered]@{specificationSha256=(Get-DiagnosticHash $Specification);
     configSha256=(Get-DiagnosticHash $x.spec.configPath);
     environmentSha256=(Get-DiagnosticHash $c.environmentFile);
     sourceSha256=(Get-DiagnosticSourceBinding);
@@ -226,11 +320,17 @@ function Get-DiagnosticBindings($x,[string]$Specification) {
     psqlSha256=(Get-DiagnosticHash (Join-Path $c.postgresBin 'psql.exe'));
     scriptSha256=(Get-Sha256Text $x.sql.script);proofSha256=$x.sql.proofSha256;
     identitySha256=$x.sql.identitySha256}
+  if ($x.spec.version -eq 2) {
+    $bindings.transportSha256=Get-Sha256Text ($x.address.family+'|'+$x.address.address)
+    if ($x.syntheticTls) {$bindings.fixtureSha256=Get-DiagnosticHash (Join-Path $c.diagnosticIpv6Fixture 'diagnostic-ipv6-fixture.json')}
+    elseif (-not $x.synthetic) {$bindings.addressAttestationSha256=Get-DiagnosticHash $x.spec.addressAttestationFile}
+  }
+  return $bindings
 }
 function New-DiagnosticEnvelope([string]$Specification,[string]$Envelope) {
   $x=Get-DiagnosticContext $Specification
   [void](Assert-ChildPath $x.config.privateDirectory $Envelope)
-  $e=[ordered]@{version=1;runId=[Guid]::NewGuid().ToString('N');
+  $e=[ordered]@{version=$x.spec.version;runId=[Guid]::NewGuid().ToString('N');
     expiresUnixSeconds=[DateTimeOffset]::UtcNow.AddHours(24).ToUnixTimeSeconds();
     bindings=(Get-DiagnosticBindings $x $Specification)}
   Write-DiagnosticNewFile $Envelope ($e | ConvertTo-Json -Depth 8)
@@ -240,14 +340,14 @@ function New-DiagnosticChildEnvironment($x,[string]$RunId) {
   $safe=[Collections.Generic.Dictionary[string,string]]::new([StringComparer]::OrdinalIgnoreCase)
   $values=@{SystemRoot=$root;WINDIR=$root;ComSpec=(Join-Path $root 'System32/cmd.exe');
     PATH=((Join-Path $root 'System32')+';'+$root+';'+$c.postgresBin);
-    PGHOST=$uri.Host;PGHOSTADDR=$x.spec.pins.ipv4;PGPORT=[string]$uri.Port;
+    PGHOST=$uri.Host;PGHOSTADDR=$x.address.address;PGPORT=[string]$uri.Port;
     PGDATABASE=$x.spec.pins.database;PGUSER=$x.spec.pins.maintenanceRole;
     PGPASSWORD=[Uri]::UnescapeDataString($uri.UserInfo.Split(':',2)[1]);
     PGCONNECT_TIMEOUT='5';PGOPTIONS='-c lock_timeout=5s -c statement_timeout=30s';
     PGGSSENCMODE='disable';PGAPPNAME=('lhd-'+$RunId);PGSSLMODE='disable';
     TEMP=$c.privateDirectory;TMP=$c.privateDirectory;HOME=$c.privateDirectory;
     USERPROFILE=$c.privateDirectory;APPDATA=$c.privateDirectory;LOCALAPPDATA=$c.privateDirectory}
-  if (-not $x.synthetic) { $values.PGSSLMODE='verify-full';$values.PGSSLROOTCERT=$c.tlsRootCertFile }
+  if (-not $x.synthetic -or $x.syntheticTls) { $values.PGSSLMODE='verify-full';$values.PGSSLROOTCERT=$c.tlsRootCertFile }
   foreach($key in $values.Keys) { $safe[$key]=[string]$values[$key] }
   return ,$safe
 }
@@ -283,7 +383,7 @@ function Invoke-DiagnosticEnvelope([string]$Specification,[string]$Envelope,[str
   [void](Assert-ChildPath $x.config.privateDirectory $Envelope)
   $e=Read-DiagnosticJson $Envelope
   if ($e.Count -ne 4 -or @($e.Keys | Where-Object {$_ -cnotin @('version','runId','expiresUnixSeconds','bindings')}).Count -or
-      $e.version -ne 1 -or $e.runId -cnotmatch '^[a-f0-9]{32}$' -or
+      $e.version -ne $x.spec.version -or $e.runId -cnotmatch '^[a-f0-9]{32}$' -or
       $e.expiresUnixSeconds -isnot [long] -or
       $e.expiresUnixSeconds -lt [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() -or
       $e.expiresUnixSeconds -gt [DateTimeOffset]::UtcNow.AddHours(24).ToUnixTimeSeconds()) { Stop-Diagnostic 'ENVELOPE_INVALID_OR_EXPIRED' }
